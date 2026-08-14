@@ -1,96 +1,157 @@
-# DeepSeek Harness Desktop
+<p align="center">
+  <a href="https://github.com/hairyf/deepseek-harness-desktop">
+    <img src="public/favicon.svg" width="112" alt="DeepSeek Harness Desktop" />
+  </a>
+</p>
 
-基于 [Tauri 2](https://tauri.app/) 的桌面应用，参考
-[n8n-desktop](https://github.com/tangtao646/n8n-desktop) 的「一键安装 + 本地运行 + 内嵌 Web 界面」
-模式，将 [DeepSeek Harness（dsh）](https://github.com/deepseek-ai/deepseek-harness)
-打包为跨平台桌面应用：**无需手动安装 Node.js、无需 pnpm、无需 Docker**。
+<h1 align="center">DeepSeek Harness Desktop</h1>
 
-> 状态：开发预览。上游 `dsh` 仍在快速迭代，会有破坏性变更；本项目同步跟随。
+<p align="center">
+  <em>A one-click desktop app for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> — run the full agent harness locally without installing Node.js, pnpm, or Docker.</em>
+</p>
 
-## 功能
+<p align="center">
+  <strong>English</strong> · <a href="./README.zh.md">中文</a>
+</p>
 
-- **一键安装**：首次启动自动下载 Node.js 运行时与打包好的 Harness 发行版
-- **本地运行**：`dsh web` 服务运行在 `127.0.0.1:3080`，数据完全保存在本机
-- **隐私默认**：隔离的 `$DSH_HOME`，默认关闭遥测（`DSH_TELEMETRY_DISABLED=1`）
-- **跨平台**：Windows / macOS / Linux
-- **侧边栏**：版本信息、服务地址、端口与自启动设置、服务日志、重启/停止/浏览器打开等
-- **中英双语**：界面支持中文与 English
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.1.0-4D6BFE?style=flat-square" alt="version 0.1.0" />
+  <img src="https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license" />
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-black?style=flat-square" alt="Windows | macOS | Linux" />
+</p>
 
-## 依赖关系
+> **Status: developer preview.** The upstream `dsh` is still iterating rapidly with compatibility-breaking changes; this project tracks it closely.
 
-| 仓库 | 作用 |
+## Features
+
+| | |
 | --- | --- |
-| [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) | 上游 `dsh`（CLI + Web UI + 插件架构） |
-| [deepseek-harness-pkg](https://github.com/hairyf/deepseek-harness-pkg) | 打包好的 Harness 发行版（下载源，见 [PKG-CONTRACT](docs/PKG-CONTRACT.md)） |
+| **One-click install** | On first launch, the app downloads the Node.js runtime and a prebuilt Harness bundle for you — no manual Node.js, pnpm, or Docker setup. |
+| **Runs 100% locally** | The `dsh web` service runs at `http://127.0.0.1:3080`. Profiles, sessions, and settings all live on your machine. |
+| **Privacy by default** | Isolated `$DSH_HOME` and telemetry disabled out of the box (`DSH_TELEMETRY_DISABLED=1`). |
+| **Cross-platform** | Installers for Windows (NSIS/MSI), macOS (DMG), and Linux (AppImage). |
+| **Embedded web UI** | The complete DeepSeek Harness interface runs inside a native window, with a sidebar for version info, service address, port, auto-start, logs, and restart / stop / open-in-browser actions. |
+| **Checksum-verified downloads** | Harness bundles are verified against their SHA-256 digests before use. |
+| **Bilingual UI** | The interface ships in Chinese and English. |
 
-## 系统要求
+## Quick Start
 
-- Windows 10+（64 位）
+1. Download the installer for your platform from the [Releases](https://github.com/hairyf/deepseek-harness-desktop/releases) page.
+2. Install and launch the app.
+3. On the first run it downloads the Node.js runtime and the prebuilt Harness bundle (a few hundred MB in total). When setup finishes, the embedded Harness UI opens at `http://127.0.0.1:3080`.
+
+> First run requires a network connection. Everything after that runs locally.
+
+**Requirements**
+
+- Windows 10+ (64-bit)
 - macOS 10.15+
-- Linux（支持 AppImage 的主流发行版）
-- 首次运行需要网络（下载 Node.js 与 Harness 发行包，约几百 MB）
+- Linux (mainstream distributions that support AppImage)
+- Network on first launch
 
-Node.js 运行时要求：**v22.15.0+ 或 v23.8.0+**（应用默认捆绑 `v22.22.0` LTS）。
+The app bundles Node.js **v22.22.0 LTS**, which satisfies the Harness requirement of **v22.15.0+ or v23.8.0+**.
 
-## 开发与构建
+## Development
 
-### 环境要求
+### Prerequisites
 
 - Node.js 20+
 - Rust 1.77+
 - pnpm 9+
-- 平台编译工具链（Windows: MSVC + WebView2；macOS: Xcode CLT；Linux: WebKit2GTK）
+- Platform build toolchain (Windows: MSVC + WebView2; macOS: Xcode CLT; Linux: WebKit2GTK)
 
-### 本地开发
+### Run in dev mode
 
 ```bash
-git clone <your-fork>/deepseek-harness-desktop.git
+git clone https://github.com/hairyf/deepseek-harness-desktop.git
 cd deepseek-harness-desktop
 pnpm install
 pnpm tauri dev
 ```
 
-### 构建安装包
+### Build installers
 
 ```bash
 pnpm tauri build
 ```
 
-### 重新生成图标
+### Regenerate icons
 
 ```bash
 pnpm icons
 ```
 
-## 数据目录
+## How It Works
 
-数据目录由 Tauri 的 bundle identifier（`io.github.hairyf.deepseek-harness-desktop`）决定：
+```text
+┌──────────────────────────────────────────────┐
+│ Tauri WebView (React)                        │
+│   setup state machine → progress → iframe    │
+│   loads the dsh web UI + sidebar controls    │
+└──────────────────────┬───────────────────────┘
+                       │ invoke commands + events
+┌──────────────────────┴───────────────────────┐
+│ Tauri Rust backend                           │
+│   service/download  installer + extraction   │
+│   service/workflow  dsh process lifecycle    │
+│   task              dsh health checks        │
+└──────┬───────────────────────────┬───────────┘
+       │                           │
+  runtime/ (Node.js v22.22.0)   dependencies/dsh/ (prebuilt bundle)
+       └─────────────┬─────────────┘
+                     ▼
+   dsh --profile web --host 127.0.0.1 --port 3080
+                     │  DSH_HOME=<app-data>/data/dsh
+                     ▼
+        http://127.0.0.1:3080/  ← embedded UI
+```
 
-- Windows：`%APPDATA%\io.github.hairyf.deepseek-harness-desktop\`
-- macOS：`~/Library/Application Support/io.github.hairyf.deepseek-harness-desktop/`
-- Linux：`~/.local/share/io.github.hairyf.deepseek-harness-desktop/`
+- The prebuilt Harness bundle is published by [deepseek-harness-pkg](https://github.com/hairyf/deepseek-harness-pkg); see [docs/PKG-CONTRACT.md](docs/PKG-CONTRACT.md) for the release contract.
+- Full architecture notes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-包含：
+## Data Directory
 
-- `runtime/`：Node.js 运行时
-- `dependencies/dsh/`：Harness 发行版（`deepseek-harness-pkg` zip 解压）
-- `data/dsh/`：Harness 用户数据（`$DSH_HOME`，含 profile、会话、设置）
-- `logs/`：应用与 dsh 服务日志
-- `.store.dat`：桌面端配置（端口、自启动、语言，由 tauri-plugin-store 管理）
+The data directory follows the Tauri bundle identifier (`io.github.hairyf.deepseek-harness-desktop`):
 
-## 安全声明
+- Windows: `%APPDATA%\io.github.hairyf.deepseek-harness-desktop\`
+- macOS: `~/Library/Application Support/io.github.hairyf.deepseek-harness-desktop/`
+- Linux: `~/.local/share/io.github.hairyf.deepseek-harness-desktop/`
 
-- 本项目仅用于个人学习、研究、测试；请勿用于商业用途
-- `dsh` 是一个**具备本地代码执行能力的 agent**，请只在可信、隔离的环境中运行，
-  不要从未知来源导入不受信任的配置/插件
-- 开发者不对因使用本项目导致的任何数据丢失或安全问题负责
+It contains:
 
-## 致谢
+- `runtime/` — bundled Node.js runtime
+- `dependencies/dsh/` — extracted Harness bundle
+- `data/dsh/` — Harness user data (`$DSH_HOME`: profiles, sessions, settings)
+- `logs/` — app and dsh service logs
+- `.store.dat` — desktop settings (port, auto-start, language)
 
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — 上游项目
-- [n8n-desktop](https://github.com/tangtao646/n8n-desktop) — 参考实现
-- [Tauri](https://tauri.app/) — 桌面框架
+## FAQ
+
+- **Port 3080 is already in use?** Change the port in the sidebar settings and restart the service.
+- **What happens during the first-time setup?** The sidebar shows the install log and the live service log.
+- **Why does the app download so much on first launch?** It downloads the Node.js runtime and the prebuilt Harness bundle (a few hundred MB) once; afterwards everything runs offline.
+
+## Security Notes
+
+- This project is for personal learning, research, and testing only — please do not use it commercially.
+- `dsh` is an agent harness with **local code execution capability**. Run it only in a trusted, isolated environment, and never import untrusted configurations or plugins from unknown sources.
+- The developers are not liable for any data loss or security issues arising from the use of this project.
+
+## Related Projects
+
+| Project | Purpose |
+| --- | --- |
+| [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) | The upstream `dsh` (CLI + web UI + plugin architecture) |
+| [deepseek-harness-pkg](https://github.com/hairyf/deepseek-harness-pkg) | Prebuilt Harness bundles consumed by this app |
+| [n8n-desktop](https://github.com/tangtao646/n8n-desktop) | Reference implementation for one-click local desktop apps |
+
+## Acknowledgements
+
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — the upstream project
+- [n8n-desktop](https://github.com/tangtao646/n8n-desktop) — reference implementation
+- [Tauri](https://tauri.app/) — the desktop framework
 
 ## License
 
-MIT，见 [LICENSE](LICENSE)。
+[MIT](./LICENSE) © deepseek-harness-desktop contributors
