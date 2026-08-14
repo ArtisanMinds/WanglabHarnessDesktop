@@ -5,7 +5,6 @@ import SetupScreen, { InstallProgress, SetupStatus } from "./components/SetupScr
 import SidebarPanel from "./components/SidebarPanel";
 import { useI18n } from "./i18n/context";
 import { generateTimestampedUrl } from "./hooks/useAutoSync";
-import "./App.css";
 
 const MAX_RETRIES = 8;
 
