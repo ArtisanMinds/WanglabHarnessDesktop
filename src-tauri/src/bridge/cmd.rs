@@ -171,8 +171,12 @@ pub async fn clear_service_logs(app_handle: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn set_language(app_handle: AppHandle, lang: String) {
     let mut setting = config::get_store_dat_setting(&app_handle);
-    setting.language = lang;
+    setting.language = lang.clone();
     config::set_store_dat_setting(&app_handle, setting);
+    config::i18n::set_language(match lang.as_str() {
+        "en" => config::i18n::Lang::En,
+        _ => config::i18n::Lang::Zh,
+    });
 }
 
 /// 切换侧边栏（布局状态保存在前端，保留该命令以对齐参考实现）
