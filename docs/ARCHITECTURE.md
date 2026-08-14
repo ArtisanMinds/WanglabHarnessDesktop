@@ -57,5 +57,5 @@ src/                    React 前端（状态机、侧边栏、i18n）
 src-tauri/src/api/      Rust 命令与 harness 生命周期
 src-tauri/src/services/ 下载器与进程管理器
 docs/PKG-CONTRACT.md    deepseek-harness-pkg 发布契约
-scripts/gen-icons.mjs   图标生成（纯 Node）
+public/favicon.svg     应用图标源（黑标白底圆角，pnpm icons 生成）
 ```
