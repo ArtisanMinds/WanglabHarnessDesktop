@@ -1,0 +1,189 @@
+use serde::Serialize;
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, Runtime};
+
+use super::constants::*;
+use super::format::get_dsh_service_url;
+use super::utils::search_node_binary;
+
+/// 获取 App Data 基础目录
+fn get_base_dir<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf {
+    app_handle
+        .path()
+        .app_data_dir()
+        .expect("Failed to resolve app data directory")
+}
+
+/// Node.js 运行时下载地址
+pub fn get_node_download_url() -> Result<String, String> {
+    let arch = env::consts::ARCH;
+    let os = env::consts::OS;
+
+    // 抽象文件名逻辑
+    let filename = match (os, arch) {
+        ("macos", "aarch64") => format!("node-{}-darwin-arm64.tar.gz", NODE_VERSION),
+        ("macos", "x86_64") => format!("node-{}-darwin-x64.tar.gz", NODE_VERSION),
+        ("windows", _) => format!("node-{}-win-x64.zip", NODE_VERSION),
+        _ => return Err(format!("Unsupported platform: {} {}", os, arch)),
+    };
+
+    Ok(format!("{}/{}/{}", NODE_BASE_URL, NODE_VERSION, filename))
+}
+
+/// 打包的 DeepSeek Harness 发行版下载地址
+pub fn get_dsh_download_url() -> Result<String, String> {
+    let arch = env::consts::ARCH;
+    let os = env::consts::OS;
+
+    // 根据平台和架构生成文件名
+    let filename = match (os, arch) {
+        ("windows", _) => "deepseek-harness-pkg-windows.zip".to_string(),
+        ("macos", "aarch64") => "deepseek-harness-pkg-macos-arm64.zip".to_string(),
+        ("macos", "x86_64") => "deepseek-harness-pkg-macos-x64.zip".to_string(),
+        ("linux", _) => "deepseek-harness-pkg-linux.zip".to_string(),
+        _ => return Err(format!("Unsupported platform: {} {}", os, arch)),
+    };
+
+    Ok(format!("{}{}", DSH_CORE_URL, filename))
+}
+
+/// Node.js 二进制路径（安装后）
+pub fn get_node_binary_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let runtime_dir = get_node_install_path(app_handle);
+    // 使用 cfg 宏在编译时确定文件名
+    let (rel_path, bin_name) = if cfg!(windows) {
+        ("", "node.exe")
+    } else {
+        ("bin", "node")
+    };
+    let direct_path = runtime_dir.join(rel_path).join(bin_name);
+    if direct_path.exists() {
+        direct_path
+    } else {
+        // 只有在直接路径不存在时才进行开销较大的递归搜索
+        search_node_binary(&runtime_dir, bin_name).unwrap_or(direct_path)
+    }
+}
+
+pub fn get_node_install_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    get_base_dir(app_handle).join("runtime")
+}
+
+/// Harness 发行版安装目录
+pub fn get_dsh_install_path<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf {
+    get_base_dir(app_handle).join("dependencies").join(DSH_CORE_DIR)
+}
+
+/// dsh CLI 入口
+pub fn get_dsh_binary_path<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf {
+    get_dsh_install_path(app_handle).join(DSH_ENTRY_RELATIVE)
+}
+
+/// Harness 发行版清单路径
+pub fn get_dsh_package_json_path<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf {
+    get_dsh_install_path(app_handle).join(DSH_MANIFEST_RELATIVE)
+}
+
+/// Harness 用户数据目录（$DSH_HOME）
+pub fn get_dsh_data_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    get_base_dir(app_handle).join("data").join(DSH_DATA_DIR_NAME)
+}
+
+/// dsh 服务日志文件路径
+pub fn get_service_log_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    get_base_dir(app_handle).join("logs").join("dsh-web.log")
+}
+
+/// 捆绑的 Node.js 版本号
+pub fn get_bundled_node_version() -> String {
+    NODE_VERSION.trim_start_matches('v').to_string()
+}
+
+fn parse_node_version(output: &str) -> Option<(u64, u64, u64)> {
+    let version = output.trim().trim_start_matches('v');
+    let mut parts = version.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next()?.parse().ok()?;
+    Some((major, minor, patch))
+}
+
+/// 兼容性规则：v22.15.0+ 或 v23.8.0+（v24+ 也满足）
+fn is_supported_node_version(version: &str) -> bool {
+    let Some((major, minor, _patch)) = parse_node_version(version) else {
+        return false;
+    };
+    match major {
+        22 => minor >= 15,
+        23 => minor >= 8,
+        major if major >= 24 => true,
+        _ => false,
+    }
+}
+
+/// 运行 `node --version` 并判断运行时是否兼容
+pub fn is_runtime_compatible(app_handle: &tauri::AppHandle) -> bool {
+    let node = get_node_binary_path(app_handle);
+    if !node.exists() {
+        return false;
+    }
+    let output = match std::process::Command::new(&node).arg("--version").output() {
+        Ok(out) => out,
+        Err(_) => return false,
+    };
+    if !output.status.success() {
+        return false;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    is_supported_node_version(stdout.trim())
+}
+
+/// 从打包的 Harness 清单读取 dsh 版本（界面展示用）
+pub fn get_dsh_version<R: Runtime>(app_handle: &AppHandle<R>) -> Option<String> {
+    let manifest_path = get_dsh_package_json_path(app_handle);
+    let content = fs::read_to_string(&manifest_path).ok()?;
+    let manifest: serde_json::Value = serde_json::from_str(&content).ok()?;
+    manifest
+        .get("dependencies")
+        .and_then(|deps| deps.get("@deepseek-ai/dsh"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim_start_matches(['^', '~', '=', '>', '<']).to_string())
+}
+
+/// 侧边栏展示的运行时/版本/诊断信息
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeInfo {
+    pub app_version: String,
+    pub dsh_version: Option<String>,
+    pub node_version: String,
+    pub service_url: String,
+    pub data_dir: String,
+    pub log_path: String,
+    pub platform: String,
+    pub arch: String,
+}
+
+pub fn runtime_info<R: Runtime>(app: &AppHandle<R>, port: u16) -> RuntimeInfo {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    RuntimeInfo {
+        app_version: app.package_info().version.to_string(),
+        dsh_version: get_dsh_version(app),
+        node_version: get_bundled_node_version(),
+        service_url: get_dsh_service_url(port),
+        data_dir: app_data_dir.clone(),
+        log_path: PathBuf::from(&app_data_dir)
+            .join("logs")
+            .join("dsh-web.log")
+            .to_string_lossy()
+            .into_owned(),
+        platform: env::consts::OS.to_string(),
+        arch: env::consts::ARCH.to_string(),
+    }
+}

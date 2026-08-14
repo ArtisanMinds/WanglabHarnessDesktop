@@ -1,0 +1,297 @@
+pub mod status;
+pub mod utils;
+
+use crate::config;
+use crate::service::download;
+use crate::service::workflow::utils::{is_dsh_running, is_port_in_use, spawn_output_readers};
+use std::collections::HashMap;
+use std::fs;
+use std::process::{Command, Stdio};
+use tauri::Manager;
+
+/// 检测并启动 Harness 服务
+pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let setting = config::get_store_dat_setting(&app_handle);
+    let node_binary_path = config::get_node_binary_path(&app_handle);
+    let dsh_binary_path = config::get_dsh_binary_path(&app_handle);
+
+    if !setting.installed {
+        log::debug!("Harness not installed, skipping startup");
+        return Ok(());
+    }
+    if !node_binary_path.exists() || !dsh_binary_path.exists() {
+        let mut setting = config::get_store_dat_setting(&app_handle);
+        setting.installed = false;
+        config::set_store_dat_setting(&app_handle, setting);
+        log::debug!("Harness not installed, skipping startup");
+        return Ok(());
+    }
+
+    log::debug!("Checking Harness running status");
+    let port_in_use = is_port_in_use(setting.port);
+    let dsh_running = is_dsh_running().await;
+
+    if port_in_use && !dsh_running {
+        log::info!("Harness is not running, but port is in use, stopping harness");
+        stop(app_handle.clone()).await?;
+        return Ok(());
+    }
+
+    if dsh_running {
+        log::info!("Harness is already running");
+        status::set_status(status::Status::Running);
+        status::emit_status(&app_handle);
+        return Ok(());
+    }
+
+    log::info!("Starting Harness service");
+    status::set_status(status::Status::Starting);
+    status::emit_status(&app_handle);
+    launch(app_handle).await?;
+    // 之后由 scheduler/task/tick_check_dsh_process/mod.rs 检测状态
+
+    Ok(())
+}
+
+/// 重启 Harness 服务
+pub async fn restart(app_handle: tauri::AppHandle) -> Result<(), String> {
+    log::info!("Restarting Harness service");
+
+    // 1. 停止现有服务
+    stop(app_handle.clone()).await?;
+
+    // 2. 重新启动
+    start(app_handle).await?;
+
+    Ok(())
+}
+
+/// 启动 Harness 服务进程
+pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let setting = config::get_store_dat_setting(&app_handle);
+    let node_binary_path = config::get_node_binary_path(&app_handle);
+    let dsh_binary_path = config::get_dsh_binary_path(&app_handle);
+
+    log::debug!("Checking Node.js path: {:?}", node_binary_path);
+    if !node_binary_path.exists() {
+        log::error!("Node.js not installed");
+        return Err("NODE_NOT_FOUND: Node.js not installed".to_string());
+    }
+    log::debug!("Checking Harness path: {:?}", dsh_binary_path);
+    if !dsh_binary_path.exists() {
+        log::error!("Harness not installed");
+        return Err("HARNESS_NOT_FOUND: Harness not installed".to_string());
+    }
+
+    // 避免重复启动（竞态由启动前的端口/健康检查兜底）
+    if is_dsh_running().await {
+        log::info!("Harness is already running, skipping launch");
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        let _ = Command::new("pkill").arg("-9").arg("node").output();
+    }
+
+    // 构造环境变量：隔离的 $DSH_HOME + 隐私默认（关闭遥测）
+    let dsh_home = config::get_dsh_data_path(&app_handle);
+    fs::create_dir_all(&dsh_home).map_err(|e| format!("create dsh home failed: {e}"))?;
+    let mut envs: HashMap<String, String> = HashMap::new();
+    envs.insert("DSH_HOME".to_string(), dsh_home.to_string_lossy().into_owned());
+    envs.insert("DSH_TELEMETRY_DISABLED".to_string(), "1".to_string());
+    envs.insert("NO_COLOR".to_string(), "1".to_string());
+    envs.insert("DSH_WEB_PORT".to_string(), setting.port.to_string());
+
+    // 扩展 PATH，让 dsh 及其子进程能找到 node
+    if let Some(node_dir) = node_binary_path.parent() {
+        if let Some(existing_path) = std::env::var_os("PATH") {
+            let mut paths = vec![node_dir.to_path_buf()];
+            paths.extend(std::env::split_paths(&existing_path));
+            if let Ok(new_path) = std::env::join_paths(paths) {
+                envs.insert("PATH".to_string(), new_path.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    // 日志文件（前端日志面板读取）
+    let log_path = config::get_service_log_path(&app_handle);
+    fs::create_dir_all(log_path.parent().unwrap_or(std::path::Path::new(".")))
+        .map_err(|e| format!("create log dir failed: {e}"))?;
+
+    let mut cmd = Command::new(&node_binary_path);
+    cmd.arg(&dsh_binary_path)
+        .arg("--profile")
+        .arg("web")
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg(&setting.port.to_string())
+        .envs(&envs)
+        .current_dir(config::get_dsh_install_path(&app_handle))
+        // 核心修正：提供一个空的 stdin 防止 setRawMode 报错
+        .stdin(Stdio::null())
+        // 使用管道捕获输出，以便在子线程中读取
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+
+    log::info!("Starting Harness process");
+    match cmd.spawn() {
+        Ok(mut child) => {
+            log::info!("Harness process started successfully");
+            // 获取 stdout 和 stderr，并启动读取线程
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+            spawn_output_readers(stdout, stderr, log_path);
+
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to start process: {}", e);
+            Err(format!("Failed to start process: {}", e))
+        }
+    }
+}
+
+/// 停止 Harness 服务
+pub async fn stop(app_handle: tauri::AppHandle) -> Result<(), String> {
+    log::info!("Stopping Harness service...");
+    let port = config::get_store_dat_setting(&app_handle).port;
+
+    #[cfg(unix)]
+    {
+        // 使用 lsof 找到占用端口的进程并强制结束
+        let _ = Command::new("sh")
+            .arg("-c")
+            .arg(format!("lsof -ti:{} | xargs kill -9", port))
+            .output();
+    }
+
+    #[cfg(windows)]
+    {
+        // 使用 PowerShell 清理端口占用进程（更稳定）
+        let ps_cmd = format!(
+            "Get-NetTCPConnection -LocalPort {} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
+            port
+        );
+
+        let mut cmd = Command::new("powershell");
+        // 使用 -WindowStyle Hidden 和 -NoProfile -NonInteractive 确保不显示窗口
+        cmd.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &ps_cmd,
+        ]);
+
+        // 隐藏 PowerShell 窗口，避免弹出黑色控制台窗口
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+        // 重定向 stdout 和 stderr 到空，进一步确保不显示窗口
+        cmd.stdout(Stdio::null());
+        cmd.stderr(Stdio::null());
+
+        let output = cmd.output();
+
+        if let Err(e) = output {
+            log::error!("Windows stop error: {}", e);
+        }
+    }
+
+    // 给系统一点时间释放端口 (重要！)
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+
+    status::set_status(status::Status::Stopped);
+    status::emit_status(&app_handle);
+    Ok(())
+}
+
+/// 安装环境（Node.js 运行时 + 打包的 Harness 发行版）
+pub async fn install(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    log::info!("Starting installation process");
+    let window = app_handle
+        .get_webview_window("main")
+        .ok_or("Failed to get main window")?;
+    log::debug!("Main window obtained");
+    let mut tracker = download::ProgressTracker::new(&window, 4);
+    let tasks: Vec<Box<dyn download::Installable>> =
+        vec![Box::new(download::Nodejs), Box::new(download::Dsh)];
+    log::info!("Task list created, {} tasks total", tasks.len());
+
+    for (index, task) in tasks.iter().enumerate() {
+        log::debug!("Processing task {}/{}", index + 1, tasks.len());
+        if task.check_installed(app_handle) {
+            log::debug!("Task {} already installed, skipping", index + 1);
+            tracker.skip_phases(2);
+            continue;
+        }
+
+        log::info!("Task {} not installed, starting installation", index + 1);
+
+        // 1. 下载
+        tracker.start_phase("download", &format!("正在下载 {}", task.title()));
+        let url = task.get_download_url()?;
+        log::debug!("Download URL: {}", url);
+        let name = url.split('/').last().unwrap().to_string();
+        log::debug!("File name: {}", name);
+        let buffer = download::download_file(&tracker, url).await?;
+        log::info!("Download completed, file size: {} bytes", buffer.len());
+        tracker.end_phase();
+
+        // 2. 解压
+        tracker.start_phase("extract", &format!("正在解压 {}", task.title()));
+        let dest = task.get_install_path(app_handle);
+        log::debug!("Installation path: {:?}", dest);
+        download::ensure_extract(&tracker, name, buffer, dest)?;
+        log::info!("Extraction completed");
+        tracker.end_phase();
+    }
+
+    log::info!("All installation tasks completed");
+    tracker.update(
+        100.0,
+        "依赖已安装完毕".to_string(),
+        "All tasks completed".into(),
+    );
+
+    Ok(())
+}
+
+/// 健康检查（通过 Rust 代理，避免 WebView CORS 问题）
+pub async fn proxy_health_check(port: u16) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(config::HEALTH_CHECK_TIMEOUT)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    for endpoint in [
+        format!("http://127.0.0.1:{port}/"),
+        format!("http://127.0.0.1:{port}/healthz"),
+    ] {
+        match client.get(&endpoint).send().await {
+            Ok(response) => {
+                let status = response.status();
+                let body = response.text().await.unwrap_or_default();
+                if status.is_success() {
+                    return Ok(format!(
+                        "healthy - {status} - {}",
+                        body.chars().take(80).collect::<String>()
+                    ));
+                }
+            }
+            Err(err) => {
+                log::debug!("Health check {endpoint}: {err}");
+            }
+        }
+    }
+    Err("HARNESS_NOT_READY: Harness service is not ready".to_string())
+}

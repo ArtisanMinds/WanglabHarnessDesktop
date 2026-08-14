@@ -38,7 +38,7 @@ zip 是自包含的 npm 项目，**顶层目录直接就是包内容**（没有�
    └─ .bin/dsh             # bin shim（桌面端不使用，直接跑 lib/bin.js）
 ```
 
-桌面端解压到 `<app-data>/dsh-core/`，并直接调用
+桌面端解压到 `<app-data>/dependencies/dsh/`，并直接调用
 `node_modules/@deepseek-ai/dsh/lib/bin.js` 作为 CLI 入口。
 
 ## 3. 清单字段

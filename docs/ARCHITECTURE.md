@@ -16,29 +16,29 @@
                 │ invoke 命令 + 事件
 ┌───────────────┴────────────────────────────────┐
 │ Tauri Rust 后端                                │
-│  installer  : 下载并校验 dsh-core zip          │
-│  manager    : Node 运行时 + dsh 进程管理       │
-│  downloader : 带进度的下载与解压               │
-│  health     : 127.0.0.1:3080 健康检查          │
+│  bridge     : invoke 命令（cmd.rs）            │
+│  config     : 常量 / 运行时路径 / 设置         │
+│  service    : download 安装器 + workflow 进程  │
+│  task       : tick 检测 dsh 服务状态           │
 └───────┬──────────────────────┬─────────────────┘
         │                      │
-   <app-data>/runtime      <app-data>/dsh-core
-   (Node.js v22.22.0)      (@hairyf/... zip 解压)
+   <app-data>/runtime      <app-data>/dependencies/dsh
+   (Node.js v22.22.0)      (deepseek-harness-pkg zip 解压)
         │                      │
         └──────────┬───────────┘
                    ▼
         dsh --profile web --host 127.0.0.1 --port 3080
-                   │  DSH_HOME=<app-data>/dsh-home
+                   │  DSH_HOME=<app-data>/data/dsh
                    ▼
         http://127.0.0.1:3080/  ← iframe
 ```
 
 ## 启动流程
 
-1. 检查/下载 Node.js 运行时（`nodejs.org`，失败回退 `npmmirror`）；
-2. 检查/下载 `dsh-core-<os>-<arch>.zip`（GitHub Release，SHA-256 校验）；
-3. 解压到 `<app-data>/dsh-core`；
-4. 以隔离的 `$DSH_HOME` 启动 `dsh --profile web`；
+1. 检查/下载 Node.js 运行时（`nodejs.org`，`service/download` 带进度解压）；
+2. 检查/下载 `deepseek-harness-pkg-<os>.zip`（GitHub Release）；
+3. 解压到 `<app-data>/dependencies/dsh`；
+4. 以隔离的 `$DSH_HOME`（`<app-data>/data/dsh`）启动 `dsh --profile web`；
 5. 轮询健康检查，就绪后在前端 iframe 中加载 UI。
 
 ## 数据目录
@@ -47,15 +47,23 @@
 - macOS：`~/Library/Application Support/io.github.hairyf.deepseek-harness-desktop/`
 - Linux：`~/.local/share/io.github.hairyf.deepseek-harness-desktop/`
 
-包含：`runtime/`（Node.js）、`dsh-core/`（harness 发行版）、`dsh-home/`（harness 用户数据）、
-`logs/`、`config/`。
+包含：`runtime/`（Node.js）、`dependencies/dsh/`（harness 发行版）、
+`data/dsh/`（harness 用户数据）、`logs/`、`.store.dat`（桌面设置）。
 
 ## 目录说明
 
 ```text
 src/                    React 前端（状态机、侧边栏、i18n）
-src-tauri/src/api/      Rust 命令与 harness 生命周期
-src-tauri/src/services/ 下载器与进程管理器
+src-tauri/src/bridge/   invoke 命令（cmd.rs）
+src-tauri/src/config/   常量 / 运行时路径 / 设置（store）
+src-tauri/src/service/  download 安装器 + workflow 进程生命周期
+src-tauri/src/task/     定时检测 dsh 服务状态
+src-tauri/src/logger/   简易日志系统（SimpleLogger）
 docs/PKG-CONTRACT.md    deepseek-harness-pkg 发布契约
 public/favicon.svg     应用图标源（黑标白底圆角，pnpm icons 生成）
 ```
+
+> 后端目录与文件命名对齐早期依赖 n8n 的
+> [damn-reports](https://github.com/hairyf/damn-reports)（提交 `c818b79`）：
+> `bridge/`、`config/`、`core/`、`logger/`、`service/download/`、
+> `service/workflow/`、`task/`。

@@ -73,10 +73,10 @@ pnpm icons
 包含：
 
 - `runtime/`：Node.js 运行时
-- `dsh-core/`：Harness 发行版
-- `dsh-home/`：Harness 用户数据（`$DSH_HOME`，含 profile、会话、设置）
+- `dependencies/dsh/`：Harness 发行版（`deepseek-harness-pkg` zip 解压）
+- `data/dsh/`：Harness 用户数据（`$DSH_HOME`，含 profile、会话、设置）
 - `logs/`：应用与 dsh 服务日志
-- `config/`：桌面端配置（端口、自启动）
+- `.store.dat`：桌面端配置（端口、自启动、语言，由 tauri-plugin-store 管理）
 
 ## 安全声明
 
