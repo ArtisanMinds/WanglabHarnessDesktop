@@ -4,6 +4,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="docs/preivew.png" width="720" alt="DeepSeek Harness Desktop 界面预览" />
+</p>
+
 <h1 align="center">DeepSeek Harness 桌面版</h1>
 
 <p align="center">

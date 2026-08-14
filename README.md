@@ -4,6 +4,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="docs/preivew.png" width="720" alt="DeepSeek Harness Desktop preview" />
+</p>
+
 <h1 align="center">DeepSeek Harness Desktop</h1>
 
 <p align="center">
