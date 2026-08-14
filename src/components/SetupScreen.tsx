@@ -46,10 +46,10 @@ export default function SetupScreen({
   const visibleLogs = logs.length ? logs : [t("ui.waiting_logs")];
 
   return (
-    <div className="setup-screen">
-      <div className="setup-card installer-card">
-        <div className="setup-logo">
-          <div className="icon-circle">
+    <div className="flex h-full items-center justify-center">
+      <div className="w-[min(460px,88vw)] rounded-[14px] border border-line bg-panel px-[46px] py-[42px] text-center">
+        <div className="text-accent2">
+          <div className="inline-flex h-16 w-16 items-center justify-center rounded-full border border-[rgba(77,107,254,0.35)] bg-gradient-to-br from-[rgba(77,107,254,0.2)] to-[rgba(110,139,255,0.06)] text-accent2">
             <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
@@ -58,34 +58,37 @@ export default function SetupScreen({
           </div>
         </div>
 
-        <h2 className="installer-title">{heading}</h2>
-        <p className="installer-detail">{description}</p>
+        <h2 className="mt-[18px] mb-1.5 text-xl font-semibold text-ink">{heading}</h2>
+        <p className="mb-6 min-h-[18px] text-[13px] break-all text-muted">{description}</p>
 
-        <div className="installer-progress">
-          <div className="progress-track" role="progressbar" aria-valuenow={Math.round(percentage)}>
-            <div className="progress-fill" style={{ width: `${Math.min(percentage, 100)}%` }} />
+        <div className="mb-5 flex items-center gap-3">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-panel2" role="progressbar" aria-valuenow={Math.round(percentage)}>
+            <div className="h-full bg-gradient-to-r from-accent to-accent2 transition-[width] duration-150" style={{ width: `${Math.min(percentage, 100)}%` }} />
           </div>
-          <span className="progress-value">{Math.round(percentage)}%</span>
+          <span className="min-w-[44px] text-right text-[13px] font-semibold tabular-nums text-accent2">{Math.round(percentage)}%</span>
         </div>
 
-        <div className="installer-log" aria-label={t("ui.install_log")}>
+        <div className="mb-5 min-h-[112px] max-h-[184px] overflow-y-auto rounded-lg border border-line bg-[#0a0a0c] px-3.5 py-2.5 text-left font-mono text-xs leading-[1.7]" aria-label={t("ui.install_log")}>
           {visibleLogs.slice(-LOG_LIMIT).map((line, index) => (
-            <p key={`${line}-${index}`} className="log-line">
-              <span className="log-caret">›</span>
-              <span className="log-text">{line}</span>
+            <p key={`${line}-${index}`} className="m-0 flex gap-2 overflow-hidden text-ellipsis whitespace-nowrap text-[#b8b8c0]">
+              <span className="shrink-0 text-accent select-none">›</span>
+              <span className="min-w-0 overflow-hidden text-ellipsis">{line}</span>
             </p>
           ))}
         </div>
 
         {loading && (
-          <div className="installer-processing">
-            <span className="spinner small" />
-            <span className="processing-text">PROCESSING...</span>
+          <div className="inline-flex items-center gap-2.5">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
+            <span className="text-[11px] font-semibold tracking-[0.18em] text-muted">PROCESSING...</span>
           </div>
         )}
 
         {error && (
-          <button className="btn primary" onClick={onRetry}>
+          <button
+            className="inline-flex cursor-pointer items-center justify-center rounded-md border border-accent bg-accent px-3 py-1.5 text-[13px] text-white transition-colors hover:bg-accent2 disabled:cursor-not-allowed disabled:opacity-55"
+            onClick={onRetry}
+          >
             {t("app.retry")}
           </button>
         )}

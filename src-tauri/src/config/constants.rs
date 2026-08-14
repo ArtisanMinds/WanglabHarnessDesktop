@@ -2,16 +2,9 @@ use std::time::Duration;
 
 /// 捆绑的 Node.js 运行时版本（满足 v22.15.0+ / v23.8.0+ 的要求）
 pub const NODE_VERSION: &str = "v22.22.0";
-/// 打包的 Harness 要求的最低 Node.js 版本
-pub const MINIMUM_NODE_VERSION: &str = "22.15.0";
 
 /// Node.js 官方下载地址
 pub const NODE_BASE_URL: &str = "https://nodejs.org/dist/";
-/// npmmirror 镜像（备用下载源）
-pub const NODE_NPMMIRROR_URL: &str = "https://npmmirror.com/mirrors/node/";
-
-/// GitHub 下载代理前缀（备用下载源）
-pub const GITHUB_PROXY_PREFIX: &str = "https://gh-proxy.com/";
 
 /// 打包的 DeepSeek Harness 发行版下载地址（GitHub Release）
 pub const DSH_CORE_URL: &str =

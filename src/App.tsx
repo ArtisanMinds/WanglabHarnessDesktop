@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { Wrench } from "lucide-react";
 import SetupScreen, { InstallProgress, SetupStatus } from "./components/SetupScreen";
 import SidebarPanel from "./components/SidebarPanel";
 import { useI18n } from "./i18n/context";
@@ -22,6 +23,9 @@ const initialInstaller: InstallerState = {
   logs: [],
 };
 
+const btnPrimary =
+  "inline-flex cursor-pointer items-center justify-center rounded-md border border-accent bg-accent px-3 py-1.5 text-[13px] text-white transition-colors hover:bg-accent2 disabled:cursor-not-allowed disabled:opacity-55";
+
 export default function App() {
   const { t } = useI18n();
   const [status, setStatus] = useState<SetupStatus>("installing");
@@ -31,18 +35,19 @@ export default function App() {
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem("sidebarCollapsed");
-    return saved === null ? true : saved === "true";
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem("sidebarOpen");
+    return saved === null ? false : saved === "true";
   });
   const [serviceRunning, setServiceRunning] = useState(false);
 
   const bootToken = useRef(0);
 
   const handleToggleSidebar = () => {
-    const next = !sidebarCollapsed;
-    setSidebarCollapsed(next);
-    localStorage.setItem("sidebarCollapsed", String(next));
+    setSidebarOpen((prev) => {
+      localStorage.setItem("sidebarOpen", String(!prev));
+      return !prev;
+    });
   };
 
   const refreshIframe = useCallback(() => {
@@ -184,17 +189,8 @@ export default function App() {
 
   if (status === "error") {
     return (
-      <div className="app-shell">
-        <SidebarPanel
-          collapsed={sidebarCollapsed}
-          onToggle={handleToggleSidebar}
-          serviceRunning={serviceRunning}
-          onRestart={restart}
-          onShutdown={shutdown}
-          onStart={boot}
-          onOpenBrowser={openBrowser}
-        />
-        <main className="main-panel">
+      <div className="flex h-screen w-screen">
+        <main className="relative flex-1 bg-canvas">
           <SetupScreen
             status="error"
             title=""
@@ -205,14 +201,31 @@ export default function App() {
             onRetry={boot}
           />
         </main>
+        <button
+          onClick={handleToggleSidebar}
+          title={t("ui.settings")}
+          className={`fixed top-4 z-40 flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-line bg-panel2 text-ink shadow-lg transition-all duration-200 hover:bg-[#26262d] ${
+            sidebarOpen ? "right-[316px]" : "right-4"
+          }`}
+        >
+          <Wrench className="h-[18px] w-[18px]" />
+        </button>
+        <SidebarPanel
+          open={sidebarOpen}
+          serviceRunning={serviceRunning}
+          onRestart={restart}
+          onShutdown={shutdown}
+          onStart={boot}
+          onOpenBrowser={openBrowser}
+        />
       </div>
     );
   }
 
   if (status !== "ready") {
     return (
-      <div className="app-shell">
-        <main className="main-panel full">
+      <div className="flex h-screen w-screen">
+        <main className="relative w-full bg-canvas">
           <SetupScreen
             status={status}
             title={installer.title}
@@ -227,38 +240,29 @@ export default function App() {
     );
   }
 
-  const iframeSrc = generateTimestampedUrl(serviceUrl);
+  const iframeSrc = useMemo(() => generateTimestampedUrl(serviceUrl), [serviceUrl]);
 
   return (
-    <div className="app-shell">
-      <SidebarPanel
-        collapsed={sidebarCollapsed}
-        onToggle={handleToggleSidebar}
-        serviceRunning={serviceRunning}
-        onRestart={restart}
-        onShutdown={shutdown}
-        onStart={boot}
-        onOpenBrowser={openBrowser}
-      />
-      <main className="main-panel">
+    <div className="flex h-screen w-screen">
+      <main className="relative flex-1 bg-canvas">
         {!iframeLoaded && (
-          <div className="iframe-loading">
-            <span className="spinner" />
+          <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 bg-canvas text-ink">
+            <span className="h-[34px] w-[34px] animate-spin rounded-full border-[3px] border-line border-t-accent" />
             <p>{t("status.loading")}</p>
           </div>
         )}
         {iframeError && (
-          <div className="iframe-error">
+          <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 bg-canvas text-ink">
             <p>{t("ui.iframe_error")}</p>
-            <p className="muted">{t("ui.ensure_running", { url: serviceUrl })}</p>
-            <button className="btn primary" onClick={refreshIframe}>
+            <p className="text-muted">{t("ui.ensure_running", { url: serviceUrl })}</p>
+            <button className={btnPrimary} onClick={refreshIframe}>
               {t("app.retry")}
             </button>
           </div>
         )}
         <iframe
           key={iframeKey}
-          className="harness-frame"
+          className="block h-full w-full border-none bg-white"
           src={iframeSrc}
           onLoad={() => {
             setIframeLoaded(true);
@@ -271,6 +275,23 @@ export default function App() {
           title={t("app.open_editor")}
         />
       </main>
+      <button
+        onClick={handleToggleSidebar}
+        title={t("ui.settings")}
+        className={`fixed top-4 z-40 flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-line bg-panel2 text-ink shadow-lg transition-all duration-200 hover:bg-[#26262d] ${
+          sidebarOpen ? "right-[316px]" : "right-4"
+        }`}
+      >
+        <Wrench className="h-[18px] w-[18px]" />
+      </button>
+      <SidebarPanel
+        open={sidebarOpen}
+        serviceRunning={serviceRunning}
+        onRestart={restart}
+        onShutdown={shutdown}
+        onStart={boot}
+        onOpenBrowser={openBrowser}
+      />
     </div>
   );
 }

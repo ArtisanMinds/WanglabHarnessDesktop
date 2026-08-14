@@ -1,2 +1,20 @@
-@import './components/scrollbar.css';
-@import './global.css';
+@import "tailwindcss";
+
+@config "../../tailwind.config.js";
+
+@import "./components/scrollbar.css";
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    @apply overflow-hidden bg-canvas text-ink;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+  }
+}

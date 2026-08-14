@@ -19,8 +19,7 @@ export interface AppConfig {
 }
 
 interface SidebarPanelProps {
-  collapsed: boolean;
-  onToggle: () => void;
+  open: boolean;
   serviceRunning: boolean;
   onRestart: () => void;
   onShutdown: () => void;
@@ -29,8 +28,7 @@ interface SidebarPanelProps {
 }
 
 export default function SidebarPanel({
-  collapsed,
-  onToggle,
+  open,
   serviceRunning,
   onRestart,
   onShutdown,
@@ -38,6 +36,11 @@ export default function SidebarPanel({
   onOpenBrowser,
 }: SidebarPanelProps) {
   const { t, language, setLanguage } = useI18n();
+  const btnBase =
+    "inline-flex cursor-pointer items-center justify-center rounded-md border border-line bg-panel2 px-2 py-1 text-xs text-ink transition-colors hover:border-[#3a3a44] hover:bg-[#26262d] disabled:cursor-not-allowed disabled:opacity-55";
+  const btnPrimary = `${btnBase} border-accent bg-accent text-white hover:border-accent2 hover:bg-accent2`;
+  const btnDanger = `${btnBase} border-[rgba(229,72,77,0.4)] text-danger`;
+  const btnBlock = " mt-1.5 w-full";
   const [info, setInfo] = useState<RuntimeInfo | null>(null);
   const [port, setPort] = useState("3080");
   const [autoStart, setAutoStart] = useState(true);
@@ -131,120 +134,129 @@ export default function SidebarPanel({
   };
 
   return (
-    <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
-      <button className="sidebar-toggle" onClick={onToggle} title={t("app.collapse_sidebar")}>
-        {collapsed ? "»" : "«"}
-      </button>
-
-      {!collapsed && (
-        <div className="sidebar-content">
-          <div className="sidebar-section">
-            <h3>{t("ui.connection_status")}</h3>
-            <span className={`status-pill ${serviceRunning ? "ok" : "off"}`}>
-              {serviceRunning ? t("ui.running") : t("ui.stopped")}
-            </span>
-          </div>
-
-          <div className="sidebar-section">
-            <h3>{t("ui.service_url")}</h3>
-            <div className="url-row">
-              <code className="url-text">{info?.service_url ?? "-"}</code>
-              <button className="btn small" onClick={copyUrl} title={t("app.copy_url")}>
-                {t("buttons.copy")}
-              </button>
-            </div>
-            <button className="btn small block" onClick={onOpenBrowser}>
-              {t("app.open_browser")}
-            </button>
-          </div>
-
-          <div className="sidebar-section">
-            <h3>{t("ui.actions")}</h3>
-            <div className="btn-group">
-              {serviceRunning ? (
-                <>
-                  <button className="btn small" onClick={onRestart}>
-                    {t("app.restart")}
-                  </button>
-                  <button className="btn small danger" onClick={onShutdown}>
-                    {t("app.shutdown")}
-                  </button>
-                </>
-              ) : (
-                <button className="btn small primary" onClick={onStart}>
-                  {t("app.retry")}
-                </button>
-              )}
-              <button className="btn small" onClick={refreshInfo}>
-                {t("app.refresh")}
-              </button>
-            </div>
-          </div>
-
-          <div className="sidebar-section">
-            <h3>{t("ui.app_info")}</h3>
-            <dl className="info-list">
-              <dt>{t("ui.current_version")}</dt>
-              <dd>{info?.app_version ?? "-"}</dd>
-              <dt>{t("ui.dsh_version")}</dt>
-              <dd>{info?.dsh_version ?? "-"}</dd>
-              <dt>{t("ui.node_version")}</dt>
-              <dd>v{info?.node_version ?? "-"}</dd>
-              <dt>Platform</dt>
-              <dd>
-                {info?.platform ?? "-"} / {info?.arch ?? "-"}
-              </dd>
-              <dt>{t("ui.data_dir")}</dt>
-              <dd className="path-cell" title={info?.data_dir}>
-                {info?.data_dir ?? "-"}
-                <button className="btn small" onClick={revealDataDir}>
-                  {t("app.reveal_dir")}
-                </button>
-              </dd>
-            </dl>
-          </div>
-
-          <div className="sidebar-section">
-            <h3>{t("ui.settings")}</h3>
-            <label className="field">
-              <span>{t("ui.port")}</span>
-              <input value={port} onChange={(e) => setPort(e.target.value)} inputMode="numeric" />
-            </label>
-            <label className="check-row">
-              <input type="checkbox" checked={autoStart} onChange={(e) => setAutoStart(e.target.checked)} />
-              <span>{t("ui.auto_start")}</span>
-            </label>
-            <button className="btn small block" onClick={saveConfig} disabled={saving}>
-              {saving ? t("ui.saved") : t("ui.save")}
-            </button>
-            <div className="lang-row">
-              <span>{t("ui.language")}:</span>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as "en" | "zh")}
-              >
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="sidebar-section logs-section">
-            <h3>
-              {t("ui.logs")}
-              <button className="btn small" onClick={refreshLogs} title={t("buttons.refresh_logs")}>
-                ↻
-              </button>
-            </h3>
-            <pre className="log-view">{logs || t("ui.no_logs")}</pre>
-            <button className="btn small" onClick={clearLogs}>
-              {t("buttons.clear_logs")}
-            </button>
-          </div>
-
-          {notice && <div className="notice">{notice}</div>}
+    <aside
+      className={`fixed inset-y-0 right-0 z-30 flex w-[300px] flex-col overflow-y-auto border-l border-line bg-panel shadow-2xl transition-transform duration-200 ease-out ${
+        open ? "translate-x-0" : "translate-x-full"
+      }`}
+    >
+      <div className="px-3 pt-4 pb-5">
+        <div className="mb-[18px]">
+          <h3 className="mb-2 flex items-center justify-between gap-1.5 text-xs uppercase tracking-[0.06em] text-muted">{t("ui.connection_status")}</h3>
+          <span
+            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              serviceRunning ? "bg-[rgba(70,167,88,0.15)] text-ok" : "bg-[rgba(229,72,77,0.15)] text-danger"
+            }`}
+          >
+            {serviceRunning ? t("ui.running") : t("ui.stopped")}
+          </span>
         </div>
-      )}
+
+        <div className="mb-[18px]">
+          <h3 className="mb-2 flex items-center justify-between gap-1.5 text-xs uppercase tracking-[0.06em] text-muted">{t("ui.service_url")}</h3>
+          <div className="flex items-center gap-1.5">
+            <code className="flex-1 truncate rounded-md border border-line bg-panel2 px-2 py-1.5 text-xs">{info?.service_url ?? "-"}</code>
+            <button className={btnBase} onClick={copyUrl} title={t("app.copy_url")}>
+              {t("buttons.copy")}
+            </button>
+          </div>
+          <button className={`${btnBase}${btnBlock}`} onClick={onOpenBrowser}>
+            {t("app.open_browser")}
+          </button>
+        </div>
+
+        <div className="mb-[18px]">
+          <h3 className="mb-2 flex items-center justify-between gap-1.5 text-xs uppercase tracking-[0.06em] text-muted">{t("ui.actions")}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            {serviceRunning ? (
+              <>
+                <button className={btnBase} onClick={onRestart}>
+                  {t("app.restart")}
+                </button>
+                <button className={btnDanger} onClick={onShutdown}>
+                  {t("app.shutdown")}
+                </button>
+              </>
+            ) : (
+              <button className={btnPrimary} onClick={onStart}>
+                {t("app.retry")}
+              </button>
+            )}
+            <button className={btnBase} onClick={refreshInfo}>
+              {t("app.refresh")}
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-[18px]">
+          <h3 className="mb-2 flex items-center justify-between gap-1.5 text-xs uppercase tracking-[0.06em] text-muted">{t("ui.app_info")}</h3>
+          <dl className="m-0 text-xs">
+            <dt className="mt-1.5 text-muted">{t("ui.current_version")}</dt>
+            <dd className="mt-0.5 break-all">{info?.app_version ?? "-"}</dd>
+            <dt className="mt-1.5 text-muted">{t("ui.dsh_version")}</dt>
+            <dd className="mt-0.5 break-all">{info?.dsh_version ?? "-"}</dd>
+            <dt className="mt-1.5 text-muted">{t("ui.node_version")}</dt>
+            <dd className="mt-0.5 break-all">v{info?.node_version ?? "-"}</dd>
+            <dt className="mt-1.5 text-muted">Platform</dt>
+            <dd className="mt-0.5 break-all">
+              {info?.platform ?? "-"} / {info?.arch ?? "-"}
+            </dd>
+            <dt className="mt-1.5 text-muted">{t("ui.data_dir")}</dt>
+            <dd className="mt-0.5" title={info?.data_dir}>
+              <div className="break-all">{info?.data_dir ?? "-"}</div>
+            </dd>
+          </dl>
+        </div>
+
+        <div className="mb-[18px]">
+          <h3 className="mb-2 flex items-center justify-between gap-1.5 text-xs uppercase tracking-[0.06em] text-muted">{t("ui.settings")}</h3>
+          <label className="mb-2 flex items-center gap-2">
+            <span>{t("ui.port")}</span>
+            <input
+              className="flex-1 rounded-md border border-line bg-panel2 px-2 py-1.5 text-[13px] text-ink outline-none focus:border-accent/60"
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              inputMode="numeric"
+            />
+          </label>
+          <label className="mb-2 flex cursor-pointer items-center gap-2">
+            <input type="checkbox" checked={autoStart} onChange={(e) => setAutoStart(e.target.checked)} />
+            <span>{t("ui.auto_start")}</span>
+          </label>
+          <button className={`${btnBase}${btnBlock}`} onClick={saveConfig} disabled={saving}>
+            {saving ? t("ui.saved") : t("ui.save")}
+          </button>
+          <div className="mt-2.5 flex items-center gap-2 text-[13px]">
+            <span>{t("ui.language")}:</span>
+            <select
+              className="flex-1 rounded-md border border-line bg-panel2 px-2 py-1 text-[13px] text-ink outline-none"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as "en" | "zh")}
+            >
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <h3 className="mb-2 flex items-center justify-between gap-1.5 text-xs uppercase tracking-[0.06em] text-muted">
+            {t("ui.logs")}
+            <button className={btnBase} onClick={refreshLogs} title={t("buttons.refresh_logs")}>
+              ↻
+            </button>
+          </h3>
+          <pre className="m-0 max-h-[200px] overflow-auto whitespace-pre-wrap break-all rounded-md border border-line bg-[#0a0a0c] px-2 py-2 text-[11px] leading-[1.45] text-[#b8b8c0]">{logs || t("ui.no_logs")}</pre>
+          <button className={btnBase} onClick={clearLogs}>
+            {t("buttons.clear_logs")}
+          </button>
+        </div>
+
+        {notice && (
+          <div className="fixed bottom-[18px] left-1/2 z-10 -translate-x-1/2 rounded-lg border border-line bg-panel2 px-3.5 py-2 text-[13px] shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+            {notice}
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
