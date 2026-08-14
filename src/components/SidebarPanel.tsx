@@ -201,8 +201,11 @@ export default function SidebarPanel({
               {info?.platform ?? "-"} / {info?.arch ?? "-"}
             </dd>
             <dt className="mt-1.5 text-muted">{t("ui.data_dir")}</dt>
-            <dd className="mt-0.5" title={info?.data_dir}>
-              <div className="break-all">{info?.data_dir ?? "-"}</div>
+            <dd className="mt-0.5 flex items-center justify-center gap-2" title={info?.data_dir}>
+              <div className="break-all truncate">{info?.data_dir ?? "-"}</div>
+              <button className={`${btnBase} flex-shrink-0 text-[10px]`} onClick={revealDataDir}>
+                {t("app.reveal_dir")}
+              </button>
             </dd>
           </dl>
         </div>

@@ -42,6 +42,9 @@ export default function App() {
   const [serviceRunning, setServiceRunning] = useState(false);
 
   const bootToken = useRef(0);
+  const bootStartedRef = useRef(false);
+
+  const iframeSrc = useMemo(() => generateTimestampedUrl(serviceUrl), [serviceUrl]);
 
   const handleToggleSidebar = () => {
     setSidebarOpen((prev) => {
@@ -153,9 +156,23 @@ export default function App() {
     }
   }, [refreshIframe, serviceUrl, t]);
 
+  // React StrictMode 在 dev 下会执行两次 effect，这里确保 boot 只挂载一次
   useEffect(() => {
+    if (bootStartedRef.current) return;
+    bootStartedRef.current = true;
     void boot();
   }, [boot]);
+
+  // 进入 ready 后如果 iframe 长时间未加载（dsh 未就绪/挂起），
+  // 转为错误界面，避免一直停在黑色加载遮罩
+  useEffect(() => {
+    if (status !== "ready" || iframeLoaded) return;
+    const timer = setTimeout(() => {
+      setIframeLoaded(false);
+      setIframeError(true);
+    }, 20000);
+    return () => clearTimeout(timer);
+  }, [status, iframeLoaded, iframeKey]);
 
   const restart = async () => {
     try {
@@ -239,8 +256,6 @@ export default function App() {
       </div>
     );
   }
-
-  const iframeSrc = useMemo(() => generateTimestampedUrl(serviceUrl), [serviceUrl]);
 
   return (
     <div className="flex h-screen w-screen">

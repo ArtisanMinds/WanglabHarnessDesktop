@@ -7,7 +7,55 @@ use crate::service::workflow::utils::{is_dsh_running, is_port_in_use, spawn_outp
 use std::collections::HashMap;
 use std::fs;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
+
+/// 启动守卫：并发调用 `launch` 时只允许一个真正拉起 dsh 进程
+static LAUNCH_GUARD: AtomicBool = AtomicBool::new(false);
+
+/// 强制结束占用指定端口的进程（用于停止服务或清理僵尸进程）
+fn kill_port_holder(port: u16) {
+    #[cfg(unix)]
+    {
+        // 使用 lsof 找到占用端口的进程并强制结束
+        let _ = Command::new("sh")
+            .arg("-c")
+            .arg(format!("lsof -ti:{} | xargs kill -9", port))
+            .output();
+    }
+
+    #[cfg(windows)]
+    {
+        // 使用 PowerShell 清理端口占用进程（更稳定）
+        let ps_cmd = format!(
+            "Get-NetTCPConnection -LocalPort {} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
+            port
+        );
+
+        let mut cmd = Command::new("powershell");
+        // 使用 -WindowStyle Hidden 和 -NoProfile -NonInteractive 确保不显示窗口
+        cmd.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &ps_cmd,
+        ]);
+
+        // 隐藏 PowerShell 窗口，避免弹出黑色控制台窗口
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+        // 重定向 stdout 和 stderr 到空，进一步确保不显示窗口
+        cmd.stdout(Stdio::null());
+        cmd.stderr(Stdio::null());
+
+        if let Err(e) = cmd.output() {
+            log::error!("Failed to kill port holder: {}", e);
+        }
+    }
+}
 
 /// 检测并启动 Harness 服务
 pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
@@ -83,10 +131,24 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
         return Err("HARNESS_NOT_FOUND: Harness not installed".to_string());
     }
 
-    // 避免重复启动（竞态由启动前的端口/健康检查兜底）
+    // 避免重复启动（配合启动守卫，确保并发调用只拉起一个进程）
     if is_dsh_running().await {
         log::info!("Harness is already running, skipping launch");
         return Ok(());
+    }
+    if LAUNCH_GUARD.swap(true, Ordering::SeqCst) {
+        log::info!("Harness launch already in progress, skipping");
+        return Ok(());
+    }
+
+    // 端口被占用但服务未响应：先清理僵尸进程，避免 dsh EADDRINUSE 崩溃
+    if is_port_in_use(setting.port) {
+        log::warn!(
+            "Port {} is occupied but harness is not responding, cleaning up",
+            setting.port
+        );
+        kill_port_holder(setting.port);
+        tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     }
 
     #[cfg(unix)]
@@ -150,9 +212,21 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
             let stderr = child.stderr.take();
             spawn_output_readers(stdout, stderr, log_path);
 
+            // 后台等待 dsh 就绪后释放启动守卫，覆盖启动窗口内的并发调用
+            tauri::async_runtime::spawn(async move {
+                for _ in 0..15 {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    if is_dsh_running().await {
+                        break;
+                    }
+                }
+                LAUNCH_GUARD.store(false, Ordering::SeqCst);
+            });
+
             Ok(())
         }
         Err(e) => {
+            LAUNCH_GUARD.store(false, Ordering::SeqCst);
             log::error!("Failed to start process: {}", e);
             Err(format!("Failed to start process: {}", e))
         }
@@ -164,48 +238,9 @@ pub async fn stop(app_handle: tauri::AppHandle) -> Result<(), String> {
     log::info!("Stopping Harness service...");
     let port = config::get_store_dat_setting(&app_handle).port;
 
-    #[cfg(unix)]
-    {
-        // 使用 lsof 找到占用端口的进程并强制结束
-        let _ = Command::new("sh")
-            .arg("-c")
-            .arg(format!("lsof -ti:{} | xargs kill -9", port))
-            .output();
-    }
-
-    #[cfg(windows)]
-    {
-        // 使用 PowerShell 清理端口占用进程（更稳定）
-        let ps_cmd = format!(
-            "Get-NetTCPConnection -LocalPort {} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
-            port
-        );
-
-        let mut cmd = Command::new("powershell");
-        // 使用 -WindowStyle Hidden 和 -NoProfile -NonInteractive 确保不显示窗口
-        cmd.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-WindowStyle",
-            "Hidden",
-            "-Command",
-            &ps_cmd,
-        ]);
-
-        // 隐藏 PowerShell 窗口，避免弹出黑色控制台窗口
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-
-        // 重定向 stdout 和 stderr 到空，进一步确保不显示窗口
-        cmd.stdout(Stdio::null());
-        cmd.stderr(Stdio::null());
-
-        let output = cmd.output();
-
-        if let Err(e) = output {
-            log::error!("Windows stop error: {}", e);
-        }
-    }
+    // 重置启动守卫，确保后续 launch 可以重新拉起
+    LAUNCH_GUARD.store(false, Ordering::SeqCst);
+    kill_port_holder(port);
 
     // 给系统一点时间释放端口 (重要！)
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
