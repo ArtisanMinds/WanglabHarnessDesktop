@@ -79,7 +79,7 @@ fn tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
         .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("DeepSeek Harness Desktop")
+        .tooltip("Deepseek Harness Desktop")
         .on_menu_event(move |app, event| handle_menu_event(app, &event))
         .on_tray_icon_event(move |tray, event| handle_tray_icon_event(&tray, &event))
         .build(app)?;
