@@ -35,7 +35,7 @@ const ROUTES: &[Route] = &[
     },
     Route {
         id: "deepseek",
-        display_name: "WanglabAI - DeepSeek",
+        display_name: "WanglabAI - Deepseek",
         key_env: "WANGLABAI_DEEPSEEK_API_KEY",
         base_url: "https://10.201.2.89:31417/v1",
         key: "sk-wanglabai-deepseek",
