@@ -1,0 +1,74 @@
+name: Wanglab Windows Release
+
+on:
+  push:
+    branches:
+      - wanglab/0.1.0-localization
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wanglab-windows-v0.1.0
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: Build Windows Installer
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      source_ref: ${{ github.sha }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  publish:
+    name: Publish Windows Installer
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v7
+        with:
+          name: release-windows
+          path: release-windows
+
+      - name: Select NSIS installer
+        shell: bash
+        run: |
+          installer="$(find release-windows -type f -name '*_x64-setup.exe' -print -quit)"
+          if [ -z "$installer" ]; then
+            echo 'Windows NSIS installer was not produced'
+            exit 1
+          fi
+          mkdir -p release-assets
+          cp "$installer" 'release-assets/Wanglab Harness Desktop_0.1.0_x64-setup.exe'
+
+      - name: Publish v0.1.0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: v0.1.0
+          RELEASE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/$RELEASE_TAG" \
+              -f sha="$RELEASE_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/$GH_REPO/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" -f sha="$RELEASE_SHA" >/dev/null
+          fi
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/*.exe --clobber
+            gh release edit "$RELEASE_TAG" \
+              --title 'Wanglab Harness Desktop v0.1.0' \
+              --draft=false --prerelease=false --latest
+          else
+            gh release create "$RELEASE_TAG" release-assets/*.exe \
+              --title 'Wanglab Harness Desktop v0.1.0' \
+              --notes 'Windows installer for Wanglab Harness Desktop 0.1.0.' \
+              --latest
+          fi
