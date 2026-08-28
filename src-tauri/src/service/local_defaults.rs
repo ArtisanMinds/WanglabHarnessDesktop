@@ -166,12 +166,11 @@ fn patch_credentials(path: &Path) -> Result<(), String> {
             changed = true;
         }
     }
-    if !changed {
-        return Ok(());
+    if changed {
+        let rendered = serde_yaml::to_string(&document)
+            .map_err(|e| format!("render {} failed: {e}", path.display()))?;
+        fs::write(path, rendered).map_err(|e| format!("write {} failed: {e}", path.display()))?;
     }
-    let rendered = serde_yaml::to_string(&document)
-        .map_err(|e| format!("render {} failed: {e}", path.display()))?;
-    fs::write(path, rendered).map_err(|e| format!("write {} failed: {e}", path.display()))?;
 
     // credentials-local rejects a POSIX credentials file readable by group or
     // other users. Keep the Desktop-created file on the same boundary as the
