@@ -169,9 +169,18 @@ fn patch_credentials(path: &Path) -> Result<(), String> {
     if !changed {
         return Ok(());
     }
-    fs::write(
-        path,
-        serde_yaml::to_string(&document).map_err(|e| format!("render {} failed: {e}", path.display()))?,
-    )
-    .map_err(|e| format!("write {} failed: {e}", path.display()))
+    let rendered = serde_yaml::to_string(&document)
+        .map_err(|e| format!("render {} failed: {e}", path.display()))?;
+    fs::write(path, rendered).map_err(|e| format!("write {} failed: {e}", path.display()))?;
+
+    // credentials-local rejects a POSIX credentials file readable by group or
+    // other users. Keep the Desktop-created file on the same boundary as the
+    // upstream provider's own atomic writes.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("protect {} failed: {e}", path.display()))?;
+    }
+    Ok(())
 }
