@@ -13,7 +13,6 @@ use crate::config;
 struct Route {
     id: &'static str,
     display_name: &'static str,
-    catalog_provider: &'static str,
     key_env: &'static str,
     base_url: &'static str,
     key: &'static str,
@@ -21,25 +20,22 @@ struct Route {
 
 const ROUTES: &[Route] = &[
     Route {
-        id: "wanglabai-openai",
+        id: "openai",
         display_name: "WanglabAI - OpenAI",
-        catalog_provider: "openai",
         key_env: "WANGLABAI_OPENAI_API_KEY",
         base_url: "https://10.201.2.89:31415/v1",
         key: "sk-wanglabai",
     },
     Route {
-        id: "wanglabai-claude",
+        id: "anthropic",
         display_name: "WanglabAI - Claude",
-        catalog_provider: "anthropic",
         key_env: "WANGLABAI_CLAUDE_API_KEY",
         base_url: "https://10.201.2.89:31416",
         key: "sk-wanglabai-claude",
     },
     Route {
-        id: "wanglabai-deepseek",
+        id: "deepseek",
         display_name: "WanglabAI - DeepSeek",
-        catalog_provider: "deepseek",
         key_env: "WANGLABAI_DEEPSEEK_API_KEY",
         base_url: "https://10.201.2.89:31417/v1",
         key: "sk-wanglabai-deepseek",
@@ -107,7 +103,6 @@ fn patch_settings(path: &Path) -> Result<(), String> {
         let provider_map = mapping_mut(provider, path)?;
         for (key, value) in [
             ("displayName", route.display_name),
-            ("catalogProvider", route.catalog_provider),
             ("apiKeyEnv", route.key_env),
             ("baseURL", route.base_url),
         ] {
@@ -133,9 +128,38 @@ fn patch_credentials(path: &Path) -> Result<(), String> {
     let mut document = read_yaml_mapping(path)?;
     let root = mapping_mut(&mut document, path)?;
     let mut changed = false;
+    let version_key = string_key("version");
+    let refs_key = string_key("refs");
+    let versioned = root
+        .get(&version_key)
+        .and_then(Value::as_i64)
+        .map(|version| version == 1)
+        .unwrap_or(false);
+    if root.contains_key(&version_key) && !versioned {
+        return Err(format!(
+            "{} has an unsupported credentials document version",
+            path.display()
+        ));
+    }
+
+    let target = if versioned {
+        if !root.contains_key(&refs_key) {
+            root.insert(refs_key.clone(), Value::Mapping(Mapping::new()));
+            changed = true;
+        }
+        let refs = root
+            .get_mut(&refs_key)
+            .expect("refs inserted or already present");
+        mapping_mut(refs, path)?
+    } else {
+        // The current upstream credentials provider recognizes this legacy
+        // flat form at boot and migrates it to version 1 itself.
+        root
+    };
+
     for route in ROUTES {
-        if !root.contains_key(&string_key(route.key_env)) {
-            root.insert(
+        if !target.contains_key(&string_key(route.key_env)) {
+            target.insert(
                 string_key(route.key_env),
                 Value::String(route.key.to_string()),
             );
