@@ -66,8 +66,7 @@ pub fn setup(app_handle: tauri::AppHandle) {
         log::warn!("pnpm modules metadata self-heal skipped: {e}");
     }
 
-    // Wanglab 本地部署默认路由；已有 dsh 配置只补缺失项。放在迁移之后，
-    // 确保旧数据合并完成后再写入默认值。
+    // Wanglab 本地部署默认配置；仅在全新安装时创建，已有文件不覆盖。
     if let Err(e) = crate::service::local_defaults::apply(&app_handle) {
         log::warn!("apply Wanglab defaults skipped: {e}");
     }
