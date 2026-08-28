@@ -90,10 +90,13 @@ pub fn get_dsh_download_url() -> Result<String, String> {
 /// 切换镜像并告知用户，避免 ghfast.top 不稳定导致首次安装失败。
 pub fn get_dsh_download_urls() -> Result<Vec<String>, String> {
     let filename = dsh_pkg_asset_filename()?;
-    Ok(vec![
-        format!("{}{}", dsh_core_base_url(), filename),
-        format!("{}{}", dsh_mirror_base_url(), filename),
-    ])
+    let primary = format!("{}{}", dsh_core_base_url(), filename);
+    let mirror = format!("{}{}", dsh_mirror_base_url(), filename);
+    if primary == mirror {
+        Ok(vec![primary])
+    } else {
+        Ok(vec![primary, mirror])
+    }
 }
 
 /// 为任意 GitHub Release 资产 URL 生成 ghfast.top 镜像兜底地址
@@ -111,6 +114,9 @@ pub fn get_dsh_download_url_for_tag(tag: &str) -> Result<String, String> {
     let base = dsh_core_base_url().replace(
         "releases/latest/download/",
         &format!("releases/download/{tag}/"),
+    ).replace(
+        "core/releases/latest/",
+        &format!("core/releases/{tag}/"),
     );
     Ok(format!("{}{}", base, dsh_pkg_asset_filename()?))
 }

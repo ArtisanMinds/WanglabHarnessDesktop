@@ -142,7 +142,8 @@ fn download_client() -> Result<reqwest::Client, String> {
 /// 时才提供兜底；否则只允许官方直连，宁可在官方不可用时失败，也不冒投毒风险。
 fn download_sources(release: &LatestRelease) -> Vec<String> {
     let mut urls = vec![release.url.clone()];
-    if release.digest.is_some() {
+    // Wanglab 自有下载源不经过 ghfast；镜像只适用于 GitHub Release URL。
+    if release.digest.is_some() && release.url.starts_with("https://github.com/") {
         urls.push(config::mirror_download_url(&release.url));
     }
     urls

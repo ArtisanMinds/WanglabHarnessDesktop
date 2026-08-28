@@ -262,6 +262,8 @@ fn validate_download_url(url: &str) -> Result<(), String> {
                 | "cdn.npmmirror.com"
                 | "registry.npmmirror.com"
                 | "ghfast.top"
+                | "seuwanglab.com"
+                | "10.201.2.89"
         )
     );
     if parsed.scheme() != "https" || !trusted_host {

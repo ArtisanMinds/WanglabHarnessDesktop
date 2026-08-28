@@ -11,7 +11,27 @@
 use std::time::Duration;
 
 use super::version::{current_version, is_newer, is_stable, parse_version, pick_asset};
-use super::REPO_URL;
+use super::{REPO_URL, UPDATE_BASE_URL};
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HostedAsset {
+    name: String,
+    url: String,
+    #[serde(default)]
+    digest: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HostedRelease {
+    version: String,
+    tag: String,
+    #[serde(default)]
+    published_at: String,
+    #[serde(default)]
+    assets: Vec<HostedAsset>,
+}
 
 /// 最新可用发布信息（仅在有更新且匹配到当前平台安装包时才有意义）
 #[derive(Debug, Clone)]
@@ -71,7 +91,7 @@ fn parse_atom_entries(body: &str) -> Vec<(String, String)> {
 /// 拉取 releases.atom 并解析全部 release（不走 api.github.com，不受未认证限流约束）。
 pub(super) async fn fetch_releases_meta() -> Result<Vec<(String, String)>, String> {
     let body = http_client()?
-        .get(format!("{REPO_URL}/releases.atom"))
+        .get(format!("{UPDATE_BASE_URL}latest.json"))
         .send()
         .await
         .map_err(|e| format!("UPDATE_ATOM: {e}"))?
@@ -80,11 +100,23 @@ pub(super) async fn fetch_releases_meta() -> Result<Vec<(String, String)>, Strin
         .text()
         .await
         .map_err(|e| format!("UPDATE_ATOM: {e}"))?;
-    let releases = parse_atom_entries(&body);
-    if releases.is_empty() {
-        return Err("UPDATE_PARSE: no releases found in atom feed".to_string());
-    }
-    Ok(releases)
+    let release: HostedRelease = serde_json::from_str(&body)
+        .map_err(|e| format!("UPDATE_PARSE: invalid latest.json: {e}"))?;
+    Ok(vec![(release.tag, release.published_at)])
+}
+
+async fn fetch_hosted_release() -> Result<HostedRelease, String> {
+    let body = http_client()?
+        .get(format!("{UPDATE_BASE_URL}latest.json"))
+        .send()
+        .await
+        .map_err(|e| format!("UPDATE_META: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("UPDATE_META: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("UPDATE_META: {e}"))?;
+    serde_json::from_str(&body).map_err(|e| format!("UPDATE_PARSE: invalid latest.json: {e}"))
 }
 
 /// 从 expanded_assets 页面 HTML 中提取给定 tag 的全部资产文件名（纯函数，便于测试）。
@@ -160,25 +192,34 @@ async fn fetch_expanded_assets(tag: &str) -> Result<(Vec<String>, String), Strin
 /// `Ok(None)` 表示无更新（或未匹配到资产）。网络失败返回 Err。
 pub(super) async fn fetch_latest_release() -> Result<Option<LatestRelease>, String> {
     let current = current_version();
-    for (tag, published_at) in fetch_releases_meta().await? {
-        let version = tag.trim_start_matches('v').to_string();
-        let Some(parsed) = parse_version(&version) else {
-            log::debug!("UPDATE_SKIP: {tag} 非法 semver（手动测试 release?），跳过");
-            continue;
-        };
-        if !is_stable(&parsed) {
-            log::debug!("UPDATE_SKIP: {tag} 为 pre-release（非正式版），不通知用户");
-            continue;
-        }
-        if !is_newer(&version, &current) {
-            log::debug!("UPDATE_SKIP: {tag} 不高于当前版本 {current}");
-            continue;
-        }
-        if let Some(release) = fetch_release_assets(&tag, &version, &published_at).await? {
-            return Ok(Some(release));
-        }
+    let hosted = fetch_hosted_release().await?;
+    let version = hosted.version.trim_start_matches('v').to_string();
+    let Some(parsed) = parse_version(&version) else {
+        return Err(format!("UPDATE_PARSE: invalid version {}", hosted.version));
+    };
+    if !is_stable(&parsed) || !is_newer(&version, &current) {
+        return Ok(None);
     }
-    Ok(None)
+    let names: Vec<String> = hosted.assets.iter().map(|a| a.name.clone()).collect();
+    let Some(asset_name) = pick_asset(&names) else {
+        return Ok(None);
+    };
+    let asset = hosted
+        .assets
+        .iter()
+        .find(|asset| asset.name == asset_name)
+        .ok_or_else(|| "UPDATE_PARSE: selected asset missing".to_string())?;
+    if asset.url.trim().is_empty() {
+        return Err("UPDATE_PARSE: selected asset URL is empty".to_string());
+    }
+    Ok(Some(LatestRelease {
+        version,
+        tag: hosted.tag,
+        published_at: hosted.published_at,
+        url: asset.url.clone(),
+        asset_name,
+        digest: asset.digest.clone(),
+    }))
 }
 
 /// 为选定的正式版 tag 挑选当前平台安装包并解析摘要。

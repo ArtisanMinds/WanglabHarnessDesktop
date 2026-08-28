@@ -3,6 +3,7 @@ pub mod core;
 pub mod download;
 pub mod fs_guard;
 pub mod migrate;
+pub mod local_defaults;
 pub mod plugin;
 pub mod profile;
 pub mod scheduler;
