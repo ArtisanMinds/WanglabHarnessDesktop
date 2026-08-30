@@ -40,12 +40,12 @@ pub fn apply(app_handle: &AppHandle) -> Result<(), String> {
     create_if_missing(&home.join(".credentials.yaml"), CREDENTIALS, true)
 }
 
-fn create_if_missing(path: &Path, contents: &str, private: bool) -> Result<(), String> {
+fn create_if_missing(path: &Path, contents: &str, _private: bool) -> Result<(), String> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
 
     #[cfg(unix)]
-    if private {
+    if _private {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }

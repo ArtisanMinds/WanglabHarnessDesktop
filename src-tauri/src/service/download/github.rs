@@ -75,7 +75,8 @@ async fn fetch_hosted_dsh_pkg_info() -> Result<LatestDshPkg, String> {
         .map_err(|e| format!("Failed to read Wanglab Core metadata: {e}"))?;
     let release: HostedDshRelease = serde_json::from_str(&body)
         .map_err(|e| format!("Invalid Wanglab Core metadata: {e}"))?;
-    let expected_name = config::get_dsh_download_url()?
+    let download_url = config::get_dsh_download_url()?;
+    let expected_name = download_url
         .rsplit('/')
         .next()
         .ok_or_else(|| "Missing DSH asset filename".to_string())?;
