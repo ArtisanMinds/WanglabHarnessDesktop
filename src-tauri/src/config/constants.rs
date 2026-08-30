@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-/// 捆绑的 Node.js 运行时版本（满足 v22.15.0+ / v23.8.0+ 的要求）
+/// 捆绑的 Node.js 运行时版本（满足当前 DSH 的 v22.19.0+ 或 v24+ 要求）
 pub const NODE_VERSION: &str = "v22.22.0";
 
 /// Node.js 官方下载地址
@@ -9,17 +9,16 @@ pub const NODE_BASE_URL: &str = "https://nodejs.org/dist/";
 /// Node.js 镜像下载地址（npmmirror，302 重定向至 cdn.npmmirror.com）
 pub const NODE_MIRROR_BASE_URL: &str = "https://npmmirror.com/mirrors/node/";
 
-/// 打包的 DeepSeek Harness 发行版下载地址（GitHub Release，默认首选源）
+/// Wanglab Harness Core 发行版下载地址。
 pub const DSH_CORE_URL: &str =
     "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
+/// Wanglab Harness Core 发布元数据地址（与 Core ZIP 使用同一发布源）。
+pub const DSH_CORE_METADATA_URL: &str =
+    "https://seuwanglab.com/downloads/wanglab-harness/latest.json";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。
 pub const DSH_MIRROR_PREFIX: &str = "https://ghfast.top/";
-
-/// 打包的 DeepSeek Harness 发行版镜像下载地址（ghfast.top 中转 GitHub Release）
-pub const DSH_MIRROR_CORE_URL: &str =
-    "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
 /// 捆绑的 pnpm 版本（与 deepseek-harness-pkg 的 packageManager: pnpm@11.7.0 对齐）
 pub const PNPM_VERSION: &str = "11.7.0";
@@ -56,10 +55,13 @@ pub const DSH_DEV_PORT: u16 = 3081;
 /// 与官方 node 安装保持一致）。
 pub const DSH_HOME_DIR_NAME: &str = ".dsh";
 /// 开发（debug）构建的用户数据目录名（`~/.dsh.dev`）：与生产数据目录隔离。
-/// 核心（node/`dependencies/dsh`/`dependencies/pnpm`）仍共用同一份安装，但
 /// 会话、档案、插件与主题等数据各自独立——`pnpm tauri dev` 与已安装桌面端
 /// 同时运行时互不干扰，也不会互相污染对方的会话数据。
 pub const DSH_HOME_DEV_DIR_NAME: &str = ".dsh.dev";
+
+/// 开发构建在 AppData 下使用的独立子目录。Node、Harness、pnpm、Git 等可执行
+/// 核心不应与 release 共用，否则开发版更新/切换核心会替换正在运行的生产文件。
+pub const APP_DATA_DEV_DIR_NAME: &str = "dev";
 
 /// 安装目录与 CLI 入口（相对安装目录）
 pub const DSH_CORE_DIR: &str = "dsh";
@@ -69,6 +71,9 @@ pub const DSH_MANIFEST_RELATIVE: &str = "package.json";
 /// pnpm 安装目录与 CLI 入口（相对安装目录）
 pub const PNPM_CORE_DIR: &str = "pnpm";
 pub const PNPM_ENTRY_RELATIVE: &str = "bin/pnpm.cjs";
+
+/// 开发构建的用户级 shim 根目录名，不与 release 的 CLI 集成目录冲突。
+pub const CLI_ROOT_DEV_DIR_NAME: &str = "deepseek-harness-dev";
 
 /// Windows 免安装 Git 的安装目录与 CLI 入口（相对安装目录）。
 pub const MINGIT_CORE_DIR: &str = "git";
