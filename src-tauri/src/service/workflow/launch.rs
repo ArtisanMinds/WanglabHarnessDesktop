@@ -350,11 +350,12 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
         log::warn!("win32 terminal support apply failed: {e}");
     }
     // alpha 的 iframe 无法稳定完成 SameSite=Strict browser-session Cookie 交换：
-    // 仅命中 alpha 鉴权锚点时跳过 browser-session 层，但保留 Host/Origin fence；
-    // 旧核心无 alpha 锚点，patch_dsh 会安全跳过，不改变旧版行为。
-    // if let Err(e) = crate::service::patch::alpha_auth::apply(&app_handle) {
-    //     log::warn!("alpha embedded auth patch failed: {e}");
-    // }
+    // 补丁让 dsh 接受 `--skip-auth`，仅在桌面端显式传该标志时跳过 browser-session
+    // 层（保留 Host/Origin fence）；普通 `dsh web` 不受影响。旧核心无锚点时
+    // patch_dsh 安全跳过，不改变旧版行为。
+    if let Err(e) = crate::service::patch::alpha_auth::apply(&app_handle) {
+        log::warn!("alpha --skip-auth patch failed: {e}");
+    }
     // renderer 的 SlotOutlet 一行导出补丁（dsh-tauri-ui 设置侧边栏依赖）：只补
     // 活动核心的 dsh-client-ui-renderer lib/client.js，已含导出即跳过（幂等；核心
     // 换版本后自动重打，上游官方导出后自动退休）。最佳努力：失败只告警，不阻断
@@ -496,6 +497,14 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     // 浏览器，追加 `--no-open` 关闭（老版本无此标志时按版本判定不传）。
     let no_open = web_supports_no_open_flag(&app_handle, &dsh_binary_path);
 
+    // 版本判定打不到 alpha 的 web-startup 选项表（见 web_supports_no_open_flag）。
+    // alpha 的浏览器会话 Cookie 在沙箱跨源 iframe 上下文无法完成交换，因此桌面端
+    // 显式追加 `--skip-auth`：只有核心（经上面的 alpha_auth 补丁，或上游官方合并）
+    // 确实支持该标志才传，避免旧核心把未知选项当成错误退出。
+    let skip_auth = crate::service::patch::alpha_auth::web_startup_supports_skip_auth(
+        &app_handle,
+    );
+
     log::info!("Starting Harness process");
 
     // dsh 的 Loader 在插件 dispose 时会把组合后的整棵 entry 树回写进
@@ -532,6 +541,9 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
             ];
             if no_open {
                 args.push(OsString::from("--no-open"));
+            }
+            if skip_auth {
+                args.push(OsString::from("--skip-auth"));
             }
 
             // 只负责 spawn 并返回管道/PID/句柄：探测与重试期间不登记、不挂
@@ -644,6 +656,9 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
                 .arg(&setting.port.to_string());
             if no_open {
                 cmd.arg("--no-open");
+            }
+            if skip_auth {
+                cmd.arg("--skip-auth");
             }
             cmd.envs(&envs)
                 .current_dir(config::get_dsh_install_path(&app_handle))
