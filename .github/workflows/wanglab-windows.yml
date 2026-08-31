@@ -34,4 +34,6 @@ jobs:
         run: |
           gh release delete "$RELEASE_TAG" --cleanup-tag --yes || true
           gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop 0.1.0"
-          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          mapfile -d '' assets < <(find release-assets -type f -name '*.exe' -print0)
+          test "${#assets[@]}" -gt 0
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
