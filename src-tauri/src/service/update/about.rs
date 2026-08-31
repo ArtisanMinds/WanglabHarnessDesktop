@@ -1,4 +1,4 @@
-//! About 对话框信息：版本来自编译常量，发布时间实时查询最新 Release（不缓存）。
+//! About 对话框信息：版本来自编译常量，发布时间来自 Wanglab 更新清单。
 
 use super::meta::fetch_releases_meta;
 use super::version::current_version;

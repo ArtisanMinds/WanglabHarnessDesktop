@@ -3,6 +3,7 @@ pub mod cli;
 pub mod core;
 pub mod download;
 pub mod fs_guard;
+pub mod local_defaults;
 pub mod migrate;
 pub(crate) mod patch;
 pub mod plugin;

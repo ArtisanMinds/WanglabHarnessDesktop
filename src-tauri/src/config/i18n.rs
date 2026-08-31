@@ -46,10 +46,10 @@ pub fn t(key: &str) -> String {
             "Node.js 运行时不兼容，需要 Node 22.19+（仅 22.x）或 Node 24+",
             "Node.js runtime is incompatible; need Node 22.19+ (22.x only) or Node 24+",
         ),
-        "harness.title" => ("DeepSeek Harness 核心", "DeepSeek Harness core"),
+        "harness.title" => ("Wanglab Harness 核心", "Wanglab Harness core"),
         "harness.core_not_found" => (
-            "未找到 DeepSeek Harness 核心包，请先完成安装",
-            "DeepSeek Harness core package not found, run setup first",
+            "未找到 Wanglab Harness 核心包，请先完成安装",
+            "Wanglab Harness core package not found, run setup first",
         ),
         "harness.manifest_invalid" => ("Harness 包清单无效", "Invalid harness package manifest"),
         "harness.asset_not_found" => (
@@ -61,12 +61,12 @@ pub fn t(key: &str) -> String {
             "Downloaded file hash verification failed",
         ),
         "harness.start_failed" => (
-            "启动 DeepSeek Harness 服务失败",
-            "Failed to start DeepSeek Harness service",
+            "启动 Wanglab Harness 服务失败",
+            "Failed to start Wanglab Harness service",
         ),
         "harness.health_unhealthy" => (
-            "DeepSeek Harness 服务未就绪",
-            "DeepSeek Harness service is not ready",
+            "Wanglab Harness 服务未就绪",
+            "Wanglab Harness service is not ready",
         ),
         "process.manager_poisoned" => ("进程管理器状态异常", "Process manager state is corrupted"),
         "config.load_failed" => ("读取配置失败", "Failed to load configuration"),

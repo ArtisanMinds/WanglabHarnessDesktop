@@ -1,10 +1,10 @@
 {
-  "name": "deepseek-harness-desktop",
+  "name": "wanglab-harness-desktop",
   "type": "module",
-  "version": "0.10.0",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.28.2",
-  "description": "Desktop application for DeepSeek Harness (dsh) — one-click local install and launch, no Node.js setup required.",
+  "description": "Wanglab Harness Desktop — Create Future Here.",
   "scripts": {
     "dev": "vite",
     "prebuild": "tsx scripts/prebuild.ts",

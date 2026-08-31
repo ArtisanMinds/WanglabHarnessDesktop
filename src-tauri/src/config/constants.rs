@@ -9,9 +9,9 @@ pub const NODE_BASE_URL: &str = "https://nodejs.org/dist/";
 /// Node.js 镜像下载地址（npmmirror，302 重定向至 cdn.npmmirror.com）
 pub const NODE_MIRROR_BASE_URL: &str = "https://npmmirror.com/mirrors/node/";
 
-/// 打包的 DeepSeek Harness 发行版下载地址（GitHub Release，默认首选源）
+/// Wanglab Harness 核心发行包下载地址。
 pub const DSH_CORE_URL: &str =
-    "https://github.com/dsh-tauri-desk/deepseek-harness-pkg/releases/latest/download/";
+    "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。

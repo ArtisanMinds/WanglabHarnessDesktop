@@ -264,6 +264,7 @@ fn validate_download_url(url: &str) -> Result<(), String> {
                 | "cdn.npmmirror.com"
                 | "registry.npmmirror.com"
                 | "ghfast.top"
+                | "seuwanglab.com"
         )
     );
     if parsed.scheme() != "https" || !trusted_host {
@@ -602,6 +603,10 @@ mod tests {
             validate_download_url("https://cdn.npmmirror.com/binaries/node/v22/file.zip").is_ok()
         );
         assert!(validate_download_url("https://registry.npmmirror.com/pnpm/-/pnpm.tgz").is_ok());
+        assert!(validate_download_url(
+            "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/deepseek-harness-pkg-windows.zip"
+        )
+        .is_ok());
         assert!(validate_download_url(
             "https://ghfast.top/https://github.com/dsh-tauri-desk/deepseek-harness-pkg/releases/latest/download/deepseek-harness-pkg-windows.zip"
         )

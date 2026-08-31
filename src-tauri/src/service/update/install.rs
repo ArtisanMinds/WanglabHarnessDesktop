@@ -1,9 +1,6 @@
 //! 安装包下载、完整性校验与交付系统处理器打开。
 //!
-//! 下载源策略：先取 `expanded_assets` 页面的 SHA-256 摘要作为完整性凭据，再选择
-//! 下载源——镜像兜底（ghfast.top）仅在已取得可信摘要时才可使用，否则宁可失败，
-//! 防止第三方镜像投毒未被察觉；官方 GitHub 直连在摘要缺失时仍可按旧行为下载，
-//! 下载后若有摘要则强制校验。
+//! 下载地址和可选 SHA-256 摘要均来自 WanglabAI 的 `latest.json`。
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -12,7 +9,6 @@ use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::config;
 use crate::service::workflow;
 
 use super::meta::{fetch_latest_release, LatestRelease};
@@ -136,16 +132,9 @@ fn download_client() -> Result<reqwest::Client, String> {
         .map_err(|e| format!("UPDATE_CLIENT: {e}"))
 }
 
-/// 组装安装包下载源列表：官方 GitHub 直连 + （存在可信摘要时）ghfast.top 镜像。
-///
-/// 安全策略：第三方镜像没有独立信任根，仅在其内容可被 SHA-256 校验（摘要已取得）
-/// 时才提供兜底；否则只允许官方直连，宁可在官方不可用时失败，也不冒投毒风险。
+/// Desktop 安装包只从 WanglabAI 发布清单给出的地址下载。
 fn download_sources(release: &LatestRelease) -> Vec<String> {
-    let mut urls = vec![release.url.clone()];
-    if release.digest.is_some() {
-        urls.push(config::mirror_download_url(&release.url));
-    }
-    urls
+    vec![release.url.clone()]
 }
 
 /// 为下载完成的安装包补充可执行权限（Linux AppImage 必需）。
@@ -226,16 +215,8 @@ pub async fn download(app_handle: &AppHandle) -> Result<DesktopUpdateInfo, Strin
 
     let client = download_client()?;
 
-    // 官方直连 → （可选）ghfast.top 镜像兜底。安装包无 SHA-256 元数据，切换源时
-    // 丢弃上一源的部分字节从头下载，避免混用两个源的字节流。
-    // 安全策略：镜像兜底要求已有可信摘要，否则不提供镜像（宁可失败）。
+    // 下载地址来自 WanglabAI 发布清单。
     let urls = download_sources(&release);
-    if urls.len() == 1 {
-        log::warn!(
-            "No SHA-256 digest available for {}, mirror fallback disabled",
-            release.asset_name
-        );
-    }
     let tmp = path.with_extension("part");
     let mut last_err = String::new();
     for (index, url) in urls.iter().enumerate() {

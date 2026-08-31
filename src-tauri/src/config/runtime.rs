@@ -96,13 +96,11 @@ pub fn mirror_download_url(asset_url: &str) -> String {
 
 /// 指定 tag 的 DeepSeek Harness 发行版下载地址。
 ///
-/// 把 latest 下载地址中的 `releases/latest/download/` 替换为
-/// `releases/download/<tag>/`，镜像/直连与平台文件名逻辑与最新版完全一致
-/// （GitHub 的 tag 下载路径是固定的 release 资产地址，可被确定性推导）。
+/// 把 WanglabAI 的 `releases/latest/` 替换为 `releases/<tag>/`。
 pub fn get_dsh_download_url_for_tag(tag: &str) -> Result<String, String> {
     let base = dsh_core_base_url().replace(
-        "releases/latest/download/",
-        &format!("releases/download/{tag}/"),
+        "releases/latest/",
+        &format!("releases/{tag}/"),
     );
     Ok(format!("{}{}", base, dsh_pkg_asset_filename()?))
 }
