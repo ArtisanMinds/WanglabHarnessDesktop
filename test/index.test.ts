@@ -9,6 +9,13 @@ describe('formatLogLine', () => {
     )
   })
 
+  it('strips the Wanglab release download prefix', () => {
+    const url = 'https://seuwanglab.com/downloads/wanglab-harness/core/releases/dsh-0.1.2-alpha.2-33320263135/deepseek-harness-pkg-windows.zip'
+    expect(formatLogLine(`Download ${url}`)).toBe(
+      'Download dsh-0.1.2-alpha.2-33320263135/deepseek-harness-pkg-windows.zip',
+    )
+  })
+
   it('strips the ghfast.top mirror wrapper prefix', () => {
     const url = 'https://ghfast.top/https://github.com/dsh-tauri-desk/deepseek-harness-pkg/releases/download/dsh-0.1.x-x/deepseek-harness-pkg-linux.zip'
     expect(formatLogLine(`Download ${url}`)).toContain('deepseek-harness-pkg-linux.zip')
