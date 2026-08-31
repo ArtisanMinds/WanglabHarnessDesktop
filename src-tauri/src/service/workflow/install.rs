@@ -123,7 +123,11 @@ pub async fn install(
                 .filter(|url| !url.is_empty())
                 .unwrap_or(config::get_dsh_download_url()?);
             let name = primary.rsplit('/').next().unwrap_or("").to_string();
-            let urls = vec![primary.clone(), config::mirror_download_url(&primary)];
+            let urls = if primary.starts_with("https://seuwanglab.com/") {
+                vec![primary.clone()]
+            } else {
+                vec![primary.clone(), config::mirror_download_url(&primary)]
+            };
             (urls, name)
         } else {
             let url = task.get_download_url()?;

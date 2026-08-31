@@ -47,6 +47,10 @@ llm-deepseek:
       inputModalities:
         - text
         - image
+web-search-deepseek:
+  apiKeyEnv: WANGLABAI_DEEPSEEK_API_KEY
+  baseURL: https://10.201.2.89:31417/anthropic/v1
+  model: deepseek-v4-flash
 "#;
 
 const CREDENTIALS: &str = r#"version: 1
@@ -125,6 +129,10 @@ mod tests {
                 .unwrap()
                 .len(),
             3
+        );
+        assert_eq!(
+            settings["web-search-deepseek"]["baseURL"],
+            "https://10.201.2.89:31417/anthropic/v1"
         );
 
         let credentials: serde_yaml::Value =

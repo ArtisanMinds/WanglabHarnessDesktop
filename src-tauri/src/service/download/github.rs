@@ -239,7 +239,21 @@ async fn fetch_dsh_digest_from_expanded_assets(
 ///
 /// 预览版（Pre-release label 或 tag 命名，见 [`is_preview_tag`]）不返回：
 /// 返回 Err 由调用方保持本地安装、不提示更新，避免把预览版推给用户自动更新。
+fn wanglab_dsh_pkg_info() -> Result<LatestDshPkg, String> {
+    Ok(LatestDshPkg {
+        tag: config::WANGLAB_DSH_TAG.to_string(),
+        commit: config::WANGLAB_DSH_COMMIT.to_string(),
+        asset_url: config::get_dsh_download_url_for_tag(config::WANGLAB_DSH_TAG)?,
+        digest: Some(config::WANGLAB_DSH_DIGEST.to_string()),
+    })
+}
+
 pub async fn fetch_latest_dsh_pkg_info() -> Result<LatestDshPkg, String> {
+    wanglab_dsh_pkg_info()
+}
+
+#[allow(dead_code)]
+async fn fetch_upstream_latest_dsh_pkg_info() -> Result<LatestDshPkg, String> {
     let client = github_client()?;
     let expected_name = config::get_dsh_download_url()?
         .rsplit('/')
@@ -372,6 +386,9 @@ pub async fn fetch_latest_dsh_pkg_info() -> Result<LatestDshPkg, String> {
 /// 排除标记为 pre-release 的发行版。先从完整 release 列表按解析后的 SemVer 精确匹配
 /// tag，再复用固定 tag 的资产与摘要查询，确保下载内容与校验摘要属于同一发布。
 pub async fn fetch_dsh_pkg_version(version: &str) -> Result<LatestDshPkg, String> {
+    if version == config::WANGLAB_DSH_VERSION {
+        return wanglab_dsh_pkg_info();
+    }
     let release = fetch_dsh_pkg_releases()
         .await?
         .into_iter()
