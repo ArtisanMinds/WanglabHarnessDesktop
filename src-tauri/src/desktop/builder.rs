@@ -350,6 +350,10 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
             .min_inner_size(860.0, 620.0)
             .resizable(true);
 
+    #[cfg(windows)]
+    let webview_builder =
+        webview_builder.icon(app.default_window_icon().unwrap().clone())?;
+
     // Windows/WebView2 在 build() 尚未返回时就可能绘制窗口。先隐藏创建，
     // 等保存的几何恢复完成再显示，避免启动时先闪出默认尺寸再跳到历史尺寸。
     #[cfg(windows)]
