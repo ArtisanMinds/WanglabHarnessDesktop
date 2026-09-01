@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 
+/** 是否处于 watch/dev 模式（dev:plugins → `tsdown --watch` 常驻）：跳过 minify 加速热重建。 */
+const isWatchMode = process.argv.includes('--watch') || process.argv.includes('-w')
+
 function clientBundleRegistration() {
   const packageName = process.env.npm_package_name
   const pkg = packageName
@@ -81,7 +84,7 @@ export function defineDshConfig(options = {}) {
       publint: false,
       dts: false,
       sourcemap: true,
-      minify: true,
+      minify: !isWatchMode,
       clean: false,
       ...options.client,
     },
