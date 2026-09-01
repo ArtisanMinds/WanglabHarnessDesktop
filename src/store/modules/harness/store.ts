@@ -251,6 +251,8 @@ export const harness = defineStore({
       error: '',
       /** 拉取预装插件列表失败（区别于空列表；UI 据此展示错误态 + 重试） */
       loadError: '',
+      /** 是否为首次安装引导（决定默认勾选策略）：boot 流程进入时为 true，侧边栏手动打开为 false */
+      isFirstTime: true,
     },
     serviceUrl: 'http://127.0.0.1:3080',
     /** 带时间戳的 iframe 地址（boot 时生成一次，避免缓存） */
@@ -704,6 +706,7 @@ export const harness = defineStore({
         // 由 Rust 侧记录内容指纹到 app-data（.store.dat），启动时比对是否有变更。
         if (await invoke<boolean>('get_preinstall_pending')) {
           this.status = 'preinstall'
+          this.preinstall.isFirstTime = true
           await this.loadPreinstallPlugins()
           return
         }
@@ -937,9 +940,17 @@ export const harness = defineStore({
       })
     },
 
-    /** 确认安装选中的预装插件：流式日志，完成后继续启动服务 */
-    async confirmPreinstall(ids: string[]) {
-      if (this.preinstall.installing || ids.length === 0)
+    /**
+     * 确认安装/卸载预装插件：流式日志，完成后继续启动服务。
+     *
+     * 前端传入 diff 结果（installIds = 新增勾选需安装；uninstallIds = 取消勾选需卸载），
+     * 无变化时两者均为空，后端直接标记完成。
+     */
+    async confirmPreinstall(input: { installIds?: string[], uninstallIds?: string[] } | string[]) {
+      // 兼容旧调用方（直接传数组）与新调用方（传 {installIds, uninstallIds}）
+      const installIds = Array.isArray(input) ? input : (input.installIds ?? [])
+      const uninstallIds = Array.isArray(input) ? [] : (input.uninstallIds ?? [])
+      if (this.preinstall.installing || (installIds.length === 0 && uninstallIds.length === 0))
         return
       this.preinstall.installing = true
       this.preinstall.error = ''
@@ -947,7 +958,7 @@ export const harness = defineStore({
       let unlisten: UnlistenFn | null = null
       try {
         unlisten = await this.listenPreinstallLog()
-        await invoke('install_preinstall_plugins', { ids })
+        await invoke('install_preinstall_plugins', { installIds, uninstallIds })
         // 后端装完已把服务停掉，这里在日志面板讲清接下来的重启（issue #48），
         // 避免用户把"插件安装后的自动重启"误认为崩溃/故障。
         this.preinstall.logs = [...this.preinstall.logs, i18next.t('preinstall.restarting_hint')].slice(-200)
@@ -1026,6 +1037,8 @@ export const harness = defineStore({
       emitter.emit('config:dialog:hidden')
       this.preinstall.error = ''
       this.preinstall.logs = []
+      // 侧边栏手动打开：非首次安装，默认勾选策略为「仅已安装」
+      this.preinstall.isFirstTime = false
       this.status = 'preinstall'
       await this.loadPreinstallPlugins()
     },
