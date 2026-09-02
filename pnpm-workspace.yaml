@@ -86,6 +86,7 @@ catalogs:
     '@types/node': ^22.10.0
     '@types/react': ^19.2.18
     '@types/react-dom': ^19.2.4
+    '@types/semver': ^7.8.0
   # UI 呈现（插件渲染富文本/样式）
   ui:
     css-render: ^0.15.14

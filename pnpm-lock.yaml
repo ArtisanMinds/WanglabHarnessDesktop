@@ -37,10 +37,6 @@ catalogs:
     typescript:
       specifier: ~5.8.3
       version: 5.8.3
-  default:
-    '@types/semver':
-      specifier: ^7.8.0
-      version: 7.8.0
   dsh:
     '@deepseek-ai/cordis':
       specifier: ^4.0.2
@@ -162,6 +158,9 @@ catalogs:
     '@types/react-dom':
       specifier: ^19.2.4
       version: 19.2.4
+    '@types/semver':
+      specifier: ^7.8.0
+      version: 7.8.0
   ui:
     css-render:
       specifier: ^0.15.14
@@ -317,7 +316,7 @@ importers:
         specifier: catalog:types
         version: 19.2.4(@types/react@19.2.18)
       '@types/semver':
-        specifier: 'catalog:'
+        specifier: catalog:types
         version: 7.8.0
       '@vitejs/plugin-react':
         specifier: catalog:build
