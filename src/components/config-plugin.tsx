@@ -334,6 +334,7 @@ export function ConfigPlugin() {
       silence(e, 'plugin delete-snapshot: dialog cancelled')
       return
     }
+    setBusy({ id, action: 'delete-snapshot' })
     try {
       await deleteSnapshot.mutateAsync(id)
     }
