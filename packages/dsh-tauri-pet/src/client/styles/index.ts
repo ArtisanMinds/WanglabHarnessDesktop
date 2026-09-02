@@ -69,6 +69,24 @@ const style = c([
   }),
   c('.dshpet-iconButton.dshpet-iconOn .dshpet-iconDot', { display: 'block' }),
 
+  // ── 设置行布局：复刻新版 dsh 客户端 SettingsRoot 的 triggerRow（flex 行）──
+  // 旧版客户端 sidebar.settings 是通栏块级触发器，图标按钮直接插会被挤到下
+  // 一行；把设置槽包裹层立成 flex 行、触发器占满剩余宽度，图标排右侧。
+  // 两个钩子并存：renderer 的 data-slot 包裹层（稳定）+ 补丁加的行类（兜底）。
+  c('[data-slot="sidebar"] [data-slot="sidebar.settings"], .dshpet-settingsRow', {
+    display: 'flex',
+    alignItems: 'center',
+  }),
+  c('[data-slot="sidebar"] [data-slot="sidebar.settings"] > .dsh-tu-settingsTrigger:not(.dsh-tu-settingsTriggerRail), .dshpet-settingsRow > .dsh-tu-settingsTrigger:not(.dsh-tu-settingsTriggerRail)', {
+    flex: '1 1 auto',
+    width: 'auto',
+    minWidth: '0',
+  }),
+  c('[data-slot="sidebar"] [data-slot="sidebar.settings"] > .dshpet-iconButton, .dshpet-settingsRow > .dshpet-iconButton', {
+    flex: 'none',
+    marginRight: '2px',
+  }),
+
   // ── 设置分区（settings.section）：卡片 + 行，主题变量自适应 ──
   c('.dshpet-page', {
     display: 'flex',

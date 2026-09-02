@@ -53,6 +53,11 @@ export const SIDEBAR_SELECTOR = '[data-slot="sidebar"]'
 export const SETTINGS_TRIGGER_SELECTOR = '.dsh-tu-settingsTrigger'
 /** 宠物入口按钮的 guard 属性（防止重复插入）。 */
 export const PET_ICON_ATTRIBUTE = 'data-dsh-tauri-pet-icon'
+/**
+ * 设置行容器类：把 sidebar.settings 的包裹层变成 flex 行（复刻新版 dsh 客户端
+ * SettingsRoot 的 triggerRow——齿轮与行内图标按钮同一行），触发器占满剩余宽度。
+ */
+export const PET_SETTINGS_ROW_CLASS = 'dshpet-settingsRow'
 /** 补丁首轮挂载重试：500ms 一次、最多 30 次（与 session 补丁一致）。 */
 export const PET_ICON_RETRY_MS = 500
 export const PET_ICON_RETRY_MAX = 30

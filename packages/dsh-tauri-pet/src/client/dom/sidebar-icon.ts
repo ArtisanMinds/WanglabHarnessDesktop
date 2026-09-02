@@ -11,7 +11,7 @@
  * document.body，侧栏就绪后插入并持续看护（React 重渲染容器后自动补插）；
  * guard 属性 + 位置校验防止重复插入与死循环。
  */
-import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
+import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
 import { text } from '../locales'
 import { fetchPetStatus, setPetEnabled } from '../service/pet'
 import { getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
@@ -62,6 +62,8 @@ export function installSidebarPetIcon(): () => void {
     return () => {}
 
   const button = createPetIconButton()
+  /** 当前打过设置行类的宿主（卸载时移除，React 重渲染换宿主时随旧节点废弃）。 */
+  let rowHost: HTMLElement | undefined
 
   const unsubscribe = subscribePetUi(() => syncIconState(button))
   void fetchPetStatus()
@@ -71,12 +73,17 @@ export function installSidebarPetIcon(): () => void {
 
   /**
    * 看护入口按钮：设置触发器就绪且按钮不在其右侧时（首次挂载 / React 重渲染
-   * 丢弃）重新插入。插入位置即官方 `.rtSEdW_iconButton` 同款按钮流式排列处。
+   * 丢弃）重新插入；同时给宿主容器补 flex 行类——新版 dsh 客户端的
+   * SettingsRoot 用 triggerRow（flex 行）承载齿轮与行内图标，旧版是通栏块级
+   * 按钮，直接 after 会被挤到下一行，必须由本类把行立起来。
    */
   function ensurePlaced(): void {
     const trigger = document.querySelector<HTMLElement>(SETTINGS_TRIGGER_SELECTOR)
     if (!trigger?.parentElement)
       return
+    const host = trigger.parentElement
+    host.classList.add(PET_SETTINGS_ROW_CLASS)
+    rowHost = host
     if (button.isConnected && button.previousElementSibling === trigger)
       return
     trigger.after(button)
@@ -113,6 +120,8 @@ export function installSidebarPetIcon(): () => void {
     observer.disconnect()
     unsubscribe()
     button.remove()
+    rowHost?.classList.remove(PET_SETTINGS_ROW_CLASS)
+    rowHost = undefined
     if (timer !== undefined)
       clearInterval(timer)
   }
