@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
 import { store } from '@/store'
+import { silence } from '@/utils/silence'
 import { toast } from '@/utils/toast'
 import { useDshProfiles } from '../hooks/use-dsh-profiles'
 import { ConfigBackup } from './config-backup'
@@ -94,11 +95,10 @@ export function ConfigProfile() {
         ),
       })
     }
-    catch {
+    catch (e) {
+      silence(e, 'profile activate: dialog cancelled')
       return
     }
-    try {
-      await activateProfile(id)
       const key = toast(t('profiles.activate_toast', { name: target.name }), {
         variant: 'accent',
         description: t('profiles.activate_restart_hint'),
@@ -160,12 +160,10 @@ export function ConfigProfile() {
         confirmText: t('profiles.remove_confirm'),
       })
     }
-    catch {
+    catch (e) {
+      silence(e, 'profile remove: dialog cancelled')
       return
     }
-    try {
-      // 删除成功后列表已移除该档案，UI 本身就有变化，不再弹成功 toast
-      await removeProfile(id)
     }
     catch (err) {
       console.error('[ConfigProfile] remove failed:', err)

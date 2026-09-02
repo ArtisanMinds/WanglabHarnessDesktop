@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
 import { store } from '@/store'
+import { silence } from '@/utils/silence'
 import { toast } from '@/utils/toast'
 import { useBackups } from '../hooks/use-backup'
 import { Item } from './item'
@@ -52,7 +53,8 @@ export function ConfigBackup({ onBack }: ConfigBackupProps) {
         ),
       })
     }
-    catch {
+    catch (e) {
+      silence(e, 'backup: dialog cancelled')
       return
     }
     try {
@@ -99,7 +101,8 @@ export function ConfigBackup({ onBack }: ConfigBackupProps) {
         ),
       })
     }
-    catch {
+    catch (e) {
+      silence(e, 'backup: dialog cancelled')
       return
     }
     try {
@@ -125,7 +128,8 @@ export function ConfigBackup({ onBack }: ConfigBackupProps) {
         confirmText: t('backup.delete'),
       })
     }
-    catch {
+    catch (e) {
+      silence(e, 'backup: dialog cancelled')
       return
     }
     try {
