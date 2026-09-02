@@ -125,6 +125,12 @@ const style = c([
     background: 'transparent',
     color: '#e7e9ff',
   }, [c('&:hover', { background: 'rgba(80,100,255,0.18)' })]),
+  c('.dshpet-error', {
+    margin: 0,
+    fontSize: '12px',
+    lineHeight: '18px',
+    color: '#ff7a7a',
+  }),
 ])
 
 export function mountPetStyles(): () => void {

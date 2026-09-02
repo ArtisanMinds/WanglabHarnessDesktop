@@ -2,6 +2,7 @@
  * components/pet-settings.tsx — 独立「宠物」设置页（注册进 shell.overlay）。
  * 类归档页停靠面板：启用/停用开关、选择桌宠、显示/隐藏。走 invoke 桥。
  */
+import type { LocaleKey } from '../types'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { DEFAULT_PETS } from '../constants'
 import { text } from '../locales'
@@ -13,6 +14,7 @@ type PetSettingsProps = Record<never, never>
 export function PetSettings(_props: PetSettingsProps) {
   const { open, status } = useSyncExternalStore(subscribePetUi, getPetUiSnapshot, getPetUiSnapshot)
   const [busy, setBusy] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<LocaleKey | null>(null)
   const enabled = Boolean(status?.enabled)
 
   useEffect(() => {
@@ -41,11 +43,13 @@ export function PetSettings(_props: PetSettingsProps) {
     if (busy)
       return
     setBusy(true)
+    setErrorMsg(null)
     try {
       setPetStatus(await setPetEnabled(!enabled))
     }
     catch (error) {
       console.error('[dsh-tauri-pet] setPetEnabled failed:', error)
+      setErrorMsg('setEnabledFailed')
     }
     finally {
       setBusy(false)
@@ -56,11 +60,13 @@ export function PetSettings(_props: PetSettingsProps) {
     if (busy || id === status?.active_pet)
       return
     setBusy(true)
+    setErrorMsg(null)
     try {
       setPetStatus(await setActivePet(id))
     }
     catch (error) {
       console.error('[dsh-tauri-pet] setActivePet failed:', error)
+      setErrorMsg('setPetFailed')
     }
     finally {
       setBusy(false)
@@ -104,6 +110,9 @@ export function PetSettings(_props: PetSettingsProps) {
             <button type="button" className="dshpet-btn" onClick={() => { void hidePet().catch(() => {}) }}>{text('hide')}</button>
           </div>
         </section>
+        {errorMsg
+          ? <p className="dshpet-error" role="alert">{text(errorMsg)}</p>
+          : null}
       </div>
     </div>
   )

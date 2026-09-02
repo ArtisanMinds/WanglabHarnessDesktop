@@ -28,21 +28,31 @@ function petDisplayName(id: string | null | undefined): string {
   return segment.replace(/\.(zip|png|sprites)$/i, '') || 'dsh'
 }
 
+const PET_STATUS_POLL_MS = 1500
+
 export function PetWindow() {
   const [activePet, setActivePet] = useState<string>('dsh')
 
   useEffect(() => {
     let cancelled = false
-    void invoke<PetStatus>('get_pet_status')
-      .then((status) => {
+
+    const refresh = async (): Promise<void> => {
+      try {
+        const status = await invoke<PetStatus>('get_pet_status')
         if (!cancelled && status.active_pet)
           setActivePet(petDisplayName(status.active_pet))
-      })
-      .catch((error) => {
+      }
+      catch (error) {
         console.error('[pet] get_pet_status failed:', error)
-      })
+      }
+    }
+
+    void refresh()
+    // 设置页切换宠物时刷新名称标签，避免展示陈旧的 active_pet。
+    const timer = window.setInterval(refresh, PET_STATUS_POLL_MS)
     return () => {
       cancelled = true
+      window.clearInterval(timer)
     }
   }, [])
 
