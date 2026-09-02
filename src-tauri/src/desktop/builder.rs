@@ -578,6 +578,8 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::set_pet_size,
         crate::bridge::show_pet,
         crate::bridge::hide_pet,
+        crate::bridge::list_pets,
+        crate::bridge::import_pet,
     ]
 }
 

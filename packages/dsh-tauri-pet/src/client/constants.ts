@@ -39,11 +39,15 @@ export const CMD_SET_PET_SIZE = 'set_pet_size'
 export const CMD_SHOW_PET = 'show_pet'
 /** 隐藏桌宠窗口（不改 enabled）。 */
 export const CMD_HIDE_PET = 'hide_pet'
+/** 列出已导入的桌宠资源包（.zip）。 */
+export const CMD_LIST_PETS = 'list_pets'
+/** 导入桌宠资源包（.zip，base64 上传）。 */
+export const CMD_IMPORT_PET = 'import_pet'
 
-/** 内置可选桌宠列表（可导入 .zip 扩展）。 */
+/** 内置可选桌宠（展示名/描述走 locale；导入包按文件名展示）。 */
 export const DEFAULT_PETS = [
-  { id: 'codex', label: 'Codex' },
   { id: 'dsh', label: 'Deepseek' },
+  { id: 'codex', label: 'Codex' },
 ] as const
 
 // ── 侧栏入口 DOM 补丁（参照 dsh-tauri-session 的 workspace-patch 模式）──
@@ -62,12 +66,12 @@ export const PET_SETTINGS_ROW_CLASS = 'dshpet-settingsRow'
 export const PET_ICON_RETRY_MS = 500
 export const PET_ICON_RETRY_MAX = 30
 
-// ── 桌宠尺寸（设置页拖动条；区间与 bridge/pet.rs 的 PET_SIZE_* 对齐）──
-/** 精灵图默认显示宽度（逻辑像素）。 */
-export const PET_DEFAULT_SIZE = 160
-/** 拖动条最小值。 */
-export const PET_SIZE_MIN = 96
-/** 拖动条最大值（不超过宠物窗口 240px 宽的可用空间）。 */
-export const PET_SIZE_MAX = 220
-/** 拖动条步进。 */
-export const PET_SIZE_STEP = 4
+// ── 桌宠大小（设置页滑条；百分比模型，与 bridge/pet.rs 的 PET_SIZE_* 对齐）──
+/** 未设置时的默认缩放百分比（100% = 精灵图原始尺寸）。 */
+export const PET_DEFAULT_SIZE = 100
+/** 滑条最小百分比。 */
+export const PET_SIZE_MIN = 50
+/** 滑条最大百分比（窗口尺寸由桌面端按同一百分比实时换算）。 */
+export const PET_SIZE_MAX = 200
+/** 滑条步进（拖动中每次 change 都实时提交）。 */
+export const PET_SIZE_STEP = 5

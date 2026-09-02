@@ -28,11 +28,19 @@ use tauri_plugin_store::StoreExt;
 
 /// 桌宠窗口的 label（Tauri 窗口标识，脚本层与能力配置以此引用）。
 pub const PET_WINDOW_LABEL: &str = "pet";
-/// 桌宠窗口默认尺寸（逻辑像素），偶数值便于像素对齐的精灵图展示。
-pub const PET_WINDOW_WIDTH: f64 = 240.0;
-pub const PET_WINDOW_HEIGHT: f64 = 280.0;
+/// 精灵图基准尺寸（dsh-pet 呆味预览帧 220x124，透明 PNG）。
+pub const PET_SPRITE_BASE_WIDTH: f64 = 220.0;
+pub const PET_SPRITE_BASE_HEIGHT: f64 = 124.0;
+/// 窗口相对精灵图的四周留白（逻辑像素）：横向 32、纵向 40（含浮动/阴影余量）。
+const PET_WINDOW_PAD_X: f64 = 32.0;
+const PET_WINDOW_PAD_Y: f64 = 40.0;
+/// 宠物大小百分比合法区间（设置页滑条 50%–200%；bridge/pet.rs 引用同一常量）。
+pub const PET_SIZE_MIN_PERCENT: f64 = 50.0;
+pub const PET_SIZE_MAX_PERCENT: f64 = 200.0;
+/// 未设置 pet_size 时的默认缩放（100% = 精灵图原始尺寸）。
+pub const PET_SIZE_DEFAULT_PERCENT: f64 = 100.0;
 
-/// 持久化的桌宠窗口位置（仅记录位置；大小固定为 PET_WINDOW_* 尺寸不随用户变化）。
+/// 持久化的桌宠窗口位置（仅记录位置；大小由设置页 pet_size 百分比实时推导）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PetWindowPosition {
@@ -97,6 +105,32 @@ pub fn save_pet_window_geometry<R: Runtime>(window: &Window<R>) {
     );
 }
 
+/// 读取宠物大小百分比（设置持久化值；缺省回落默认，越界收敛进合法区间）。
+pub fn get_pet_size_percent<R: Runtime>(app: &AppHandle<R>) -> f64 {
+    crate::config::get_store_dat_setting(app)
+        .pet_size
+        .unwrap_or(PET_SIZE_DEFAULT_PERCENT)
+        .clamp(PET_SIZE_MIN_PERCENT, PET_SIZE_MAX_PERCENT)
+}
+
+/// 由百分比换算桌宠窗口逻辑尺寸：精灵图基准尺寸 × 缩放 + 四周留白。
+pub fn pet_window_logical_size(percent: f64) -> (f64, f64) {
+    let scale = percent / 100.0;
+    (
+        (PET_SPRITE_BASE_WIDTH * scale) + PET_WINDOW_PAD_X,
+        (PET_SPRITE_BASE_HEIGHT * scale) + PET_WINDOW_PAD_Y,
+    )
+}
+
+/// 实时应用宠物大小：窗口已存在时直接重设尺寸（设置页拖动条拖动中实时调用）。
+pub fn apply_pet_size<R: Runtime>(app: &AppHandle<R>) {
+    let Some(window) = app.get_webview_window(PET_WINDOW_LABEL) else {
+        return;
+    };
+    let (width, height) = pet_window_logical_size(get_pet_size_percent(app));
+    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+}
+
 /// 确保桌宠窗口存在并恢复位置。
 ///
 /// 幂等：已注册时直接复用返回；首次调用时创建 `pet` 窗口并恢复上一次保存的
@@ -106,11 +140,12 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
         return Ok(window);
     }
     let app_handle = app.clone();
+    let (width, height) = pet_window_logical_size(get_pet_size_percent(app));
     // 非 Windows 平台在此前加入注入脚本时再赋值，故需要 mut；Windows 下保持只读。
     #[allow(unused_mut)]
     let mut builder = WebviewWindowBuilder::new(app, PET_WINDOW_LABEL, WebviewUrl::App("pet.html".into()))
         .title("Deepseek Harness Pet")
-        .inner_size(PET_WINDOW_WIDTH, PET_WINDOW_HEIGHT)
+        .inner_size(width, height)
         .resizable(false)
         .maximizable(false)
         .transparent(true)
@@ -163,9 +198,11 @@ fn position_on_any_monitor<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32
     let Ok(monitors) = app.available_monitors() else {
     return false;
 };
-    // 以窗口自身的物理尺寸近似命中矩形，允许窗口底部/右侧探出一点点也不误判。
-    let w = (PET_WINDOW_WIDTH * window.scale_factor().unwrap_or(1.0)) as i32;
-    let h = (PET_WINDOW_HEIGHT * window.scale_factor().unwrap_or(1.0)) as i32;
+    // 以当前设置的窗口逻辑尺寸 × 缩放系数近似命中矩形，允许窗口底部/右侧
+    // 探出一点点也不误判。
+    let (lw, lh) = pet_window_logical_size(get_pet_size_percent(window.app_handle()));
+    let w = (lw * window.scale_factor().unwrap_or(1.0)) as i32;
+    let h = (lh * window.scale_factor().unwrap_or(1.0)) as i32;
     let hit_left = x;
     let hit_top = y;
     let hit_right = x + w;
@@ -188,9 +225,10 @@ fn place_pet_at_default<R: Runtime>(window: &WebviewWindow<R>) {
     };
     let mon_pos = monitor.position();
     let mon_size = monitor.size();
-    // 距屏幕右下角 32px 的物理偏移，尺寸用物理像素计算。
-    let w = (PET_WINDOW_WIDTH * monitor.scale_factor()) as i32;
-    let h = (PET_WINDOW_HEIGHT * monitor.scale_factor()) as i32;
+    // 距屏幕右下角 32px 的物理偏移；尺寸 = 当前设置逻辑尺寸 × 屏幕缩放系数。
+    let (lw, lh) = pet_window_logical_size(get_pet_size_percent(app));
+    let w = (lw * monitor.scale_factor()) as i32;
+    let h = (lh * monitor.scale_factor()) as i32;
     let x = mon_pos.x + mon_size.width as i32 - w - 32;
     let y = mon_pos.y + mon_size.height as i32 - h - 96;
     let _ = window.set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)));
@@ -246,5 +284,13 @@ mod tests {
 
         let default = PetWindowPosition::default();
         assert!(default.x.is_none() && default.y.is_none());
+    }
+
+    #[test]
+    fn pet_window_logical_size_scales_with_percent() {
+        // 100% = 精灵图原始尺寸 + 留白；50% / 200% 线性缩放。
+        assert_eq!(pet_window_logical_size(100.0), (252.0, 164.0));
+        assert_eq!(pet_window_logical_size(50.0), (142.0, 102.0));
+        assert_eq!(pet_window_logical_size(200.0), (472.0, 288.0));
     }
 }

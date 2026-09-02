@@ -4,26 +4,41 @@
 export interface PetStatus {
   enabled: boolean
   active_pet?: string | null
-  /** 精灵图显示宽度（逻辑像素）；null/缺省 = 未设置，窗口侧用默认值。 */
+  /** 宠物大小百分比（50–200，100 = 精灵图原始尺寸）；null/缺省 = 未设置。 */
   pet_size?: number | null
+}
+
+/** 已导入的桌宠资源包条目（与桌面端 bridge/pet.rs 的 PetListItem 对齐）。 */
+export interface PetListItem {
+  /** 资源包标志（文件名去 .zip；同时作为 active_pet 的取值）。 */
+  id: string
+  /** 展示名（与 id 相同：导入即以文件名命名）。 */
+  name: string
 }
 
 /** 文案键（locale 字典键集合的权威来源）。 */
 export type LocaleKey
   = | 'name'
-    | 'enable'
-    | 'disable'
-    | 'enabled'
-    | 'disabled'
     | 'selectPet'
-    | 'show'
-    | 'hide'
-    | 'chooseCodex'
-    | 'petWindowHint'
-    | 'enabledHint'
-    | 'disabledHint'
-    | 'loadFailed'
-    | 'setEnabledFailed'
+    | 'refresh'
+    | 'create'
+    | 'createHint'
+    | 'wakePet'
+    | 'collapsePet'
+    | 'import'
+    | 'imported'
+    | 'selected'
+    | 'select'
+    | 'tabInstalledDesc'
+    | 'tabCodexDesc'
+    | 'petNameDsh'
+    | 'petNameCodex'
+    | 'petDescDsh'
+    | 'petDescCodex'
+    | 'emptyImported'
+    | 'importFailed'
+    | 'listFailed'
+    | 'toggleFailed'
     | 'setPetFailed'
     | 'setSizeFailed'
     | 'sizeLabel'

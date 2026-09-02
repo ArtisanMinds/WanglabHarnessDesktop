@@ -64,6 +64,10 @@ export function installSidebarPetIcon(): () => void {
   const button = createPetIconButton()
   /** 当前打过设置行类的宿主（卸载时移除，React 重渲染换宿主时随旧节点废弃）。 */
   let rowHost: HTMLElement | undefined
+  /** 上一次做过内联宽度修正的触发器（折叠态/卸载时撤销）。 */
+  let patchedTrigger: HTMLElement | undefined
+  /** 上次修正时触发器是否为折叠态（Rail），状态翻转时需重写内联样式。 */
+  let patchedRail: boolean | undefined
 
   const unsubscribe = subscribePetUi(() => syncIconState(button))
   void fetchPetStatus()
@@ -72,18 +76,44 @@ export function installSidebarPetIcon(): () => void {
   syncIconState(button)
 
   /**
+   * 把触发器宿主立成 flex 行（复刻新版 dsh 客户端 SettingsRoot 的 triggerRow）。
+   * 除行类 + CSS 规则外再写一份内联样式兜底：CSS 可能被加载顺序/特异性盖过
+   * （表现为图标仍被挤到下一行），而 React 对未声明 style 的节点不会清除外部
+   * 内联样式；折叠态（Rail 圆形按钮）保持定宽，不做拉伸修正。
+   */
+  function applyRowStyles(host: HTMLElement, trigger: HTMLElement): void {
+    const rail = trigger.classList.contains('dsh-tu-settingsTriggerRail')
+    if (host === rowHost && trigger === patchedTrigger && rail === patchedRail)
+      return
+    host.classList.add(PET_SETTINGS_ROW_CLASS)
+    host.style.display = 'flex'
+    host.style.alignItems = 'center'
+    host.style.gap = '8px'
+    host.style.width = '100%'
+    if (rail) {
+      trigger.style.removeProperty('flex')
+      trigger.style.removeProperty('width')
+      trigger.style.removeProperty('min-width')
+    }
+    else {
+      trigger.style.flex = '1 1 auto'
+      trigger.style.width = 'auto'
+      trigger.style.minWidth = '0'
+    }
+    rowHost = host
+    patchedTrigger = trigger
+    patchedRail = rail
+  }
+
+  /**
    * 看护入口按钮：设置触发器就绪且按钮不在其右侧时（首次挂载 / React 重渲染
-   * 丢弃）重新插入；同时给宿主容器补 flex 行类——新版 dsh 客户端的
-   * SettingsRoot 用 triggerRow（flex 行）承载齿轮与行内图标，旧版是通栏块级
-   * 按钮，直接 after 会被挤到下一行，必须由本类把行立起来。
+   * 丢弃）重新插入；同时把触发器宿主立成 flex 行，保证图标与齿轮同行排布。
    */
   function ensurePlaced(): void {
     const trigger = document.querySelector<HTMLElement>(SETTINGS_TRIGGER_SELECTOR)
     if (!trigger?.parentElement)
       return
-    const host = trigger.parentElement
-    host.classList.add(PET_SETTINGS_ROW_CLASS)
-    rowHost = host
+    applyRowStyles(trigger.parentElement, trigger)
     if (button.isConnected && button.previousElementSibling === trigger)
       return
     trigger.after(button)
@@ -120,8 +150,21 @@ export function installSidebarPetIcon(): () => void {
     observer.disconnect()
     unsubscribe()
     button.remove()
-    rowHost?.classList.remove(PET_SETTINGS_ROW_CLASS)
+    if (rowHost) {
+      rowHost.classList.remove(PET_SETTINGS_ROW_CLASS)
+      rowHost.style.removeProperty('display')
+      rowHost.style.removeProperty('align-items')
+      rowHost.style.removeProperty('gap')
+      rowHost.style.removeProperty('width')
+    }
+    if (patchedTrigger) {
+      patchedTrigger.style.removeProperty('flex')
+      patchedTrigger.style.removeProperty('width')
+      patchedTrigger.style.removeProperty('min-width')
+    }
     rowHost = undefined
+    patchedTrigger = undefined
+    patchedRail = undefined
     if (timer !== undefined)
       clearInterval(timer)
   }
