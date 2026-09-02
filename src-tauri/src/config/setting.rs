@@ -81,6 +81,9 @@ pub struct Setting {
     /// `None` 或空串 = 尚未选择（沿用默认内置宠）。
     #[serde(default)]
     pub active_pet: Option<String>,
+    /// 桌宠精灵图的显示宽度（逻辑像素）；`None` = 沿用窗口侧默认值。
+    #[serde(default)]
+    pub pet_size: Option<f64>,
 }
 
 pub const ZOOM_FACTOR_MIN: f64 = 0.5;
@@ -201,6 +204,7 @@ impl Default for Setting {
             backup_include_credentials: false,
             pet_enabled: false,
             active_pet: None,
+            pet_size: None,
         }
     }
 }

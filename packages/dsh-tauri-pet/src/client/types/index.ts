@@ -4,6 +4,8 @@
 export interface PetStatus {
   enabled: boolean
   active_pet?: string | null
+  /** 精灵图显示宽度（逻辑像素）；null/缺省 = 未设置，窗口侧用默认值。 */
+  pet_size?: number | null
 }
 
 /** 文案键（locale 字典键集合的权威来源）。 */
@@ -13,16 +15,16 @@ export type LocaleKey
     | 'disable'
     | 'enabled'
     | 'disabled'
-    | 'close'
     | 'selectPet'
     | 'show'
     | 'hide'
     | 'chooseCodex'
-    | 'import'
-    | 'pets'
     | 'petWindowHint'
     | 'enabledHint'
     | 'disabledHint'
     | 'loadFailed'
     | 'setEnabledFailed'
     | 'setPetFailed'
+    | 'setSizeFailed'
+    | 'sizeLabel'
+    | 'sizeHint'

@@ -12,6 +12,10 @@ use crate::desktop::pet as pet_window;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+/// 桌宠精灵图显示宽度的合法区间（逻辑像素，与设置页滑条一致）。
+pub const PET_SIZE_MIN: f64 = 96.0;
+pub const PET_SIZE_MAX: f64 = 220.0;
+
 /// 桌宠当前状态（设置页与插件读取）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -20,15 +24,18 @@ pub struct PetStatus {
     pub enabled: bool,
     /// 当前选中的桌宠模型包名；None/空 = 未选择（默认宠）。
     pub active_pet: Option<String>,
+    /// 精灵图显示宽度（逻辑像素）；None = 未设置（窗口侧用默认 160）。
+    pub pet_size: Option<f64>,
 }
 
-/// 查询桌宠当前状态（启用与否 + 当前选择的宠物模型）。
+/// 查询桌宠当前状态（启用与否 + 当前选择的宠物模型 + 显示大小）。
 #[tauri::command]
 pub fn get_pet_status(app: AppHandle) -> PetStatus {
     let setting = config::get_store_dat_setting(&app);
     PetStatus {
         enabled: setting.pet_enabled,
         active_pet: setting.active_pet.clone(),
+        pet_size: setting.pet_size,
     }
 }
 
@@ -45,6 +52,7 @@ pub fn set_pet_enabled(app: AppHandle, enabled: bool) -> Result<PetStatus, Strin
     Ok(PetStatus {
         enabled: updated.pet_enabled,
         active_pet: updated.active_pet.clone(),
+        pet_size: updated.pet_size,
     })
 }
 
@@ -64,6 +72,29 @@ pub fn set_active_pet(app: AppHandle, id: String) -> Result<PetStatus, String> {
     Ok(PetStatus {
         enabled: updated.pet_enabled,
         active_pet: updated.active_pet.clone(),
+        pet_size: updated.pet_size,
+    })
+}
+
+/// 设置桌宠精灵图的显示宽度（设置页拖动条），并持久化 pet_size。
+///
+/// 宠物窗口按逻辑像素轮询读取该值并缩放精灵图；超出合法区间直接拒绝，
+/// 避免把窗口撑爆或缩到不可点按。
+#[tauri::command]
+pub fn set_pet_size(app: AppHandle, size: f64) -> Result<PetStatus, String> {
+    if !size.is_finite() || size < PET_SIZE_MIN || size > PET_SIZE_MAX {
+        return Err(format!(
+            "PET_SIZE_OUT_OF_RANGE: pet size must be within {PET_SIZE_MIN}..={PET_SIZE_MAX}"
+        ));
+    }
+    let updated = config::update_store_dat_setting(&app, |setting| {
+        setting.pet_size = Some(size);
+    });
+
+    Ok(PetStatus {
+        enabled: updated.pet_enabled,
+        active_pet: updated.active_pet.clone(),
+        pet_size: updated.pet_size,
     })
 }
 

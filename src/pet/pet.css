@@ -1,7 +1,7 @@
 /* 桌宠外置窗口样式：透明画布 + dsh-pet 精灵图。
    窗口本身 transparent=true（无边框、无阴影、跳过任务栏），因此 body 全透明，
-   只绘制宠物主体。尺寸由 Rust 侧 PET_WINDOW_WIDTH/HEIGHT（240x280）给定。
-   整个 stage 都是拖动区域（无关闭按钮；隐藏统一走插件侧 hide_pet 命令）。 */
+   只绘制宠物主体。窗口尺寸由 Rust 侧 PET_WINDOW_WIDTH/HEIGHT（240x280）给定。
+   只有宠物本体（.pet-canvas，宽度 = 设置的 pet_size）是拖动区域；stage 负责居中。 */
 
 html,
 body {
@@ -22,7 +22,7 @@ body {
   height: 100%;
 }
 
-/* 窗口即画布：整体可拖动 */
+/* 舞台：不承接拖动，只把宠物本体居中、纵向靠下 */
 .pet-stage {
   position: relative;
   width: 100%;
@@ -31,23 +31,27 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
+}
+
+/* 宠物本体 = 可拖动区域：宽度由内联样式（pet_size）给定，高度随精灵图比例 */
+.pet-canvas {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 14px;
   -webkit-app-region: drag;
   app-region: drag;
   cursor: grab;
 }
 
-/* 宠物画布：居中，纵向靠下 */
-.pet-canvas {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 14px;
+.pet-canvas:active {
+  cursor: grabbing;
 }
 
-/* 精灵图容器：dsh-pet 呆味帧（220x124，透明 PNG），放大并做轻量浮动动画 */
+/* 精灵图：填满本体宽度（dsh-pet 呆味帧 220x124，透明 PNG），轻量浮动动画 */
 .pet-sprite {
-  width: 168px;
+  width: 100%;
   height: auto;
   image-rendering: auto;
   filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
@@ -62,17 +66,4 @@ body {
   50% {
     transform: translateY(-6px) rotate(1.4deg);
   }
-}
-
-/* 宠物名称：悬浮小标签 */
-.pet-name {
-  margin-top: 6px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(20, 24, 52, 0.55);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
 }

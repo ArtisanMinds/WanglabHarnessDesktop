@@ -1,31 +1,38 @@
 /**
- * register/pet.ts — 桌宠入口图标 + 独立设置页注册：装入 layout 声明的
- * `shell.overlay` 槽（list/root 多胜者，允许并排多个条目）。
+ * register/pet.ts — 「宠物」设置分区注册 + 侧栏入口 DOM 补丁安装。
  *
- * 两个独立 id：
- *   - PET_ICON_SLOT_ID      侧栏宠物入口小图标（点击打开设置页）
- *   - PET_SETTINGS_SLOT_ID  独立设置页（仅打开时挂载）
+ * 设置分区：注册进 dsh-tauri-ui 设置侧边栏投影的 `settings.section` 槽
+ * （与 dsh-tauri-session 归档分区同机制，导航行 label 用本插件文案）。
+ * 侧栏入口：不走 slot（sidebar.settings 是 single 槽、已被 dsh-tauri-ui
+ * 占据），用 DOM 补丁把官方 iconButton 样式的切换按钮插到设置触发器右侧。
  */
 import type { Context } from '@deepseek-ai/cordis'
 // 拉入 dsh-client-ui-renderer 的 `declare module '@deepseek-ai/cordis'` 增广，
 // 让 `ctx.slots`（SlotRegistry）获得类型（运行时由 UI renderer 提供）。
 import type {} from '@deepseek-ai/dsh-client-ui-renderer'
-import { PetIcon } from '../components/pet-icon'
 import { PetSettings } from '../components/pet-settings'
-import { PET_ICON_SLOT_ID, PET_SETTINGS_SLOT_ID } from '../constants'
+import { PET_CLIENT_PLUGIN, PET_ICON_PATCH_EFFECT, PET_SECTION_EFFECT, PET_SECTION_ID, PET_SECTION_ORDER } from '../constants'
+import { installSidebarPetIcon } from '../dom/sidebar-icon'
+import { text } from '../locales'
 
-export function installPetIcon(ctx: Context): void {
-  ctx.slots.inject('shell.overlay' as never, () =>
-    ctx.slots.register(
-      { name: 'shell.overlay', id: PET_ICON_SLOT_ID, order: 90, registrant: 'dsh-tauri-pet' } as never,
-      PetIcon as never,
-    ))
+export function registerPetSection(ctx: Context): void {
+  ctx.effect(
+    () =>
+      ctx.slots.inject('settings.section' as never, () =>
+        ctx.slots.register(
+          {
+            name: 'settings.section',
+            id: PET_SECTION_ID,
+            order: PET_SECTION_ORDER,
+            registrant: PET_CLIENT_PLUGIN,
+            label: () => text('name'),
+          } as never,
+          PetSettings as never,
+        )),
+    PET_SECTION_EFFECT,
+  )
 }
 
-export function installPetSettings(ctx: Context): void {
-  ctx.slots.inject('shell.overlay' as never, () =>
-    ctx.slots.register(
-      { name: 'shell.overlay', id: PET_SETTINGS_SLOT_ID, order: 91, registrant: 'dsh-tauri-pet' } as never,
-      PetSettings as never,
-    ))
+export function installPetIconPatch(ctx: Context): void {
+  ctx.effect(() => installSidebarPetIcon(), PET_ICON_PATCH_EFFECT)
 }

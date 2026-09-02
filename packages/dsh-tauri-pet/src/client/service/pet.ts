@@ -9,7 +9,7 @@ import type { PetStatus } from '../types'
  * `#[tauri::command]` 一一对应。
  */
 import { invokeBridgedTauri } from 'dsh-tauri/client'
-import { CMD_GET_PET_STATUS, CMD_HIDE_PET, CMD_SET_ACTIVE_PET, CMD_SET_PET_ENABLED, CMD_SHOW_PET } from '../constants'
+import { CMD_GET_PET_STATUS, CMD_HIDE_PET, CMD_SET_ACTIVE_PET, CMD_SET_PET_ENABLED, CMD_SET_PET_SIZE, CMD_SHOW_PET } from '../constants'
 
 /** 查询桌宠当前状态（启用与否 + 当前选择）。 */
 export function fetchPetStatus(): Promise<PetStatus> {
@@ -24,6 +24,11 @@ export function setPetEnabled(enabled: boolean): Promise<PetStatus> {
 /** 选择桌宠模型包。 */
 export function setActivePet(id: string): Promise<PetStatus> {
   return invokeBridgedTauri<PetStatus>(CMD_SET_ACTIVE_PET, { id })
+}
+
+/** 设置精灵图显示宽度（逻辑像素；拖动条松手时提交）。 */
+export function setPetSize(size: number): Promise<PetStatus> {
+  return invokeBridgedTauri<PetStatus>(CMD_SET_PET_SIZE, { size })
 }
 
 /** 显示桌宠窗口（需已启用）。 */

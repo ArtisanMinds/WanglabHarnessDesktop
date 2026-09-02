@@ -1,5 +1,5 @@
 /**
- * locales/index.ts — 本插件自有文案（桌宠开关、选择宠物、提示）。
+ * locales/index.ts — 本插件自有文案（桌宠开关、选择宠物、大小拖动条、提示）。
  * 走 locale 服务的非类型化注册面（register(ns, locale, dict)），zh/en 双语齐备，
  * 语言自动跟随宿主 UI；`text()` 支持 `{name}` 插值。
  */
@@ -16,19 +16,19 @@ const DICT_ZH: Record<LocaleKey, string> = {
   disable: '停用',
   enabled: '已启用',
   disabled: '已停用',
-  close: '关闭',
   selectPet: '选择宠物',
   show: '显示',
   hide: '隐藏',
   chooseCodex: 'Codex',
-  import: '导入',
-  pets: '宠物',
-  petWindowHint: '桌宠会以独立透明窗口显示在桌面一角',
-  enabledHint: '桌宠已启用，正在桌面显示',
+  petWindowHint: '桌宠会以独立透明窗口显示在桌面一角，拖动宠物本体即可移动位置',
+  enabledHint: '桌宠已启用，正在桌面显示；侧栏入口图标右上角有绿点标识',
   disabledHint: '桌宠未启用',
   loadFailed: '读取桌宠状态失败',
   setEnabledFailed: '切换桌宠状态失败',
   setPetFailed: '选择宠物失败',
+  setSizeFailed: '设置宠物大小失败',
+  sizeLabel: '宠物大小',
+  sizeHint: '拖动滑条调整宠物显示大小，松手后生效',
 }
 
 /** en 字典，与 zh 键集完全一致。 */
@@ -38,19 +38,19 @@ const DICT_EN: Record<LocaleKey, string> = {
   disable: 'Disable',
   enabled: 'Enabled',
   disabled: 'Disabled',
-  close: 'Close',
   selectPet: 'Select pet',
   show: 'Show',
   hide: 'Hide',
   chooseCodex: 'Codex',
-  import: 'Import',
-  pets: 'Pets',
-  petWindowHint: 'The pet shows in a separate transparent window on the desktop',
-  enabledHint: 'Pet enabled, showing on the desktop',
+  petWindowHint: 'The pet shows in a separate transparent window on the desktop; drag the pet body to move it',
+  enabledHint: 'Pet enabled, showing on the desktop; the sidebar entry shows a green dot',
   disabledHint: 'Pet disabled',
   loadFailed: 'Failed to load pet status',
   setEnabledFailed: 'Failed to toggle pet status',
   setPetFailed: 'Failed to select pet',
+  setSizeFailed: 'Failed to set pet size',
+  sizeLabel: 'Pet size',
+  sizeHint: 'Drag the slider to resize the pet; it takes effect on release',
 }
 
 /** 活跃语言 id（module 级缓存，apply 时初始化并由订阅推进）。 */
