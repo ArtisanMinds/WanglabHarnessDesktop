@@ -1,3 +1,4 @@
+import type { InvokeBridgeReply, InvokeBridgeRequest } from '../types'
 /**
  * dsh-tauri invoke 桥（iframe 侧客户端）。
  *
@@ -16,7 +17,6 @@
  * （INVOKE_TIMEOUT_MS）或局部失败统一 reject，并登记进宿主错误注册表便于排查。
  */
 import { INVOKE_TIMEOUT_MS, PLUGIN_ID, SRC_INVOKE, SRC_INVOKE_REPLY, TYPE_INVOKE, TYPE_INVOKE_REPLY } from '../constants'
-import type { InvokeBridgeRequest, InvokeBridgeReply } from '../types'
 
 let nonceSeq = 0
 

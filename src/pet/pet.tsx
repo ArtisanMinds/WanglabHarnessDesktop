@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { useEffect, useState } from 'react'
+import petSpriteUrl from './assets/dsh-pet-idle.png'
 
 /**
  * 桌宠外置窗口（独立透明 Webview，label `pet`）。
  *
- * 展现 dsh 桌宠可活动物形象；窗口即画布（body 尺寸 = PET_WINDOW_*），
- * 顶部留一条可拖动把手（`data-tauri-drag-region`），右下角关闭按钮通过
- * `hide_pet` 命令隐藏（不动 `pet_enabled`，可再次经插件桥显示）。
+ * 窗口即画布（body 尺寸 = PET_WINDOW_*）：整个窗口都可以被拖动（根节点挂
+ * `data-tauri-drag-region`），不显示关闭按钮——隐藏桌宠统一走插件侧
+ * `hide_pet` 命令（在设置页操作），保证「宠物资源文件」的责任边界（本体来自
+ * dsh-pet 的精灵图，而非自绘 CSS）。
  *
+ * 精灵图取自 dsh-pet（PC2005-cloud/dsh-pet）呆味预览图第一帧，透明 PNG，
+ * 窗口侧仅做轻量「呼吸/浮动」自绘动画（符合「只借静态精灵图，窗口自绘动画」）。
  * 该窗口是 Tauri 顶层 webview（非 iframe），可直接 `import { invoke }`。
  */
 
@@ -16,7 +20,7 @@ interface PetStatus {
   active_pet?: string | null
 }
 
-/** 无状态时的默认动物文案（取 active_pet 的最后一段，去掉版本/扩展）。 */
+/** 无状态时的默认展示名（取 active_pet 的最后一段，去掉版本/扩展）。 */
 function petDisplayName(id: string | null | undefined): string {
   if (!id)
     return 'dsh'
@@ -26,15 +30,13 @@ function petDisplayName(id: string | null | undefined): string {
 
 export function PetWindow() {
   const [activePet, setActivePet] = useState<string>('dsh')
-  const [bobbing, setBobbing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     void invoke<PetStatus>('get_pet_status')
       .then((status) => {
-        if (!cancelled && status.active_pet) {
+        if (!cancelled && status.active_pet)
           setActivePet(petDisplayName(status.active_pet))
-        }
       })
       .catch((error) => {
         console.error('[pet] get_pet_status failed:', error)
@@ -44,47 +46,12 @@ export function PetWindow() {
     }
   }, [])
 
-  // 周期性俏皮「点头」，让桌宠显得有生命（仅视觉，与 dsh 会话状态无关）。
-  useEffect(() => {
-    const timer = setTimeout(() => setBobbing(true), 1200)
-    return () => clearTimeout(timer)
-  }, [bobbing])
-
-  function hide() {
-    void invoke('hide_pet').catch((error) => {
-      console.error('[pet] hide_pet failed:', error)
-    })
-  }
-
   return (
-    <div className="pet-stage">
-      <div className="pet-drag" data-tauri-drag-region>
-        {/* 拖动手把：拖动即触发桌面端 Moved 保存位置 */}
-      </div>
-
+    <div className="pet-stage" data-tauri-drag-region>
       <div className="pet-canvas" role="img" aria-label={`Deepseek Harness pet: ${activePet}`}>
-        <div className={`pet-mascot${bobbing ? ' bobbing' : ''}`}>
-          {/* 像素风桌宠主体（CSS 拼块），形象随 activePet 称为文案提示 */}
-          <div className="pixel-body" />
-          <div className="pixel-face">
-            <span className="pixel-eye left" />
-            <span className="pixel-eye right" />
-            <span className="pixel-mouth" />
-          </div>
-        </div>
+        <img className="pet-sprite" src={petSpriteUrl} alt="" draggable={false} decoding="async" />
         <span className="pet-name">{activePet}</span>
       </div>
-
-      <button className="pet-close" type="button" onClick={hide} title="Hide pet">
-        <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true">
-          <path
-            d="M1 1 L9 9 M9 1 L1 9"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
     </div>
   )
 }

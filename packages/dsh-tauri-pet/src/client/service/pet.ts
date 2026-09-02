@@ -1,3 +1,4 @@
+import type { PetStatus } from '../types'
 /**
  * service/pet.ts — 桌宠 Tauri 命令的桥客户端。
  *
@@ -8,7 +9,6 @@
  * `#[tauri::command]` 一一对应。
  */
 import { invokeBridgedTauri } from 'dsh-tauri/client'
-import type { PetStatus } from '../types'
 import { CMD_GET_PET_STATUS, CMD_HIDE_PET, CMD_SET_ACTIVE_PET, CMD_SET_PET_ENABLED, CMD_SHOW_PET } from '../constants'
 
 /** 查询桌宠当前状态（启用与否 + 当前选择）。 */
