@@ -125,6 +125,9 @@ catalogs:
     react-use:
       specifier: ^17.6.1
       version: 17.6.1
+    semver:
+      specifier: ^7.8.0
+      version: 7.8.5
     tailwind-variants:
       specifier: ^3.3.1
       version: 3.3.1
@@ -257,6 +260,9 @@ importers:
       react-use:
         specifier: catalog:runtime
         version: 17.6.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      semver:
+        specifier: catalog:runtime
+        version: 7.8.5
       tailwind-variants:
         specifier: catalog:runtime
         version: 3.3.1(tailwind-merge@3.4.0)(tailwindcss@4.1.11)

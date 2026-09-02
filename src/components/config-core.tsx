@@ -398,7 +398,12 @@ function displayVersion(version: HarnessCore): string {
  * Returns: negative if a < b, 0 if equal, positive if a > b.
  */
 function compareVersions(a: string, b: string): number {
-  const clean = (v: string) => v.replace(/^(?:src|dsh)-/, '')
+  const clean = (v: string) => {
+    let s = v
+    while (s.startsWith('dsh-') || s.startsWith('src-'))
+      s = s.replace(/^(?:src|dsh)-/, '')
+    return s
+  }
   const pa = semver.parse(clean(a))
   const pb = semver.parse(clean(b))
   if (!pa || !pb)

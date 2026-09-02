@@ -38,6 +38,7 @@
     "react-i18next": "catalog:runtime",
     "react-if-lite": "catalog:runtime",
     "react-use": "catalog:runtime",
+    "semver": "catalog:runtime",
     "tailwind-variants": "catalog:runtime",
     "valtio-define": "catalog:runtime"
   },
