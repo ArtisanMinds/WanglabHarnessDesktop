@@ -37,6 +37,10 @@ catalogs:
     typescript:
       specifier: ~5.8.3
       version: 5.8.3
+  default:
+    '@types/semver':
+      specifier: ^7.8.0
+      version: 7.8.0
   dsh:
     '@deepseek-ai/cordis':
       specifier: ^4.0.2
@@ -312,6 +316,9 @@ importers:
       '@types/react-dom':
         specifier: catalog:types
         version: 19.2.4(@types/react@19.2.18)
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       '@vitejs/plugin-react':
         specifier: catalog:build
         version: 4.7.0(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.30.1)(tsx@4.23.12)(yaml@2.9.0))
@@ -2842,6 +2849,9 @@ packages:
 
   '@types/react@19.2.18':
     resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -7472,6 +7482,8 @@ snapshots:
   '@types/react@19.2.18':
     dependencies:
       csstype: 3.2.3
+
+  '@types/semver@7.8.0': {}
 
   '@types/trusted-types@2.0.7':
     optional: true

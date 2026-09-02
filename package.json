@@ -59,6 +59,7 @@
     "@types/node": "catalog:types",
     "@types/react": "catalog:types",
     "@types/react-dom": "catalog:types",
+    "@types/semver": "catalog:",
     "@vitejs/plugin-react": "catalog:build",
     "babel-plugin-react-compiler": "catalog:build",
     "bumpp": "catalog:release",
