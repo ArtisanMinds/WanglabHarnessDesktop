@@ -24,7 +24,7 @@ fn create_symlink(target: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// 需要从归档中排除的相对路径组件（前缀匹配）。
-const EXCLUDED_NAMES: &[&str] = &[".backups", ".harness.pid"];
+const EXCLUDED_NAMES: &[&str] = &[".backups", ".harness.pid", ".plugin-backups"];
 
 /// 需要从归档中排除的相对路径（精确匹配）。
 const EXCLUDED_PATHS: &[&str] = &["node_modules/.modules.yaml"];
@@ -335,6 +335,7 @@ mod tests {
             ("hello.txt", "world"),
             (".backups/old.tar.zst", "junk"),
             (".backups/.manifest.json", "{}"),
+            (".plugin-backups/dsh-market.tgz", "snapshot"),
         ]);
         let dest = archive_dest(&source);
         create_archive(&source, &dest, false).unwrap();
@@ -342,6 +343,10 @@ mod tests {
         assert!(
             entries.iter().all(|e| !e.contains(".backups")),
             ".backups 应被排除，实际条目: {entries:?}"
+        );
+        assert!(
+            entries.iter().all(|e| !e.contains(".plugin-backups")),
+            ".plugin-backups 应被排除（防单插件快照被整库备份递归包含），实际条目: {entries:?}"
         );
         assert!(
             entries.iter().any(|e| e.contains("hello.txt")),
