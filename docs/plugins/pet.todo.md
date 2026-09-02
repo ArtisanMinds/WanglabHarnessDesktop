@@ -4,6 +4,8 @@
 2. tabs 应照搬官方(例如 .pbvGtq_tabs) 组件/样式
 3. Pets 是内置宠物，也可通过会话创建，目前应只有 dsh-pet 的 "ds" 娘宠物，现在多余出了 “猫咪小助手”、“柴犬阿黄”，且选择无反应
 4. Codex 是 Codex 的宠物（~/.codex/pets）默认加载显示列表
+5. Codex 项目的导入，更改为 “选择/已选” 的逻辑，关于 Codex 宠物适配，应多参考
+   https://github.com/PC2005-cloud/dsh-pet / https://github.com/Skylarking/dsh-plugin-codex-pets
 5. 宠物图片应该是动态展示的，大小 80x80
 6. 用户可从 Pets/Codex 选择一个宠物，选择后取消之前选择的宠物
 
@@ -43,7 +45,7 @@
                     │
 ======================================================================================================================
 
-7. 宠物缺少交互，例如待机/转向/移动.....
+7. 宠物缺少交互，例如待机/转向/移动/气泡.....
    应参考 https://github.com/PC2005-cloud/dsh-pet / https://github.com/Skylarking/dsh-plugin-codex-pets
    的实施逻辑
 
