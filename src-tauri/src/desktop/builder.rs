@@ -572,6 +572,11 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::read_clipboard_image,
         crate::desktop::notification::show_native_notification,
         crate::bridge::log_frontend,
+        crate::bridge::get_pet_status,
+        crate::bridge::set_pet_enabled,
+        crate::bridge::set_active_pet,
+        crate::bridge::show_pet,
+        crate::bridge::hide_pet,
     ]
 }
 
@@ -584,6 +589,8 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             #[cfg(target_os = "macos")]
             install_macos_menu(&app_handle)?;
             tray(&app_handle)?;
+            // 桌宠窗口：按「是否启用」设置惰性创建/显示（幂等）。
+            crate::desktop::pet::init_pet_window(&app_handle);
             setup(app_handle.clone());
             Ok(())
         })
@@ -648,10 +655,18 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             }
             // 移动/缩放主窗口时记录几何，重启后据此恢复（见 config::window_state）
             tauri::WindowEvent::Moved(_) => {
-                crate::config::save_geometry(window);
+                if window.label() == crate::desktop::pet::PET_WINDOW_LABEL {
+                    crate::desktop::pet::save_pet_window_geometry(window);
+                } else {
+                    crate::config::save_geometry(window);
+                }
             }
             tauri::WindowEvent::Resized(_) => {
-                crate::config::save_geometry(window);
+                if window.label() == crate::desktop::pet::PET_WINDOW_LABEL {
+                    crate::desktop::pet::save_pet_window_geometry(window);
+                } else {
+                    crate::config::save_geometry(window);
+                }
                 #[cfg(target_os = "macos")]
                 sync_macos_fullscreen_menu(window);
                 // 退出全屏后补做全屏期间被推迟的 Accessory 切换

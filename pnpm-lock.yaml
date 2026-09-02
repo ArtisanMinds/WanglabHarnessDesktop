@@ -415,6 +415,9 @@ importers:
       dsh-tauri-panel-placeholder:
         specifier: workspace:*
         version: link:../dsh-tauri-panel-placeholder
+      dsh-tauri-pet:
+        specifier: workspace:*
+        version: link:../dsh-tauri-pet
       dsh-tauri-rightclick:
         specifier: workspace:*
         version: link:../dsh-tauri-rightclick
@@ -493,6 +496,40 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      tsdown:
+        specifier: catalog:cli
+        version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
+
+  packages/dsh-tauri-pet:
+    dependencies:
+      dsh-tauri:
+        specifier: workspace:*
+        version: link:../dsh-tauri
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: catalog:dsh
+        version: 4.0.2(@deepseek-ai/cordis-plugin-include@1.0.7)(@deepseek-ai/cordis-plugin-loader@1.0.3)
+      '@deepseek-ai/dsh-client-store':
+        specifier: catalog:dsh
+        version: 0.1.2-alpha.3(@deepseek-ai/cordis@4.0.2)(@types/react@19.2.18)(react@19.2.8)
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: catalog:dsh
+        version: 0.1.2-alpha.3(@deepseek-ai/cordis@4.0.2)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: catalog:dsh
+        version: 0.1.2-alpha.3(@deepseek-ai/cordis@4.0.2)(react@19.2.8)
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: catalog:dsh
+        version: 0.1.2-alpha.3(@deepseek-ai/cordis@4.0.2)
+      css-render:
+        specifier: catalog:ui
+        version: 0.15.14
+      dsh-tauri-tsdown:
+        specifier: workspace:*
+        version: link:../dsh-tauri-tsdown
+      react:
+        specifier: catalog:runtime
+        version: 19.2.8
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)

@@ -23,6 +23,8 @@ export * from './storage'
 export * from './store'
 export type * from './types'
 
+export { invokeBridgedTauri } from './service/invoke'
+
 export type { ClientContext } from './types'
 export { compat, resolveStartSession } from './utils/compat'
 export { CssRender } from 'css-render'

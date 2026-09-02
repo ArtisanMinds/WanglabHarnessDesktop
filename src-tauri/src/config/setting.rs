@@ -74,6 +74,13 @@ pub struct Setting {
     /// 备份是否包含凭据文件（`.credentials.yaml`）。
     #[serde(default)]
     pub backup_include_credentials: bool,
+    /// 桌宠（外置透明宠物窗口）是否启用。
+    #[serde(default)]
+    pub pet_enabled: bool,
+    /// 当前选中的桌宠模型包（`x.x.x.sprites/` 目录名或用户导入的 .zip 包名）；
+    /// `None` 或空串 = 尚未选择（沿用默认内置宠）。
+    #[serde(default)]
+    pub active_pet: Option<String>,
 }
 
 pub const ZOOM_FACTOR_MIN: f64 = 0.5;
@@ -192,6 +199,8 @@ impl Default for Setting {
             auto_backup_on_change: false,
             backup_retention_count: default_backup_retention_count(),
             backup_include_credentials: false,
+            pet_enabled: false,
+            active_pet: None,
         }
     }
 }
