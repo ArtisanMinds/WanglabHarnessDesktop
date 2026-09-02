@@ -189,11 +189,12 @@ export function ConfigPlugin() {
       silence(e, 'plugin remove: dialog cancelled')
       return
     }
+    setBusy({ id, action: 'remove' })
     try {
       await remove.mutateAsync(id)
     }
     catch (e) {
-      silence(e, 'plugin upgrade: error already shown by mutation onError')
+      silence(e, 'plugin remove: error already shown by mutation onError')
     }
     finally {
       setBusy(null)
@@ -211,7 +212,7 @@ export function ConfigPlugin() {
       await disable.mutateAsync(id)
     }
     catch (e) {
-      silence(e, 'plugin upgrade: error already shown by mutation onError')
+      silence(e, 'plugin disable: error already shown by mutation onError')
     }
     finally {
       setBusy(null)
@@ -228,7 +229,7 @@ export function ConfigPlugin() {
       await enable.mutateAsync(id)
     }
     catch (e) {
-      silence(e, 'plugin upgrade: error already shown by mutation onError')
+      silence(e, 'plugin enable: error already shown by mutation onError')
     }
     finally {
       setBusy(null)
@@ -264,7 +265,7 @@ export function ConfigPlugin() {
       await snapshot.mutateAsync(id)
     }
     catch (e) {
-      silence(e, 'plugin upgrade: error already shown by mutation onError')
+      silence(e, 'plugin snapshot: error already shown by mutation onError')
     }
     finally {
       setBusy(null)
@@ -290,6 +291,7 @@ export function ConfigPlugin() {
       silence(e, 'plugin restore: dialog cancelled')
       return
     }
+    setBusy({ id, action: 'restore' })
     try {
       await restore.mutateAsync(id)
       // 还原期间后端已停止服务：复用 config-backup 的「重启服务」toast 交互
@@ -306,7 +308,7 @@ export function ConfigPlugin() {
       })
     }
     catch (e) {
-      silence(e, 'plugin upgrade: error already shown by mutation onError')
+      silence(e, 'plugin restore: error already shown by mutation onError')
     }
     finally {
       setBusy(null)
@@ -336,7 +338,7 @@ export function ConfigPlugin() {
       await deleteSnapshot.mutateAsync(id)
     }
     catch (e) {
-      silence(e, 'plugin upgrade: error already shown by mutation onError')
+      silence(e, 'plugin delete-snapshot: error already shown by mutation onError')
     }
     finally {
       setBusy(null)

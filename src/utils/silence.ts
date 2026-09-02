@@ -5,11 +5,11 @@
  * already handled elsewhere (e.g., by an error boundary, mutation onError, or
  * app error state).
  *
- * In dev mode, logs to console.debug with the reason for visibility.
+ * In dev mode, logs to console.warn with the reason for visibility.
  * In production, does nothing (truly silent).
  */
 export function silence(error: unknown, reason?: string): void {
   if (import.meta.env.DEV) {
-    console.debug(reason ? `[silenced] ${reason}` : '[silenced]', error)
+    console.warn(reason ? `[silenced] ${reason}` : '[silenced]', error)
   }
 }

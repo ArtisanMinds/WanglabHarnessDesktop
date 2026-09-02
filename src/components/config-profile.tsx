@@ -99,6 +99,8 @@ export function ConfigProfile() {
       silence(e, 'profile activate: dialog cancelled')
       return
     }
+    try {
+      await activateProfile(id)
       const key = toast(t('profiles.activate_toast', { name: target.name }), {
         variant: 'accent',
         description: t('profiles.activate_restart_hint'),
@@ -164,6 +166,9 @@ export function ConfigProfile() {
       silence(e, 'profile remove: dialog cancelled')
       return
     }
+    try {
+      // 删除成功后列表已移除该档案，UI 本身就有变化，不再弹成功 toast
+      await removeProfile(id)
     }
     catch (err) {
       console.error('[ConfigProfile] remove failed:', err)
