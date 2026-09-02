@@ -139,13 +139,45 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
     let app_for_pos = app_handle.clone();
     let saved = get_pet_window_position(&app_for_pos);
     if let (Some(x), Some(y)) = (saved.x, saved.y) {
-        // 恢复的位置必须落在某个可见屏幕内，否则回退默认定位。
-        let _ = window.set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)));
+        // 恢复的位置必须落在某个可见屏幕内，否则回退默认定位（防止显示器
+        // 拓扑变化后窗口被放到屏幕外不可见）。
+        if position_on_any_monitor(&window, x, y) {
+            let _ = window.set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)));
+        }
+        else {
+            place_pet_at_default(&window);
+        }
     }
     else {
         place_pet_at_default(&window);
     }
     Ok(window)
+}
+
+/// 判断给定物理坐标（窗口左上角）是否落在任一可见屏幕内（含边缘相交）。
+///
+/// 显示器拓扑可能在保存位置后变化（拔掉外接屏 / 改变排布），恢复到一个不
+/// 属于任何屏幕的位置会让桌宠「消失」在屏幕外；这里只在原位置仍有效时恢复。
+fn position_on_any_monitor<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -> bool {
+    let app = window.app_handle();
+    let Ok(monitors) = app.available_monitors() else {
+    return false;
+};
+    // 以窗口自身的物理尺寸近似命中矩形，允许窗口底部/右侧探出一点点也不误判。
+    let w = (PET_WINDOW_WIDTH * window.scale_factor().unwrap_or(1.0)) as i32;
+    let h = (PET_WINDOW_HEIGHT * window.scale_factor().unwrap_or(1.0)) as i32;
+    let hit_left = x;
+    let hit_top = y;
+    let hit_right = x + w;
+    let hit_bottom = y + h;
+    monitors.iter().any(|m| {
+        let pos = m.position();
+        let size = m.size();
+        let (ml, mt) = (pos.x, pos.y);
+        let (mr, mb) = (pos.x + size.width as i32, pos.y + size.height as i32);
+        // 两个矩形至少有一个点的交集：窗口左上角在屏内，或屏被窗口覆盖。
+        hit_left < mr && hit_right > ml && hit_top < mb && hit_bottom > mt
+    })
 }
 
 /// 把桌宠窗口放到主工作区右下角略偏上（主屏内、避开底部任务栏高度）。
@@ -179,7 +211,7 @@ pub fn sync_pet_window<R: Runtime>(app: &AppHandle<R>) {
     if ensure_pet_window(app).is_ok() {
         if let Some(window) = app.get_webview_window(PET_WINDOW_LABEL) {
             let _ = window.show();
-            let _ = window.set_focus();
+            // 刻意不 set_focus()：桌宠不应抢占用户当前应用的焦点（非打断性浮现）。
         }
     }
 }

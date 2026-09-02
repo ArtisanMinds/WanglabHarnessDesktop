@@ -44,6 +44,9 @@ export function PetSettings(_props: PetSettingsProps) {
     try {
       setPetStatus(await setPetEnabled(!enabled))
     }
+    catch (error) {
+      console.error('[dsh-tauri-pet] setPetEnabled failed:', error)
+    }
     finally {
       setBusy(false)
     }
@@ -56,6 +59,9 @@ export function PetSettings(_props: PetSettingsProps) {
     try {
       setPetStatus(await setActivePet(id))
     }
+    catch (error) {
+      console.error('[dsh-tauri-pet] setActivePet failed:', error)
+    }
     finally {
       setBusy(false)
     }
@@ -65,7 +71,7 @@ export function PetSettings(_props: PetSettingsProps) {
     <div className="dshpet-settings" role="dialog" aria-modal="false" aria-label={text('name')}>
       <header className="dshpet-settingsHead">
         <h2 className="dshpet-settingsTitle">{text('name')}</h2>
-        <button type="button" className="dshpet-settingsClose" aria-label={text('disable')} onClick={() => closePetSettings()}>×</button>
+        <button type="button" className="dshpet-settingsClose" aria-label={text('close')} onClick={() => closePetSettings()}>×</button>
       </header>
       <div className="dshpet-settingsBody">
         <section className="dshpet-card">

@@ -29,6 +29,19 @@ interface InvokeBridgeRequest {
   nonce?: string
 }
 
+/**
+ * 允许 iframe 桥调用的 Tauri command 白名单（与 dsh-tauri-pet 的
+ * service/pet.ts 一一对应）。凡新增可经桥调用的 command 必须在此登记，
+ * 防止 iframe 内其他插件借道桥执行任意 Tauri command（越权）。
+ */
+const ALLOWED_INVOKE_CMDS = new Set([
+  'get_pet_status',
+  'set_pet_enabled',
+  'set_active_pet',
+  'show_pet',
+  'hide_pet',
+])
+
 export function useIframeInvoke(iframeRef: RefObject<HTMLIFrameElement | null>): void {
   function handleMessage(event: MessageEvent<InvokeBridgeRequest>) {
     const data = event.data
@@ -44,6 +57,11 @@ export function useIframeInvoke(iframeRef: RefObject<HTMLIFrameElement | null>):
       return
     }
     if (data.type !== 'dsh://tauri:invoke' || !data.cmd) {
+      return
+    }
+    // 仅在白名单内的 command 允许调用，其余静默忽略（防越权）。
+    if (!ALLOWED_INVOKE_CMDS.has(data.cmd)) {
+      console.warn(`[iframe-invoke] ignored non-allowlisted cmd: ${data.cmd}`)
       return
     }
     const cmd = data.cmd

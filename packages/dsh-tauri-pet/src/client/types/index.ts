@@ -13,6 +13,7 @@ export type LocaleKey
     | 'disable'
     | 'enabled'
     | 'disabled'
+    | 'close'
     | 'selectPet'
     | 'show'
     | 'hide'
