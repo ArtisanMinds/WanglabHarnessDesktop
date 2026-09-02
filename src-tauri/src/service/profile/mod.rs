@@ -11,6 +11,7 @@
 
 use crate::config;
 use crate::service::fs_guard;
+use rayon::prelude::*;
 use serde::Serialize;
 use serde_yaml::Value;
 use std::fs;
@@ -345,30 +346,57 @@ fn next_profile_id(profiles_root: &Path, base: &str) -> Result<String, String> {
 }
 
 /// 递归复制目录树到全新目标（跳过 profile 根下隐藏目录，保留 `.npmrc`）。
+///
+/// 顶层目录串行创建后，同级条目用 rayon `par_iter` 并行处理：目录递归、文件
+/// `fs::copy` 并发执行，大幅加速大档案（含 node_modules）的克隆。
 fn copy_dir_tree(src: &Path, dst: &Path) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| format!("COPY_MKDIR: {e}"))?;
-    for entry in fs::read_dir(src).map_err(|e| format!("COPY_READ: {e}"))? {
-        let entry = entry.map_err(|e| format!("COPY_ENTRY: {e}"))?;
+    let read_dir = fs::read_dir(src).map_err(|e| format!("COPY_READ: {e}"))?;
+    let entries: Vec<_> = read_dir
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("COPY_ENTRY: {e}"))?;
+    entries.par_iter().try_for_each(|entry| -> Result<(), String> {
         let name = entry.file_name();
+        // 仅跳过运行时产物（不随克隆迁移）
         if let Some(s) = name.to_str() {
-            if s.starts_with('.') && s != ".npmrc" {
-                let path = entry.path();
-                // 跳过隐藏目录（如 .dsh、.pnpm 内部）
-                if path.is_dir() {
-                    continue;
-                }
-                // 隐藏文件（非 .npmrc）跳过
-                continue;
+            if s == ".harness.pid" || s == ".backups" {
+                return Ok(());
             }
         }
         let src_path = entry.path();
         let dst_path = dst.join(&name);
         let ty = entry.file_type().map_err(|e| format!("COPY_TYPE: {e}"))?;
-        if ty.is_dir() {
+        if ty.is_symlink() {
+            // 保留符号链接原样（如 node_modules/.bin 下的可执行链接）
+            let target = std::fs::read_link(&src_path)
+                .map_err(|e| format!("COPY_LINK_READ: {e}"))?;
+            copy_symlink(&target, &dst_path)?;
+        } else if ty.is_dir() {
             copy_dir_tree(&src_path, &dst_path)?;
         } else if ty.is_file() {
             fs::copy(&src_path, &dst_path).map_err(|e| format!("COPY_FILE: {e}"))?;
         }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+/// 在目标位置重建一条符号链接（指向原链接相同的目标）。
+#[cfg(unix)]
+fn copy_symlink(target: &std::path::Path, dst: &Path) -> Result<(), String> {
+    std::os::unix::fs::symlink(target, dst)
+        .map_err(|e| format!("COPY_LINK_CREATE: {e}"))
+}
+
+/// 在目标位置重建一条符号链接（Windows 下需要权限，best-effort）。
+#[cfg(windows)]
+fn copy_symlink(target: &std::path::Path, dst: &Path) -> Result<(), String> {
+    // Windows 符号链接需要管理员权限，目录联接不需要但仅限目录。
+    // best-effort：失败不阻断克隆，仅记录告警。
+    if dst.parent().is_some() {
+        let _ = std::os::windows::fs::symlink_dir(target, dst)
+            .or_else(|_| std::os::windows::fs::symlink_file(target, dst))
+            .map_err(|e| log::warn!("copy_symlink failed for {}: {e}", dst.display()));
     }
     Ok(())
 }

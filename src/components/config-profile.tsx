@@ -352,7 +352,7 @@ export function ConfigProfile() {
                   isDisabled={!cloneName.trim() || busy}
                   onPress={commitClone}
                 >
-                  {t('profiles.clone_confirm')}
+                  {busy ? t('profiles.clone_cloning') : t('profiles.clone_confirm')}
                 </Button>
               </AlertDialog.Footer>
             </AlertDialog.Dialog>
