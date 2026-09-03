@@ -7,7 +7,9 @@ import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
 import semver from 'semver'
+import { useCoreBreakingConfirm } from '@/hooks/use-core-breaking-confirm'
 import { store } from '@/store'
+import { compareVersions } from '@/utils/core-version'
 import { toast } from '@/utils/toast'
 import { useDshCores } from '../hooks/use-dsh-cores'
 import { DownloadCoreDialog } from './download-core-dialog'
@@ -32,9 +34,11 @@ import { PanelState } from './panel-state'
  * - 本地核心更新：通过用户包管理器 CLI（npm install -g @latest / pnpm add -g @latest）。
  * - 每行展示核心入口（cli path，超长省略号 + 限制宽度）。
  */
+
 export function ConfigCore() {
   const [dialogHolder, openDialog] = useOverlay(Modal, { type: 'holder' })
   const [downloadDialogHolder, openDownloadDialog] = useOverlay(DownloadCoreDialog, { type: 'holder' })
+  const { holder: coreBreakingHolder, confirmCoreBreaking } = useCoreBreakingConfirm()
 
   const { t } = useTranslation()
   const { cores, loading, error, setActiveCore, updateLocalCore, downloadCore, removeCore, refreshCores, busy } = useDshCores()
@@ -131,6 +135,10 @@ export function ConfigCore() {
 
   async function onDownload(core: HarnessCore) {
     if (busy)
+      return
+    // rc.2 以上版本引入破坏性更改，可能影响第三方插件 → 下载前先弹出确认。
+    // 取消则中止，确认后继续；该提示与推荐版本逻辑无关，仅告知用户可随时切回 rc.2。
+    if (!(await confirmCoreBreaking(core.version)))
       return
     // 下载过程在对话框内展示进度 + 日志（复用 install-progress 事件流）；
     // 对话框 confirm（下载成功）或 cancel（失败后点关闭）都会结束本次等待。
@@ -383,6 +391,7 @@ export function ConfigCore() {
 
       {dialogHolder}
       {downloadDialogHolder}
+      {coreBreakingHolder}
     </div>
   )
 }
