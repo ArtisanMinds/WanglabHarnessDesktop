@@ -421,6 +421,15 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::service::plugin::ensure_preset_plugins(&app_handle).await {
         log::warn!("ensure preset plugins failed: {e}");
     }
+    // 预打包核心运行时自愈：把 app 内置插件与 profile 插件入口链接进活动核心的
+    // node_modules（dsh 的 loader 以核心根为裸包解析根），并核验/修复 sharp/koffi
+    // 原生可选依赖。只作用于 CoreSource::App，本地核心由用户自行管理。dsh 在缺失
+    // 这些入口或原生依赖时无法启动，因此失败直接阻断本次 launch（前端展示可恢复
+    // 错误），而不是带着必然失败的核心继续 spawn。
+    if let Err(e) = crate::service::core::prepare_active_runtime(&app_handle).await {
+        log::error!("prepare active core runtime failed: {e}");
+        return Err(e);
+    }
     let mut envs: HashMap<String, String> = HashMap::new();
     envs.insert(
         "DSH_HOME".to_string(),
