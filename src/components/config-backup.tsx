@@ -23,6 +23,34 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}`
 }
 
+/** 轮询 health check 确认 DSH 服务已真正停止，避免文件锁冲突。
+ *  - 使用剩余 timeout 约束 in-flight 的 probe，防止无限挂起
+ *  - 仅当 health check 明确失败（非 transient 错误）时才视为已停止
+ *  - 超时后继续执行（shutdown 可能仍在进行中）
+ */
+async function waitForHarnessStopped(timeoutMs = 10_000, intervalMs = 500): Promise<void> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const remaining = timeoutMs - (Date.now() - start)
+    if (remaining <= 0)
+      break
+    const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('probe timeout')), remaining))
+    try {
+      await Promise.race([invoke('proxy_health_check'), timeoutPromise])
+      // 服务仍在运行，继续等待
+    }
+    catch (e) {
+      // probe 超时视为已停止
+      if (e instanceof Error && e.message === 'probe timeout')
+        return
+      // 非 transient 错误视为已停止；transient 错误（502 等）继续重试
+      if (!(e instanceof Error) || !/502|ECONNREFUSED|ETIMEDOUT/i.test(e.message))
+        return
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+}
+
 export function ConfigBackup({ onBack }: ConfigBackupProps) {
   const { t } = useTranslation()
   const { backups, loading, error, createBackup, restoreBackup, deleteBackup, busy, creating, restoring, deleting } = useBackups()
@@ -57,15 +85,17 @@ export function ConfigBackup({ onBack }: ConfigBackupProps) {
       silence(e, 'backup: dialog cancelled')
       return
     }
+    // 先停止 DSH 服务（释放 profile 目录的文件锁）
+    toast(t('backup.restored_stopped_toast'), { variant: 'accent' })
     try {
-      // 先停止 DSH 服务（释放 profile 目录的文件锁）
-      toast(t('backup.restored_stopped_toast'), { variant: 'accent' })
-      try {
-        await invoke('shutdown_harness')
-      }
-      catch (e) {
-        console.warn('[ConfigBackup] shutdown_harness failed (may already be stopped):', e)
-      }
+      await invoke('shutdown_harness')
+    }
+    catch (e) {
+      console.warn('[ConfigBackup] shutdown_harness failed (may already be stopped):', e)
+    }
+    // 无论 shutdown 成功与否，都验证服务已真正停止
+    await waitForHarnessStopped()
+    try {
       await restoreBackup(timestamp, false)
       // 还原后自动启动 DSH 服务（后台异步，不阻塞 UI）
       invoke('launch_harness').catch((e) => {
