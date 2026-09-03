@@ -15,7 +15,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
 use super::cancel::terminate_owned_install;
@@ -598,6 +598,9 @@ async fn ensure_inner(
             }
         }
     }
+    // 无论本轮是否需要重装，都清理旧版 dsh 生成的 profile-local fallback。
+    // 否则本轮 no-op 后，用户稍后从市场安装插件仍会把同一批 junction 交给 pnpm。
+    remove_legacy_profile_module_fallback(&profile)?;
     if need.is_empty() {
         return Ok(());
     }
@@ -651,17 +654,102 @@ async fn ensure_inner(
             )
         })?;
     }
+    // 旧版 dsh 曾在 profile 内维护 `.dsh-module-fallback`，其中的 junction
+    // 指向已下发的资源目录。pnpm v11 重建 hoisted 树时会把这类跨树 junction
+    // 当作自己管理的入口，回读 `package.json` 可能以 UV_UNKNOWN（-4094）失败；
+    // 该目录不是当前 dsh 的布局，安装前必须移除，避免重试只能重复撞同一入口。
+    remove_legacy_profile_module_fallback(&profile)?;
+
     // 复用常规安装编排（环境准备/补齐 pnpm/`dsh plugin add file:<dir>`）；
     // 启动阶段无持有进程，install 内部不会停服务。失败同样交给调用方告警。
-    if let Err(e) = install_internal(app_handle, &ids, cancel, owner).await {
+    let install_result = install_internal(app_handle, &ids, cancel, owner).await;
+    if let Err(e) = install_result {
+        // 即使 pnpm 失败也清掉旧 fallback，下一次重试必须从干净入口开始。
+        let _ = remove_legacy_profile_module_fallback(&profile);
         return Err(format!("INTERNAL_PLUGIN_INSTALL_FAILED: {e}"));
     }
+
     Ok(())
+}
+
+/// 清理旧版 profile-local fallback，避免 pnpm 管理跨目录 junction。
+fn remove_legacy_profile_module_fallback(profile: &Path) -> Result<(), String> {
+    let node_modules = profile.join("node_modules");
+    if node_modules.is_dir() {
+        let entries = std::fs::read_dir(&node_modules).map_err(|e| {
+            format!(
+                "INTERNAL_PLUGIN_FALLBACK_READ_FAILED: {}: {e}",
+                node_modules.display()
+            )
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|e| {
+                format!(
+                    "INTERNAL_PLUGIN_FALLBACK_ENTRY_FAILED: {}: {e}",
+                    node_modules.display()
+                )
+            })?;
+            let path = entry.path();
+            let metadata = std::fs::symlink_metadata(&path).map_err(|e| {
+                format!(
+                    "INTERNAL_PLUGIN_FALLBACK_STAT_FAILED: {}: {e}",
+                    path.display()
+                )
+            })?;
+            if metadata.file_type().is_symlink()
+                && std::fs::read_link(&path)
+                    .ok()
+                    .is_some_and(|target| is_legacy_profile_fallback_target(&target))
+            {
+                remove_stale_plugin_entry(&path).map_err(|e| {
+                    format!(
+                        "INTERNAL_PLUGIN_FALLBACK_LINK_REMOVE_FAILED: {}: {e}",
+                        path.display()
+                    )
+                })?;
+            }
+        }
+    }
+
+    let fallback = profile.join(".dsh-module-fallback");
+    if fallback.is_dir() {
+        std::fs::remove_dir_all(&fallback).map_err(|e| {
+            format!(
+                "INTERNAL_PLUGIN_FALLBACK_REMOVE_FAILED: {}: {e}",
+                fallback.display()
+            )
+        })?;
+        log::info!(
+            "Removed legacy profile-local module fallback: {}",
+            fallback.display()
+        );
+    }
+    Ok(())
+}
+
+/// 判断 junction 目标是否属于旧版 profile-local fallback。
+fn is_legacy_profile_fallback_target(target: &Path) -> bool {
+    target
+        .components()
+        .any(|component| component.as_os_str() == ".dsh-module-fallback")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_fallback_target_detection_is_path_component_aware() {
+        assert!(is_legacy_profile_fallback_target(Path::new(
+            r"C:\Users\test\.dsh\profiles\web\.dsh-module-fallback\node_modules\anymatch",
+        )));
+        assert!(!is_legacy_profile_fallback_target(Path::new(
+            r"C:\Users\test\.dsh\profiles\web\node_modules\anymatch",
+        )));
+        assert!(!is_legacy_profile_fallback_target(Path::new(
+            r"C:\Users\test\.dsh\profiles\web\.dsh-module-fallback-old\anymatch",
+        )));
+    }
 
     #[tokio::test]
     async fn coordinator_coalesces_waiters_and_releases_for_retry() {
