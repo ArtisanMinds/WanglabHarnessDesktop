@@ -31,6 +31,11 @@ export interface TaskCreateDialogProps {
 }
 
 const WEEKDAYS: Weekday[] = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
+const PERMISSION_LABEL_KEYS: Record<string, string> = {
+  'read-only': 'permissionReadOnly',
+  'workspace-write': 'permissionWrite',
+  'danger-full-access': 'permissionFullAccess',
+}
 const WEEKDAY_KEYS: Record<Weekday, string> = {
   MO: 'dayMon',
   TU: 'dayTue',
@@ -155,7 +160,10 @@ export function TaskCreateDialog({ t, options, onClose, taskId, initial }: TaskC
     { id: 'danger-full-access', label: t('permissionFullAccess') },
   ]
   const permissionOptions = (options.permissions ?? []).length > 0
-    ? options.permissions.map(option => ({ id: option.value, label: option.name }))
+    ? options.permissions.map(option => ({
+        id: option.value,
+        label: PERMISSION_LABEL_KEYS[option.value] ? t(PERMISSION_LABEL_KEYS[option.value]) : option.name,
+      }))
     : fallbackPermissions
   // 编辑旧任务：当前值不在选项里时补一项，避免显示空值。
   if (form.permission && !permissionOptions.some(option => option.id === form.permission))

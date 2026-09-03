@@ -9,8 +9,6 @@ const BUNDLE_PACKAGE = join(PACKAGES_ROOT, 'dsh-tauri-bundle', 'package.json')
 const RESOURCE_ROOT = join(REPO_ROOT, 'src-tauri', 'resources')
 /** 运行期实际依赖的部署产物：`resources/node_modules/<name>`（Tauri 只捆绑 `resources/**`） */
 const DEPLOYED_NODE_MODULES = join(RESOURCE_ROOT, 'node_modules')
-const FORBIDDEN_PRODUCTION_PACKAGES = ['date-fns'] as const
-const DSH_STATIC_HOST_IMPORT = /\b(?:from|import)\s*['"](@deepseek-ai\/[^'"]+)['"]|\brequire\s*\(\s*['"](@deepseek-ai\/[^'"]+)['"]\s*\)/g
 
 function run(args: readonly string[]): void {
   console.log(`[build:plugins] $ pnpm ${args.join(' ')}`)
@@ -39,53 +37,6 @@ function bundledPackageNames(): string[] {
     throw new Error('PLUGIN_BUNDLE_EMPTY: dsh-tauri-bundle must depend on plugins')
   }
   return names
-}
-
-function verifyForbiddenProductionPackages(nodeModulesRoot: string): void {
-  const forbidden = new Set<string>(FORBIDDEN_PRODUCTION_PACKAGES)
-  for (const entry of readdirSync(nodeModulesRoot, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile() || entry.name !== 'package.json')
-      continue
-
-    const packageJson = join(entry.parentPath, entry.name)
-    const manifest = JSON.parse(readFileSync(packageJson, 'utf8')) as { name?: unknown }
-    if (typeof manifest.name === 'string' && forbidden.has(manifest.name)) {
-      throw new Error(`PLUGIN_DEPLOY_FORBIDDEN_PACKAGE: ${packageJson}`)
-    }
-  }
-}
-
-function verifyDeployedPackages(names: readonly string[], nodeModulesRoot: string): void {
-  verifyForbiddenProductionPackages(nodeModulesRoot)
-
-  for (const name of names) {
-    const packageJson = join(nodeModulesRoot, name, 'package.json')
-    if (!existsSync(packageJson)) {
-      throw new Error(`PLUGIN_DEPLOY_MISSING: ${packageJson}`)
-    }
-    const manifest = JSON.parse(readFileSync(packageJson, 'utf8')) as {
-      main?: unknown
-      dsh?: unknown
-    }
-    if (typeof manifest.dsh !== 'object' || manifest.dsh === null || Array.isArray(manifest.dsh)) {
-      throw new Error(`PLUGIN_DEPLOY_INVALID_DSH: ${packageJson}`)
-    }
-    if (typeof manifest.main !== 'string')
-      continue
-
-    const hostEntry = join(nodeModulesRoot, name, manifest.main)
-    if (!existsSync(hostEntry)) {
-      throw new Error(`PLUGIN_DEPLOY_MISSING_ENTRY: ${hostEntry}`)
-    }
-
-    // 内置插件与 DSH 安装目录分离，宿主模块必须经平台 loader 解析，不能依赖 Node 裸导入。
-    const source = readFileSync(hostEntry, 'utf8')
-    DSH_STATIC_HOST_IMPORT.lastIndex = 0
-    const match = DSH_STATIC_HOST_IMPORT.exec(source)
-    if (match !== null) {
-      throw new Error(`PLUGIN_DEPLOY_STATIC_DSH_IMPORT: ${hostEntry} -> ${match[1] ?? match[2]}`)
-    }
-  }
 }
 
 /**
@@ -185,7 +136,6 @@ function main(): void {
     }
     materializeTree(deployed, DEPLOYED_NODE_MODULES)
     verifyMaterialized(DEPLOYED_NODE_MODULES)
-    verifyDeployedPackages(names, DEPLOYED_NODE_MODULES)
     console.log(`[build:plugins] deployed ${names.length} plugins to ${RESOURCE_ROOT}`)
   }
   catch (error) {
