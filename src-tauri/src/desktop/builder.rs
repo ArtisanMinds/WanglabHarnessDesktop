@@ -67,6 +67,11 @@ pub fn setup(app_handle: tauri::AppHandle) {
         log::warn!("pnpm modules metadata self-heal skipped: {e}");
     }
 
+    // 首装档案引导：桌面端首次安装时，在任何 dsh 启动/插件操作之前新建独立的
+    // Desktop 档案并切换（与 CLI 用户既有插件/补丁隔离，见 service::profile）。
+    // 必须先于 scheduler/auto_start：引导失败时它们回落 web 档案的老行为。
+    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
+
     // 启动进程监控（tick 检测 dsh 服务状态）
     crate::service::scheduler::start(&app_handle);
 
@@ -586,6 +591,10 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
     let builder = tauri::Builder::default()
         .setup(|app| {
             let app_handle = app.handle().clone();
+            // 首装检测必须最先执行：窗口几何恢复/退出保存等任何 store 写入都会
+            // 创建 store 文件，判定晚于它们会把首装误判为升级（见
+            // config::detect_first_install 的时序说明）。
+            crate::config::detect_first_install(&app_handle);
             build_main_window(&app_handle)?;
             #[cfg(target_os = "macos")]
             install_macos_menu(&app_handle)?;
