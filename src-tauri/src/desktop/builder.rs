@@ -575,6 +575,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::get_desktop_about,
         crate::bridge::open_external_url,
         crate::bridge::read_clipboard_image,
+        crate::bridge::write_clipboard_text,
         crate::desktop::notification::show_native_notification,
         crate::bridge::log_frontend,
     ]
@@ -694,6 +695,4 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
         .plugin(tauri_plugin_fs::init())
         // Simple Store plugin
         .plugin(tauri_plugin_store::Builder::new().build())
-        // Clipboard plugin
-        .plugin(tauri_plugin_clipboard_manager::init())
 }
