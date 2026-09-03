@@ -351,6 +351,11 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     fs::create_dir_all(&dsh_home)
         .map_err(|e| format!("DSH_HOME_MKDIR_FAILED: create dsh home failed: {e}"))?;
 
+    // 首装档案引导重试：desktop::setup 的引导若失败（磁盘/权限抖动），在真正
+    // spawn dsh 前再补一次；幂等，已就绪时直接跳过。最佳努力：失败只告警，
+    // 不阻断启动（回落 web 档案的老行为）。
+    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
+
     // Linux 起步前探测 inotify 监视上限：harness 服务（dsh web）用 chokidar 递归
     // 监视 profile 目录，上限过低会在启动一瞬间抛 ENOSPC 直接退出（issue #116）。
     // 进程无法自我调高该参数，这里只做告警（启动日志 + 读取 run logs 中的环境信息），

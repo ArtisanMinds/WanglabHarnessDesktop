@@ -1,7 +1,7 @@
 use super::constants::*;
 use serde::{Deserialize, Serialize};
 use std::sync::{Mutex, OnceLock};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +36,11 @@ pub struct Setting {
     /// 桌面端启动服务与插件管理都以它为准（见 service::profile）。
     #[serde(default = "default_active_profile")]
     pub active_profile: String,
+    /// 首装档案引导是否已完成：桌面端首次安装时自动新建 Desktop 档案并切换为
+    /// 当前档案（见 service::profile::ensure_first_run_desktop_profile），成功后
+    /// 置位，之后启动不再重做（幂等标记，语义同 dsh_home_migrated）。
+    #[serde(default)]
+    pub desktop_profile_ready: bool,
     /// 活动核心的显式选择：`Some("local")` = 用户 CLI 安装的本地核心，
     /// `Some("app")` = 桌面端预打包核心；`None` = 自动（本地核心存在时优先）。
     #[serde(default)]
@@ -152,6 +157,7 @@ impl Default for Setting {
             preset_hash: None,
             dsh_home_migrated: false,
             active_profile: default_active_profile(),
+            desktop_profile_ready: false,
             active_core: None,
             manual_port: None,
             zoom_factor: default_zoom_factor(),
@@ -179,6 +185,32 @@ fn store_dat_file_name() -> &'static str {
 fn setting_write_lock() -> &'static Mutex<()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
+}
+
+/// 首装检测结果（进程内缓存）：`true` = 本次启动时 store 持久化文件尚不存在，
+/// 即桌面端首次安装/首次启动（无论是否装过 dsh CLI——后者正是需要隔离的
+/// 场景：CLI 侧的大量插件/补丁不应涌入桌面端档案）。
+static FIRST_INSTALL: OnceLock<bool> = OnceLock::new();
+
+/// 首装检测：store 持久化文件不存在 → 桌面端首次安装。
+///
+/// 必须在窗口创建与任何 store 写入之前调用一次（builder setup 最先）：窗口
+/// 几何恢复/退出保存都会写 store 并创建文件，判定晚于它们会把首装误判为升级。
+/// 判定结果进程内缓存，之后任何时点读取都拿到本次启动的同一结论。
+pub fn detect_first_install<R: Runtime>(app_handle: &AppHandle<R>) -> bool {
+    *FIRST_INSTALL.get_or_init(|| {
+        app_handle
+            .path()
+            .app_data_dir()
+            // 目录解析失败按老用户处理（保守：不做引导，回落 web 档案老行为）
+            .map(|dir| !dir.join(store_dat_file_name()).exists())
+            .unwrap_or(false)
+    })
+}
+
+/// 读取首装检测结果；尚未检测（或检测失败）时返回 `false`，保守按老用户处理。
+pub fn is_first_install() -> bool {
+    FIRST_INSTALL.get().copied().unwrap_or(false)
 }
 
 fn read_store_dat_setting<R: Runtime>(app_handle: &AppHandle<R>) -> Setting {
