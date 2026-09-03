@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Toast } from '@heroui/react'
-import { placements, queues } from '@/utils/toast'
+import { placements, activeQueues } from '@/utils/toast'
 
 export function ToastProvider({ children }: { children?: ReactNode }) {
   return (
@@ -9,7 +9,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
         <Toast.Provider
           key={p}
           placement={p}
-          queue={queues[p]}
+          queue={activeQueues[p]}
         />
       ))}
       {children}
