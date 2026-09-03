@@ -21,6 +21,7 @@
 //! - [`version`]：预打包核心多版本管理（列出 / 切换 / 下载 / 卸载）
 
 mod local;
+mod runtime;
 mod source;
 mod version;
 
@@ -29,3 +30,4 @@ pub use local::{local_core_package_dir, update_local_core};
 #[allow(unused_imports)]
 pub use source::{active_dsh_binary, active_source, active_version, CoreSource, HarnessCore};
 pub use version::{download_version, list, remove_version, set_active};
+pub(crate) use runtime::prepare_active_runtime;
