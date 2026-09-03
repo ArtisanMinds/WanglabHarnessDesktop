@@ -13,8 +13,8 @@
  */
 import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
 import { text } from '../locales'
-import { fetchPetStatus, setPetEnabled } from '../service/pet'
-import { getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
+import { fetchPetStatus, hidePet, setPetEnabled, showPet } from '../service/pet'
+import { beginPetStatusFetch, commitPetStatusFetch, getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
 
 /** 入口图标（爪印，currentColor 跟随官方 iconButton 悬停变色）。 */
 const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 13.5c-2.7 0-5.5 2-5.5 4.3 0 1.4 1 2.2 2.3 2.2 1 0 1.9-.6 3.2-.6s2.2.6 3.2.6c1.3 0 2.3-.8 2.3-2.2 0-2.3-2.8-4.3-5.5-4.3z"/><path d="M7.3 8.1c-1 .1-1.8 1.2-1.7 2.5.1 1.2 1 2.1 2 2 .9-.1 1.7-1.2 1.6-2.4-.1-1.2-1-2.2-1.9-2.1z"/><path d="M12 4.5c-1.1 0-2 1.1-2 2.5s.9 2.5 2 2.5 2-1.1 2-2.5-.9-2.5-2-2.5z"/><path d="M16.7 8.1c-.9-.1-1.8.9-1.9 2.1-.1 1.2.7 2.3 1.6 2.4 1 .1 1.9-.8 2-2 .1-1.3-.7-2.4-1.7-2.5z"/><path d="M4.8 12.3c-.8.3-1.2 1.4-.9 2.4.3 1 1.2 1.6 2 1.3.8-.3 1.1-1.4.8-2.4-.3-1-1.1-1.6-1.9-1.3z"/><path d="M19.2 12.3c-.8-.3-1.6.3-1.9 1.3-.3 1 0 2.1.8 2.4.8.3 1.7-.3 2-1.3.3-1-.1-2.1-.9-2.4z"/></svg>'
@@ -23,8 +23,14 @@ const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="curr
 async function togglePetEnabled(): Promise<void> {
   const current = getPetUiSnapshot().status
   const enabled = Boolean(current?.enabled)
+  const visible = Boolean(current?.visible)
   try {
-    setPetStatus(await setPetEnabled(!enabled))
+    const nextStatus = !enabled
+      ? await setPetEnabled(true)
+      : visible
+        ? await hidePet()
+        : await showPet()
+    setPetStatus(nextStatus)
   }
   catch (error) {
     console.error('[dsh-tauri-pet] sidebar icon toggle failed:', error)
@@ -48,9 +54,10 @@ function createPetIconButton(): HTMLButtonElement {
 
 /** 按共享状态缓存同步按钮两态（绿点显隐 + aria-pressed）。 */
 function syncIconState(button: HTMLButtonElement): void {
-  const enabled = Boolean(getPetUiSnapshot().status?.enabled)
-  button.classList.toggle('dshpet-iconOn', enabled)
-  button.setAttribute('aria-pressed', String(enabled))
+  const status = getPetUiSnapshot().status
+  const active = Boolean(status?.enabled && status?.visible)
+  button.classList.toggle('dshpet-iconOn', active)
+  button.setAttribute('aria-pressed', String(active))
 }
 
 /**
@@ -70,8 +77,12 @@ export function installSidebarPetIcon(): () => void {
   let patchedRail: boolean | undefined
 
   const unsubscribe = subscribePetUi(() => syncIconState(button))
+  const revision = beginPetStatusFetch()
   void fetchPetStatus()
-    .then(status => setPetStatus(status))
+    .then((status) => {
+      if (getPetUiSnapshot().status === null)
+        commitPetStatusFetch(revision, status)
+    })
     .catch(error => console.error('[dsh-tauri-pet] fetchPetStatus failed:', error))
   syncIconState(button)
 

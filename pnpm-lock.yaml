@@ -626,6 +626,9 @@ importers:
 
   packages/dsh-tauri-pet:
     dependencies:
+      '@deepseek-ai/dsh-skill-filesystem':
+        specifier: catalog:dsh
+        version: 0.1.2-alpha.3(0676f3d7c00ad46fa18854a7554c8b02)
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri

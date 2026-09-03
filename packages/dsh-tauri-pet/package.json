@@ -31,8 +31,11 @@
   "types": "./dist/index.d.ts",
   "files": [
     "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "assets",
     "cordis.patch.yml",
-    "dist"
+    "dist",
+    "skills"
   ],
   "dsh": {
     "client": {
@@ -57,6 +60,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-skill-filesystem": "catalog:dsh",
     "dsh-tauri": "workspace:*"
   },
   "devDependencies": {

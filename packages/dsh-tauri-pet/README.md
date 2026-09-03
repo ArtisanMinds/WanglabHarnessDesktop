@@ -1,36 +1,52 @@
 # dsh-tauri-pet
 
-DeepSeek Harness 桌宠插件：在 dsh 界面右下角提供一个自包含的桌宠浮控件，
-开关外置透明桌宠窗口、显示/隐藏窗口、从候选中选择桌宠（Codex / Deepseek）。
+DeepSeek Harness 的桌宠插件。它在设置页提供 `Pets` 与 `Codex` 两个页签，
+并通过 `dsh-tauri` 的 Tauri invoke 桥控制独立的透明、置顶、无边框桌宠窗口。
 
-桌宠窗口由桌面端（`src-tauri`）经 `pet.html` 渲染为一个**独立透明、置顶、无边框、
-跳过任务栏**的 Webview（label `pet`），悬于普通窗口之上。本插件的所有命令都经
-`dsh-tauri` 的 **invoke 桥**调用：iframe 内的 dsh 界面把 command 以 postMessage
-上报到主 webview 监听器，由宿主调用 `@tauri-apps/api/core` 的 `invoke` 并把结果
-回传。
+## UI
 
-## 能力
+- **Pets**：显示内置 `Maid DeepSeek Whale` 以及 Chat 来源的宠物卡片；工具栏提供
+  **Create** 和 **Wake pet / Collapse pet**。`Create` 创建标准会话并只预填
+  `/hatch-dsh-pet 根据你对我的了解，养一只宠物`，不会自动提交。
+- **Codex**：显示 Codex 来源（`~/.codex/pets`）的宠物卡片；工具栏只有
+  **Import**，用于导入 `.zip` 资源包。
+- 内置宠物的中文描述为：
+  `一只小小的七比蓝头发的鲸鱼女仆Codex宠物，穿着海军蓝裙子，白色褶边，蓝眼睛，侧鳍和鲸鱼尾巴。`
+- 宠物大小滑条保持 50–200%，默认 100%。侧栏绿色圆点表示窗口当前 **visible** 状态，
+  而不是只表示持久化的 `enabled` 状态。首次点击会永久启用；之后只显示或隐藏窗口，
+  不会因隐藏而写入 `enabled=false`。
 
-- **开关控制**：一键启用/停用桌宠（`set_pet_enabled`，同步外置窗口显示）。
-- **设置新增选项**：显示/隐藏宠物窗口（`show_pet` / `hide_pet`）、从内置候选
-  选择桌宠（`set_active_pet`，可扩展 `.zip` 导入）。
-- **设置页面**：展开的卡片即为「宠物」设置小页（右下角胶囊按钮 → 展开面板）。
+## 文件来源与技能
 
-## 桥协议
+Chat 宠物安装在 `${DSH_HOME:-$HOME/.dsh}/pets`，Codex 宠物安装在
+`$HOME/.codex/pets`，两个来源通过 `list_pets({ source: 'chat' | 'codex' })`
+严格分开。`skills/hatch-dsh-pet/SKILL.md` 由 `cordis.patch.yml` 组合进
+`@deepseek-ai/dsh-skill-filesystem`，并使用 `providerName: dsh-tauri-pet` 与
+`includeDefaultRoots: false`，避免覆盖其他 skill provider 或默认根目录。
 
-| command | 方向 | 说明 |
-| --- | --- | --- |
-| `get_pet_status` | r | 查询 enabled + active_pet |
-| `set_pet_enabled` | rw | 启用/停用 |
-| `set_active_pet` | rw | 选择桌宠 |
-| `show_pet` / `hide_pet` | rw | 显示/隐藏窗口 |
+## Bridge commands
 
-客户端侧桥实现见 `packages/dsh-tauri/src/client/service/invoke.ts`（
-`invokeBridgedTauri`）；宿主监听器见 `src/hooks/use-iframe-invoke.ts`。
+| command | 说明 |
+| --- | --- |
+| `get_pet_status` | 查询 `enabled`、`visible`、`active_pet`、`pet_size` 与瞬态 activity |
+| `set_pet_enabled` | 持久化首次启用；启用时显示窗口 |
+| `show_pet` / `hide_pet` | 只改变窗口可见性，不改变持久化 enabled |
+| `set_active_pet` | 持久化选择的宠物 id |
+| `set_pet_size` | 持久化 50–200% 的大小 |
+| `list_pets` | 按 `source` 列出 Chat 或 Codex 宠物 |
+| `get_pet_asset` | 获取指定宠物的完整 8×11 spritesheet data URL |
+| `import_pet` | 导入 Codex `.zip` 资源包 |
+| `set_pet_activity` | 更新 `idle`、`turn`、`moving-left`、`moving-right`、`waving`、`waiting`、`running`、`review` 或 `failed` |
 
-## 构建
+完整客户端桥实现见 `src/client/service/pet.ts`；它调用
+`dsh-tauri/client` 的 `invokeBridgedTauri`。设置卡片会将完整 spritesheet 裁剪为
+首个 idle cell 预览，而内置 GIF 直接作为动画预览。
+
+## Build and checks
 
 ```sh
 pnpm --filter dsh-tauri-pet typecheck
 pnpm --filter dsh-tauri-pet build
+pnpm exec eslint packages/dsh-tauri-pet/src/client --max-warnings=0
+pnpm exec vitest run packages/dsh-tauri-pet/src/client/utils/activity.test.ts
 ```

@@ -1,45 +1,126 @@
-/** types/index.ts — 本插件文案键集合（zh 字典为权威）与桌宠桥类型。 */
+/** Shared client types for the pet settings, bridge, and session activity. */
+export type PetActivity = 'failed' | 'idle' | 'moving-left' | 'moving-right' | 'review' | 'running' | 'turn' | 'waiting' | 'waving'
 
-/** 桌宠当前状态（与桌面端 bridge/pet.rs 的 PetStatus 对齐）。 */
+/** Session states selected by the activity adapter before native animation details. */
+export type PetSessionActivity = Extract<PetActivity, 'failed' | 'idle' | 'review' | 'running' | 'waiting'>
+
 export interface PetStatus {
+  active_pet: string
+  activity: PetActivity
+  bubble?: string | null
   enabled: boolean
-  active_pet?: string | null
-  /** 宠物大小百分比（50–200，100 = 精灵图原始尺寸）；null/缺省 = 未设置。 */
   pet_size?: number | null
+  visible: boolean
 }
 
-/** 已导入的桌宠资源包条目（与桌面端 bridge/pet.rs 的 PetListItem 对齐）。 */
+export type PetSource = 'chat' | 'codex'
+
 export interface PetListItem {
-  /** 资源包标志（文件名去 .zip；同时作为 active_pet 的取值）。 */
+  description?: string
   id: string
-  /** 展示名（与 id 相同：导入即以文件名命名）。 */
   name: string
+  source: PetSource
+  thumbnail?: string
 }
 
-/** 文案键（locale 字典键集合的权威来源）。 */
+export interface PetAsset {
+  columns: number
+  id: string
+  rows: number
+  sprite_version_number: number
+  spritesheet: string
+}
+
+export interface PetSessionSummary {
+  completed?: boolean
+  displayTitle?: string
+  id: string
+  pendingInteraction?: unknown
+  running?: boolean
+  title?: string
+}
+
+export interface PetSessionSnapshot {
+  awaitingFirstTurn?: boolean
+  lastAgentError?: string | null
+  pendingSubmissions?: readonly unknown[]
+  queue?: readonly unknown[]
+  running?: boolean
+}
+
+export interface PetObservable<T> {
+  getSnapshot: () => T
+  subscribe: (listener: () => void) => () => void
+}
+
+export interface PetSessionsRuntime {
+  binding?: (id: string) => {
+    session?: PetObservable<PetSessionSnapshot>
+  } | undefined
+  list: PetObservable<{
+    byId?: Record<string, PetSessionSummary>
+    current?: string
+    ids: string[]
+  }>
+  open?: (id: string) => void
+}
+
+export interface WorkspaceItem {
+  id?: string
+  sessionIds?: readonly string[]
+  workspaceId?: string
+}
+
+export interface PetRuntimeContext {
+  sessions: PetSessionsRuntime
+  uiSession?: {
+    pendingInteractions?: PetObservable<ReadonlyMap<string, unknown>>
+  }
+  workspaces: {
+    connectWorkspace?: (id: string) => Promise<string>
+    list: PetObservable<{
+      items?: WorkspaceItem[]
+      recentWorkspaceId?: string
+    }>
+  }
+}
+
+export interface PetSettingsProps {
+  close?: () => void
+  onCreate: (close?: () => void) => Promise<void>
+}
+
+export interface ConversationInputLeftProps {
+  inputActions: {
+    setDraft: (text: string) => void
+  }
+  sessionId: string
+}
+
 export type LocaleKey
-  = | 'name'
-    | 'selectPet'
-    | 'refresh'
-    | 'create'
-    | 'createHint'
-    | 'wakePet'
+  = | 'activityFailed'
+    | 'activityIdle'
+    | 'activityReview'
+    | 'activityRunning'
+    | 'activityWaiting'
+    | 'codex'
     | 'collapsePet'
-    | 'import'
-    | 'imported'
-    | 'selected'
-    | 'select'
-    | 'tabInstalledDesc'
-    | 'tabCodexDesc'
-    | 'petNameDsh'
-    | 'petNameCodex'
-    | 'petDescDsh'
-    | 'petDescCodex'
+    | 'create'
+    | 'createFailed'
     | 'emptyImported'
+    | 'import'
     | 'importFailed'
     | 'listFailed'
-    | 'toggleFailed'
+    | 'name'
+    | 'petDescWhale'
+    | 'petNameWhale'
+    | 'select'
+    | 'selected'
     | 'setPetFailed'
     | 'setSizeFailed'
-    | 'sizeLabel'
     | 'sizeHint'
+    | 'sizeLabel'
+    | 'tabCodexDesc'
+    | 'tabInstalledDesc'
+    | 'toggleFailed'
+    | 'wakePet'

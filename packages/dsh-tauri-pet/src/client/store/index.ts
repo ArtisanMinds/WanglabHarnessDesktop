@@ -17,6 +17,18 @@ export interface PetShared {
 
 /** dsh-tauri 外部 store（getSnapshot 稳定，uSES 安全）。 */
 export const petUiStore = createExternalStore<PetShared>({ status: null })
+let fetchRevision = 0
+/** Start a status fetch; only its latest revision may write the initial snapshot. */
+export function beginPetStatusFetch(): number {
+  fetchRevision += 1
+  return fetchRevision
+}
+export function commitPetStatusFetch(revision: number, status: PetStatus): boolean {
+  if (revision !== fetchRevision)
+    return false
+  petUiStore.set(state => (state.status === status ? state : { ...state, status }))
+  return true
+}
 
 /** 订阅变更（供 useSyncExternalStore / DOM 补丁订阅）。 */
 export function subscribePetUi(listener: () => void): () => void {
@@ -30,5 +42,6 @@ export function getPetUiSnapshot(): PetShared {
 
 /** 写入桌宠状态缓存。 */
 export function setPetStatus(status: PetStatus | null): void {
+  fetchRevision += 1
   petUiStore.set(state => (state.status === status ? state : { ...state, status }))
 }

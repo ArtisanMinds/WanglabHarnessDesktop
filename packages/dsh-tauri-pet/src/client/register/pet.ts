@@ -1,38 +1,87 @@
-/**
- * register/pet.ts — 「宠物」设置分区注册 + 侧栏入口 DOM 补丁安装。
- *
- * 设置分区：注册进 dsh-tauri-ui 设置侧边栏投影的 `settings.section` 槽
- * （与 dsh-tauri-session 归档分区同机制，导航行 label 用本插件文案）。
- * 侧栏入口：不走 slot（sidebar.settings 是 single 槽、已被 dsh-tauri-ui
- * 占据），用 DOM 补丁把官方 iconButton 样式的切换按钮插到设置触发器右侧。
- */
 import type { Context } from '@deepseek-ai/cordis'
-// 拉入 dsh-client-ui-renderer 的 `declare module '@deepseek-ai/cordis'` 增广，
-// 让 `ctx.slots`（SlotRegistry）获得类型（运行时由 UI renderer 提供）。
 import type {} from '@deepseek-ai/dsh-client-ui-renderer'
+import type { ClientContext } from 'dsh-tauri/client'
+import type { PetRuntimeContext } from '../types'
+import { compat } from 'dsh-tauri/client'
 import { PetSettings } from '../components/pet-settings'
-import { PET_CLIENT_PLUGIN, PET_ICON_PATCH_EFFECT, PET_SECTION_EFFECT, PET_SECTION_ID, PET_SECTION_ORDER } from '../constants'
+import { PetPrefill } from '../components/prefill'
+import { pendingPrefills } from '../config'
+import {
+  CONVERSATION_INPUT_LEFT_SLOT,
+  PET_CLIENT_PLUGIN,
+  PET_HATCH_PROMPT,
+  PET_ICON_PATCH_EFFECT,
+  PET_PREFILL_EFFECT,
+  PET_PREFILL_ID,
+  PET_PREFILL_ORDER,
+  PET_PREFILL_PRIORITY,
+  PET_SECTION_EFFECT,
+  PET_SECTION_ID,
+  PET_SECTION_ORDER,
+} from '../constants'
 import { installSidebarPetIcon } from '../dom/sidebar-icon'
 import { text } from '../locales'
+import { chooseWorkspace } from '../utils/workspace'
 
-export function registerPetSection(ctx: Context): void {
+export function registerPetSection(ctx: ClientContext): void {
   ctx.effect(
-    () =>
-      ctx.slots.inject('settings.section' as never, () =>
-        ctx.slots.register(
-          {
-            name: 'settings.section',
-            id: PET_SECTION_ID,
-            order: PET_SECTION_ORDER,
-            registrant: PET_CLIENT_PLUGIN,
-            label: () => text('name'),
-          } as never,
-          PetSettings as never,
-        )),
+    () => ctx.slots.inject('settings.section' as never, () => ctx.slots.register({
+      name: 'settings.section',
+      id: PET_SECTION_ID,
+      order: PET_SECTION_ORDER,
+      registrant: PET_CLIENT_PLUGIN,
+      label: () => text('name'),
+      inject: () => ({ onCreate: (close?: () => void) => createPetSession(ctx, close) }),
+    } as never, PetSettings as never)),
     PET_SECTION_EFFECT,
   )
 }
 
 export function installPetIconPatch(ctx: Context): void {
   ctx.effect(() => installSidebarPetIcon(), PET_ICON_PATCH_EFFECT)
+}
+
+export function registerPetPrefill(ctx: ClientContext): void {
+  ctx.effect(() => {
+    const dispose = ctx.slots.inject(CONVERSATION_INPUT_LEFT_SLOT as never, () => ctx.slots.register({
+      name: CONVERSATION_INPUT_LEFT_SLOT,
+      id: PET_PREFILL_ID,
+      order: PET_PREFILL_ORDER,
+      priority: PET_PREFILL_PRIORITY,
+      registrant: PET_CLIENT_PLUGIN,
+      inject: (sessionId: string) => ({ sessionId }),
+    } as never, PetPrefill))
+    return () => {
+      pendingPrefills.clear()
+      dispose()
+    }
+  }, PET_PREFILL_EFFECT)
+}
+
+/** Resolve the workspace and connector needed for standard session creation. */
+export function resolveStartSession(ctx: ClientContext): {
+  connectWorkspace: (id: string) => Promise<string>
+  workspaceId: string
+} {
+  const runtime = compat(ctx) as unknown as PetRuntimeContext
+  const workspaceId = chooseWorkspace(runtime)
+  if (workspaceId === undefined || runtime.workspaces.connectWorkspace === undefined)
+    throw new Error('PET_WORKSPACE_UNAVAILABLE: no workspace can create a pet session')
+  return { connectWorkspace: runtime.workspaces.connectWorkspace, workspaceId }
+}
+
+/** Follow the standard new-session target order and install the one-shot draft. */
+async function createPetSession(ctx: ClientContext, close?: () => void): Promise<void> {
+  const runtime = compat(ctx) as unknown as PetRuntimeContext
+  const start = resolveStartSession(ctx)
+  if (runtime.sessions.open === undefined)
+    throw new Error('PET_SESSION_UNAVAILABLE: session opener is unavailable')
+
+  const sessionId = await start.connectWorkspace(start.workspaceId)
+  if (!sessionId)
+    throw new Error('PET_SESSION_UNAVAILABLE: workspace did not return a session id')
+
+  pendingPrefills.set(sessionId, PET_HATCH_PROMPT)
+  close?.()
+  runtime.sessions.open(sessionId)
 }

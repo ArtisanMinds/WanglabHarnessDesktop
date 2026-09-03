@@ -17,14 +17,15 @@
 import type { ClientContext } from 'dsh-tauri/client'
 import { PET_CLIENT_PLUGIN, PET_STYLES_EFFECT } from './constants'
 import { installLocale } from './locales'
-import { installPetIconPatch, registerPetSection } from './register/pet'
+import { installPetIconPatch, registerPetPrefill, registerPetSection } from './register/pet'
+import { installPetActivity } from './service/activity'
 import { mountPetStyles } from './styles'
 
 /** 插件显示名（诊断元数据）。 */
 export const name = PET_CLIENT_PLUGIN
 
 /** 需要的客户端服务：slots（注册 settings.section）、locale（双语文案）。 */
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'sessions', 'workspaces']
 
 /**
  * 插件体：安装文案、样式，注册宠物设置分区并安装侧栏入口补丁。
@@ -37,4 +38,6 @@ export function apply(ctx: ClientContext): void {
 
   registerPetSection(ctx)
   installPetIconPatch(ctx)
+  registerPetPrefill(ctx)
+  installPetActivity(ctx)
 }

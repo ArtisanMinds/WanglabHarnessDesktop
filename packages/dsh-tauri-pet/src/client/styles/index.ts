@@ -28,6 +28,7 @@ const style = c([
     padding: '6px',
     display: 'inline-flex',
     position: 'relative',
+    pointerEvents: 'auto',
   }, [
     c('&:disabled', { opacity: '0.4', cursor: 'default' }),
     c('&:hover:not(:disabled)', {
@@ -189,7 +190,27 @@ const style = c([
     fontSize: '28px',
     borderRadius: '10px',
     background: 'var(--dsw-alias-bg-layer-1)',
+    overflow: 'hidden',
   }),
+  c('.dshpet-cardThumb > img', {
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain',
+  }),
+  c('.dshpet-cardThumbSprite', {
+    position: 'relative',
+  }, [
+    c('& > img', {
+      position: 'absolute',
+      width: '800%',
+      height: '1100%',
+      maxWidth: 'none',
+      objectFit: 'fill',
+      left: '0',
+      top: '0',
+    }),
+  ]),
   c('.dshpet-cardBody', {
     flex: '1',
     minWidth: '0',

@@ -28,12 +28,14 @@ use tauri_plugin_store::StoreExt;
 
 /// 桌宠窗口的 label（Tauri 窗口标识，脚本层与能力配置以此引用）。
 pub const PET_WINDOW_LABEL: &str = "pet";
-/// 精灵图基准尺寸（dsh-pet 呆味预览帧 220x124，透明 PNG）。
+/// 内置视频基准尺寸（dsh-pet 呆味预览帧 220x124，透明画布）。
 pub const PET_SPRITE_BASE_WIDTH: f64 = 220.0;
-pub const PET_SPRITE_BASE_HEIGHT: f64 = 124.0;
-/// 窗口相对精灵图的四周留白（逻辑像素）：横向 32、纵向 40（含浮动/阴影余量）。
+/// Codex v2 标准精灵帧为 192x208，比内置视频更高，窗口高度按两者较大者预留。
+const PET_SPRITE_MAX_HEIGHT: f64 = PET_SPRITE_BASE_WIDTH * 208.0 / 192.0;
+/// 窗口留白（逻辑像素）：横向保留阴影；顶部完整容纳气泡；底部保留阴影。
 const PET_WINDOW_PAD_X: f64 = 32.0;
-const PET_WINDOW_PAD_Y: f64 = 40.0;
+const PET_WINDOW_TOP_PAD: f64 = 120.0;
+const PET_WINDOW_BOTTOM_PAD: f64 = 10.0;
 /// 宠物大小百分比合法区间（设置页滑条 50%–200%；bridge/pet.rs 引用同一常量）。
 pub const PET_SIZE_MIN_PERCENT: f64 = 50.0;
 pub const PET_SIZE_MAX_PERCENT: f64 = 200.0;
@@ -113,12 +115,12 @@ pub fn get_pet_size_percent<R: Runtime>(app: &AppHandle<R>) -> f64 {
         .clamp(PET_SIZE_MIN_PERCENT, PET_SIZE_MAX_PERCENT)
 }
 
-/// 由百分比换算桌宠窗口逻辑尺寸：精灵图基准尺寸 × 缩放 + 四周留白。
+/// 由百分比换算桌宠窗口逻辑尺寸：最高精灵按比例缩放，气泡与阴影留白保持可读固定高度。
 pub fn pet_window_logical_size(percent: f64) -> (f64, f64) {
     let scale = percent / 100.0;
     (
         (PET_SPRITE_BASE_WIDTH * scale) + PET_WINDOW_PAD_X,
-        (PET_SPRITE_BASE_HEIGHT * scale) + PET_WINDOW_PAD_Y,
+        (PET_SPRITE_MAX_HEIGHT * scale) + PET_WINDOW_TOP_PAD + PET_WINDOW_BOTTOM_PAD,
     )
 }
 
@@ -128,7 +130,126 @@ pub fn apply_pet_size<R: Runtime>(app: &AppHandle<R>) {
         return;
     };
     let (width, height) = pet_window_logical_size(get_pet_size_percent(app));
-    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    if window
+        .set_size(tauri::LogicalSize::new(width, height))
+        .is_ok()
+    {
+        // 放大后重新夹紧当前位置，避免窗口右侧或底部被推出当前显示器。
+        let _ = move_pet_window(app, 0, 0);
+    }
+}
+
+/// 将窗口左上角限制到单个显示器内；窗口大于显示器时贴齐其左上角。
+fn clamp_window_position(
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    monitor_x: i32,
+    monitor_y: i32,
+    monitor_width: u32,
+    monitor_height: u32,
+) -> (i32, i32) {
+    let left = i64::from(monitor_x);
+    let top = i64::from(monitor_y);
+    let right = left + i64::from(monitor_width);
+    let bottom = top + i64::from(monitor_height);
+    let max_x = (right - i64::from(width)).max(left);
+    let max_y = (bottom - i64::from(height)).max(top);
+    (
+        i64::from(x).clamp(left, max_x) as i32,
+        i64::from(y).clamp(top, max_y) as i32,
+    )
+}
+
+/// 按物理像素增量移动桌宠，收敛到最近可见显示器并持久化最终位置。
+pub fn move_pet_window<R: Runtime>(
+    app: &AppHandle<R>,
+    delta_x: i32,
+    delta_y: i32,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window(PET_WINDOW_LABEL)
+        .ok_or_else(|| "PET_WINDOW_NOT_FOUND: pet window has not been created".to_string())?;
+    let current = window.outer_position().map_err(|error| {
+        format!("PET_WINDOW_POSITION_FAILED: failed to read pet window position: {error}")
+    })?;
+    let size = window.outer_size().map_err(|error| {
+        format!("PET_WINDOW_SIZE_FAILED: failed to read pet window size: {error}")
+    })?;
+    let desired_x = current.x.saturating_add(delta_x);
+    let desired_y = current.y.saturating_add(delta_y);
+    let center_x = i64::from(desired_x) + i64::from(size.width) / 2;
+    let center_y = i64::from(desired_y) + i64::from(size.height) / 2;
+    let monitors = app.available_monitors().map_err(|error| {
+        format!("PET_MONITOR_LIST_FAILED: failed to list visible monitors: {error}")
+    })?;
+    if monitors.is_empty() {
+        return Err("PET_MONITOR_NOT_FOUND: no visible monitor is available".to_string());
+    }
+
+    // 目标中心已进入某屏时直接选择该屏；跨过屏幕间隙时选距离目标最近的屏幕。
+    let monitor = monitors
+        .iter()
+        .find(|monitor| {
+            let pos = monitor.position();
+            let area = monitor.size();
+            let right = i64::from(pos.x) + i64::from(area.width);
+            let bottom = i64::from(pos.y) + i64::from(area.height);
+            center_x >= i64::from(pos.x)
+                && center_x < right
+                && center_y >= i64::from(pos.y)
+                && center_y < bottom
+        })
+        .or_else(|| {
+            monitors.iter().min_by_key(|monitor| {
+                let pos = monitor.position();
+                let area = monitor.size();
+                let left = i64::from(pos.x);
+                let top = i64::from(pos.y);
+                let right = left + i64::from(area.width);
+                let bottom = top + i64::from(area.height);
+                let dx = if center_x < left {
+                    left - center_x
+                } else if center_x >= right {
+                    center_x - right + 1
+                } else {
+                    0
+                };
+                let dy = if center_y < top {
+                    top - center_y
+                } else if center_y >= bottom {
+                    center_y - bottom + 1
+                } else {
+                    0
+                };
+                dx.saturating_mul(dx).saturating_add(dy.saturating_mul(dy))
+            })
+        })
+        .expect("非空显示器列表应能选择目标显示器");
+    let monitor_pos = monitor.position();
+    let monitor_size = monitor.size();
+    let (x, y) = clamp_window_position(
+        desired_x,
+        desired_y,
+        size.width,
+        size.height,
+        monitor_pos.x,
+        monitor_pos.y,
+        monitor_size.width,
+        monitor_size.height,
+    );
+    window
+        .set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)))
+        .map_err(|error| format!("PET_WINDOW_MOVE_FAILED: failed to move pet window: {error}"))?;
+    save_pet_window_position(
+        app,
+        &PetWindowPosition {
+            x: Some(x),
+            y: Some(y),
+        },
+    );
+    Ok(())
 }
 
 /// 确保桌宠窗口存在并恢复位置。
@@ -143,18 +264,19 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
     let (width, height) = pet_window_logical_size(get_pet_size_percent(app));
     // 非 Windows 平台在此前加入注入脚本时再赋值，故需要 mut；Windows 下保持只读。
     #[allow(unused_mut)]
-    let mut builder = WebviewWindowBuilder::new(app, PET_WINDOW_LABEL, WebviewUrl::App("pet.html".into()))
-        .title("Deepseek Harness Pet")
-        .inner_size(width, height)
-        .resizable(false)
-        .maximizable(false)
-        .transparent(true)
-        .always_on_top(true)
-        .decorations(false)
-        .skip_taskbar(true)
-        .shadow(false)
-        .accept_first_mouse(true)
-        .visible(false);
+    let mut builder =
+        WebviewWindowBuilder::new(app, PET_WINDOW_LABEL, WebviewUrl::App("pet.html".into()))
+            .title("Deepseek Harness Pet")
+            .inner_size(width, height)
+            .resizable(false)
+            .maximizable(false)
+            .transparent(true)
+            .always_on_top(true)
+            .decorations(false)
+            .skip_taskbar(true)
+            .shadow(false)
+            .accept_first_mouse(true)
+            .visible(false);
 
     // 非 Windows 平台经 initialization script 让 dsh 容器的桥/兼容注入生效，
     // 与主窗口保持一致（桌宠页同样可能加载共享的前端模块）。
@@ -162,11 +284,15 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
     {
         builder = builder
             .initialization_script_for_all_frames(crate::desktop::compat::ABORT_SIGNAL_ANY_SHIM_JS)
-            .initialization_script_for_all_frames(crate::desktop::notification::NOTIFICATION_SHIM_JS)
+            .initialization_script_for_all_frames(
+                crate::desktop::notification::NOTIFICATION_SHIM_JS,
+            )
             .initialization_script_for_all_frames(crate::desktop::nav::NAV_SHIM_JS)
             .initialization_script_for_all_frames(crate::desktop::style::IFRAME_STYLES_JS)
             .initialization_script_for_all_frames(crate::desktop::paste::PASTE_SHIM_JS)
-            .initialization_script_for_all_frames(crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS)
+            .initialization_script_for_all_frames(
+                crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS,
+            )
             .initialization_script_for_all_frames(crate::desktop::zoom::ZOOM_SHORTCUT_BRIDGE_JS);
     }
 
@@ -178,12 +304,10 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
         // 拓扑变化后窗口被放到屏幕外不可见）。
         if position_on_any_monitor(&window, x, y) {
             let _ = window.set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)));
-        }
-        else {
+        } else {
             place_pet_at_default(&window);
         }
-    }
-    else {
+    } else {
         place_pet_at_default(&window);
     }
     Ok(window)
@@ -196,8 +320,8 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
 fn position_on_any_monitor<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -> bool {
     let app = window.app_handle();
     let Ok(monitors) = app.available_monitors() else {
-    return false;
-};
+        return false;
+    };
     // 以当前设置的窗口逻辑尺寸 × 缩放系数近似命中矩形，允许窗口底部/右侧
     // 探出一点点也不误判。
     let (lw, lh) = pet_window_logical_size(get_pet_size_percent(window.app_handle()));
@@ -234,29 +358,28 @@ fn place_pet_at_default<R: Runtime>(window: &WebviewWindow<R>) {
     let _ = window.set_position(tauri::Position::Physical(PhysicalPosition::new(x, y)));
 }
 
-/// 按是否启用把桌宠窗口显示/隐藏。
-///
-/// - 未启用：隐藏窗口（保留窗口实例，避免反复重建）。
-/// - 已启用：确保窗口存在并显示居中到上次位置。
-pub fn sync_pet_window<R: Runtime>(app: &AppHandle<R>) {
-    let enabled = crate::config::get_store_dat_setting(app).pet_enabled;
-    if !enabled {
+/// 显示或隐藏桌宠窗口；隐藏时保留窗口实例，显示时不抢占用户焦点。
+pub fn set_pet_window_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) -> Result<(), String> {
+    if !visible {
         if let Some(window) = app.get_webview_window(PET_WINDOW_LABEL) {
-            let _ = window.hide();
+            window
+                .hide()
+                .map_err(|error| format!("PET_WINDOW_HIDE_FAILED: {error}"))?;
         }
-        return;
+        return Ok(());
     }
-    if ensure_pet_window(app).is_ok() {
-        if let Some(window) = app.get_webview_window(PET_WINDOW_LABEL) {
-            let _ = window.show();
-            // 刻意不 set_focus()：桌宠不应抢占用户当前应用的焦点（非打断性浮现）。
-        }
-    }
+    let window =
+        ensure_pet_window(app).map_err(|error| format!("PET_WINDOW_CREATE_FAILED: {error}"))?;
+    window
+        .show()
+        .map_err(|error| format!("PET_WINDOW_SHOW_FAILED: {error}"))?;
+    Ok(())
 }
 
-/// 创建桌宠窗口并沿用当前「是否启用」设置（应用启动时调用，幂等）。
+/// 创建桌宠窗口并沿用永久启用设置；临时隐藏状态不跨重启保留。
 pub fn init_pet_window<R: Runtime>(app: &AppHandle<R>) {
-    sync_pet_window(app);
+    let enabled = crate::config::get_store_dat_setting(app).pet_enabled;
+    let _ = set_pet_window_visible(app, enabled);
 }
 
 #[cfg(test)]
@@ -288,9 +411,29 @@ mod tests {
 
     #[test]
     fn pet_window_logical_size_scales_with_percent() {
-        // 100% = 精灵图原始尺寸 + 留白；50% / 200% 线性缩放。
-        assert_eq!(pet_window_logical_size(100.0), (252.0, 164.0));
-        assert_eq!(pet_window_logical_size(50.0), (142.0, 102.0));
-        assert_eq!(pet_window_logical_size(200.0), (472.0, 288.0));
+        // 高度由按比例缩放的 192x208 Codex v2 帧，加固定 120px 气泡区与 10px 阴影区组成。
+        for percent in [50.0, 100.0, 200.0] {
+            let (width, height) = pet_window_logical_size(percent);
+            let scale = percent / 100.0;
+            assert_eq!(width, PET_SPRITE_BASE_WIDTH * scale + PET_WINDOW_PAD_X);
+            assert_eq!(height, PET_SPRITE_MAX_HEIGHT * scale + 130.0);
+        }
+    }
+
+    #[test]
+    fn clamp_window_position_keeps_entire_pet_on_monitor() {
+        assert_eq!(
+            clamp_window_position(1900, 1000, 252, 244, 0, 0, 1920, 1080),
+            (1668, 836)
+        );
+        assert_eq!(
+            clamp_window_position(-2000, -500, 252, 244, -1920, 0, 1920, 1080),
+            (-1920, 0)
+        );
+        assert_eq!(
+            clamp_window_position(100, 100, 900, 700, 0, 0, 800, 600),
+            (0, 0),
+            "窗口大于显示器时应贴齐显示器左上角"
+        );
     }
 }
