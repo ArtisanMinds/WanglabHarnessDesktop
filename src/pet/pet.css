@@ -1,3 +1,5 @@
+@import "@heroui/styles";
+
 /* 桌宠窗口保持全透明，只有视频、降级图与气泡参与绘制。 */
 html,
 body,

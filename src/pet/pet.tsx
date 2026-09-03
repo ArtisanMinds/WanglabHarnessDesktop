@@ -1,4 +1,3 @@
-import type { ToastContentValue } from '@heroui/react/toast'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type {
   PetActivity,
@@ -6,12 +5,12 @@ import type {
   PetAssetName,
   PetFacing,
 } from './state'
-import { Toast } from '@heroui/react/toast'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useEffect, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
+import { toast } from '@/utils/toast'
 import bubbleVideoUrl from '../../packages/dsh-tauri-pet/assets/maid-bubble.webm'
 import whaleFallbackUrl from '../../packages/dsh-tauri-pet/assets/maid-deepseek-whale.gif'
 import failedVideoUrl from '../../packages/dsh-tauri-pet/assets/maid-failed.webm'
@@ -67,7 +66,6 @@ const PET_STATUS_EVENT = 'pet://status'
 const BUBBLE_DURATION_MS = 10_000
 const DRAG_THRESHOLD_PX = 4
 const CLICK_DELAY_MS = 220
-const speechQueue = new Toast.Queue<ToastContentValue>({ maxVisibleToasts: 1 })
 
 const COPY: Record<'en' | 'zh', Copy> = {
   en: {
@@ -98,7 +96,6 @@ export function PetWindow() {
   const [sessionActivity, setSessionActivity] = useState<PetActivity>('idle')
   const [localActivity, setLocalActivity] = useState<PetAnimation | null>(null)
   const [facing, setFacing] = useState<PetFacing>('left')
-  const [bubbleVisible, setBubbleVisible] = useState(false)
   const [failedPet, setFailedPet] = useState<string | null>(null)
   const [customAsset, setCustomAsset] = useState<PetAsset | null>(null)
   const [spriteAspect, setSpriteAspect] = useState<{ id: string, value: number } | null>(null)
@@ -250,7 +247,7 @@ export function PetWindow() {
     return () => {
       clearBubbleTimer()
       clearClickTimer()
-      speechQueue.clear()
+      toast.clear()
     }
   }, [])
 
@@ -270,18 +267,15 @@ export function PetWindow() {
 
   function hideBubble() {
     clearBubbleTimer()
-    speechQueue.clear()
-    setBubbleVisible(false)
+    toast.clear()
   }
 
   function showBubble(text: string) {
     clearBubbleTimer()
-    speechQueue.clear()
-    speechQueue.add({ title: text, variant: 'default' }, { timeout: BUBBLE_DURATION_MS })
-    setBubbleVisible(true)
+    toast.clear()
+    toast(text, { timeout: BUBBLE_DURATION_MS, placement: 'top' })
     bubbleTimerRef.current = window.setTimeout(() => {
-      speechQueue.clear()
-      setBubbleVisible(false)
+      toast.clear()
       bubbleTimerRef.current = null
     }, BUBBLE_DURATION_MS)
   }
@@ -419,25 +413,6 @@ export function PetWindow() {
     <main className="pet-stage" data-visible={isVisible}>
       <If cond={isVisible}>
         <div className="pet-anchor" style={petStyle} data-sprite={usesCustomSprite}>
-          <Toast.Provider
-            className="pet-toast-region"
-            data-visible={bubbleVisible}
-            maxVisibleToasts={1}
-            placement="top"
-            queue={speechQueue}
-            width="100%"
-          >
-            {({ toast }) => {
-              const content = toast.content as ToastContentValue
-              return (
-                <Toast className="pet-toast" toast={toast} variant={content.variant}>
-                  <Toast.Content className="pet-toast-content">
-                    <Toast.Title className="pet-toast-title">{content.title}</Toast.Title>
-                  </Toast.Content>
-                </Toast>
-              )
-            }}
-          </Toast.Provider>
           <div
             className="pet-hit-area"
             aria-label={copy.petLabel}

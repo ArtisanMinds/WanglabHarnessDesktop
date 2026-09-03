@@ -12,13 +12,17 @@
 
 1. 拖动时的转向动画与 Codex 精灵图移动动画消失。
 2. 为气泡预留的窗口顶部区域太大，形成大片透明但会拦截鼠标的区域。
-3. 气泡消失：点击宠物没有气泡，会话运行时也没有气泡。
+3. 气泡此前完全不显示；用户已修复 `ToastProvider`/样式接入，因此“能显示”不再是待办，
+   但会话气泡调用和动作仲裁仍未完成。
 4. 动作与气泡缺少仲裁：
    - 会话正在 work 时，点击不得触发动画或新增气泡；
    - work 动画与会话气泡不得被点击动作覆盖；
-   - 会话气泡允许像 HeroUI Toast 一样叠加；
+   - 多会话气泡通过多次调用现有 `toast()` 自然叠加；不要自行管理 HeroUI queue；
    - 会话 Toast 不显示关闭按钮，不显示 loading 状态。
-5. 必须重新对照以下三个参考实现，不得只做表面样式模仿：
+5. `src/pet/pet.tsx` 仍把 `packages/dsh-tauri-pet/assets/*` 当作 ESM 模块直接导入；
+   这是错误的运行时资源边界。Rust 必须从内置插件目录加载这些媒体，并以子 WebView 可消费的
+   URL/数据提供给 pet WebView。
+6. 必须重新对照以下三个参考实现，不得只做表面样式模仿：
    - `source/dsh-pet`
    - `source/dsh-plugin-codex-pets`
    - `source/BongoCat`
@@ -43,6 +47,9 @@
 
 - 不得恢复“猫咪小助手”或“柴犬阿黄”。
 - 内置素材来自 dsh-pet，副本归属于 `packages/dsh-tauri-pet/assets/`。
+- `src/pet/pet.tsx` 不得通过 ESM import 引用这些资源；Rust 层应从已部署的内置插件目录
+  `resources/node_modules/dsh-tauri-pet/assets/`（开发环境使用对应的实际插件包目录）读取，
+  再通过受控 Tauri command/自定义协议提供给 pet 子 WebView。
 - 内置 id 是 `maid-deepseek-whale`；旧内置 id 必须归一化到该 id。
 
 ### 2.3 设置页
@@ -60,7 +67,9 @@
 
 ### 2.4 数据归属
 
-- 内置 dsh-pet 副本：`packages/dsh-tauri-pet/assets/`。
+- 内置 dsh-pet 副本的源码/包内归属：`packages/dsh-tauri-pet/assets/`。
+- 内置媒体的运行时所有权：Rust 解析内置插件实际部署目录并读取；pet 子 WebView 只消费
+  Rust 返回的资源，不依赖 Vite 跨目录 ESM asset import，也不假设源码 checkout 存在。
 - Chat 创建宠物：release 使用 `~/.dsh/pets`；desktop debug 按现有运行时约定使用
   `~/.dsh.dev/pets`。
 - Codex 宠物：直接读取 `~/.codex/pets`，不复制到 DSH 数据目录。
@@ -141,7 +150,8 @@ BongoCat 是窗口行为基准，不是完整交互基准。它在 mousedown 立
 ### 4.1 已完成并应保留
 
 - 三个参考仓库已加入 `source/*` 子模块。
-- 内置 WebM/GIF 与 MIT attribution 已放入 `packages/dsh-tauri-pet`。
+- 内置 WebM/GIF 与 MIT attribution 已放入 `packages/dsh-tauri-pet`；这些是包内源文件，
+  尚未完成 Rust → pet 子 WebView 的正确运行时资源加载边界。
 - `packages/dsh-tauri-pet/THIRD_PARTY_NOTICES.md` 记录 dsh-pet 素材来源。
 - `packages/dsh-tauri-pet/skills/hatch-dsh-pet/SKILL.md` 提供内置 hatch skill。
 - `packages/dsh-tauri-pet/cordis.patch.yml` 注册 skill filesystem provider。
@@ -197,30 +207,75 @@ BongoCat 是窗口行为基准，不是完整交互基准。它在 mousedown 立
   `pointer-events:none` 不足，因为 WebView 窗口本身仍会拦截桌面应用。
 - [ ] 50%、100%、150%、200% 以及 192×208 自定义帧都要测气泡不重叠、不截断。
 
-#### C. 点击与会话气泡消失
+#### C. 点击与会话气泡调用
 
-当前 `src/pet/pet.tsx` 使用 HeroUI `Toast.Queue`，但：
+用户已修复 Toast 完全不显示的问题，当前接入为：
 
-- `showBubble()` 每次先 `speechQueue.clear()`；
-- queue 设置 `maxVisibleToasts: 1`；
-- `hideBubble()` 和没有 bubble 的 status 更新会清空整个 queue；
-- 点击要等待原生 drag Promise 结束，再通过窗口位置差判断 click，可能被窗口轻微位移误判；
-- 会话状态事件与点击气泡共用一个“单条、清空式”队列。
+- `src/pet/main.tsx` 使用项目现有 `ToastProvider` 包裹 `PetWindow`；
+- `src/pet/pet.css` 引入 `@heroui/styles`；
+- `src/pet/pet.tsx` 调用 `@/utils/toast` 暴露的 `toast()`。
 
-这些行为与“会话气泡可叠加”直接冲突。
+因此后续不得重新引入局部 `Toast.Queue`/`Toast.Provider`。项目级 `toast()` 已按 placement
+维护 HeroUI 队列，并支持同一 placement 最多显示 3 条。用户明确指出：多会话只需要为每个
+应显示的会话分别调用一次 `toast()`，不需要 pet 实现自行处理队列。
+
+当前剩余问题：`showBubble()` 仍在每次调用前后执行全局 `toast.clear()`，这会清除已有会话
+Toast，无法叠加；而 `PetStatus` 目前只有一个 `bubble` 字段，也不足以表达“多个会话各调用
+一次”的事件语义。
 
 待办：
 
-- [ ] 删除 show-before-clear 模式；HeroUI queue 必须保留多条会话 Toast。
-- [ ] `maxVisibleToasts` 设为明确的叠加上限（建议先验证 3），并定义溢出策略。
-- [ ] 每个会话事件应有稳定 key/去重策略，防止状态轮询或重复事件无限追加。
-- [ ] 区分 `session toast` 与 `interaction toast`，不要用一个布尔值控制整个队列。
-- [ ] 会话 running/waiting 的 Toast 生命周期由会话状态迁移决定；review/failed 是否定时消失
-  需对照参考实现后固定规则。
-- [ ] 点击 Toast 仅在允许点击动作时添加，并使用独立超时。
-- [ ] 自定义 HeroUI Toast renderer 只渲染 `Toast.Content`/`Toast.Title`；不得渲染
-  `Toast.CloseButton`、loading indicator 或 action。
-- [ ] 添加 DOM/data 属性或测试钩子，验证 stack 数量、类型与状态。
+- [ ] 保留项目现有 `ToastProvider` + `toast()` 接入，不创建 pet 专属 queue。
+- [ ] 删除每次显示前的 `toast.clear()`；进行中会话由 `toast.close(key)` 精确结束，只有点击等
+  短提示使用 `toast(text, { timeout, placement:'top' })` 的 timeout。
+- [ ] 多会话活动产生一条提示时调用一次 `toast()`；有 N 个进行中会话就调用 N 次，并保存
+  `sessionId → toastKey` 映射（`toast()` 的返回值就是该条 key）。
+- [ ] Rust/插件到 pet WebView 的气泡协议改为会话事件语义，并携带稳定 session id，避免
+  `get_pet_status` 或相同状态重复同步时反复弹出；去重会话事件，不管理 HeroUI 队列。
+- [ ] 会话进入进行态时：若该 session 尚无 Toast，调用一次 `toast()` 并记录 key；已有 key
+  则不得重复创建。
+- [ ] 会话完成、失败、取消或离开进行态时：实时取出该 session 的 key，调用
+  `toast.close(key)` 只关闭这一条，并删除映射；不得影响其他进行中会话。
+- [ ] `toast.clear()` 的语义是清除全部 Toast，只能用于 `hide_pet`、窗口卸载或明确的全局
+  重置；任何单个会话的状态变化都不得调用它。
+- [ ] review/failed 是否先替换为结果 Toast 再按 timeout 消失，需对照参考实现后固定；无论
+  采用何种结果展示，都必须先关闭该会话原有的进行中 Toast。
+- [ ] 点击 Toast 仅在允许点击动作时调用一次 `toast()`。
+- [ ] 不传 `isLoading`，不添加 action；现有项目 `ToastProvider` 本身不渲染 pet 自定义关闭按钮。
+- [ ] 添加调用层测试或事件钩子，验证两个会话各触发一次时出现两条 Toast，且没有显式
+  close/loading UI。
+
+#### D. 内置媒体资源边界错误
+
+当前 `src/pet/pet.tsx:14-23` 直接从
+`../../packages/dsh-tauri-pet/assets/*.webm|gif` 进行 ESM import。这样会让应用 Web bundle
+直接拥有插件资源，依赖 monorepo 源码相对路径，并绕过内置插件的部署/运行时边界。
+
+目标架构：
+
+1. 资源仍打包在 `packages/dsh-tauri-pet/assets/`，由 `package.json#files` 随内置插件部署到
+   `resources/node_modules/dsh-tauri-pet/assets/`。
+2. Rust 解析当前实际内置插件目录，开发态与生产态不能硬编码同一个绝对路径。
+3. Rust 校验请求的 built-in pet id 和固定 asset name，仅允许白名单文件；禁止任意路径、
+   `..`、绝对路径或 MIME 欺骗。
+4. Rust 读取资源并向 pet 子 WebView 提供可消费结果。可选方案应先比较后定稿：
+   - 首选受控自定义 URI/protocol 或 Tauri asset URL，避免每次把大 WebM base64 化；
+   - 若沿用 command，返回受限资源 URL/二进制，而不是源码路径；
+   - GIF fallback 同样走该边界。
+5. `src/pet/pet.tsx` 初始加载一次 built-in asset manifest，例如
+   `{ idle, turn, move, wave, waiting, running, review, failed, bubble, fallback }`，然后用返回 URL
+   构建 `ASSET_URLS`；不得再保留这些媒体的 ESM import。
+6. 资源加载失败使用 `PET_BUILTIN_ASSET_*` 大写错误前缀，并有明确 fallback/错误日志。
+
+待办：
+
+- [ ] 复用/扩展 `get_pet_asset`，或新增命名清晰的 built-in asset manifest command。
+- [ ] 抽出“内置插件目录解析”函数并测试 development、production resource layout。
+- [ ] 校验所有 9 个 WebM + GIF 均来自 `dsh-tauri-pet/assets` 白名单。
+- [ ] 更新 `src/hooks/use-iframe-invoke.ts` command allowlist（如果新增命令）。
+- [ ] 删除 `src/pet/pet.tsx` 的 10 个跨包媒体 import。
+- [ ] 验证 `pnpm build` 输出不再把这些媒体复制为 Vite ESM asset；Tauri release 中插件目录资源完整。
+- [ ] 开发版、安装版 3080、路径含中文/空格的安装目录都要验证。
 
 ## 5. 动作与气泡仲裁规范
 
@@ -232,8 +287,8 @@ pointer handler 中。
 - `sessionActivity`: idle / waiting / running / review / failed
 - `interactionActivity`: null / turn / moving-left / moving-right / waving / bubble
 - `dragPhase`: idle / starting / dragging / ending
-- `sessionToasts[]`
-- `interactionToasts[]`
+- `sessionToastEvents[]`（只用于决定何时调用 `toast()`，不是自建 UI queue）
+- `interactionToastEvent`（允许时调用一次 `toast()`）
 
 最低规则：
 
@@ -264,15 +319,22 @@ failed/review/running/waiting（会话）
 
 ## 6. HeroUI Toast 实施要求
 
-- 使用 HeroUI v3 API（当前依赖为 v3），不是 v2 Provider API。
-- 参考形式：`Toast.Provider`、`Toast.Queue`、`Toast`、`Toast.Content`、`Toast.Title`。
-- 不添加 `Toast.CloseButton`。
-- 不传 `isLoading`，不渲染 `Toast.Indicator`。
-- 会话 Toast 原生叠加，不能在每次 add 前 clear。
+- 继续使用项目现有 `src/components/toast-provider.tsx` 和 `src/utils/toast.ts`；不要在 pet 内部
+  新建或直接操作 `Toast.Queue`。
+- `src/pet/main.tsx` 已用 `ToastProvider` 包裹 `PetWindow`，这是用户修复 Toast 可见性的改动，
+  应保留。
+- 多会话叠加的实现是多次调用 `toast()`：每个进行中会话调用一次，不额外处理 HeroUI queue。
+- `toast()` 返回单条 Toast key；必须维护 `sessionId → toastKey`，用于按会话精确关闭。
+- 单个会话完成/失败/取消/离开进行态时调用 `toast.close(key)`，实时关闭对应 Toast。
+- `toast.clear()` 只表示清除全部 Toast，仅限 pet hide、WebView 卸载或全局重置；普通显示流程
+  和单会话状态变化不得调用，否则会删除其他会话的 Toast。
+- 进行中会话 Toast 不应依赖固定 timeout 自动消失；其主要生命周期由该会话实时状态和
+  `toast.close(key)` 管理。点击类短提示仍可使用 timeout。
+- 不传 `isLoading`，不传 action，不新增关闭按钮。
 - Toast 应位于宠物之上，尺寸增大时仍不覆盖角色头部。
 - Toast 容器必须保持透明桌面窗口安全，不得给 html/body/root 添加不透明背景。
 - 如果采用独立 toast 窗口，窗口必须鼠标穿透，并与 pet 的移动、尺寸和 DPI 同步。
-- 必须验证中文长文本、英文、连续多条、超时、会话状态切换与 pet hide/show。
+- 必须验证中文长文本、英文、连续多次 `toast()`、超时、会话状态切换与 pet hide/show。
 
 ## 7. 代码地图
 
@@ -300,8 +362,9 @@ src/client/service/pet.ts(1,88): error TS1002: Unterminated string literal.
 - `src/pet/pet.tsx`：状态事件、WebM/atlas、HeroUI Toast、点击与 Tauri 原生拖动。
 - `src/pet/pet.css`：透明窗口、宠物尺寸和 Toast 样式。
 - `src/pet/state.ts`：纯视觉/atlas 状态逻辑。
-- `src/pet/state.test.ts`：纯状态测试。
-- `src/pet/vitest.config.mjs`：独立测试配置。
+- `src/pet/state.test.ts`：纯状态测试，由根 `vite.config.ts` 的 test include 发现。
+- `src/pet/main.tsx`：用户已加入项目级 `ToastProvider`，必须保留。
+- `src/utils/toast.ts`：统一 `toast()`、`toast.close(key)`、`toast.clear()` API；pet 不直接管理 queue。
 
 ### Rust/Tauri
 
@@ -340,7 +403,7 @@ pnpm --filter dsh-tauri-pet typecheck
 pnpm --filter dsh-tauri-pet build
 pnpm typecheck
 pnpm exec eslint src/pet packages/dsh-tauri-pet/src/client --max-warnings=0
-pnpm exec vitest --config src/pet/vitest.config.mjs --run
+pnpm exec vitest run src/pet/state.test.ts
 pnpm --filter dsh-tauri-pet exec vitest run src/client/utils/activity.test.ts
 pnpm test -- --run
 pnpm build
@@ -397,7 +460,9 @@ git diff --check
 - [ ] idle 双击：bubble effect，且不清掉会话 Toast。
 - [ ] waiting/running 点击：无新动画、无新气泡。
 - [ ] work 中拖动：窗口可移动，但 work 动画/气泡保持。
-- [ ] 多条会话 Toast 叠加，不显示关闭按钮和 loading。
+- [ ] 两个进行中会话分别调用两次 `toast()`，同时显示两条 Toast，不显示关闭按钮和 loading。
+- [ ] 其中一个会话完成时立即 `toast.close(key)` 关闭对应单条，另一个会话 Toast 保持显示。
+- [ ] pet hide/WebView 卸载时 `toast.clear()` 清除全部 Toast。
 - [ ] review/failed 转换后没有旧 timer 把状态覆盖回 idle。
 - [ ] 中文长文本不会覆盖宠物或超出窗口。
 
@@ -441,10 +506,11 @@ git diff --check
 2. 阅读三个子模块的指定代码，形成差异对照表。
 3. 先实现并测试纯动作/气泡仲裁 reducer。
 4. 用 `onMoved` + OS `startDragging()` 恢复拖动方向动画，保持跨 DPI 原生拖动。
-5. 将 Toast 从 pet 主窗口的固定顶部占位中解耦，优先验证独立鼠标穿透窗口。
-6. 改造 HeroUI queue 支持会话气泡叠加和稳定去重。
-7. 跑自动测试、构建和完整手工矩阵。
-8. 构建/部署并验证现有 3080 GUI。
+5. 由 Rust 从内置插件部署目录加载 built-in 媒体并提供给 pet 子 WebView，删除跨包 ESM asset import。
+6. 将 Toast 从 pet 主窗口的固定顶部占位中解耦，优先验证独立鼠标穿透窗口。
+7. 以 `sessionId → toastKey` 驱动多次 `toast()` 和实时 `toast.close(key)`；不要改造或自行管理 HeroUI queue。
+8. 跑自动测试、构建和完整手工矩阵。
+9. 构建/部署并验证现有 3080 GUI。
 
 ## 12. 本检查点明确不代表完成
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { ToastProvider } from '@/components/toast-provider'
 import { PetWindow } from './pet'
 import './pet.css'
 
@@ -9,6 +10,8 @@ root.style.height = '100%'
 
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <PetWindow />
+    <ToastProvider>
+      <PetWindow />
+    </ToastProvider>
   </React.StrictMode>,
 )
