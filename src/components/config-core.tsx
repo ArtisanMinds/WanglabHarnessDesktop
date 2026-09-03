@@ -6,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
-import semver from 'semver'
 import { useCoreBreakingConfirm } from '@/hooks/use-core-breaking-confirm'
 import { store } from '@/store'
 import { compareVersions } from '@/utils/core-version'
@@ -399,23 +398,4 @@ export function ConfigCore() {
 /** 版本展示：优先版本号，缺失回落来源 id */
 function displayVersion(version: HarnessCore): string {
   return version.version || (version.source === 'local' ? 'local' : 'app')
-}
-
-/**
- * Semver comparison using the `semver` package.
- * Handles `dsh-`/`src-` prefixes by stripping before comparison.
- * Returns: negative if a < b, 0 if equal, positive if a > b.
- */
-function compareVersions(a: string, b: string): number {
-  const clean = (v: string) => {
-    let s = v
-    while (s.startsWith('dsh-') || s.startsWith('src-'))
-      s = s.replace(/^(?:src|dsh)-/, '')
-    return s
-  }
-  const pa = semver.parse(clean(a))
-  const pb = semver.parse(clean(b))
-  if (!pa || !pb)
-    return 0
-  return semver.compare(pa, pb)
 }
