@@ -294,14 +294,25 @@ fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<(
     // 特权，与 pnpm `link:` 依赖在 Windows 上的实现一致。
     match std::os::windows::fs::symlink_dir(source, destination) {
         Ok(()) => Ok(()),
-        Err(e) => {
+        Err(e) if is_privilege_error(&e) => {
             log::warn!(
                 "CORE_PLUGIN_SYMLINK_FALLBACK: symlink_dir failed ({}), creating junction instead",
                 e
             );
             create_directory_junction(source, destination)
         }
+        // 非权限类失败（如路径无效、文件系统不支持符号链接）保留原始诊断，
+        // 不把错误替换成 junction 的二次失败。
+        Err(e) => Err(e),
     }
+}
+
+/// 判断符号链接创建失败是否源于权限不足：`ERROR_PRIVILEGE_NOT_HELD`（1314）
+/// 与 `ERROR_ACCESS_DENIED`（5）。只有这类错误才值得回退 junction——其他失败
+/// （路径无效、卷不支持重解析点等）回退同样会失败，且会掩盖原始原因。
+#[cfg(windows)]
+fn is_privilege_error(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(1314 | 5))
 }
 
 /// 用 `FSCTL_SET_REPARSE_POINT` 构造目录联接（junction），布局与 `mklink /J`
@@ -404,6 +415,11 @@ fn create_directory_junction(source: &Path, destination: &Path) -> std::io::Resu
         )
     };
     if handle == INVALID_HANDLE_VALUE {
+        // 打开失败同样要清掉刚创建的空目录（否则残留普通目录会被
+        // ensure_package_link 误判为 core 自有条目而永久跳过链接）。
+        if created_dir {
+            let _ = std::fs::remove_dir(destination);
+        }
         return Err(std::io::Error::last_os_error());
     }
     let mut bytes_returned: u32 = 0;
