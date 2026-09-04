@@ -16,6 +16,7 @@ import type {
   HostContext,
   OperationResult,
   WorktreeParams,
+  WorktreeProcessController,
 } from '../types/index.js'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -81,6 +82,30 @@ async function isRegisteredWorktree(root: string, path: string, signal?: AbortSi
   return { ok: true, registered }
 }
 
+/**
+ * Stop processes that still hold the worktree as their cwd (optional host
+ * capability). The host ctx is a cordis proxy: reading a property that was
+ * never injected throws `cannot get property "X" without inject`, so the
+ * capability must be probed via `ctx.get(name)` first; a plain-object ctx
+ * (tests, non-cordis hosts) falls back to a direct property read. A missing
+ * or broken controller must never block the removal, so the whole probe and
+ * call is guarded.
+ */
+async function stopWorktreeProcesses(ctx: HostContext, sessionId: string, path: string): Promise<void> {
+  try {
+    const get = (ctx as { get?: (name: string) => unknown } | undefined)?.get
+    const controller = typeof get === 'function'
+      ? get.call(ctx, 'worktreeProcessController')
+      : (ctx as { worktreeProcessController?: WorktreeProcessController } | undefined)?.worktreeProcessController
+    const stop = (controller as WorktreeProcessController | undefined)?.stopSessionProcesses
+    if (typeof stop === 'function')
+      await stop(sessionId, path)
+  }
+  catch {
+    // A missing or broken controller is optional: skip process termination.
+  }
+}
+
 async function removeWorktreeOnDisk(
   ctx: HostContext,
   sessionId: string,
@@ -91,10 +116,9 @@ async function removeWorktreeOnDisk(
   dirname: string,
   signal?: AbortSignal,
 ): Promise<OperationResult> {
+  await stopWorktreeProcesses(ctx, sessionId, path)
+
   try {
-    const stop = ctx?.worktreeProcessController?.stopSessionProcesses
-    if (stop)
-      await stop(sessionId, path)
     await removeDirectoryReliably(path, worktreeTrashPath(worktreesRoot, hash, dirname))
   }
   catch (error) {

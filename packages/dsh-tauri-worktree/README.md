@@ -43,8 +43,11 @@ checkout_worktree({ worktree_hash_dirname: '[hash]/[dirname]', branch_name: 'dsh
 放弃/检出会移除工作树目录。Git for Windows 旧版本递归删除时会跟随 NTFS junction，
 误删 junction 目标内容，因此磁盘删除绝不交给 Git：
 
-1. （可选）宿主注册 `ctx.worktreeProcessController.stopSessionProcesses` 时，先终止仍以
-   工作树为 cwd 的进程；未注册时跳过（公共 DSH API 暂无按会话停止进程的能力）。
+1. （可选）先终止仍以工作树为 cwd 的进程：宿主把该能力注册为 ctx 服务后，插件经
+   `ctx.get('worktreeProcessController')` 探测并按「探测后调用」约定读取
+   `stopSessionProcesses`；未注册即跳过（公共 DSH API 暂无按会话停止进程的能力）。
+   注意宿主 ctx 是 cordis 代理，未注入的属性直接读取会抛
+   `cannot get property ... without inject`，因此探测失败或控制器异常都不会中断删除。
 2. 目录重命名到同卷 `<worktreesRoot>/.trash/[hash]/[dirname]` 后用
    `fs.rm({ recursive, force, maxRetries: 10, retryDelay: 100 })` 删除；重命名失败
    （跨卷/句柄占用）时退回直接 `fs.rm`，外层再重试 3 次（间隔 2s）。
