@@ -10,7 +10,7 @@
 
 import type { HostContext, SessionLike } from '../types/index.js'
 import { readdirSync, rmSync } from 'node:fs'
-import { join, resolve, sep } from 'pathe'
+import { dirname, join, resolve, sep } from 'pathe'
 
 /** 查找会话对象（host ctx.sessions）。 */
 export function findSession(ctx: HostContext, sessionId: string): SessionLike | undefined {
@@ -68,17 +68,55 @@ export function encodeSessionId(id: string): string {
  * @returns 是否实际删除了目录。
  */
 export function removeSessionDataDir(dshHome: string, sessionId: string): boolean {
+  const dir = findSessionDataDir(join(dshHome, 'sessions'), sessionId)
+  if (!dir)
+    return false
+  rmSync(dir, { recursive: true, force: true })
+  return true
+}
+
+/**
+ * 只读定位一个会话的持久化数据目录（不删除）。
+ * 扫描规则与 removeSessionDataDir 完全一致（有界深度 2，防 `..`/绝对路径逃逸），
+ * 供「打开会话目录」解析目标路径使用。
+ * @returns 会话数据目录绝对路径；未找到返回 undefined。
+ */
+export function locateSessionDataDir(dshHome: string, sessionId: string): string | undefined {
+  return findSessionDataDir(join(dshHome, 'sessions'), sessionId)
+}
+
+/**
+ * 解析「打开分组会话目录」的目标：组内各会话数据目录的公共父目录。
+ * 同一工作区的会话共享 cwd → 同属一个项目目录（`$DSH_HOME/sessions/--<key>--`），
+ * 直接打开它即可看到该组全部会话的数据目录；跨项目（未分组混合 cwd）时回退到
+ * sessions 根目录，让用户看到全部相关项目目录。
+ * @returns 待打开的目录绝对路径；组内没有任何会话目录时返回 undefined。
+ */
+export function resolveSessionGroupDirectory(dshHome: string, sessionIds: readonly string[]): string | undefined {
   const sessionsRoot = join(dshHome, 'sessions')
+  const parents = new Set<string>()
+  for (const sessionId of sessionIds) {
+    const dir = findSessionDataDir(sessionsRoot, sessionId)
+    if (dir)
+      parents.add(dirname(dir))
+  }
+  if (parents.size === 0)
+    return undefined
+  if (parents.size === 1)
+    return [...parents][0]
+  return isDir(sessionsRoot) ? sessionsRoot : undefined
+}
+
+/** 有界扫描（深度 2）查找会话数据目录，返回首个命中（含一级/二级布局）。 */
+function findSessionDataDir(sessionsRoot: string, sessionId: string): string | undefined {
   // DSH versions use either the raw id or the legacy `session-<id>` directory name.
   const encodedId = encodeSessionId(sessionId)
   const markers = [encodedId, `session-${sessionId}`, sessionId]
   // 一级：sessions/<id> or sessions/session-<id>
   for (const marker of markers) {
     const direct = join(sessionsRoot, marker)
-    if (isWithinSessionsRoot(sessionsRoot, direct) && isDir(direct)) {
-      rmSync(direct, { recursive: true, force: true })
-      return true
-    }
+    if (isWithinSessionsRoot(sessionsRoot, direct) && isDir(direct))
+      return direct
   }
   // 二级：sessions/<group>/session-<id>
   let groups: string[] = []
@@ -88,16 +126,14 @@ export function removeSessionDataDir(dshHome: string, sessionId: string): boolea
       .map(entry => entry.name)
   }
   catch {
-    return false
+    return undefined
   }
   for (const group of groups) {
     for (const marker of markers) {
       const nested = join(sessionsRoot, group, marker)
-      if (isWithinSessionsRoot(sessionsRoot, nested) && isDir(nested)) {
-        rmSync(nested, { recursive: true, force: true })
-        return true
-      }
+      if (isWithinSessionsRoot(sessionsRoot, nested) && isDir(nested))
+        return nested
     }
   }
-  return false
+  return undefined
 }

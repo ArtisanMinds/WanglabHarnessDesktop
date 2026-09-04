@@ -20,8 +20,10 @@ import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
  */
 import type { ReactElement } from 'react'
 import type { ArchivePanelProps, ArchiveSort } from '../types'
-import { Button, Input, Menu, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { ArchiveGroupRow } from '../utils/sort'
+import { Button, Input, Menu, Modal, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { postOpenSessionDir } from '../apis'
 import { SESSION_CLASSES as K } from '../constants'
 import { text, useLocale } from '../locales'
 import {
@@ -50,6 +52,7 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
   useLocale()
   const [confirm, setConfirm] = useState<DeleteConfirm>(null)
   const [openGroupMenu, setOpenGroupMenu] = useState<string | null>(null)
+  const [openPathError, setOpenPathError] = useState<string | null>(null)
 
   const sessions = useSyncExternalStore(props.sessionsRuntime.list.subscribe, props.sessionsRuntime.list.getSnapshot)
   const workspaces = useSyncExternalStore(props.workspacesRuntime.list.subscribe, props.workspacesRuntime.list.getSnapshot)
@@ -129,6 +132,20 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
     }
   }
 
+  /** 在系统文件管理器中打开分组对应的会话数据目录（$DSH_HOME/sessions/...，宿主解析）。 */
+  async function handleOpenGroupDirectory(group: ArchiveGroupRow): Promise<void> {
+    const sessionIds = group.rows.map(row => row.sessionId)
+    if (sessionIds.length === 0)
+      return
+    try {
+      await postOpenSessionDir(sessionIds)
+      setOpenPathError(null)
+    }
+    catch (error) {
+      setOpenPathError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
   const footer = (
     <>
       <Button variant="ghost" onClick={() => setConfirm(null)}>{text('cancel')}</Button>
@@ -202,7 +219,15 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
           <section key={group.id} className={K.group}>
             <div className={K.groupHeader}>
               <IconFolderOpen />
-              <span className={K.groupTitle}>{group.title || text('ungrouped')}</span>
+              <button
+                type="button"
+                className={K.groupTitle}
+                title={text('openDirectory')}
+                aria-label={`${text('openDirectory')}: ${group.title || text('ungrouped')}`}
+                onClick={() => void handleOpenGroupDirectory(group)}
+              >
+                {group.title || text('ungrouped')}
+              </button>
               <span className={K.groupCount}>
                 {group.rows.length}
                 {' '}
@@ -302,6 +327,16 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
         footer={footer}
         closeLabel={text('close')}
       />
+
+      {openPathError
+        ? (
+            <Toast
+              key={openPathError}
+              text={text('openFailed', { reason: openPathError })}
+              onDone={() => setOpenPathError(null)}
+            />
+          )
+        : null}
     </div>
   )
 }

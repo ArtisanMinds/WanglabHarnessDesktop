@@ -28,6 +28,11 @@ export function fetchArchived(): Promise<ArchivedListPayload> {
   return sessionApi.request('/archived')
 }
 
+/** 在系统文件管理器中打开归档分组对应的会话数据目录（宿主按 sessionIds 解析）。 */
+export function postOpenSessionDir(sessionIds: readonly string[]): Promise<{ ok: boolean }> {
+  return sessionApi.post('/open-path', { sessionIds })
+}
+
 /** 归档单个会话。 */
 export function postArchive(sessionId: string, workspaceId?: string, beforeSessionId?: string): Promise<ArchivedListPayload> {
   return sessionApi.post('/archive', { sessionId, ...(workspaceId ? { workspaceId } : {}), ...(beforeSessionId ? { beforeSessionId } : {}) })
