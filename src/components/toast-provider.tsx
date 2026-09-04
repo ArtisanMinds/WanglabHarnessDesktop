@@ -4,7 +4,7 @@ import { useEventBus } from '@hairy/react-lib'
 import { Toast } from '@heroui/react'
 import { useState } from 'react'
 import { If } from 'react-if-lite'
-import { placements, activeQueues } from '@/utils/toast'
+import { activeQueues, placements } from '@/utils/toast'
 
 interface ToastProviderProps {
   children?: ReactNode
