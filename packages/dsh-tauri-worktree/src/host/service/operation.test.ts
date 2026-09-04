@@ -39,6 +39,26 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map(path => rm(path, { recursive: true, force: true })))
 })
 
+/**
+ * Mimic the cordis host ctx (see @deepseek-ai/cordis): reading a property that
+ * was never injected throws `cannot get property "X" without inject`, while
+ * optional host services are reachable through `ctx.get(name)`.
+ */
+function injectingCtx(services: Record<string, unknown> = {}): Record<string, unknown> {
+  const target: Record<string, unknown> = {
+    get(name: string): unknown {
+      return services[name]
+    },
+  }
+  return new Proxy(target, {
+    get(t, prop, receiver) {
+      if (prop in t)
+        return Reflect.get(t, prop, receiver)
+      throw new Error(`cannot get property "${String(prop)}" without inject`)
+    },
+  })
+}
+
 describe('ensureWorktree', () => {
   it('creates detached worktrees from refs/heads/main even when source HEAD differs', async () => {
     const repository = await createRepository('main')
@@ -135,5 +155,48 @@ describe('ensureWorktree', () => {
     expect(result.ok).toBe(false)
     expect(existsSync(worktreePath(worktreesRoot, computeHash(repository, 'missing-main-session'), projectDirname(repository))))
       .toBe(false)
+  })
+
+  it('stops worktree processes via ctx.get before discarding on a cordis-style ctx', async () => {
+    const repository = await createRepository('main')
+    const worktreesRoot = await mkdtemp(join(tmpdir(), 'dsh-worktrees-root-'))
+    temporaryDirectories.push(worktreesRoot)
+    const created = await ensureWorktree({}, worktreesRoot, repository, 'ctx-controller-session')
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    const stopped: string[] = []
+    const ctx = injectingCtx({
+      worktreeProcessController: {
+        stopSessionProcesses: (sessionId: string, worktreePath: string) => {
+          stopped.push(`${sessionId}:${worktreePath}`)
+          return Promise.resolve()
+        },
+      },
+    })
+
+    const result = await discardWorktree(ctx, worktreesRoot, { sessionId: 'ctx-controller-session' })
+
+    expect(result.ok).toBe(true)
+    expect(existsSync(created.binding.worktreePath)).toBe(false)
+    expect(stopped).toEqual([`ctx-controller-session:${created.binding.worktreePath}`])
+  })
+
+  it('discards even when the host ctx has no worktreeProcessController service (regression)', async () => {
+    const repository = await createRepository('main')
+    const worktreesRoot = await mkdtemp(join(tmpdir(), 'dsh-worktrees-root-'))
+    temporaryDirectories.push(worktreesRoot)
+    const created = await ensureWorktree({}, worktreesRoot, repository, 'ctx-probe-session')
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    // A cordis ctx whose uninjected property read throws used to make the
+    // controller probe fail and leave the worktree on disk forever.
+    const result = await discardWorktree(injectingCtx(), worktreesRoot, { sessionId: 'ctx-probe-session' })
+
+    expect(result.ok).toBe(true)
+    expect(existsSync(created.binding.worktreePath)).toBe(false)
   })
 })
