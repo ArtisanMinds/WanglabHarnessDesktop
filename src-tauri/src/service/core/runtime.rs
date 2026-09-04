@@ -287,9 +287,166 @@ fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<(
 
 #[cfg(windows)]
 fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<()> {
-    // symlink_dir 会在启用 Developer Mode 或具备 SeCreateSymbolicLinkPrivilege 时工作；
-    // 失败必须显式返回，不能退化为危险的递归覆盖复制。
-    std::os::windows::fs::symlink_dir(source, destination)
+    // 优先创建真正的符号链接：仅在启用 Developer Mode 或具备
+    // SeCreateSymbolicLinkPrivilege（管理员）时才可用；普通用户（release 版
+    // 默认非管理员启动）会得到 ERROR_PRIVILEGE_NOT_HELD（os error 1314），
+    // 此时回退为目录联接（junction）。junction 是重解析点，创建不要求任何
+    // 特权，与 pnpm `link:` 依赖在 Windows 上的实现一致。
+    match std::os::windows::fs::symlink_dir(source, destination) {
+        Ok(()) => Ok(()),
+        Err(e) if is_privilege_error(&e) => {
+            log::warn!(
+                "CORE_PLUGIN_SYMLINK_FALLBACK: symlink_dir failed ({}), creating junction instead",
+                e
+            );
+            create_directory_junction(source, destination)
+        }
+        // 非权限类失败（如路径无效、文件系统不支持符号链接）保留原始诊断，
+        // 不把错误替换成 junction 的二次失败。
+        Err(e) => Err(e),
+    }
+}
+
+/// 判断符号链接创建失败是否源于权限不足：`ERROR_PRIVILEGE_NOT_HELD`（1314）
+/// 与 `ERROR_ACCESS_DENIED`（5）。只有这类错误才值得回退 junction——其他失败
+/// （路径无效、卷不支持重解析点等）回退同样会失败，且会掩盖原始原因。
+#[cfg(windows)]
+fn is_privilege_error(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(1314 | 5))
+}
+
+/// 用 `FSCTL_SET_REPARSE_POINT` 构造目录联接（junction），布局与 `mklink /J`
+/// 完全一致：substitute name 使用 NT 命名空间绝对路径（`\??\` 前缀），print
+/// name 为同一路径的 Win32 形式；两个名字的 `\0` 终止符通过名字之间的 gap
+/// 与数据区末尾的 trailing 补零提供（length 字段本身不含 `\0`）。
+#[cfg(windows)]
+fn create_directory_junction(source: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_WRITE, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+    use windows_sys::Win32::System::IO::DeviceIoControl;
+    use windows_sys::Win32::System::Ioctl::FSCTL_SET_REPARSE_POINT;
+    use windows_sys::Win32::System::SystemServices::IO_REPARSE_TAG_MOUNT_POINT;
+
+    // junction 目标必须是 NT 命名空间内的绝对路径：盘符路径映射为
+    // `\??\G:\...`，UNC 路径映射为 `\??\UNC\server\share\...`。
+    // dunce::simplified 去掉 canonicalize 产生的 verbatim（`\\?\`）前缀，
+    // 避免双重前缀导致内核解析失败。
+    let simplified = dunce::simplified(source);
+    let print_name = simplified.to_string_lossy();
+    let substitute_name = if print_name.starts_with("\\\\") {
+        format!(r"\??\UNC\{}", print_name.trim_start_matches('\\'))
+    } else {
+        format!(r"\??\{}", print_name)
+    };
+
+    // 与 `mklink /J` 生成的挂载点完全一致的布局（实测比对 mklink 原始字节）：
+    //   SubstituteNameLength / PrintNameLength 均不含结尾 `\0`；
+    //   substitute 与 print 之间空出 2 字节作为 substitute 的 `\0` 终止符，
+    //   数据区末尾再补 2 字节作为 print 的 `\0` 终止符；
+    //   ReparseDataLength = 8（四个 u16 字段）+ 上述数据总长，传入
+    //   DeviceIoControl 的缓冲区长度 = 16 + 数据总长。若 length 误含 `\0`，
+    //   内核虽然接受（如 4392 之外的成功），但 `read_link` 会返回带 `\0` 的
+    //   verbatim 路径，导致后续 canonicalize 报 InvalidFilename (123)。
+    let substitute_wide: Vec<u16> = substitute_name.encode_utf16().collect();
+    let print_wide: Vec<u16> = print_name.encode_utf16().collect();
+    let substitute_bytes = substitute_wide.len() * 2;
+    let print_bytes = print_wide.len() * 2;
+    const REPARSE_GAP: usize = 2;
+    const REPARSE_TRAILING: usize = 2;
+    let data_length = 8 + substitute_bytes + REPARSE_GAP + print_bytes + REPARSE_TRAILING;
+    let total = 16 + substitute_bytes + REPARSE_GAP + print_bytes + REPARSE_TRAILING;
+
+    // REPARSE_DATA_BUFFER（MountPoint 变体）内存布局：
+    //   0:  ReparseTag（u32）
+    //   4:  ReparseDataLength（u16）
+    //   6:  Reserved（u16）
+    //   8:  SubstituteNameOffset（u16，相对 PathBuffer）
+    //   10: SubstituteNameLength（u16，不含 \0）
+    //   12: PrintNameOffset（u16，相对 PathBuffer）
+    //   14: PrintNameLength（u16，不含 \0）
+    //   16: PathBuffer[..]
+    let mut buffer = vec![0u8; total];
+    buffer[0..4].copy_from_slice(&IO_REPARSE_TAG_MOUNT_POINT.to_le_bytes());
+    buffer[4..6].copy_from_slice(&(data_length as u16).to_le_bytes());
+    buffer[8..10].copy_from_slice(&0u16.to_le_bytes());
+    buffer[10..12].copy_from_slice(&(substitute_bytes as u16).to_le_bytes());
+    buffer[12..14].copy_from_slice(&((substitute_bytes + REPARSE_GAP) as u16).to_le_bytes());
+    buffer[14..16].copy_from_slice(&(print_bytes as u16).to_le_bytes());
+    // PathBuffer 依次写入 substitute、gap（substitute 的 `\0` 终止符）、
+    // print；trailing 保持全零（print 的 `\0` 终止符）。
+    let mut cursor = 16usize;
+    for unit in substitute_wide.iter().copied() {
+        buffer[cursor..cursor + 2].copy_from_slice(&unit.to_le_bytes());
+        cursor += 2;
+    }
+    cursor += REPARSE_GAP;
+    for unit in print_wide.iter().copied() {
+        buffer[cursor..cursor + 2].copy_from_slice(&unit.to_le_bytes());
+        cursor += 2;
+    }
+
+    // junction 的目标入口必须先存在：链接被移除后 destination 通常已不存在，
+    // 这里按空目录创建，之后挂载重解析点。记录是否为本次创建，失败时只清理
+    // 自己创建的目录，绝不删除已存在的真实目录。
+    let created_dir = if !destination.is_dir() {
+        std::fs::create_dir_all(destination)?;
+        true
+    } else {
+        false
+    };
+    let destination_wide: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    let handle = unsafe {
+        CreateFileW(
+            destination_wide.as_ptr(),
+            GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            std::ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        // 打开失败同样要清掉刚创建的空目录（否则残留普通目录会被
+        // ensure_package_link 误判为 core 自有条目而永久跳过链接）。
+        if created_dir {
+            let _ = std::fs::remove_dir(destination);
+        }
+        return Err(std::io::Error::last_os_error());
+    }
+    let mut bytes_returned: u32 = 0;
+    let ok = unsafe {
+        DeviceIoControl(
+            handle,
+            FSCTL_SET_REPARSE_POINT,
+            buffer.as_ptr() as *const core::ffi::c_void,
+            buffer.len() as u32,
+            std::ptr::null_mut(),
+            0,
+            &mut bytes_returned,
+            std::ptr::null_mut(),
+        )
+    };
+    unsafe {
+        CloseHandle(handle);
+    }
+    if ok == 0 {
+        // 挂载失败时清掉刚创建的空目录，避免留下会被误认为 core 自有条目的
+        // 普通目录；目录原本就存在（未由本函数创建）时不做清理。
+        if created_dir {
+            let _ = std::fs::remove_dir(destination);
+        }
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 fn is_safe_package_name(name: &str) -> bool {
@@ -552,5 +709,100 @@ mod tests {
             "@koromix/koffi-darwin-arm64@8.7.0",
         ]);
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// 普通用户（无管理员/开发者模式）下 `symlink_dir` 会以 os error 1314 失败，
+    /// 必须回退为 junction 且仍可被 `read_link` 解析、被 `remove_dir` 只删入口。
+    #[cfg(windows)]
+    #[test]
+    fn create_directory_link_falls_back_to_junction_without_privileges() {
+        let root = std::env::temp_dir().join(format!("dsh-runtime-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let source = root.join("source-pkg");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join("package.json"), r#"{"name":"dsh-tauri"}"#).unwrap();
+        let destination = root.join("node_modules").join("dsh-tauri");
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+
+        let canonical_source = source.canonicalize().unwrap();
+        create_directory_link(&canonical_source, &destination)
+            .unwrap_or_else(|e| panic!("link must be created without privileges: {e}"));
+
+        let metadata = std::fs::symlink_metadata(&destination).unwrap();
+        assert!(metadata.file_type().is_symlink(), "junction must be treated as a link");
+        let resolved = std::fs::read_link(&destination).unwrap();
+        assert_eq!(resolved.canonicalize().unwrap(), canonical_source);
+
+        // 幂等：指向同一目标的链接应被 matches 逻辑识别，不重建（无错误即满足）。
+        let matches = std::fs::read_link(&destination)
+            .map(|target| {
+                let resolved = if target.is_absolute() {
+                    target
+                } else {
+                    destination.parent().unwrap_or(Path::new(".")).join(target)
+                };
+                resolved.canonicalize().ok().as_deref() == Some(canonical_source.as_path())
+            })
+            .unwrap_or(false);
+        assert!(matches, "existing junction must match its source");
+
+        // 删除只移除入口本身，绝不触碰源目录。
+        remove_link_only(&destination).unwrap();
+        assert!(!destination.exists());
+        assert!(canonical_source.is_dir());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// 确定性覆盖 junction 回退路径：无论本机是否启用开发者模式/管理员权限，
+    /// 直接构造 junction 并断言其可解析、可删除，且与 ensure_package_link 的
+    /// matches 幂等检查兼容。
+    #[cfg(windows)]
+    #[test]
+    fn create_directory_junction_is_resolvable_and_idempotent() {
+        let root = std::env::temp_dir().join(format!("dsh-junction-direct-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let source = root.join("source-pkg");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join("package.json"), r#"{"name":"dsh-tauri"}"#).unwrap();
+        let destination = root.join("node_modules").join("dsh-tauri");
+        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
+
+        let canonical_source = source.canonicalize().unwrap();
+        create_directory_junction(&canonical_source, &destination)
+            .unwrap_or_else(|e| panic!("junction must be creatable without privileges: {e}"));
+
+        let metadata = std::fs::symlink_metadata(&destination).unwrap();
+        assert!(metadata.file_type().is_symlink(), "junction must be treated as a link");
+        assert_eq!(
+            std::fs::canonicalize(&destination).unwrap(),
+            canonical_source,
+            "junction must resolve to the source directory"
+        );
+
+        // 幂等：重复调用同一目标时 ensure_package_link 的 matches 应命中，
+        // 先删旧入口再重建不会因 canonicalize 差异而失败。
+        remove_link_only(&destination).unwrap();
+        create_directory_junction(&canonical_source, &destination)
+            .unwrap_or_else(|e| panic!("junction recreation must succeed: {e}"));
+        let matches = std::fs::read_link(&destination)
+            .ok()
+            .map(|target| {
+                let resolved = if target.is_absolute() {
+                    target
+                } else {
+                    destination.parent().unwrap_or(Path::new(".")).join(target)
+                };
+                resolved.canonicalize().ok().as_deref() == Some(canonical_source.as_path())
+            })
+            .unwrap_or(false);
+        assert!(matches, "existing junction must match its source");
+
+        // 删除只移除入口本身，绝不触碰源目录。
+        remove_link_only(&destination).unwrap();
+        assert!(!destination.exists());
+        assert!(canonical_source.is_dir());
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
