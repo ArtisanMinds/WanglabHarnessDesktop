@@ -199,4 +199,26 @@ describe('ensureWorktree', () => {
     expect(result.ok).toBe(true)
     expect(existsSync(created.binding.worktreePath)).toBe(false)
   })
+
+  it('removes the emptied worktrees/<hash> and .trash/<hash> containers along with the worktree', async () => {
+    const repository = await createRepository('main')
+    const worktreesRoot = await mkdtemp(join(tmpdir(), 'dsh-worktrees-root-'))
+    temporaryDirectories.push(worktreesRoot)
+    const created = await ensureWorktree({}, worktreesRoot, repository, 'container-cleanup-session')
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    const container = join(worktreesRoot, 'worktrees', created.binding.hash)
+    const trashContainer = join(worktreesRoot, '.trash', created.binding.hash)
+    expect(existsSync(container)).toBe(true)
+
+    const result = await discardWorktree({}, worktreesRoot, { sessionId: 'container-cleanup-session' })
+
+    expect(result.ok).toBe(true)
+    expect(existsSync(created.binding.worktreePath)).toBe(false)
+    // 删除后不再残留空的 <hash> 容器目录（含 .trash 一侧的 rename 中间目录）。
+    expect(existsSync(container)).toBe(false)
+    expect(existsSync(trashContainer)).toBe(false)
+  })
 })

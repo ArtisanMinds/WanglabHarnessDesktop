@@ -20,6 +20,7 @@ import type {
 } from '../types/index.js'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { rmdir } from 'node:fs/promises'
 import process from 'node:process'
 import { join, resolve } from 'pathe'
 import { WORKTREE_BRANCH_NAME_PATTERN } from '../constants/index.js'
@@ -53,6 +54,27 @@ export function worktreeKey(hash: string, dirname: string): string {
 
 function worktreeTrashPath(worktreesRoot: string, hash: string, dirname: string): string {
   return join(worktreesRoot, '.trash', hash, dirname)
+}
+
+/**
+ * 顺带删除某 hash 的插件自有容器目录 `worktrees/<hash>` 与 `.trash/<hash>`。
+ * 工作树目录被 rename 到 .trash 再删除后，这两个父目录只剩空壳；一并移除，避免
+ * 每次放弃/检出都在 worktreesRoot 下累积一个空 `<hash>` 文件夹。rmdir 只在目录
+ * 为空时成功——目录不存在（ENOENT）或仍含内容（ENOTEMPTY，如并发重建/异常残留）
+ * 时静默跳过；收尾是尽力而为，绝不因清理失败让删除操作整体报错。
+ */
+async function removeEmptyHashContainers(worktreesRoot: string, hash: string): Promise<void> {
+  for (const container of [
+    join(worktreesRoot, 'worktrees', hash),
+    join(worktreesRoot, '.trash', hash),
+  ]) {
+    try {
+      await rmdir(container)
+    }
+    catch {
+      /* 目录已不存在或非空：无需处理 */
+    }
+  }
 }
 
 async function pruneWorktreeAdmin(root: string, signal?: AbortSignal): Promise<OperationResult> {
@@ -124,6 +146,9 @@ async function removeWorktreeOnDisk(
   catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
+
+  // 工作树目录及其 .trash 副本都已删除：顺带清掉因此变空的 <hash> 容器目录。
+  await removeEmptyHashContainers(worktreesRoot, hash)
 
   // Git is deliberately limited to metadata cleanup. It must never traverse
   // the worktree because old Git for Windows follows junction targets.
