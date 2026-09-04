@@ -20,7 +20,6 @@ import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
  */
 import type { ReactElement } from 'react'
 import type { ArchivePanelProps, ArchiveSort } from '../types'
-import type { ArchiveGroupRow } from '../utils/sort'
 import { Button, Input, Menu, Modal, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { postOpenSessionDir } from '../apis'
@@ -132,13 +131,12 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
     }
   }
 
-  /** 在系统文件管理器中打开分组对应的会话数据目录（$DSH_HOME/sessions/...，宿主解析）。 */
-  async function handleOpenGroupDirectory(group: ArchiveGroupRow): Promise<void> {
-    const sessionIds = group.rows.map(row => row.sessionId)
-    if (sessionIds.length === 0)
+  /** 在系统文件管理器中打开单个归档会话的数据目录（$DSH_HOME/sessions/...，宿主解析）。 */
+  async function handleOpenSessionDirectory(sessionId: string): Promise<void> {
+    if (!sessionId)
       return
     try {
-      await postOpenSessionDir(sessionIds)
+      await postOpenSessionDir(sessionId)
       setOpenPathError(null)
     }
     catch (error) {
@@ -219,15 +217,7 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
           <section key={group.id} className={K.group}>
             <div className={K.groupHeader}>
               <IconFolderOpen />
-              <button
-                type="button"
-                className={K.groupTitle}
-                title={text('openDirectory')}
-                aria-label={`${text('openDirectory')}: ${group.title || text('ungrouped')}`}
-                onClick={() => void handleOpenGroupDirectory(group)}
-              >
-                {group.title || text('ungrouped')}
-              </button>
+              <span className={K.groupTitle}>{group.title || text('ungrouped')}</span>
               <span className={K.groupCount}>
                 {group.rows.length}
                 {' '}
@@ -272,7 +262,15 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
               {group.rows.map(row => (
                 <li key={row.sessionId} className={K.row}>
                   <div className={K.rowMain}>
-                    <span className={K.rowTitle}>{row.title}</span>
+                    <button
+                      type="button"
+                      className={K.rowTitle}
+                      title={text('openDirectory')}
+                      aria-label={`${text('openDirectory')}: ${row.title}`}
+                      onClick={() => void handleOpenSessionDirectory(row.sessionId)}
+                    >
+                      {row.title}
+                    </button>
                     <span className={K.rowTime}>{formatTime(row)}</span>
                   </div>
                   <div className={K.rowActions}>

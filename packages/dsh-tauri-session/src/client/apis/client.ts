@@ -28,9 +28,9 @@ export function fetchArchived(): Promise<ArchivedListPayload> {
   return sessionApi.request('/archived')
 }
 
-/** 在系统文件管理器中打开归档分组对应的会话数据目录（宿主按 sessionIds 解析）。 */
-export function postOpenSessionDir(sessionIds: readonly string[]): Promise<{ ok: boolean }> {
-  return sessionApi.post('/open-path', { sessionIds })
+/** 在系统文件管理器中打开归档会话的数据目录（宿主按 sessionId 解析）。 */
+export function postOpenSessionDir(sessionId: string): Promise<{ ok: boolean }> {
+  return sessionApi.post('/open-path', { sessionId })
 }
 
 /** 归档单个会话。 */

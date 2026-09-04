@@ -9,16 +9,16 @@ vi.mock('dsh-tauri/client', () => ({
 }))
 
 describe('postOpenSessionDir', () => {
-  it('posts the group session ids to the session open-path route', async () => {
+  it('posts the session id to the session open-path route', async () => {
     postMock.mockResolvedValue({ ok: true })
 
-    await expect(postOpenSessionDir(['s1', 's2'])).resolves.toEqual({ ok: true })
-    expect(postMock).toHaveBeenCalledWith('/open-path', { sessionIds: ['s1', 's2'] })
+    await expect(postOpenSessionDir('s1')).resolves.toEqual({ ok: true })
+    expect(postMock).toHaveBeenCalledWith('/open-path', { sessionId: 's1' })
   })
 
   it('propagates a route failure so the panel can toast it', async () => {
     postMock.mockRejectedValue(new Error('session-directory-not-found'))
 
-    await expect(postOpenSessionDir(['missing'])).rejects.toThrow('session-directory-not-found')
+    await expect(postOpenSessionDir('missing')).rejects.toThrow('session-directory-not-found')
   })
 })

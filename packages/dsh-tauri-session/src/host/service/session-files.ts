@@ -36,6 +36,16 @@ function isDir(path: string): boolean {
   }
 }
 
+/** 判断一个路径是否是空目录（不存在视为 false）。 */
+function isEmptyDir(path: string): boolean {
+  try {
+    return readdirSync(path).length === 0
+  }
+  catch {
+    return false
+  }
+}
+
 /** 规范化路径是否严格位于 sessionsRoot 之内（防 `..`/绝对路径逃逸）。 */
 export function isWithinSessionsRoot(sessionsRoot: string, candidate: string): boolean {
   const root = resolve(sessionsRoot)
@@ -61,18 +71,31 @@ export function encodeSessionId(id: string): string {
 }
 
 /**
- * 物理删除一个会话的持久化目录（best-effort，找不到就跳过）。
+ * 物理删除一个会话的持久化目录（best-effort，找不到就跳过），并顺带清理
+ * 删除后变空的父目录（`$DSH_HOME/sessions/<group>/` 一类残留）。
  * dsh 宿主没有公开的「删除会话」API，会话数据存放在 `$DSH_HOME/sessions/<group>/session-<id>/`；
  * 这里做有界扫描（深度 2）命中 `session-<id>` 目录后删除。删除后宿主重启时
  * 会从持久化重建会话索引，该会话从工作区/归档中彻底消失。
  * @returns 是否实际删除了目录。
  */
 export function removeSessionDataDir(dshHome: string, sessionId: string): boolean {
-  const dir = findSessionDataDir(join(dshHome, 'sessions'), sessionId)
+  const sessionsRoot = join(dshHome, 'sessions')
+  const dir = findSessionDataDir(sessionsRoot, sessionId)
   if (!dir)
     return false
   rmSync(dir, { recursive: true, force: true })
+  pruneEmptyParents(sessionsRoot, dirname(dir))
   return true
+}
+
+/** 递归清理删除会话目录后变空的父目录（不越过 sessionsRoot 根）。 */
+function pruneEmptyParents(sessionsRoot: string, parent: string): void {
+  if (!isWithinSessionsRoot(sessionsRoot, parent) || resolve(parent) === resolve(sessionsRoot))
+    return
+  if (!isEmptyDir(parent))
+    return
+  rmSync(parent, { recursive: true, force: true })
+  pruneEmptyParents(sessionsRoot, dirname(parent))
 }
 
 /**
@@ -83,28 +106,6 @@ export function removeSessionDataDir(dshHome: string, sessionId: string): boolea
  */
 export function locateSessionDataDir(dshHome: string, sessionId: string): string | undefined {
   return findSessionDataDir(join(dshHome, 'sessions'), sessionId)
-}
-
-/**
- * 解析「打开分组会话目录」的目标：组内各会话数据目录的公共父目录。
- * 同一工作区的会话共享 cwd → 同属一个项目目录（`$DSH_HOME/sessions/--<key>--`），
- * 直接打开它即可看到该组全部会话的数据目录；跨项目（未分组混合 cwd）时回退到
- * sessions 根目录，让用户看到全部相关项目目录。
- * @returns 待打开的目录绝对路径；组内没有任何会话目录时返回 undefined。
- */
-export function resolveSessionGroupDirectory(dshHome: string, sessionIds: readonly string[]): string | undefined {
-  const sessionsRoot = join(dshHome, 'sessions')
-  const parents = new Set<string>()
-  for (const sessionId of sessionIds) {
-    const dir = findSessionDataDir(sessionsRoot, sessionId)
-    if (dir)
-      parents.add(dirname(dir))
-  }
-  if (parents.size === 0)
-    return undefined
-  if (parents.size === 1)
-    return [...parents][0]
-  return isDir(sessionsRoot) ? sessionsRoot : undefined
 }
 
 /** 有界扫描（深度 2）查找会话数据目录，返回首个命中（含一级/二级布局）。 */

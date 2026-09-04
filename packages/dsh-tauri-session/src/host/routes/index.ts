@@ -4,8 +4,8 @@
  *
  * 变更类路由标注 mutate: true，统一由 withConnectionAuth 做连接鉴权；
  * 每个 handler 只是把 body 参数化后转交 archive.ts / session-files.ts 的业务函数，
- * 不内联业务逻辑。open-path 不接受客户端路径，按 sessionIds 在
- * `$DSH_HOME/sessions/...` 内有界解析会话数据目录后交给系统文件管理器。
+ * 不内联业务逻辑。open-path 不接受客户端路径，按 sessionId 在
+ * `$DSH_HOME/sessions/...` 内有界解析该会话的数据目录后交给系统文件管理器。
  */
 
 import type { HostContext } from '../types/index.js'
@@ -20,9 +20,7 @@ import {
   permanentlyDeleteSession,
   unarchiveSession,
 } from '../service/archive.js'
-import { resolveSessionGroupDirectory } from '../service/session-files.js'
-
-const MAX_OPEN_SESSION_IDS = 500
+import { locateSessionDataDir } from '../service/session-files.js'
 
 /** 构建路由列表。 */
 export function buildRoutes(ctx: HostContext, dshHome: string): any[] {
@@ -36,11 +34,10 @@ export function buildRoutes(ctx: HostContext, dshHome: string): any[] {
       kind: 'exact',
       path: `${SESSION_API_PREFIX}/open-path`,
       handler: routeHandler(async (body) => {
-        const rawIds = Array.isArray(body?.sessionIds) ? body.sessionIds : []
-        const sessionIds = rawIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-        if (sessionIds.length === 0 || sessionIds.length > MAX_OPEN_SESSION_IDS)
-          return [400, { ok: false, error: 'invalid-session-ids' }]
-        const directory = resolveSessionGroupDirectory(dshHome, sessionIds)
+        const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
+        if (!sessionId)
+          return [400, { ok: false, error: 'invalid-session-id' }]
+        const directory = locateSessionDataDir(dshHome, sessionId)
         if (!directory)
           return [400, { ok: false, error: 'session-directory-not-found' }]
         if (!openDirectory(directory))

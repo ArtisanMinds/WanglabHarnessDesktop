@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { locateSessionDataDir, removeSessionDataDir, resolveSessionGroupDirectory } from './session-files'
+import { locateSessionDataDir, removeSessionDataDir } from './session-files'
 
 let dshHome = ''
 
@@ -36,29 +36,33 @@ describe('locateSessionDataDir', () => {
   })
 })
 
-describe('resolveSessionGroupDirectory', () => {
-  it('opens the shared project directory when all sessions live in one group', () => {
-    makeSessionDir('--project-a--', 'session-abc')
-    makeSessionDir('--project-a--', 'session-def')
-    expect(resolveSessionGroupDirectory(dshHome, ['abc', 'def'])).toBe(join(dshHome, 'sessions', '--project-a--'))
-  })
-
-  it('falls back to the sessions root when sessions span multiple project directories', () => {
-    makeSessionDir('--project-a--', 'session-abc')
-    makeSessionDir('--project-b--', 'session-def')
-    expect(resolveSessionGroupDirectory(dshHome, ['abc', 'def'])).toBe(join(dshHome, 'sessions'))
-  })
-
-  it('returns undefined when no session in the group has data on disk', () => {
-    expect(resolveSessionGroupDirectory(dshHome, ['ghost'])).toBeUndefined()
-  })
-})
-
-describe('removeSessionDataDir (regression: shared scan)', () => {
+describe('removeSessionDataDir', () => {
   it('removes the located depth-2 directory', () => {
     makeSessionDir('--project-a--', 'session-abc')
     expect(removeSessionDataDir(dshHome, 'abc')).toBe(true)
     expect(locateSessionDataDir(dshHome, 'abc')).toBeUndefined()
+  })
+
+  it('prunes an empty parent group directory after removal', () => {
+    makeSessionDir('--project-a--', 'session-abc')
+    expect(removeSessionDataDir(dshHome, 'abc')).toBe(true)
+    expect(locateSessionDataDir(dshHome, 'abc')).toBeUndefined()
+    expect(existsSync(join(dshHome, 'sessions', '--project-a--'))).toBe(false)
+  })
+
+  it('keeps a parent group directory that still holds other sessions', () => {
+    makeSessionDir('--project-a--', 'session-abc')
+    makeSessionDir('--project-a--', 'session-def')
+    expect(removeSessionDataDir(dshHome, 'abc')).toBe(true)
+    expect(existsSync(join(dshHome, 'sessions', '--project-a--'))).toBe(true)
+    expect(locateSessionDataDir(dshHome, 'def')).toBe(join(dshHome, 'sessions', '--project-a--', 'session-def'))
+  })
+
+  it('keeps the sessions root itself when a depth-1 directory is removed', () => {
+    const dir = makeSessionDir(undefined, 'session-xyz')
+    expect(removeSessionDataDir(dshHome, 'xyz')).toBe(true)
+    expect(existsSync(dir)).toBe(false)
+    expect(existsSync(join(dshHome, 'sessions'))).toBe(true)
   })
 
   it('reports false when the session has no data directory', () => {
