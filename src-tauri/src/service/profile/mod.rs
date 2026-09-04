@@ -30,6 +30,11 @@ pub const DEFAULT_PROFILE: &str = "web";
 /// 档案隔离；用户新建同 id 档案被 `PROFILE_EXISTS` 拦截，此名仅由本引导占用）。
 pub const DESKTOP_PROFILE: &str = "desktop";
 
+/// 安全模式档案：仅加载 web 模板核心 bundles、不带任何用户插件/补丁层。
+/// 错误界面「安全模式」按钮切到此档案重启（`--profile safe`），隔离问题插件
+/// 让应用先可用，用户随后在档案列表切回原档案即退出安全模式。
+pub const SAFE_PROFILE: &str = "safe";
+
 /// 新建档案的初始 bundles：web 模板（`@deepseek-ai/dsh-base` +
 /// `@deepseek-ai/dsh-web-app`，与 dsh-app-boot `PROFILE_TEMPLATES.web` 一致）。
 /// 桌面端内嵌的是 dsh web 应用，新档案不带 `dsh-web-app` 将无法渲染任何界面。
@@ -302,6 +307,21 @@ pub fn ensure_first_run_desktop_profile(app_handle: &AppHandle) {
         setting.desktop_profile_ready = true;
     });
     log::info!("First-run bootstrap: Desktop profile created and activated ({DESKTOP_PROFILE})");
+}
+
+/// 确保安全模式档案目录存在（幂等，绝不覆盖）。
+///
+/// 与 `ensure_desktop_profile_with_root` 同构：缺失时按官方 `initProfile` 形态
+/// 初始化（web 模板 bundles，可正常渲染桌面内嵌的 web UI），已存在时直接复用。
+/// 安全档案只含核心 bundles 与空 patch 层——不装任何用户插件，用于错误界面
+/// 「安全模式」按钮把问题插件隔离在启动链路之外。
+pub fn ensure_safe_profile(app_handle: &AppHandle) -> Result<(), String> {
+    let profiles_root = config::get_dsh_data_path(app_handle).join("profiles");
+    let dir = profiles_root.join(SAFE_PROFILE);
+    if dir.is_dir() {
+        return Ok(());
+    }
+    init_profile_dir(&dir, SAFE_PROFILE)
 }
 
 /// 删除档案（默认档案与使用中的档案不可删除）。
