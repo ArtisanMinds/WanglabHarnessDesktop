@@ -516,6 +516,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::launch_harness,
         crate::bridge::shutdown_harness,
         crate::bridge::restart_harness,
+        crate::bridge::enter_safe_mode,
         crate::bridge::get_dsh_status,
         crate::bridge::get_preinstall_plugins,
         crate::bridge::get_preinstall_pending,
