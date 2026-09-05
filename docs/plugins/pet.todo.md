@@ -335,6 +335,29 @@ BongoCat 是窗口行为基准，不是完整交互基准。它在 mousedown 立
 - 验证：`tsc --noEmit` ✅、`eslint src/pet --max-warnings=0` 零 warning ✅、
   `vitest run` 239/239 ✅（含 pet-config 14 条）。无 Rust 改动。
 
+### 4.0g 最近完成（feat/pet-reapply，会话完成成功 toast + 气泡图标 + toast 微调）
+
+用户三项小优化：
+
+- **会话完成成功 toast**（`src/pet/hooks/use-bubble.ts`）：真实运行时 SessionSnapshot
+  只有 `running: boolean` 与 `lastAgentError`（无 status/phase 字段），完成信号 =
+  `running: true → false` 边沿（失败先经 lastAgentError 落在 'failed'，不会误触发）。
+  `syncToast` 在 `current === undefined && previous === 'running'` 时先 closeToast 常驻
+  气泡，再弹 3s `variant: 'success'` toast（`SUCCESS_TOAST_TIMEOUT = 3000`，
+  title=会话名，description='已完成'，placement 'top end'）；250ms 心跳重发同状态
+  不重复触发。会话从列表删除（remove）不算完成，不弹。
+- **气泡图标恢复**（`src/components/toast-provider.tsx` hideCloseButton 分支，桌宠窗口
+  专用）：自定义渲染缺 `Toast.Indicator`，图标消失。对齐 HeroUI `getDefaultChildren`
+  源码补回：`indicator === null` 隐藏；`isLoading` 显示 `Spinner`（import
+  `Spinner` from '@heroui/react'）；否则显示 content.indicator 或按 variant 默认图标
+  （default/accent→Info、success→Success、warning→Warning、danger→Danger）。
+- **toast 位置/宽度微调**（`src/pet/main.css`，仅 pet webview 生效）：`.toast-region--top-end`
+  `top: 2.5rem`（原 top-4=1rem，下移一点）；`.toast-region` `width: calc(90vw - 2rem)`
+  （原 `w-[calc(100vw-2rem)]`，收窄约 10%）。规则放 @layer base 之外（unlayered 后置
+  覆盖 @heroui/styles 的 toast.css 规则）。
+- 验证：`tsc --noEmit` ✅、`eslint src/pet src/components/toast-provider.tsx
+  --max-warnings=0` 零 warning ✅、`vitest run` 239/239 ✅、`git diff --check` ✅。
+
 ### 4.1 已完成并应保留
 
 - 三个参考仓库已加入 `source/*` 子模块。

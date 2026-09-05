@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { ToastUpdateEvent } from '@/utils/toast'
 import { useEventBus } from '@hairy/react-lib'
-import { Toast } from '@heroui/react'
+import { Spinner, Toast } from '@heroui/react'
 import { useState } from 'react'
 import { If } from 'react-if-lite'
 import { activeQueues, placements } from '@/utils/toast'
@@ -39,8 +39,18 @@ export function ToastProvider(props: ToastProviderProps) {
           {props.hideCloseButton
             ? ({ toast: item }) => {
                 const content = { ...item.content, ...updates.get(item.key) }
+
+                // 对齐 HeroUI 默认渲染（getDefaultChildren）：indicator === null
+                // 隐藏图标；isLoading 时显示 Spinner；否则显示内容或按 variant 的
+                // 默认图标（default/accent→Info、success→Success、warning→Warning、
+                // danger→Danger）。
                 return (
                   <Toast toast={item} variant={content?.variant}>
+                    <If cond={content?.isLoading} else={<Toast.Indicator variant={content?.variant} />}>
+                      <Toast.Indicator variant={content?.variant}>
+                        <Spinner color="current" size="sm" />
+                      </Toast.Indicator>
+                    </If>
                     <Toast.Content>
                       <If cond={content?.title !== undefined}>
                         <Toast.Title>{content?.title}</Toast.Title>

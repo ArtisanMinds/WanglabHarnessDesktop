@@ -20,6 +20,8 @@ const DESCRIPTION_MAX_LENGTH = 120
 /** 终态气泡自动隐藏时长（毫秒）：失败展示 4s、待审阅 2.5s（对齐参考实现的完成脉冲）。实时状态（running / waiting）常驻，由后续会话事件更新内容。 */
 const FAILED_BUBBLE_TIMEOUT = 4000
 const REVIEW_BUBBLE_TIMEOUT = 2500
+/** 会话任务完成后的成功 toast 展示时长（毫秒）。 */
+const SUCCESS_TOAST_TIMEOUT = 3000
 /**
  * 失败动画脉冲时长（毫秒）：对齐参考实现 companion-reducer 的工具失败脉冲 ttlMs=1800。
  * 失败只作为瞬态脉冲展示一次，到期自动恢复到底层会话状态，避免 DSH 快照上粘性的
@@ -121,8 +123,15 @@ export function useBubble(): BubbleHandle {
       previousStatus.set(session.id, current)
       const key = toastKeys.get(session.id)
       if (current === undefined) {
+        // 任务完成的边沿：running → 无状态（真实运行时的 SessionSnapshot 只有
+        // running: boolean 与 lastAgentError，没有 status/phase 字段；失败会先
+        // 经 lastAgentError 落在 'failed'，不会走到这里）。关闭常驻气泡后弹出
+        // 一次 3s 的成功 toast，随后 250ms 心跳重发同状态不会重复触发。
+        const completed = previous === 'running'
         if (key !== undefined)
           closeToast(session.id)
+        if (completed)
+          showSuccessToast(session)
         return
       }
 
@@ -137,6 +146,7 @@ export function useBubble(): BubbleHandle {
           return
         let createdKey = ''
         createdKey = toast(content.title, {
+          isLoading: content.isLoading,
           description: content.description,
           placement: 'top end',
           variant: content.variant,
@@ -244,6 +254,7 @@ function rawSession(payload: unknown): BubbleSession | undefined {
 function toastContent(session: BubbleSession): {
   title: string
   description: string
+  isLoading: boolean
   variant: 'accent' | 'danger' | 'default'
 } {
   const status = sessionStatus(session)
@@ -257,8 +268,20 @@ function toastContent(session: BubbleSession): {
   return {
     title,
     description,
+    isLoading: status === 'running',
     variant: status === 'failed' ? 'danger' : 'default',
   }
+}
+
+/** 任务完成的一次性成功提示：标题取会话名，正文固定「已完成」，3s 后自动关闭。 */
+function showSuccessToast(session: BubbleSession): void {
+  const title = truncate(firstText(session.title, session.displayTitle, session.name, session.id), TITLE_MAX_LENGTH)
+  toast(title, {
+    description: '已完成',
+    placement: 'top end',
+    variant: 'success',
+    timeout: SUCCESS_TOAST_TIMEOUT,
+  })
 }
 
 function truncate(text: string, maxLength: number): string {
