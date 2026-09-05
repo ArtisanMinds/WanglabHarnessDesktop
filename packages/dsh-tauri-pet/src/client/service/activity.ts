@@ -213,12 +213,17 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
   }, 'dsh-tauri-pet: raw session events')
 }
 
-/** [pet-activity] 临时诊断：统计事件窗口内出现过的全部事件类型（去重排序），验证 fold 关注的事件是否真的在窗口里（定位后随打点移除）。 */
+/** [pet-activity] 临时诊断：统计事件窗口内出现过的全部事件类型（去重排序），验证 fold 关注的事件是否真的在窗口里。已按窗口信封解包 inner event（定位后随打点移除）。 */
 function describeEventTypes(entries: readonly unknown[]): string {
   const types = new Set<string>()
   for (const entry of entries) {
-    if (entry !== null && typeof entry === 'object' && typeof (entry as { type?: unknown }).type === 'string')
-      types.add((entry as { type: string }).type)
+    if (entry !== null && typeof entry === 'object') {
+      const outer = entry as Record<string, unknown>
+      // 窗口条目信封 { type:'event'|'chunks', event }：业务类型在内层 event.type
+      const inner = outer.type === 'event' || outer.type === 'chunks' ? outer.event : entry
+      if (inner !== null && typeof inner === 'object' && typeof (inner as { type?: unknown }).type === 'string')
+        types.add((inner as { type: string }).type)
+    }
   }
   return `[${[...types].sort().join(',')}]`
 }

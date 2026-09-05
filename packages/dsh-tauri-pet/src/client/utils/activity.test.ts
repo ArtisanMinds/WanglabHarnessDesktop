@@ -1,96 +1,108 @@
-import type { SessionLiveActivity } from '../types'
 import { describe, expect, it } from 'vitest'
 import { PET_REASONING_TAIL_LENGTH } from '../constants'
 import { foldSessionActivity } from './activity'
 
-function chunkEvent(chunk: Record<string, unknown>): Record<string, unknown> {
-  return { type: 'assistant/chunk', data: { chunk } }
+/** 构造窗口条目：离散事件信封 `{ type:'event', event }`。 */
+function ev(type: string, data: Record<string, unknown> = {}): unknown {
+  return { type: 'event', event: { type, seq: 0, time: 0, data } }
 }
 
-function toolCallEvent(callId: string, name: string, args?: string): Record<string, unknown> {
-  return { type: 'tool/call', data: { callId, name, arguments: args } }
-}
-
-function toolResultEvent(callId: string): Record<string, unknown> {
-  return { type: 'tool/result', data: { message: { source: { callId }, content: [] } } }
+/** 构造窗口条目：打包 chunk 行信封 `{ type:'chunks', event }`。 */
+function chunks(type: string, data: Record<string, unknown>): unknown {
+  return { type: 'chunks', event: { type, seq: 0, time: 0, data } }
 }
 
 describe('foldSessionActivity', () => {
-  it('累积 reasoning-delta 为思考活动，且只保留尾部窗口', () => {
-    const text = 'a'.repeat(PET_REASONING_TAIL_LENGTH + 20)
-    const entries = [
-      chunkEvent({ type: 'block-start', index: 0, blockType: 'reasoning' }),
-      chunkEvent({ type: 'reasoning-delta', index: 0, text }),
-    ]
-    const activity = foldSessionActivity(entries)
-    expect(activity?.kind).toBe('reasoning')
-    expect(activity?.text).toBe('a'.repeat(PET_REASONING_TAIL_LENGTH))
-  })
-
-  it('block-end 关闭思考块后无活动', () => {
-    const entries = [
-      chunkEvent({ type: 'block-start', index: 0, blockType: 'reasoning' }),
-      chunkEvent({ type: 'reasoning-delta', index: 0, text: '推理中' }),
-      chunkEvent({ type: 'block-end', index: 0 }),
-    ]
-    expect(foldSessionActivity(entries)).toBeNull()
-  })
-
-  it('进行中的工具调用（无对应 result）优先于思考流', () => {
-    const entries = [
-      chunkEvent({ type: 'block-start', index: 0, blockType: 'reasoning' }),
-      chunkEvent({ type: 'reasoning-delta', index: 0, text: '先想一下' }),
-      chunkEvent({ type: 'block-end', index: 0 }),
-      toolCallEvent('call-1', 'pwsh', '{"command":"pnpm build"}'),
-    ]
-    const activity = foldSessionActivity(entries)
-    expect(activity).toEqual({ kind: 'tool', name: 'pwsh', args: '{"command":"pnpm build"}' })
-  })
-
-  it('tool/result 按 message.source.callId 关闭调用；多个未完成调用取最新', () => {
-    const entries = [
-      toolCallEvent('call-1', 'read', '{"file_path":"a.ts"}'),
-      toolCallEvent('call-2', 'str_replace_editor', '{"path":"b.ts"}'),
-      toolResultEvent('call-1'),
-    ]
-    const activity = foldSessionActivity(entries)
-    expect(activity?.kind).toBe('tool')
-    expect(activity?.name).toBe('str_replace_editor')
-  })
-
-  it('step/start 边界清空上一段残留（中止调用不污染下一步）', () => {
-    const entries = [
-      toolCallEvent('call-1', 'bash', '{"command":"exit 1"}'),
-      { type: 'step/start', data: { turn: 1, step: 2 } },
-      chunkEvent({ type: 'block-start', index: 0, blockType: 'reasoning' }),
-      chunkEvent({ type: 'reasoning-delta', index: 0, text: '重新思考' }),
-    ]
-    const activity = foldSessionActivity(entries)
-    expect(activity).toEqual({ kind: 'reasoning', text: '重新思考' })
-  })
-
-  it('turn/end 后无活动；非对象条目与未知事件类型被忽略', () => {
-    const entries = [
-      toolCallEvent('call-1', 'pwsh', '{"command":"pnpm test"}'),
-      { type: 'turn/end', data: { turn: 1 } },
-      null,
-      42,
-      { type: 'user/message', data: { text: 'hi' } },
-    ]
-    expect(foldSessionActivity(entries)).toBeNull()
-  })
-
-  it('空窗口返回 null', () => {
+  it('returns null for an empty window', () => {
     expect(foldSessionActivity([])).toBeNull()
   })
 
-  it('返回 null 而不是未定义字段的对象（text/name 只在对应 kind 出现）', () => {
+  it('ignores foreign events and non-object entries', () => {
     const entries = [
-      chunkEvent({ type: 'block-start', index: 0, blockType: 'reasoning' }),
-      chunkEvent({ type: 'reasoning-delta', index: 0, text: '思考' }),
+      null,
+      'raw',
+      42,
+      ev('sandbox/mode', { mode: 'workspace-write' }),
+      ev('approval/policy', { policy: 'ask' }),
     ]
-    const activity = foldSessionActivity(entries) as SessionLiveActivity
-    expect('name' in activity).toBe(false)
-    expect('args' in activity).toBe(false)
+    expect(foldSessionActivity(entries)).toBeNull()
+  })
+
+  it('folds a running reasoning block from packed rows and keeps the tail window', () => {
+    const entries = [
+      ev('step/start', { turn: 1, step: 1 }),
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: ['alpha', ' beta ', 'gamma'] }),
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: [' more'] }),
+    ]
+    expect(foldSessionActivity(entries)).toEqual({ kind: 'reasoning', text: 'alpha beta gamma more' })
+  })
+
+  it('a new reasoning block index restarts the buffer', () => {
+    const entries = [
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: ['old reasoning'] }),
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 2, index: 1, dt: [], texts: ['new reasoning'] }),
+    ]
+    expect(foldSessionActivity(entries)).toEqual({ kind: 'reasoning', text: 'new reasoning' })
+  })
+
+  it('truncates reasoning text to the tail window', () => {
+    const text = 'a'.repeat(PET_REASONING_TAIL_LENGTH + 20)
+    const entries = [
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: [text] }),
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: ['bbb'] }),
+    ]
+    const activity = foldSessionActivity(entries)
+    expect(activity?.kind).toBe('reasoning')
+    expect(activity?.text).toBe(`${'a'.repeat(PET_REASONING_TAIL_LENGTH - 3)}bbb`)
+  })
+
+  it('raw block-start opens and block-end closes reasoning', () => {
+    const open = [
+      ev('assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'reasoning' } }),
+      ev('assistant/chunk', { turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'delta' } }),
+    ]
+    expect(foldSessionActivity(open)).toEqual({ kind: 'reasoning', text: 'delta' })
+    expect(foldSessionActivity([...open, ev('assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-end', index: 0 } })])).toBeNull()
+  })
+
+  it('prefers an in-flight tool call over reasoning', () => {
+    const entries = [
+      ev('step/start', { turn: 1, step: 1 }),
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: ['think'] }),
+      ev('assistant/chunk', { turn: 1, step: 1, chunk: { type: 'block-end', index: 0 } }),
+      ev('tool/call', { callId: 'call-1', name: 'pwsh', arguments: '{"command":"ls"}' }),
+    ]
+    expect(foldSessionActivity(entries)).toEqual({ kind: 'tool', name: 'pwsh', args: '{"command":"ls"}' })
+  })
+
+  it('tool/result closes the tool state', () => {
+    const entries = [
+      ev('tool/call', { callId: 'call-1', name: 'pwsh', arguments: '{"command":"ls"}' }),
+      ev('tool/result', { message: { source: { callId: 'call-1' } }, content: [] }),
+    ]
+    expect(foldSessionActivity(entries)).toBeNull()
+  })
+
+  it('streaming tool-call chunks produce a tool activity with joined args', () => {
+    const entries = [chunks('chunkrow/tool-call-chunks', { turn: 1, step: 1, index: 0, id: 'call-1', name: 'pwsh', dt: [], args: ['{"com', 'mand":"ls"}'] })]
+    expect(foldSessionActivity(entries)).toEqual({ kind: 'tool', name: 'pwsh', args: '{"command":"ls"}' })
+  })
+
+  it('step/turn boundaries clear stale activity', () => {
+    const entries = [
+      chunks('chunkrow/reasoning-chunks', { turn: 1, step: 1, index: 0, dt: [], texts: ['stale'] }),
+      ev('turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ]
+    expect(foldSessionActivity(entries)).toBeNull()
+  })
+
+  it('plain text output is not an activity', () => {
+    const entries = [chunks('chunkrow/text-chunks', { turn: 1, step: 1, index: 1, dt: [], texts: ['the', ' answer'] })]
+    expect(foldSessionActivity(entries)).toBeNull()
+  })
+
+  it('accepts bare SessionEvents as well as window envelopes', () => {
+    const bare = [{ type: 'tool/call', seq: 1, time: 0, data: { callId: 'c', name: 'read', arguments: '{"file_path":"a.ts"}' } }]
+    expect(foldSessionActivity(bare)).toEqual({ kind: 'tool', name: 'read', args: '{"file_path":"a.ts"}' })
   })
 })
