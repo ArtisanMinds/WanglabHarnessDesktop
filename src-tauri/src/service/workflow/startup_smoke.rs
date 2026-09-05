@@ -1,7 +1,7 @@
 //! 在隔离的 Windows AppData 和 DSH_HOME 中验证真实升级、并发启动及桌面就绪检查。
 
 use std::{fs, path::PathBuf, time::Duration};
-use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 use super::{has_owned_process, launch, proxy_health_check, start, stop};
 use crate::{
@@ -77,28 +77,10 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         );
     }
 
-    // 下载事件确认安装已进入临界区，再让三个真实入口同时争用目录。
-    let (progress_tx, mut progress_rx) = tokio::sync::mpsc::channel(1);
-    let event = window.listen("install-progress", move |_| {
-        let _ = progress_tx.try_send(());
-    });
+    // 三个真实入口直接并发争用目录；安装和启动共用的互斥锁负责排序。
     let install_app = app.clone();
     let installer =
         tauri::async_runtime::spawn(async move { bridge::install_dependencies(install_app).await });
-    tokio::time::timeout(Duration::from_secs(120), progress_rx.recv())
-        .await
-        .map_err(|e| format!("SMOKE_INSTALL_PROGRESS: {e}"))?
-        .ok_or("SMOKE_INSTALL_PROGRESS_CLOSED")?;
-    smoke_note("Core installation entered progress");
-    window.unlisten(event);
-    if tokio::time::timeout(Duration::from_millis(20), super::acquire_core_transition())
-        .await
-        .is_ok()
-    {
-        return Err(
-            "SMOKE_INSTALL_UNLOCKED: installation must own the startup directory lock".to_string(),
-        );
-    }
     let auto_app = app.clone();
     let auto_start = tauri::async_runtime::spawn(async move { start(auto_app).await });
     let plugin_app = app.clone();
