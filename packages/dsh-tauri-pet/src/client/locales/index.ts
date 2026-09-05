@@ -26,7 +26,7 @@ const DICT_ZH: Record<LocaleKey, string> = {
   importFailed: '导入宠物失败',
   listFailed: '读取宠物列表失败',
   loading: '加载中…',
-  name: 'Pets',
+  name: '宠物',
   noPetSelected: '未选择宠物，请在设置页选择你的宠物',
   petDescWhale: BUILTIN_PET_DESC_ZH,
   petNameWhale: BUILTIN_PET_NAME,
