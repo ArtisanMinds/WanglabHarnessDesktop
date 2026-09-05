@@ -174,9 +174,166 @@ BongoCat 是窗口行为基准，不是完整交互基准。它在 mousedown 立
   `eslint src/pet packages/dsh-tauri-pet/src/client --max-warnings=0` 零 warning、
   `vitest run src/pet/pet-config.test.ts` 9/9、`cargo check --lib`、
   `cargo test bridge::pet::tests --lib` 14/14、`pnpm build` 全部通过。
+
+### 4.0b 最近完成（feat/pet-reapply，预设宠物清单与下载）
+
+- 新增 `src-tauri/resources/preset-pets.json`：预设宠物清单（id/name/desc/image/repo/
+  ref/assets/sizeMb），首个条目是内置 Maid DeepSeek Whale（repo=PC2005-cloud/dsh-pet，
+  assets=dsh-pet/assets，ref=f0f772e9…，sizeMb=113）；assets 不再内置在 dsh-tauri-pet
+  包中，改为从预设清单下载（本阶段下载到 `~/.dsh/pets/<id>/`，内置媒体仍作为运行时
+  回退保留）。
+- Rust 新增 `src-tauri/src/bridge/preset_pet.rs`（7 条单测）：
+  - `list_preset_pets`：读取 resources/preset-pets.json（resource_dir 探测 +
+    CARGO_MANIFEST_DIR 兜底，同 preset-plugins.json 模式），按安装状态返回清单项；
+  - `download_preset_pet`：后台下载 codeload tarball（直连 + ghfast.top 镜像兜底，
+    reqwest 流式写临时文件，进度写入进程内注册表），只解压清单 assets 前缀下的条目
+    （剥离仓库根目录与前缀），校验 config.jsonc 存在且含 animations 对象，staging
+    原子 rename 到 `~/.dsh/pets/<id>`（debug 为 `~/.dsh.dev/pets`）；
+  - `get_preset_download_progress`：设置页轮询下载/解压/完成/失败进度；
+  - 安全纪律与 import_pet 一致：拒绝 traversal/绝对路径/反斜杠/冒号/symlink/hardlink、
+    条目数（2048）/单文件（32MiB）/总量（256MiB）上限、重复输出路径、失败清理 staging。
+- 设置页 Pets tab 状态机（`packages/dsh-tauri-pet/src/client/utils/preset-card.ts`，
+  配 5 条单测）：未安装→「下载」+ 名字旁 `[number]mb` 尺寸标签；下载/解压中→描述下方
+  进度条（解压中为不确定进度动画）；已安装非当前→「启用」（启用自动唤醒宠物：
+  setActivePet + setPetEnabled(true)）；当前→「已选」。轮询间隔 400ms，终态后刷新清单。
+- 侧栏入口图标：未选择宠物（未启用）时点击只短暂提示「未选择宠物，请在设置页选择你的
+  宠物」，不改变启用状态；已选择后保持原切换行为。
+- 验证：`cargo check --lib`（仅既有 profile/mod.rs:354 clone 警告）、
+  `cargo test --lib` 470/470（含 preset_pet 7 条 + pet 14 条）、`pnpm --filter
+  dsh-tauri-pet typecheck/build`（publint No issues）、根 `tsc --noEmit`、
+  `eslint src/pet packages/dsh-tauri-pet/src/client --max-warnings=0` 零 warning、
+  `vitest run packages/dsh-tauri-pet/src/client/utils/preset-card.test.ts` 5/5。
   完整 `pnpm test -- --run` 仅 3 条失败，全部来自 `test/plugin-resource-closure.test.ts`
   （读取 `src-tauri/resources/node_modules` 部署产物，fresh worktree 不含该生成目录，
   源 checkout 下通过，与本次改动无关）。
+
+### 4.0c 最近完成（feat/pet-reapply，移除运行时回退：桌宠窗口直接消费预设产物）
+
+- **不再需要运行时回退**：`packages/dsh-tauri-pet/assets/`（maid-*.webm ×10 +
+  gif + config.jsonc）已整体删除，`package.json#files` 不再含 `assets`；
+  桌宠窗口（`src/pet/`）按 `activePet` 直接消费 `~/.dsh/pets/<id>/` 的下载产物。
+- Rust 新增（`src-tauri/src/bridge/preset_pet.rs`）：
+  - `get_preset_pet_config(id)`：读取已安装预设的 `config.jsonc`（256 KiB 限量）、
+    `strip_jsonc` 剥注释、`validate_preset_pet_config` 校验协议形状——池条目是动画名
+    （webm 文件名主名，如 待机呼吸休闲），**不再做内置键白名单**，未知名字由
+    `get_preset_pet_assets` 的文件清单兜底，错误统一 `PET_PRESET_CONFIG_INVALID:`；
+  - `get_preset_pet_assets(id)`：扫描 `webm/*.webm` 返回 `{ 动画名: dsh-pet://…url }`
+    manifest（文件名主名 = 池条目），preview 首张 gif 作为 `fallback` 兜底图；
+  - `preset_pet_asset_response`：`dsh-pet://` 协议 handler 改为按
+    `<id>/<webm|preview>/<文件名>` 从预设目录服务（百分号编码文件名 + canonicalize
+    包含性校验 + symlink 拒绝 + 32 MiB 上限 + Range），builder 注册同步切换；
+  - `get_builtin_pet_assets` / `get_builtin_pet_config` / `builtin_pet_asset_response`
+    及 `BUILTIN_ASSET_NAMES` / `builtin_assets_root` 等全部移除；`validate_active_pet_id`
+    / `normalize_active_pet` 接受预设 id（安全字符集）与来源限定 id；desktop/pet.rs
+    的窗口比例改为「未限定 id → 9/16（预设 WebM），来源限定 id → 208/192（自定义图集）」。
+- pet WebView（`src/pet/components/pet.tsx`）：`isPreset = !activePet.includes(':')`
+  走 WebM 协议渲染（config + assets 按 pet 一起拉取，整体提交避免切换残留）；
+  新增 `resolvePresetName`（pet-config.ts 纯函数）：adHoc 已携带动画名直接命中，
+  状态档（idle/turn/dragging/waving）从对应池抽名，会话状态（waiting/running/
+  review/failed/bubble）无协议池 → 保持当前动画；点击回应/待机链直接把池条目作为
+  adHoc.status，不再经内置键归一化。`pet-config.test.ts` 增至 13 条。
+- 插件客户端：移除 `fetchBuiltinPetAssets` / `fetchBuiltinPetConfig` /
+  `CMD_GET_BUILTIN_*` 与客户端 `PetConfig` 类型、`assets/maid-deepseek-whale.ts`
+  预览图；iframe invoke 白名单同步移除内置命令（预设 config/assets 只由 pet 窗口
+  直连 invoke，不经桥）。README / THIRD_PARTY_NOTICES 更新为「媒体不再内置，
+  运行时从 preset 目录下载」。删除 `src-tauri/src/bridge/pet.rs` 中全部内置
+  资源服务代码与相关单测，JSONC 剥注释测试移入 preset_pet.rs。
+- 验证：`cargo check --lib`（仅既有 profile clone 警告）、`cargo test --lib`
+  全部通过（含 preset_pet 12 条 + pet 13 条）、根 `tsc --noEmit`、
+  `eslint src/pet packages/dsh-tauri-pet/src/client --max-warnings=0` 零 warning、
+  `vitest run src/pet/pet-config.test.ts` 13/13、`git diff --check` 干净。
+
+### 4.0d 最近完成（feat/pet-reapply，设置页初次加载缓存 + 下载状态跨挂载恢复）
+
+修复两个用户报告 bug：①初次打开设置页闪烁、反复点都会闪；②点击下载显示「下载中」
+但无进度条，「返回应用」再进又显示「需要下载」，再点报
+`PET_PRESET_BUSY: preset pet maid-deepseek-whale is already downloading`。
+
+- **根因**：`PetSettings` 每次挂载都从空 state 拉取（列表空 → 数据到达突现 → 闪）；
+  下载轮询随组件卸载 `clearInterval` 且 `downloads` state 丢失，重新挂载时
+  `fetchPresetPets()` 只返回 `installed=false`，不知下载仍在进行 → 显示「下载」，
+  再点撞上 Rust 侧 `download_preset_pet` 的进行中守卫；下载早期 `total=0` 时
+  `progressPercent` 返回 0%（不是不确定进度条），视觉上「没有进度条」。
+- **Rust**（`src-tauri/src/bridge/preset_pet.rs`）：`PresetPetListItem` 新增
+  `pub phase: String`；`list_preset_pets` 填充 `phase = get_preset_progress(&spec.id).phase`
+  （局部变量先取值再 move `spec.id`，字面量按书写顺序求值）。清单成为跨挂载
+  「下载中」状态的唯一真相源。
+- **前端**（`packages/dsh-tauri-pet/src/client`）：
+  - `pet-settings.tsx`：模块级缓存 `cachedPresetPets/cachedChatPets/cachedCodexPets`
+    （useState 惰性初始化复用，`busy` 初始 = 无缓存），初次加载在卡片区显示
+    `.dshpet-loading` + `text('loading')` 占位（styles 新增该类）；初始 effect 对
+    phase 为 downloading/extracting 的项写入占位 progress（indeterminate 进度条
+    立即出现）并 `pollPresetDownload` 恢复轮询；`startDownload` 对
+    `PET_PRESET_BUSY` 竞态改为恢复轮询而非报错；`pollPresetDownload` /
+    `refreshPresets` 改 `useCallback`（依赖 `[refreshPresets]` / `[]`，顺序先 refresh
+    再 poll，避免 const TDZ）。
+  - `utils/preset-card.ts`：`resolvePresetCardAction` 用 `progress?.phase ?? item.phase`
+    判定 downloading（跨挂载无轮询快照时靠清单 phase）；`progressPercent` 在
+    downloading 且 `total=0` 时返回 null（不确定进度条）而非 0。
+  - `types/index.ts`：`PresetPetItem` 增 `phase`；`LocaleKey` 增 `loading`；
+    locales 增 `loading: '加载中…' / 'Loading…'`。
+- 验证：`cargo check --lib`（仅既有 profile clone 警告）、`cargo test --lib` 472/472、
+  根 `tsc --noEmit`、`pnpm --filter dsh-tauri-pet typecheck/build`（publint No issues）、
+  `eslint src/pet packages/dsh-tauri-pet/src/client --max-warnings=0` 零 warning、
+  `vitest run` 238/238（含 preset-card 6 条，新增「无轮询进度时用清单 phase 恢复
+  下载中视图」与「下载早期 total=0 → null」断言）、`git diff --check` 干净。
+
+### 4.0e 最近完成（feat/pet-reapply，下载进度条显示实际进度 + 全流程日志）
+
+修复用户报告：①进度条没有显示实际进度、一直加载；②没有日志看。
+
+- **根因**：`codeload.github.com` 的 tar.gz 响应是 `Transfer-Encoding: chunked`、
+  无 `Content-Length`（curl 实测），Rust `response.content_length()` 返回 None →
+  `total=0` → 前端 `progressPercent` 对 downloading/extracting 且 total=0 返回 null →
+  永远 indeterminate 进度条；且下载成功路径无任何 `log::info!`，只有失败 `log::warn!`。
+- **Rust**（`src-tauri/src/bridge/preset_pet.rs`）：
+  - `download_tarball(id, urls, dest, estimated_total)` 新增第 4 参：
+    `let total = response.content_length().unwrap_or(estimated_total)`；逐 URL 前
+    `log::info!("[preset-pet] download {id}: trying {url} (estimated {estimated_total} bytes)")`；
+    每 chunk 更新进度并节流日志（`pct / 10 > last_logged_pct / 10 && pct < 100` →
+    `[preset-pet] download {id}: {received} / {total} bytes ({pct}%)`）；完成
+    `log::info!("[preset-pet] download {id}: completed, {received} bytes from {url}")`。
+  - `run_preset_download`：`estimated_total = spec.size_mb.map(|mb| (mb*1024*1024).round() as u64).unwrap_or(0)`
+    （清单 size_mb=113，GitHub 树 API 实测 207 文件 118443106 字节）；start/extracting/installed
+    各加 `[preset-pet]` 前缀 `log::info!`。
+  - 解压进度：原 `extract_preset_assets` 改为 `#[cfg(test)]` 委托版；新增
+    `extract_preset_assets_with_progress(tarball, staging, assets_prefix, on_progress)`
+    每解压完一个文件回调累计已解压字节；`run_preset_download` 传
+    `Some(&mut |uncompressed| set_preset_progress(phase:"extracting", received: uncompressed, total: extract_total))`。
+  - 新测试 `extraction_reports_uncompressed_bytes_via_progress_callback`（两文件 10+15
+    字节，断言 `reported == vec![10, 25]`）。
+- **前端**：无需改动（`progressPercent` 已正确区分 total>0 → 百分比、total=0 → null 不确定条）。
+- **日志可看**：`[preset-pet]` 前缀 `log::info!` 走 `log::*` 代理写入 desktop.log
+  （`src-tauri/src/logger/mod.rs`），GUI 日志面板可见。
+- 验证：`cargo check --lib`（仅既有 profile/mod.rs:354 clone 警告）、
+  `cargo test --lib` **473/473**（preset_pet 13 条）。
+
+### 4.0f 最近完成（feat/pet-reapply，会话状态动画 + 禁用桌宠右键菜单）
+
+修复用户报告：①会话进行中动画被覆盖、一直待机；②会话成功/失败/审批动画看不到；
+③桌宠右键弹出菜单（禁用）。
+
+- **根因（会话动画）**：`resolvePresetName` 对会话状态（waiting/running/review/failed/
+  bubble）返回 null——dsh-pet 协议（config.jsonc）只有 idle/turn/drag/clicks/moves/
+  categories/events 池，没有会话状态对应池，代码按「协议是完整事实来源」直接保持当前
+  动画 → 会话期间宠物一直播待机。但这些动画文件在预设资产里真实存在：用 GitHub trees
+  API（pinned f0f772e）把旧内置 maid-*.webm 尺寸逐一比对，10 个文件字节级一一对应：
+  idle=待机呼吸休闲(441437)、turn=东张西望(427005)、move=原地左转奔跑(614526)、
+  drag=被鼠标拖拽悬空反馈(464764)、wave=点击回应-元气挥手(421669)、
+  waiting=深度思考碎碎念(458027)、running=写代码(383960)、review=轻快记录(447726)、
+  failed=玩游戏气急败坏(525022)、bubble=鲸鱼吐泡泡特效(452096)。
+- **修复**（`src/pet/pet-config.ts`）：新增 `PRESET_SESSION_ANIMATIONS` 叠加映射
+  （waiting/running/review/failed/bubble → 上述中文动画名）；`resolvePresetName`
+  在直接资产命中后、池抽取前查该表，映射名无对应资产仍返回 null（保持当前动画）。
+  循环语义不变：只有 running 由 app.tsx 传 loop:true 持续播放，waiting/review/failed
+  播完一次回落（handleEnded 清 override）。
+- **修复（右键）**（`src/pet/main.tsx`）：窗口级 `contextmenu` 捕获 preventDefault，
+  禁用 WebView2/Chromium 默认右键菜单（桌宠为透明装饰窗，右键不应弹菜单）。
+- **测试**（`src/pet/pet-config.test.ts`，14 条）：会话状态映射 4 条（waiting→深度思考
+  碎碎念 等）、映射名资产缺失 → null 2 条；原「会话状态无协议池 → null」断言改为
+  overlay 映射断言。
+- 验证：`tsc --noEmit` ✅、`eslint src/pet --max-warnings=0` 零 warning ✅、
+  `vitest run` 239/239 ✅（含 pet-config 14 条）。无 Rust 改动。
 
 ### 4.1 已完成并应保留
 
@@ -276,13 +433,13 @@ Toast，无法叠加；而 `PetStatus` 目前只有一个 `bubble` 字段，也�
 - [ ] 添加调用层测试或事件钩子，验证两个会话各触发一次时出现两条 Toast，且没有显式
   close/loading UI。
 
-#### D. 内置媒体资源边界错误
+#### D. 内置媒体资源边界错误 [已废弃]
 
-当前 `src/pet/pet.tsx:14-23` 直接从
-`../../packages/dsh-tauri-pet/assets/*.webm|gif` 进行 ESM import。这样会让应用 Web bundle
-直接拥有插件资源，依赖 monorepo 源码相对路径，并绕过内置插件的部署/运行时边界。
+> [已废弃，见 4.0c] 内置媒体（`packages/dsh-tauri-pet/assets/*.webm|gif`）已整体删除，
+> 桌宠窗口不再 import 任何插件资源，改为按 `activePet` 消费 `~/.dsh/pets/<id>/` 的
+> 预设下载产物（dsh-pet:// 协议 + `get_preset_pet_config/assets` 命令），本节问题不复存在。
 
-目标架构：
+目标架构（历史记录）：
 
 1. 资源仍打包在 `packages/dsh-tauri-pet/assets/`，由 `package.json#files` 随内置插件部署到
    `resources/node_modules/dsh-tauri-pet/assets/`。
