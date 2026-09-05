@@ -144,6 +144,10 @@ export function useBubble(): BubbleHandle {
       if (key === undefined) {
         if (dismissed.has(session.id))
           return
+        // 气泡被 toast 层「仅保留最新三条」丢弃后，仅在状态跃迁时重建：
+        // 同状态心跳重建会与丢弃逻辑互相触发，形成每 250ms 的关闭-重建循环。
+        if (previous !== undefined && previous === current)
+          return
         let createdKey = ''
         createdKey = toast(content.title, {
           isLoading: content.isLoading,
@@ -263,6 +267,7 @@ function toastContent(session: BubbleSession): {
     session.description,
     session.message,
     session.lastAgentError ? `失败：${String(session.lastAgentError)}` : undefined,
+    liveActivityLabel(session),
     statusLabel(status),
   ), DESCRIPTION_MAX_LENGTH)
   return {
@@ -306,6 +311,71 @@ function statusLabel(status: PetStatus | undefined): string {
     case 'running': return '思考中'
     default: return '空闲'
   }
+}
+
+/**
+ * 运行中会话的活动行（插件从会话事件流 fold 出的 liveActivity）：
+ * 优先「思考 · 片段」/「工具调用 · 细节」，无活动数据时回退 statusLabel 的「思考中」。
+ * liveActivity 为 null（事件窗口无进行中的活动）或 undefined（旧插件无此字段）都返回 undefined。
+ */
+function liveActivityLabel(session: BubbleSession): string | undefined {
+  if (sessionStatus(session) !== 'running')
+    return undefined
+  const activity = session.liveActivity
+  if (!activity || typeof activity !== 'object')
+    return undefined
+  const { kind, text, name, args } = activity as {
+    kind?: unknown
+    text?: unknown
+    name?: unknown
+    args?: unknown
+  }
+  if (kind === 'reasoning' && typeof text === 'string' && text.trim().length > 0)
+    return `思考 · ${collapseWhitespace(text)}`
+  if (kind === 'tool' && typeof name === 'string' && name.length > 0)
+    return toolLabel(name, args)
+  return undefined
+}
+
+/** 工具注册名 → 气泡标签：shell 显示命令，编辑类显示目标文件，其余兜底「工具调用 · 工具名」。 */
+function toolLabel(name: string, args: unknown): string {
+  const detail = toolDetail(name, args)
+  if (name === 'pwsh')
+    return `Pwsh · ${detail ?? '命令执行'}`
+  if (name === 'bash')
+    return `Bash · ${detail ?? '命令执行'}`
+  if (name === 'str_replace_editor' || name === 'edit' || name === 'write')
+    return `编辑 · ${detail ?? name}`
+  return `工具调用 · ${name}`
+}
+
+/** 从模型原始 arguments JSON 串提取展示细节：shell 取 command，str_replace_editor 取 path，其余取 file_path/path。 */
+function toolDetail(name: string, args: unknown): string | undefined {
+  if (typeof args !== 'string' || args.length === 0)
+    return undefined
+  try {
+    const parsed: unknown = JSON.parse(args)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      return undefined
+    const record = parsed as Record<string, unknown>
+    const keys = name === 'pwsh' || name === 'bash'
+      ? ['command']
+      : name === 'str_replace_editor' ? ['path'] : ['file_path', 'path']
+    for (const key of keys) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim().length > 0)
+        return collapseWhitespace(value)
+    }
+    return undefined
+  }
+  catch {
+    return undefined
+  }
+}
+
+/** 气泡单行展示：换行/连续空白折叠为单空格，多行命令不至于占满两行 clamp。 */
+function collapseWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
 }
 
 /**

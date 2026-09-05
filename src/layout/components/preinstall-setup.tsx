@@ -50,18 +50,13 @@ function PluginRow({ plugin, checked, toUninstall, disabled, onToggle, onOpenRep
 }) {
   const { t } = useTranslation()
 
-  // 已安装且未被取消勾选 → 保持「已安装」样式；已安装但取消勾选 → 待卸载样式
-  const labelClass = toUninstall
-    ? 'text-muted line-through'
-    : plugin.installed
-      ? 'text-success'
-      : 'text-ink'
+
 
   return (
     <Item
       left={(
         <>
-          <Label className={`min-w-0 truncate text-sm font-medium ${labelClass}`}>
+          <Label className={`min-w-0 truncate text-sm font-medium`}>
             {plugin.name}
           </Label>
           <If cond={plugin.recommended && !plugin.installed && !toUninstall}>
