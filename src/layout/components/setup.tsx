@@ -1,6 +1,6 @@
 import type { IconComponent } from './loadable'
 import type { SetupStatus } from '@/store/modules/harness'
-import { ArrowDownToLine, CircleCheck, CircleExclamation, CircleInfo, Copy, Magnifier, Rocket } from '@gravity-ui/icons'
+import { ArrowDownToLine, CircleCheck, CircleExclamation, CircleInfo, Copy, Magnifier, Rocket, ShieldCheck } from '@gravity-ui/icons'
 import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { If, Then } from 'react-if-lite'
@@ -82,6 +82,18 @@ export function Setup() {
             <Copy className="size-4" />
             {t('buttons.copy_logs')}
           </button>
+          <button
+            className={button({ tone: 'primary', size: 'sm' })}
+            onClick={() => {
+              void store.harness.enterSafeMode()
+            }}
+          >
+            <ShieldCheck className="size-4" />
+            {t('buttons.safe_mode')}
+          </button>
+          <p className="m-0 text-xs leading-[18px] break-all text-load-muted">
+            {t('hints.safe_mode')}
+          </p>
         </Then>
       </If>
     </Loadable>
