@@ -45,6 +45,8 @@ interface SessionWatch {
   activityTimer?: ReturnType<typeof setTimeout>
   /** [pet-activity] 临时诊断：上次输出的折叠结果签名，避免节流日志刷屏（定位后随打点一起移除） */
   lastActivityLog?: string
+  /** [pet-activity] 临时诊断：上次输出的窗口类型集签名，类型集变化时才重打窗口快照（定位后随打点一起移除） */
+  lastRawLog?: string
 }
 
 /**
@@ -117,6 +119,13 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
           watch.activityTimer = undefined
           const current = source.getSnapshot()
           watch.activity = foldSessionActivity(current.entries)
+          // [pet-activity] 临时诊断：窗口类型集变化时输出类型清单 + 最新两条原始条目，
+          // 用来判断 fold 为什么总返回 null：窗口是否压根不含流式事件 / 顶层字段名是否非 type（定位后移除）
+          const types = describeEventTypes(current.entries)
+          if (types !== watch.lastRawLog) {
+            watch.lastRawLog = types
+            console.warn('[pet-activity] window', id, `#${current.entries.length}`, types, 'last=', describeTail(current.entries))
+          }
           // [pet-activity] 临时诊断：折叠结果变化（含 null→有值→null）时输出一条，静默 = 无新事件（定位后移除）
           const signature = JSON.stringify(watch.activity ?? null)
           if (signature !== watch.lastActivityLog) {
@@ -212,4 +221,17 @@ function describeEventTypes(entries: readonly unknown[]): string {
       types.add((entry as { type: string }).type)
   }
   return `[${[...types].sort().join(',')}]`
+}
+
+/** [pet-activity] 临时诊断：最新两条条目的原始形状（截断到 110 字符），确认顶层字段名与 data 结构（定位后随打点移除）。 */
+function describeTail(entries: readonly unknown[]): string {
+  const tail = entries.slice(-2).map((entry) => {
+    if (entry === null || typeof entry !== 'object') {
+      const text = String(entry)
+      return text.length > 110 ? `${text.slice(0, 110)}…` : text
+    }
+    const text = JSON.stringify(entry)
+    return text.length > 110 ? `${text.slice(0, 110)}…` : text
+  })
+  return `[${tail.join(', ')}]`
 }
