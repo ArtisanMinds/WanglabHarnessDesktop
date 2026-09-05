@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadSchedulerRuntimeModules } from './executor.js'
+import { loadSchedulerRuntimeModules, unattendedToolGuardReason } from './executor.js'
 
 describe('loadSchedulerRuntimeModules', () => {
   it('resolves DSH-owned modules through the platform loader', async () => {
@@ -43,5 +43,26 @@ describe('loadSchedulerRuntimeModules', () => {
 
     expect(runtime).toEqual({ installModelSelection, createUserMessage, setApprovalPolicy })
     expect(loader.unwrapExports).not.toHaveBeenCalled()
+  })
+})
+
+describe('unattendedToolGuardReason', () => {
+  it('allows todo_write so task lists work in unattended runs', () => {
+    expect(unattendedToolGuardReason('todo_write', {
+      todos: [{ content: 'step', status: 'pending' }],
+    })).toBeUndefined()
+  })
+
+  it('still rejects tools outside the allowlist', () => {
+    expect(unattendedToolGuardReason('ask_user_question', {}))
+      .toBe('工具 \'ask_user_question\' 不在无人值守自动化允许列表中。')
+  })
+
+  it('rejects background processes for bash/pwsh but allows foreground calls', () => {
+    expect(unattendedToolGuardReason('bash', { command: 'ls', run_in_background: true }))
+      .toBe('无人值守运行不允许启动后台进程。')
+    expect(unattendedToolGuardReason('pwsh', { command: 'ls', run_in_background: true }))
+      .toBe('无人值守运行不允许启动后台进程。')
+    expect(unattendedToolGuardReason('bash', { command: 'ls' })).toBeUndefined()
   })
 })

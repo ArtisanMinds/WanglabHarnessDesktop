@@ -84,6 +84,10 @@ const UNATTENDED_TOOL_ALLOWLIST = new Set([
   'session_event_read',
   'session_event_search',
   'session_event_trace',
+  // todo_write 只写会话内任务清单（session log 投影，要求 owning agent session），
+  // 无文件系统/进程等宿主副作用；任务指令常要求用任务清单推进多步工作，不放行
+  // 会让无人值守运行直接失败，因此偏离 MichengAI 对齐的白名单单独放行。
+  'todo_write',
 ])
 
 const CANCEL_CONVERGENCE_TIMEOUT_MS = 10_000
