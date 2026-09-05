@@ -252,12 +252,6 @@ pub fn push_pet_session(
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| "PET_SESSION_ID_INVALID: raw session must include id".to_string())?;
-    // [pet-activity] 临时诊断：桥接层收到非空 liveActivity 时输出（定位后移除；stderr 仅 tauri dev 终端可见）
-    if let Some(activity) = session.get("liveActivity") {
-        if !activity.is_null() {
-            eprintln!("[pet-activity] bridge push {action} {id} liveActivity={activity}");
-        }
-    }
     let event = match action {
         "create" => "session:create",
         "update" => "session:update",

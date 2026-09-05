@@ -43,10 +43,6 @@ interface SessionWatch {
   /** 事件窗口折叠结果；undefined 表示该会话无事件窗口（alpha），null 表示当前无活动 */
   activity?: SessionLiveActivity | null
   activityTimer?: ReturnType<typeof setTimeout>
-  /** [pet-activity] 临时诊断：上次输出的折叠结果签名，避免节流日志刷屏（定位后随打点一起移除） */
-  lastActivityLog?: string
-  /** [pet-activity] 临时诊断：上次输出的窗口类型集签名，类型集变化时才重打窗口快照（定位后随打点一起移除） */
-  lastRawLog?: string
 }
 
 /**
@@ -66,9 +62,6 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
       if (disposed)
         return
       const payload = toTransferable(session) as Record<string, unknown>
-      // [pet-activity] 临时诊断：liveActivity 应原样通过递归 JSON 克隆，被剥离说明序列化有洞（定位后移除）
-      if ('liveActivity' in session && !('liveActivity' in payload))
-        console.warn('[pet-activity] liveActivity stripped by toTransferable', session.id)
       void pushPetSession(action, payload).catch((error) => {
         if (!disposed)
           console.error(`[dsh-tauri-pet] session ${action} push failed:`, error)
@@ -95,23 +88,11 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
     /** 订阅事件窗口：这里只做 trailing 节流，到期时按当前窗口整体重算一次，一次突发只推送一帧。 */
     function attachEventSource(id: string, binding: RawSessionBinding, watch: SessionWatch): void {
       const source = binding.eventSource
-      if (source === undefined || typeof source.getSnapshot !== 'function' || typeof source.subscribe !== 'function') {
-        // [pet-activity] 临时诊断：未探测到事件窗口 → liveActivity 不可用，输出 binding 实际字段辅助定位（定位后移除）
-        console.warn('[pet-activity] bind', id, 'eventSource=NO keys=', Object.keys(binding).join(','))
+      if (source === undefined || typeof source.getSnapshot !== 'function' || typeof source.subscribe !== 'function')
         return
-      }
       // 绑定即折叠一次，create 帧就携带已运行会话的实时活动
       const initial = source.getSnapshot()
       watch.activity = foldSessionActivity(initial.entries)
-      // [pet-activity] 临时诊断：窗口规模 + 窗口内出现过的全部事件类型 + 初始折叠结果，
-      // 用于验证 fold 关注的 tool/call、assistant/chunk 是否真的进入客户端事件窗口（定位后移除）
-      console.warn(
-        '[pet-activity] bind',
-        id,
-        `entries=${initial.entries.length}`,
-        `types=${describeEventTypes(initial.entries)}`,
-        `initial=${JSON.stringify(watch.activity ?? null)}`,
-      )
       watch.disposers.push(source.subscribe(() => {
         if (disposed || watches.get(id) !== watch || watch.activityTimer !== undefined)
           return
@@ -119,19 +100,6 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
           watch.activityTimer = undefined
           const current = source.getSnapshot()
           watch.activity = foldSessionActivity(current.entries)
-          // [pet-activity] 临时诊断：窗口类型集变化时输出类型清单 + 最新两条原始条目，
-          // 用来判断 fold 为什么总返回 null：窗口是否压根不含流式事件 / 顶层字段名是否非 type（定位后移除）
-          const types = describeEventTypes(current.entries)
-          if (types !== watch.lastRawLog) {
-            watch.lastRawLog = types
-            console.warn('[pet-activity] window', id, `#${current.entries.length}`, types, 'last=', describeTail(current.entries))
-          }
-          // [pet-activity] 临时诊断：折叠结果变化（含 null→有值→null）时输出一条，静默 = 无新事件（定位后移除）
-          const signature = JSON.stringify(watch.activity ?? null)
-          if (signature !== watch.lastActivityLog) {
-            watch.lastActivityLog = signature
-            console.warn('[pet-activity] fold', id, `#${current.entries.length}`, signature)
-          }
           emit('update', snapshotOf(id, binding))
         }, PET_ACTIVITY_THROTTLE_MS)
       }))
@@ -184,10 +152,8 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
         if (watches.has(id)) {
           const watch = watches.get(id)
           // activity 保持 undefined 说明事件窗口此前不可用；运行中补挂一次（成功 attach 后值为 null，不会重复订阅）
-          if (watch !== undefined && watch.activity === undefined && binding.eventSource !== undefined) {
-            console.warn('[pet-activity] late attach eventSource', id)
+          if (watch !== undefined && watch.activity === undefined && binding.eventSource !== undefined)
             attachEventSource(id, binding, watch)
-          }
           emit('update', snapshotOf(id, binding))
         }
         else {
@@ -211,32 +177,4 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
     sync()
     return () => controller.dispose()
   }, 'dsh-tauri-pet: raw session events')
-}
-
-/** [pet-activity] 临时诊断：统计事件窗口内出现过的全部事件类型（去重排序），验证 fold 关注的事件是否真的在窗口里。已按窗口信封解包 inner event（定位后随打点移除）。 */
-function describeEventTypes(entries: readonly unknown[]): string {
-  const types = new Set<string>()
-  for (const entry of entries) {
-    if (entry !== null && typeof entry === 'object') {
-      const outer = entry as Record<string, unknown>
-      // 窗口条目信封 { type:'event'|'chunks', event }：业务类型在内层 event.type
-      const inner = outer.type === 'event' || outer.type === 'chunks' ? outer.event : entry
-      if (inner !== null && typeof inner === 'object' && typeof (inner as { type?: unknown }).type === 'string')
-        types.add((inner as { type: string }).type)
-    }
-  }
-  return `[${[...types].sort().join(',')}]`
-}
-
-/** [pet-activity] 临时诊断：最新两条条目的原始形状（截断到 110 字符），确认顶层字段名与 data 结构（定位后随打点移除）。 */
-function describeTail(entries: readonly unknown[]): string {
-  const tail = entries.slice(-2).map((entry) => {
-    if (entry === null || typeof entry !== 'object') {
-      const text = String(entry)
-      return text.length > 110 ? `${text.slice(0, 110)}…` : text
-    }
-    const text = JSON.stringify(entry)
-    return text.length > 110 ? `${text.slice(0, 110)}…` : text
-  })
-  return `[${tail.join(', ')}]`
 }
