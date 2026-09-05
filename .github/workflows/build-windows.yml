@@ -65,6 +65,10 @@ jobs:
       - name: Check internal plugin types
         run: pnpm -r --filter './packages/*' typecheck
 
+      - name: Prepare Windows test executable
+        shell: pwsh
+        run: ./scripts/prepare-windows-tests.ps1
+
       - name: Test Windows backend
         shell: pwsh
         run: |
