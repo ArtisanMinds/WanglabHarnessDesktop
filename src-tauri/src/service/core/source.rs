@@ -71,23 +71,9 @@ pub struct HarnessCore {
     pub error: Option<String>,
 }
 
-/// 当前活动核心来源（需求 3：本地核心存在时优先，除非用户显式选择预打包）。
-pub fn active_source(app_handle: &AppHandle) -> CoreSource {
-    let setting = config::get_store_dat_setting(app_handle);
-    let local_present = local_core(app_handle).is_some();
-    match setting.active_core.as_deref().and_then(CoreSource::parse) {
-        Some(CoreSource::App) => CoreSource::App,
-        // 显式选择本地但本地已失效 → 回退预打包
-        Some(CoreSource::Local) if local_present => CoreSource::Local,
-        // 未设置（自动）或显式本地已失效：本地存在时优先
-        _ => {
-            if local_present {
-                CoreSource::Local
-            } else {
-                CoreSource::App
-            }
-        }
-    }
+/// 内网发行版始终使用 Desktop 管理的配套核心。
+pub fn active_source(_app_handle: &AppHandle) -> CoreSource {
+    CoreSource::App
 }
 
 /// 当前活动核心的 dsh 入口（bin.js 绝对路径）。

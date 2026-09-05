@@ -6,11 +6,10 @@
 
 use crate::config;
 use crate::service::{download, fs_guard, workflow};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
-use super::local::{find_user_dsh_bin, local_core};
+use super::local::local_core;
 use super::source::{active_source, CoreSource, HarnessCore};
 
 /// `dependencies` 目录（激活 `dsh` 与历史 `dsh-<tag>` 槽位的共同父级）。
@@ -59,250 +58,55 @@ fn read_manifest_dsh_version(dir: &Path) -> Option<String> {
         .map(|s| s.trim_start_matches(['^', '~', '=', '>', '<']).to_string())
 }
 
-/// 核心列表：本地核心 + deepseek-harness-pkg 各发布版本（按版本去重）。
-///
-/// 版本行数据源为 GitHub releases（`fetch_dsh_pkg_releases`，最新在前，含
-/// Pre-release label）：预览版（label 或 tag 命名，见 `download::is_preview_tag`）
-/// 照常列出供手动下载安装，仅带「预览版」标记、不参与更新提示。pkg 仓库会对
-/// 同一版本打多个 tag（含测试打包），这里按版本去重——同一版本只保留**最后一个**
-/// tag，预览标记以保留的 tag 为准。releases 拉取失败（离线/限流）时回退 git
-/// tags（无 label，预览标记按 tag 命名兜底），再失败降级为磁盘扫描，只列出
-/// 本地、激活与已下载的历史版本。
+/// 内网版本只展示应用管理的当前核心，不查询上游版本目录。
 pub async fn list(app_handle: &AppHandle) -> Vec<HarnessCore> {
-    let source = active_source(app_handle);
-    let local = local_core(app_handle);
-    let local_bin = local
-        .as_ref()
-        .map(|c| c.bin.to_string_lossy().into_owned())
-        .or_else(|| find_user_dsh_bin(app_handle).map(|b| b.to_string_lossy().into_owned()));
-
-    let mut rows: Vec<HarnessCore> = vec![HarnessCore {
-        id: "local".to_string(),
-        source: CoreSource::Local,
-        version: local
-            .as_ref()
-            .map(|c| c.version.clone())
-            .unwrap_or_default(),
-        tag: String::new(),
-        path: local_bin.clone().unwrap_or_default(),
-        dir: local
-            .as_ref()
-            .map(|c| c.package_dir.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-        present: local.is_some(),
-        active: source == CoreSource::Local,
+    let present = config::get_dsh_binary_path(app_handle).is_file();
+    let dir = config::get_dsh_install_path(app_handle);
+    vec![HarnessCore {
+        id: "app".to_string(),
+        source: CoreSource::App,
+        version: config::get_dsh_version(app_handle)
+            .unwrap_or_else(|| config::WANGLAB_DSH_VERSION.to_string()),
+        tag: config::get_dsh_pkg_tag(app_handle).unwrap_or_default(),
+        path: dir.to_string_lossy().into_owned(),
+        dir: if present {
+            dir.to_string_lossy().into_owned()
+        } else {
+            String::new()
+        },
+        present,
+        active: true,
         preview: false,
-        above_recommended: local
-            .as_ref()
-            .is_some_and(|c| config::is_dsh_version_above_recommended(app_handle, &c.version)),
+        above_recommended: false,
         orphaned: false,
-        recommended_version: config::recommended_dsh_version(app_handle),
+        recommended_version: Some(config::WANGLAB_DSH_VERSION.to_string()),
         error: None,
-    }];
+    }]
+}
 
-    // 激活的预打包信息：tag（可空，旧安装无记录）+ 安装目录状态
-    let active_tag = config::get_dsh_pkg_tag(app_handle);
-    let active_dir = config::get_dsh_install_path(app_handle);
-    let active_present = config::get_dsh_binary_path(app_handle).exists();
-    // 激活核心按「版本」而非 tag 匹配版本行：pkg 仓库会对同一版本重打包/打
-    // 测试 tag，版本行去重后保留的 tag 未必等于本机安装时的记录 tag。按 tag
-    // 精确匹配会让激活版本行误标「未下载」并在列表底部多出一条重复激活行。
-    let active_version = if source == CoreSource::App {
-        active_app_version(&active_tag, config::get_dsh_version(app_handle))
-    } else {
-        None
+/// 只删除应用管理的历史发行包槽位；当前核心和用户档案不在遍历范围内。
+pub(crate) fn prune_inactive(app_handle: &AppHandle) -> Result<(), String> {
+    if !super::paired_core_ready(app_handle) {
+        return Ok(());
+    }
+    let deps = dependencies_dir(app_handle);
+    let Ok(entries) = std::fs::read_dir(&deps) else {
+        return Ok(());
     };
-    // 已安装的预打包版本号（无论当前以哪种来源运行都存在）：用于保证预打包行
-    // 始终如实呈现为"已安装"，即便本次以本地核心运行，也不会把它标成"未下载"。
-    // 旧记录可能没有版本号，稍后从激活目录 package.json 兜底读取。
-    let installed_version = config::get_dsh_version(app_handle).or_else(|| {
-        (source == CoreSource::App && active_present)
-            .then(|| read_manifest_dsh_version(&active_dir))
-            .flatten()
-    });
-
-    // 版本行：GitHub releases（最新在前，含 Pre-release label）→ 按版本去重，
-    // 同版本只保留最后一个 tag。releases 拉取失败（离线/限流）时回退 git tags，
-    // 预览标记按 tag 命名兜底（见 `download::is_preview_tag`）。
-    let (release_metas, remote_catalog_available) = match download::fetch_dsh_pkg_releases().await {
-        Ok(metas) => (metas, true),
-        Err(e) => {
-            log::warn!(
-                "Failed to fetch dsh pkg releases ({}), falling back to git tags",
-                e
-            );
-            match download::fetch_dsh_pkg_tags().await {
-                Ok(tags) => (
-                    tags.into_iter()
-                        .map(|(tag, _)| download::DshPkgReleaseMeta {
-                            tag,
-                            prerelease: false,
-                        })
-                        .collect(),
-                    true,
-                ),
-                Err(e) => {
-                    log::warn!("Failed to fetch dsh pkg tags: {}", e);
-                    (Vec::new(), false)
-                }
-            }
-        }
-    };
-    let mut version_tags: Vec<(String, String, bool)> = Vec::new(); // (version, tag, preview)，保持首次出现顺序
-    for meta in &release_metas {
-        let Some(version) = download::parse_version_from_tag(&meta.tag) else {
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with("dsh-") || download::parse_version_from_tag(&name).is_none() {
             continue;
-        };
-        // 预览标记：GitHub Pre-release label 优先，tag 命名兜底（漏标 label 的
-        // 预览版也按命名识别）
-        let preview = meta.prerelease || download::is_preview_tag(&meta.tag);
-        if let Some(entry) = version_tags.iter_mut().find(|(v, _, _)| v == &version) {
-            // 同版本重复（测试打包）：保留最后一个 tag，预览标记以保留的 tag 为准
-            entry.1 = meta.tag.clone();
-            entry.2 = preview;
-        } else {
-            version_tags.push((version, meta.tag.clone(), preview));
         }
-    }
-
-    // 按 SemVer 从新到旧排列；预发布版本也按主版本和预发布标识参与排序。
-    // 例如 0.1.2-alpha.1 应排在 0.1.1-rc.2 之前。
-    version_tags.sort_by(|(a, _, _), (b, _, _)| {
-        match (semver::Version::parse(a), semver::Version::parse(b)) {
-            (Ok(a), Ok(b)) => b.cmp(&a),
-            _ => b.cmp(a),
+        let path = safe_slot_path(&deps, &name)?;
+        if read_manifest_dsh_version(&path).is_none() {
+            continue;
         }
-    });
-
-    // 激活行就地标记：按版本匹配激活核心（不置顶，作为普通版本行标 active）
-    let mut active_rendered = false;
-    for (version, tag, preview) in &version_tags {
-        let is_active = active_version.as_deref() == Some(version.as_str());
-        // 已安装的预打包核心：即使本次以本地核心运行（source=Local）也要如实标为
-        // "已安装"，避免本地核心出现后预打包被当作未下载/消失（issue #54）。
-        let is_installed = installed_version.as_deref() == Some(version.as_str());
-        if is_active || is_installed {
-            active_rendered = true;
-        }
-        let slot = existing_slot_dir(app_handle, tag);
-        let present = if is_active || is_installed {
-            active_present
-        } else {
-            slot.is_some()
-        };
-        let (path, dir) = if is_active || is_installed {
-            let s = active_dir.to_string_lossy().into_owned();
-            (s.clone(), s)
-        } else if let Some(slot) = slot {
-            let s = slot.to_string_lossy().into_owned();
-            (s.clone(), s)
-        } else {
-            (String::new(), String::new())
-        };
-        rows.push(HarnessCore {
-            id: format!("app-{tag}"),
-            source: CoreSource::App,
-            version: version.clone(),
-            tag: tag.clone(),
-            path,
-            dir,
-            present,
-            active: is_active,
-            preview: *preview,
-            above_recommended: config::is_dsh_version_above_recommended(app_handle, version),
-            orphaned: false,
-            recommended_version: config::recommended_dsh_version(app_handle),
-            error: None,
-        });
+        log::info!("Removing inactive Wanglab core: {}", path.display());
+        std::fs::remove_dir_all(&path)
+            .map_err(|e| format!("CORE_PRUNE_FAILED: {}: {e}", path.display()))?;
     }
-
-    // 已安装的预打包版本未出现在版本列表（离线/限流/tag 被移除/旧版无 tag 记录）：
-    // 纳入版本行之后，保持列表不置顶；无论当前是否以本地核心运行都要列出，
-    // 避免"本地核心出现后预打包消失"。
-    if !active_rendered && active_present {
-        rows.push(HarnessCore {
-            id: active_tag
-                .as_ref()
-                .map(|t| format!("app-{t}"))
-                .unwrap_or_else(|| "app".to_string()),
-            source: CoreSource::App,
-            version: installed_version.clone().unwrap_or_default(),
-            tag: active_tag.clone().unwrap_or_default(),
-            path: active_dir.to_string_lossy().into_owned(),
-            dir: active_dir.to_string_lossy().into_owned(),
-            present: true,
-            active: source == CoreSource::App,
-            orphaned: false,
-            // 无远程元数据（离线/限流）：预览标记按 tag 命名兜底
-            preview: active_tag.as_deref().is_some_and(download::is_preview_tag),
-            above_recommended: installed_version
-                .as_deref()
-                .is_some_and(|v| config::is_dsh_version_above_recommended(app_handle, v)),
-            recommended_version: config::recommended_dsh_version(app_handle),
-            error: None,
-        });
-    }
-
-    // 磁盘扫描：tags 拉取失败/限流，或存在已下载但不在 tags 列表的版本（被移除的
-    // 测试打包）时，把已下载的 `dsh-*` 槽位补进列表；同样按版本去重。
-    // 激活版本已由版本行（或底部激活行）呈现，先放入 seen 避免扫描再补一条重复行。
-    let mut seen_versions: HashSet<String> =
-        version_tags.iter().map(|(v, _, _)| v.clone()).collect();
-    let known_tags: HashSet<String> = version_tags.iter().map(|(_, tag, _)| tag.clone()).collect();
-    let mut seen_tags = known_tags.clone();
-    if let Some(v) = &active_version {
-        seen_versions.insert(v.clone());
-    }
-    if let Some(v) = &installed_version {
-        seen_versions.insert(v.clone());
-    }
-    if let Ok(entries) = std::fs::read_dir(dependencies_dir(app_handle)) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            // 新命名槽位目录名即 tag（`dsh-0.1.0-rc.8-...`）；旧版双前缀
-            // `dsh-dsh-...` 剥一层 `dsh-` 还原 tag。`dsh` 为激活目录，跳过。
-            let tag = if let Some(rest) = name.strip_prefix("dsh-dsh-") {
-                Some(format!("dsh-{rest}"))
-            } else if name.starts_with("dsh-") || name.starts_with("src-") {
-                Some(name.clone())
-            } else {
-                None
-            };
-            let Some(tag) = tag else { continue };
-            if !entry.path().is_dir() {
-                continue;
-            }
-            let version = read_manifest_dsh_version(&entry.path())
-                .or_else(|| download::parse_version_from_tag(&tag))
-                .unwrap_or_default();
-            if version.is_empty() || !seen_tags.insert(tag.clone()) {
-                continue;
-            }
-            let orphaned = remote_catalog_available && !known_tags.contains(&tag);
-            if !orphaned && !seen_versions.insert(version.clone()) {
-                continue;
-            }
-            let dir = entry.path();
-            rows.push(HarnessCore {
-                id: format!("app-{tag}"),
-                source: CoreSource::App,
-                version: version.clone(),
-                tag: tag.clone(),
-                path: dir.to_string_lossy().into_owned(),
-                dir: dir.to_string_lossy().into_owned(),
-                present: true,
-                active: false,
-                // 无远程元数据（离线/限流）：预览标记按 tag 命名兜底
-                preview: download::is_preview_tag(&tag),
-                above_recommended: config::is_dsh_version_above_recommended(app_handle, &version),
-                orphaned,
-                recommended_version: config::recommended_dsh_version(app_handle),
-                error: None,
-            });
-        }
-    }
-
-    rows
+    Ok(())
 }
 
 /// 停止并清扫旧核心进程，确保核心来源变更时不会继续使用旧入口。
@@ -323,6 +127,9 @@ async fn stop_harness_for_core_switch(app_handle: &AppHandle) -> Result<(), Stri
 ///
 /// `id` 取值：`local` | `app`（无 tag 记录的旧激活行）| `app-<tag>`。
 pub async fn set_active(app_handle: &AppHandle, id: &str) -> Result<HarnessCore, String> {
+    if id != "app" {
+        return Err("CORE_PAIRED_ONLY: only the app-managed core is supported".to_string());
+    }
     let transition_guard = if id == "app" || id == "local" {
         Some(workflow::acquire_core_transition().await?)
     } else {
@@ -468,6 +275,9 @@ async fn switch_app_version(app_handle: &AppHandle, tag: &str) -> Result<(), Str
 /// 下载指定 tag 的预打包核心到历史槽位 `dependencies/<tag>`（不激活，切换由
 /// `set_active` 完成）。幂等：已下载时直接返回该版本行。
 pub async fn download_version(app_handle: &AppHandle, tag: &str) -> Result<HarnessCore, String> {
+    if tag != config::WANGLAB_DSH_TAG {
+        return Err(format!("CORE_PAIRED_ONLY: unsupported core tag {tag}"));
+    }
     // 路径安全：tag 直接进入 `dependencies/<tag>` 槽位路径，需挡 `..`/分隔符
     fs_guard::validate_id(tag)?;
     let dest = slot_dir(app_handle, tag);
@@ -485,16 +295,13 @@ pub async fn download_version(app_handle: &AppHandle, tag: &str) -> Result<Harne
     })?;
 
     // 2. 下载 + 校验 + 原子解压到历史槽位（两阶段进度：下载 0-50，解压 50-100）
-    //    下载默认走 GitHub 官方直连，失败自动切换 ghfast.top 镜像兜底。
+    //    下载地址固定为 Wanglab 发布源。
     let window = app_handle
         .get_webview_window("main")
         .ok_or("WINDOW_NOT_FOUND: main window missing")?;
     let mut tracker = download::ProgressTracker::new(&window, 2);
     tracker.start_phase("download", &format!("正在下载核心版本 {tag}"));
-    let urls = vec![
-        info.asset_url.clone(),
-        config::mirror_download_url(&info.asset_url),
-    ];
+    let urls = vec![info.asset_url.clone()];
     let buffer = download::download_file_from_sources(&tracker, urls)
         .await
         .map_err(|e| format!("CORE_DOWNLOAD_FAILED: {e}"))?;

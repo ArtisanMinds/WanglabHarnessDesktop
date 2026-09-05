@@ -19,6 +19,14 @@ export const queues = Object.fromEntries(
   placements.map(p => [p, new ToastQueue({ maxVisibleToasts: 3 })]),
 ) as Record<Placement, ToastQueue>
 
+const linuxQueues = Object.fromEntries(
+  placements.map(p => [p, new ToastQueue({ maxVisibleToasts: 3, wrapUpdate: fn => fn() })]),
+) as Record<Placement, ToastQueue>
+
+export const activeQueues = navigator.platform.toLowerCase().includes('linux')
+  ? linuxQueues
+  : queues
+
 const placementsKeys = new Map<string, Placement>()
 
 export function toast(
@@ -27,7 +35,7 @@ export function toast(
 ) {
   // 默认右下角；个别调用方需要其他位置时显式传 placement
   const { placement = 'bottom end', ...rest } = options || {}
-  const key = queues[placement].add({ title: message, ...rest })
+  const key = activeQueues[placement].add({ title: message, ...rest })
   placementsKeys.set(key, placement)
   return key
 }
@@ -36,12 +44,12 @@ function close(key: string) {
   const placement = placementsKeys.get(key)
   placementsKeys.delete(key)
   if (placement)
-    queues[placement].close(key)
+    activeQueues[placement].close(key)
 }
 
 function clear() {
   placementsKeys.clear()
-  placements.forEach(p => queues[p].clear())
+  placements.forEach(p => activeQueues[p].clear())
 }
 
 toast.close = close

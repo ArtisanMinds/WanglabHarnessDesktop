@@ -13,11 +13,11 @@ pub const NODE_MIRROR_BASE_URL: &str = "https://npmmirror.com/mirrors/node/";
 pub const DSH_CORE_URL: &str =
     "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
-pub const WANGLAB_DSH_VERSION: &str = "0.1.1-rc.2";
-pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.1-rc.2-wanglab";
-pub const WANGLAB_DSH_COMMIT: &str = "40a72cfabc3c7c7bd0a64c8c4cc1b7ab1efdada1";
+pub const WANGLAB_DSH_VERSION: &str = "0.1.2-rc.1";
+pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab";
+pub const WANGLAB_DSH_COMMIT: &str = "f0315c8cb4d8316d48fa0ad4e1d057fc8fd540f6";
 pub const WANGLAB_DSH_DIGEST: &str =
-    "sha256:4c04619e29f9d5cadfdc46da0d65d32a7d1c6fc3f419a38b86b8dd39dfd88dce";
+    "sha256:e91a59a86071d8aeb3c6a13751300fd970560b34296fe19d861788a43ff96e57";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。

@@ -93,6 +93,27 @@ pub async fn install_dependencies(app_handle: AppHandle) -> Result<bool, String>
     // 非 Windows 返回 true，保持原有依赖集合不变。
     let git_ok = config::git_runtime_ready(&app_handle);
 
+    // Desktop 升级必须先装好配套 Core，避免旧核心加载新版内置插件。
+    if !core::paired_core_ready(&app_handle) {
+        workflow::status::set_status(workflow::status::Status::Installing);
+        workflow::status::emit_status(&app_handle);
+        let latest = download::fetch_latest_dsh_pkg_info().await?;
+        let updated = match workflow::install(&app_handle, Some(latest)).await {
+            Ok(updated) => updated,
+            Err(error) => {
+                reset_install_status(&app_handle);
+                return Err(error);
+            }
+        };
+        let mut setting = config::get_store_dat_setting(&app_handle);
+        setting.installed = true;
+        setting.active_core = Some("app".to_string());
+        config::set_store_dat_setting(&app_handle, setting);
+        sync_cli_link(&app_handle);
+        reset_install_status(&app_handle);
+        return Ok(updated);
+    }
+
     // 启动自愈捷径：记录显示未安装、但运行时文件已全部在盘。常见于桌面端自更新
     // 安装器强杀进程，或上次启动时核心文件短暂缺失被 workflow::start 复位
     // `installed`（一旦复位，此后每次启动都会走进安装分支）。此时直接补记
@@ -361,6 +382,18 @@ pub async fn restart_harness(app_handle: AppHandle) -> Result<(), String> {
     workflow::restart(app_handle).await
 }
 
+/// 进入安全模式：确保安全档案存在并切换为当前档案（不重启，由前端走标准重启链路）。
+///
+/// 错误界面「安全模式」按钮的入口：安全档案只含 web 模板核心 bundles、不带
+/// 用户插件/补丁层，启动失败的插件（如 pending waiting for service）被隔离，
+/// 应用先恢复可用；用户在档案列表切回原档案即退出安全模式。
+#[tauri::command]
+pub async fn enter_safe_mode(app_handle: AppHandle) -> Result<(), String> {
+    crate::service::profile::ensure_safe_profile(&app_handle)?;
+    crate::service::profile::set_active(&app_handle, crate::service::profile::SAFE_PROFILE)?;
+    Ok(())
+}
+
 /// 获取当前 Harness 服务状态
 #[tauri::command]
 pub fn get_dsh_status() -> workflow::status::Status {
@@ -377,6 +410,7 @@ pub fn get_dsh_status() -> workflow::status::Status {
 #[tauri::command]
 pub fn runtime_ready(app_handle: AppHandle) -> bool {
     download::Nodejs.check_installed(&app_handle)
+        && core::paired_core_ready(&app_handle)
         && download::Dsh.check_installed(&app_handle)
         && download::Pnpm.check_installed(&app_handle)
         && config::git_runtime_ready(&app_handle)

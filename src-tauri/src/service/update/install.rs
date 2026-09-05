@@ -357,39 +357,27 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 镜像兜底策略回归：无摘要时只有官方源；有摘要时才加入镜像。
+    /// 内网发行版下载不应回退到第三方镜像。
     #[test]
-    fn download_sources_only_mirrors_with_digest() {
-        let url = "https://github.com/x/y/releases/download/v0.7.4/x.dmg";
+    fn download_sources_stay_on_wanglab_with_or_without_digest() {
+        let url = "https://seuwanglab.com/downloads/wanglab-harness-desktop/releases/v0.2.0/Wanglab.Harness.Desktop_0.2.0_x64-setup.exe";
         let base = LatestRelease {
-            version: "0.7.4".into(),
-            tag: "v0.7.4".into(),
+            version: "0.2.0".into(),
+            tag: "v0.2.0".into(),
             published_at: String::new(),
             url: url.into(),
-            asset_name: "x.dmg".into(),
+            asset_name: "Wanglab.Harness.Desktop_0.2.0_x64-setup.exe".into(),
             digest: None,
         };
-        // 无摘要 → 仅官方直连
         let without = download_sources(&base);
         assert_eq!(without.len(), 1);
         assert_eq!(without[0], url);
-        // 有摘要 → 官方 + 镜像
         let with_digest = LatestRelease {
             digest: Some(format!("sha256:{}", "b".repeat(64))),
             ..base.clone()
         };
         let sources = download_sources(&with_digest);
-        assert_eq!(sources.len(), 2);
-        assert!(
-            sources[1].contains("ghfast.top"),
-            "镜像应为 ghfast.top 前缀: {}",
-            sources[1]
-        );
-        assert!(
-            sources[1].ends_with("/releases/download/v0.7.4/x.dmg"),
-            "镜像保留完整资产路径: {}",
-            sources[1]
-        );
+        assert_eq!(sources, without);
     }
 
     /// 流式校验：正确的文件通过、错误的摘要拒绝，且不把整个文件读进内存。

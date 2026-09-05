@@ -7,6 +7,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useStore } from 'valtio-define'
 import { store } from '@/store'
+import { silence } from '@/utils/silence'
 import { Info } from './info'
 
 export interface DesktopAboutDialogProps extends PropsWithOverlays {}
@@ -38,7 +39,7 @@ export function DesktopAboutDialog(props: DesktopAboutDialogProps) {
                 <img src="/favicon.svg" alt={t('about.title')} className="w-12 h-12 rounded-md" />
 
                 <div className="text-base font-semibold text-ink">
-                  {about?.powered_by ?? 'Wanglab Harness Desktop'}
+                  {about?.poweredBy ?? t('about.title')}
                 </div>
                 <Description className="text-xs">
                   {t('about.slogan')}
@@ -46,7 +47,7 @@ export function DesktopAboutDialog(props: DesktopAboutDialogProps) {
               </div>
               <div className="space-y-1.5 border-t border-line/40 pt-3">
                 <Info term={t('ui.current_version')}>{about?.version ?? '-'}</Info>
-                <Info term={t('about.release_date')}>{about?.published_at ? formatDate(about.published_at) : '-'}</Info>
+                <Info term={t('about.release_date')}>{about?.publishedAt ? formatDate(about.publishedAt) : '-'}</Info>
                 <div className="flex items-center justify-between text-sm border-t border-line/40 pt-2 ">
                   <span className="text-muted">{t('about.source_code')}</span>
                   <Button
@@ -83,7 +84,8 @@ function formatDate(iso: string): string {
       return iso
     return d.toLocaleDateString()
   }
-  catch {
+  catch (e) {
+    silence(e, 'about dialog: date parsing failed, falling back to raw ISO')
     return iso
   }
 }

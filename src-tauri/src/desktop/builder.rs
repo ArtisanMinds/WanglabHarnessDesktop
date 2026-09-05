@@ -39,10 +39,11 @@ fn windows_drag_browser_args() -> &'static str {
 
 /// setup app
 pub fn setup(app_handle: tauri::AppHandle) {
-    // 升级清理：内部插件资源已迁至 resources/internal-plugins；旧安装可能保留
-    // resources/preset-plugins 目录。仅删除旧目录，失败告警并继续启动。
+    // 升级清理：内置插件已迁至 resources/node_modules（pnpm deploy 产物）；旧安装
+    // 可能残留 resources/preset-plugins 与 resources/internal-plugins 目录。仅删除
+    // 旧目录，失败告警并继续启动（查找回退见 preset::find_bundled_in_root）。
     if let Err(e) = crate::service::plugin::remove_legacy_bundled_plugins(&app_handle) {
-        log::warn!("legacy preset plugins cleanup skipped: {e}");
+        log::warn!("legacy bundled plugins cleanup skipped: {e}");
     }
 
     // 启动前清扫上次崩溃残留的孤儿 Harness（端口/PID 双重确认，见
@@ -69,6 +70,11 @@ pub fn setup(app_handle: tauri::AppHandle) {
     if let Err(e) = crate::service::migrate::heal_stale_pnpm_metadata(&dsh_home) {
         log::warn!("pnpm modules metadata self-heal skipped: {e}");
     }
+
+    // 首装档案引导：桌面端首次安装时，在任何 dsh 启动/插件操作之前新建独立的
+    // Desktop 档案并切换（与 CLI 用户既有插件/补丁隔离，见 service::profile）。
+    // 必须先于 scheduler/auto_start：引导失败时它们回落 web 档案的老行为。
+    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
 
     // 启动进程监控（tick 检测 dsh 服务状态）
     crate::service::scheduler::start(&app_handle);
@@ -374,7 +380,11 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
             directory
         })
         // WebView2 原生非客户区可直接接收触摸输入；同时禁用会抢占手势的弹性滚动。
-        .additional_browser_args(windows_drag_browser_args());
+        .additional_browser_args(windows_drag_browser_args())
+        // Windows 任务栏图标来源：窗口 .icon() > 可执行文件嵌入资源 > 系统默认。
+        // 未调用 .icon() 时任务栏显示系统默认图标；显式设置 default_window_icon
+        // 以在任务栏呈现与应用品牌一致的图标（macOS 用 TitleBar 无需此设置）。
+        .icon(app.default_window_icon().unwrap().clone())?;
 
     // macOS 保留原生交通灯：绿色按钮由 AppKit 进入独立 Space 的原生全屏，
     // 同时用 Overlay 让 44px 壳层导航栏继续与窗口 chrome 融合。其他平台
@@ -514,6 +524,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::launch_harness,
         crate::bridge::shutdown_harness,
         crate::bridge::restart_harness,
+        crate::bridge::enter_safe_mode,
         crate::bridge::get_dsh_status,
         crate::bridge::get_preinstall_plugins,
         crate::bridge::get_preinstall_pending,
@@ -529,6 +540,11 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::remove_dsh_plugin,
         crate::bridge::disable_dsh_plugin,
         crate::bridge::enable_dsh_plugin,
+        crate::bridge::snapshot_plugin,
+        crate::bridge::snapshot_plugins,
+        crate::bridge::get_plugin_backup,
+        crate::bridge::restore_plugin,
+        crate::bridge::delete_plugin_backup,
         crate::bridge::report_plugin_error,
         crate::bridge::detect_plugin_recovery,
         crate::bridge::recover_plugin,
@@ -573,6 +589,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::get_desktop_about,
         crate::bridge::open_external_url,
         crate::bridge::read_clipboard_image,
+        crate::bridge::write_clipboard_text,
         crate::desktop::notification::show_native_notification,
         crate::bridge::log_frontend,
     ]
@@ -583,6 +600,10 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
     let builder = tauri::Builder::default()
         .setup(|app| {
             let app_handle = app.handle().clone();
+            // 首装检测必须最先执行：窗口几何恢复/退出保存等任何 store 写入都会
+            // 创建 store 文件，判定晚于它们会把首装误判为升级（见
+            // config::detect_first_install 的时序说明）。
+            crate::config::detect_first_install(&app_handle);
             build_main_window(&app_handle)?;
             #[cfg(target_os = "macos")]
             install_macos_menu(&app_handle)?;
@@ -692,6 +713,4 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
         .plugin(tauri_plugin_fs::init())
         // Simple Store plugin
         .plugin(tauri_plugin_store::Builder::new().build())
-        // Clipboard plugin
-        .plugin(tauri_plugin_clipboard_manager::init())
 }
