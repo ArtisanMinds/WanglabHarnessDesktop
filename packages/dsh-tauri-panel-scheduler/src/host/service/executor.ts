@@ -64,10 +64,25 @@ interface SessionEventLike {
   readonly data: Record<string, any>
 }
 
+/**
+ * 无人值守工具白名单（对齐 MichengAI unattendedToolGuardReason，并按 dsh 0.1.0-rc.x
+ * standard 预设的实际模型工具目录补齐安全类别）。该列表只限制无人值守可调用的工具
+ * 类别；读写边界仍由已应用的 Host 权限预设（applyUnattendedPermission）决定。
+ *
+ * 刻意不放行的类别（fail-closed，缺省拒绝）：
+ *  - ask_user_question / exit_plan_mode：交互式人工应答/计划审批，无人值守没有应答方；
+ *  - create_worktree / checkout_worktree（dsh-tauri-worktree 插件）：工具契约要求用户
+ *    显式授权，本 guard 就是无人值守下的授权层；
+ *  - scheduler_*（本插件自注册工具）：防止无人值守任务增删改/触发自动化，形成自我
+ *    perpetuation 循环；
+ *  - MCP 等动态注册工具：静态白名单无法逐一核验，保持拒绝。
+ */
 const UNATTENDED_TOOL_ALLOWLIST = new Set([
+  // shell / 进程（run_in_background 由 guard 单独拦截）
   'run_code',
   'bash',
   'pwsh',
+  // 文件系统与检索
   'read',
   'read_image',
   'write',
@@ -76,14 +91,41 @@ const UNATTENDED_TOOL_ALLOWLIST = new Set([
   'glob',
   'grep',
   'lsp',
+  // web
   'web_search',
   'web_fetch',
+  // 技能
   'skill',
+  // 会话/事件检索（较新核心注册，前向兼容）
   'session_search',
   'session_trace',
   'session_event_read',
   'session_event_search',
   'session_event_trace',
+  // 会话内簿记：任务清单（session log 投影，要求 owning agent session，无宿主副作用）
+  'todo_write',
+  // 目标延续：长任务的多轮自主推进（dsh-tool-goal，会话内 goal 状态）
+  'get_goal',
+  'create_goal',
+  'update_goal',
+  // 后台任务收集/停止（agent 级 job 注册表按 owning agent 隔离）
+  'job_list',
+  'job_output',
+  'job_kill',
+  // 子代理委派与编排（agent 级，受运行超时/取消约束，非 OS 后台进程）
+  'list_subagent_models',
+  'subagent',
+  'subagent_fork',
+  'send_message',
+  'list_agents',
+  'interrupt_agent',
+  'workflow',
+  'ralph',
+  // cordis 预设任务的组合管理（agentPreset 可选 cordis）
+  'cordis_define',
+  'cordis_run',
+  'cordis_stop',
+  'cordis_undefine',
 ])
 
 const CANCEL_CONVERGENCE_TIMEOUT_MS = 10_000
