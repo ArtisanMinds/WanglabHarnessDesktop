@@ -38,9 +38,7 @@ const PET_WINDOW_BOTTOM_PAD: f64 = 10.0;
 /// 顶栏 Toast 区的最小窗口宽度（逻辑像素）：桌宠较小时仍保证气泡可读，
 /// 与 pet WebView 的 PET_BUBBLE_MIN_WIDTH 保持一致。
 const PET_WINDOW_MIN_WIDTH: f64 = 420.0;
-/// 内置宠物的 id（与 bridge 的 DEFAULT_ACTIVE_PET_ID 一致）；用于判断资源画布比例。
-const PET_BUILTIN_ID: &str = "maid-deepseek-whale";
-/// 内置 WebM 画布 16:9（高/宽 = 9/16），与 pet WebView 的内置画布比例保持一致。
+/// 预设 WebM 画布 16:9（高/宽 = 9/16），与 dsh-pet 协议画布比例保持一致。
 const PET_BUILTIN_ASPECT: f64 = 9.0 / 16.0;
 /// 自定义 Codex v2 精灵图默认 8x11 的 192x208 比例；实际比例以前端加载后为准，
 /// 这里仅作为窗口初始/DPI 尺寸的近似，避免与前端内置画布比例互相打架。
@@ -124,9 +122,10 @@ pub fn get_pet_size_percent<R: Runtime>(app: &AppHandle<R>) -> f64 {
         .clamp(PET_SIZE_MIN_PERCENT, PET_SIZE_MAX_PERCENT)
 }
 
-/// 当前激活宠物使用的画布比例（高度/宽度）：内置 WebM 固定 9/16，自定义精灵图用
-/// 208/192 作为窗口初始/DPI 尺寸的近似。真正的自定义比例由前端加载后修正，因此这
-/// 里不再把 208/192 硬编码给所有宠物，避免窗口大小的两个来源互相冲突。
+/// 当前激活宠物使用的画布比例（高度/宽度）：预设 WebM（未限定 id）固定 9/16，
+/// 自定义精灵图（chat:/codex: 来源限定 id）用 208/192 作为窗口初始/DPI 尺寸的近似。
+/// 真正的自定义比例由前端加载后修正，因此这里不再把 208/192 硬编码给所有宠物，
+/// 避免窗口大小的两个来源互相冲突。
 pub fn pet_window_aspect<R: Runtime>(app: &AppHandle<R>) -> f64 {
     let setting = crate::config::get_store_dat_setting(app);
     let active = setting
@@ -134,7 +133,8 @@ pub fn pet_window_aspect<R: Runtime>(app: &AppHandle<R>) -> f64 {
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    if active.map(|value| value == PET_BUILTIN_ID).unwrap_or(true) {
+    // 来源限定 id（chat:/codex:）是自定义精灵图；未限定 id（预设宠物）用 WebM 9/16。
+    if active.map(|value| !value.contains(':')).unwrap_or(true) {
         PET_BUILTIN_ASPECT
     } else {
         PET_CUSTOM_ASPECT
@@ -467,19 +467,20 @@ mod tests {
 
     #[test]
     fn pet_window_aspect_matches_builtin_and_custom() {
-        // 未设置 / 空白 / 内置 id 都走内置 16:9 比例；来源限定 id 走自定义图集比例。
+        // 未设置 / 空白 / 未限定 id（预设 WebM）都走内置 16:9 比例；
+        // 来源限定 id（chat:/codex:）走自定义图集比例。
         // 使用一个真实 AppHandle 才能读设置，这里仅验证比例常量与归一化分支的纯逻辑。
         assert_eq!(PET_BUILTIN_ASPECT, 9.0 / 16.0);
         assert_eq!(PET_CUSTOM_ASPECT, 208.0 / 192.0);
-        assert_eq!(PET_BUILTIN_ID, "maid-deepseek-whale");
         let is_builtin = |active: Option<&str>| {
             active.map(str::trim).filter(|v| !v.is_empty())
-                .map(|v| v == PET_BUILTIN_ID)
+                .map(|v| !v.contains(':'))
                 .unwrap_or(true)
         };
         assert!(is_builtin(None));
         assert!(is_builtin(Some("   ")));
         assert!(is_builtin(Some("maid-deepseek-whale")));
+        assert!(is_builtin(Some("another-preset")));
         assert!(!is_builtin(Some("codex:blue_whale")));
         assert!(!is_builtin(Some("chat:cat")));
     }

@@ -1,11 +1,11 @@
 import type { PetCategory, PetWeights } from './pet-config'
 import { describe, expect, it, vi } from 'vitest'
 import {
-
   pick,
   pickCategoryAction,
   pickWeightedCategory,
   poolEntryToStatus,
+  resolvePresetName,
   rollKind,
 } from './pet-config'
 
@@ -97,5 +97,57 @@ describe('poolEntryToStatus', () => {
     expect(poolEntryToStatus('idle')).toBe('idle')
     expect(poolEntryToStatus('bubble')).toBe('bubble')
     expect(poolEntryToStatus('turn')).toBe('turn')
+  })
+})
+
+describe('resolvePresetName', () => {
+  const pools = {
+    idlePool: ['待机呼吸休闲'],
+    turnPool: ['东张西望'],
+    dragPool: ['被鼠标拖拽悬空反馈'],
+    clicksPool: ['点击回应-开心跃动', '点击回应-元气挥手'],
+  } as const
+  const assets: Record<string, string> = {
+    '待机呼吸休闲': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E5%BE%85.webm',
+    '东张西望': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E4%B8%9C.webm',
+    '被鼠标拖拽悬空反馈': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E8%A2%AB.webm',
+    '点击回应-开心跃动': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E5%BC%80.webm',
+    // DSH 会话状态叠加映射名（与旧内置 maid-*.webm 一一对应）
+    '深度思考碎碎念': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E6%B7%B1.webm',
+    '写代码': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E5%86%99.webm',
+    '轻快记录': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E8%BD%BB.webm',
+    '玩游戏气急败坏': 'dsh-pet://localhost/maid-deepseek-whale/webm/%E6%B0%94.webm',
+  }
+
+  it('returns the asset name directly when activity is already a playable name', () => {
+    expect(resolvePresetName('待机呼吸休闲', pools, assets)).toBe('待机呼吸休闲')
+    expect(resolvePresetName('点击回应-开心跃动', pools, assets)).toBe('点击回应-开心跃动')
+  })
+
+  it('maps statuses to their protocol pools', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.0)
+    expect(resolvePresetName('idle', pools, assets)).toBe('待机呼吸休闲')
+    expect(resolvePresetName('turn', pools, assets)).toBe('东张西望')
+    expect(resolvePresetName('dragging', pools, assets)).toBe('被鼠标拖拽悬空反馈')
+    expect(resolvePresetName('waving', pools, assets)).toBe('点击回应-开心跃动')
+    vi.restoreAllMocks()
+  })
+
+  it('maps session statuses to the DSH overlay animation names', () => {
+    expect(resolvePresetName('waiting', pools, assets)).toBe('深度思考碎碎念')
+    expect(resolvePresetName('running', pools, assets)).toBe('写代码')
+    expect(resolvePresetName('review', pools, assets)).toBe('轻快记录')
+    expect(resolvePresetName('failed', pools, assets)).toBe('玩游戏气急败坏')
+  })
+
+  it('returns null for session statuses whose overlay asset is missing', () => {
+    const partial: Record<string, string> = { 待机呼吸休闲: 'x.webm' }
+    expect(resolvePresetName('running', pools, partial)).toBeNull()
+    expect(resolvePresetName('bubble', pools, partial)).toBeNull()
+  })
+
+  it('returns null when the pool entry is not backed by an asset', () => {
+    expect(resolvePresetName('idle', { ...pools, idlePool: ['不存在.webm'] }, assets)).toBeNull()
+    expect(resolvePresetName('idle', { ...pools, idlePool: [] }, assets)).toBeNull()
   })
 })

@@ -1,12 +1,13 @@
 /**
- * pet-config.ts — 内置桌宠配置（dsh-pet assets/config.jsonc 协议）的纯逻辑层。
+ * pet-config.ts — 预设桌宠配置（dsh-pet assets/config.jsonc 协议）的纯逻辑层。
  *
- * 配置由 Rust 从 dsh-tauri-pet 包 assets/config.jsonc 读取、剥注释并校验后经
- * `get_builtin_pet_config` 命令返回（字段形状 = 子仓库 dsh-pet assets/config.jsonc
- * 协议的受支持子集，动画池条目 = 内置资产键白名单）。本模块只做两件事：
+ * 配置由 Rust 从 ~/.dsh/pets/<id>/config.jsonc 读取、剥注释并校验后经
+ * `get_preset_pet_config` 命令返回（字段形状 = 子仓库 dsh-pet assets/config.jsonc
+ * 协议的受支持子集，动画池条目 = 动画名 = webm 文件名主名）。本模块只做两件事：
  * 1. 类型收敛：把命令返回值声明成可直接消费的结构；
  * 2. 权重掷骰：移植 dsh-pet src/shared/pickers.ts 的 rollKind / pickWeightedCategory /
- *    pickCategoryAction（DSH 无自动漫游，move 档由调用方决定保持待机，不在本模块移动窗口）。
+ *    pickCategoryAction（DSH 无自动漫游，move 档由调用方决定保持待机，不在本模块移动窗口），
+ *    以及按播放状态解析实际动画名（resolvePresetName）。
  * 无 React / DOM / Tauri 依赖，可独立单测。
  */
 
@@ -119,4 +120,59 @@ export function pickCategoryAction(
  */
 export function poolEntryToStatus(entry: string): string {
   return entry === 'wave' ? 'waving' : entry
+}
+
+/**
+ * DSH 会话状态 → dsh-pet 动画名（webm 文件名主名）的叠加映射。
+ *
+ * dsh-pet 协议（config.jsonc）只有 idle/turn/drag/clicks/moves/categories/events 池，
+ * 没有 waiting/running/review/failed/bubble 这些 DSH 会话状态的对应池。这些动画文件
+ * 在预设资产里真实存在（与旧内置 maid-*.webm 按字节一一对应，见 pet.todo.md 4.0），
+ * 由本表把会话状态映射到具体文件名：running 循环写代码、waiting 深度思考碎碎念、
+ * review 轻快记录、failed 玩游戏气急败坏、bubble 鲸鱼吐泡泡特效。
+ * 资产缺失时 resolvePresetName 仍返回 null（调用方保持当前动画，不做静默兜底）。
+ */
+export const PRESET_SESSION_ANIMATIONS: Record<string, string> = {
+  waiting: '深度思考碎碎念',
+  running: '写代码',
+  review: '轻快记录',
+  failed: '玩游戏气急败坏',
+  bubble: '鲸鱼吐泡泡特效',
+}
+
+/**
+ * 预设宠物：把播放状态解析为实际动画名（webm 文件名主名，如 待机呼吸休闲）。
+ * - 活动名本身就是可播放动画名（adHoc 池条目 / 会话状态映射名）时直接命中资产；
+ * - 会话状态（waiting/running/review/failed/bubble）经 PRESET_SESSION_ANIMATIONS
+ *   叠加映射到具体动画名；映射名没有对应资产时返回 null（保持当前动画）；
+ * - 状态档（idle/dragging/turn/waving）从对应池等概率抽一个名字。
+ */
+export function resolvePresetName(
+  activity: string,
+  pools: {
+    idlePool: readonly string[]
+    turnPool: readonly string[]
+    dragPool: readonly string[]
+    clicksPool: readonly string[]
+  },
+  assets: Record<string, string>,
+): string | null {
+  if (assets[activity] !== undefined)
+    return activity
+  const sessionName = PRESET_SESSION_ANIMATIONS[activity]
+  if (sessionName !== undefined && assets[sessionName] !== undefined)
+    return sessionName
+  const pool = activity === 'idle'
+    ? pools.idlePool
+    : activity === 'dragging'
+      ? pools.dragPool
+      : activity === 'turn'
+        ? pools.turnPool
+        : activity === 'waving'
+          ? pools.clicksPool
+          : null
+  if (pool === null || pool.length === 0)
+    return null
+  const name = pick(pool)
+  return assets[name] !== undefined ? name : null
 }

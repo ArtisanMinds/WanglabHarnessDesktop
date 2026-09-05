@@ -595,8 +595,11 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::list_pets,
         crate::bridge::import_pet,
         crate::bridge::get_pet_asset,
-        crate::bridge::get_builtin_pet_assets,
-        crate::bridge::get_builtin_pet_config,
+        crate::bridge::preset_pet::get_preset_pet_config,
+        crate::bridge::preset_pet::get_preset_pet_assets,
+        crate::bridge::list_preset_pets,
+        crate::bridge::download_preset_pet,
+        crate::bridge::get_preset_download_progress,
         crate::desktop::pet_mouse::start_pet_mouse_stream,
     ]
 }
@@ -609,7 +612,7 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             let app = context.app_handle().clone();
             let label = context.webview_label().to_owned();
             std::thread::spawn(move || {
-                responder.respond(crate::bridge::builtin_pet_asset_response(&app, &label, request));
+                responder.respond(crate::bridge::preset_pet::preset_pet_asset_response(&app, &label, request));
             });
         })
         .setup(|app| {
