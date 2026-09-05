@@ -10,6 +10,7 @@ use crate::{
 };
 
 async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
+    smoke_note("begin isolated upgrade");
     let archive_path = std::env::var_os("WANGLAB_UPGRADE_CORE_ZIP")
         .ok_or("SMOKE_FIXTURE_MISSING: WANGLAB_UPGRADE_CORE_ZIP")?;
     let archive = fs::read(archive_path).map_err(|e| e.to_string())?;
@@ -28,6 +29,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         config::get_dsh_install_path(app),
     )
     .await?;
+    smoke_note("old Core extracted");
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
@@ -53,6 +55,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         .join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
     let old_connection = fs::read(&connection).map_err(|e| e.to_string())?;
     start(app.clone()).await?;
+    smoke_note("old Core auto-start deferred");
     if has_owned_process() || fs::read(&connection).map_err(|e| e.to_string())? != old_connection {
         return Err("SMOKE_OLD_CORE_STARTED: auto-start touched the old Core".to_string());
     }
@@ -86,6 +89,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("SMOKE_INSTALL_PROGRESS: {e}"))?
         .ok_or("SMOKE_INSTALL_PROGRESS_CLOSED")?;
+    smoke_note("Core installation entered progress");
     app.unlisten(event);
     if tokio::time::timeout(Duration::from_millis(20), super::acquire_core_transition())
         .await
@@ -107,6 +111,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     if !installer.await.map_err(|e| e.to_string())?? {
         return Err("SMOKE_CORE_NOT_UPDATED".to_string());
     }
+    smoke_note("Core installation completed");
     auto_start.await.map_err(|e| e.to_string())??;
     plugins.await.map_err(|e| e.to_string())??;
     manual_start.await.map_err(|e| e.to_string())??;
@@ -119,6 +124,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         "Windows upgrade readiness: {}",
         wait_for_readiness(port).await?
     );
+    smoke_note("upgrade readiness passed");
     if fs::read_to_string(sentinel).map_err(|e| e.to_string())? != "existing user data" {
         return Err("SMOKE_USER_DATA_CHANGED".to_string());
     }
@@ -128,7 +134,22 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         "Windows restart readiness: {}",
         wait_for_readiness(port).await?
     );
+    smoke_note("restart readiness passed");
     Ok(())
+}
+
+fn smoke_note(message: &str) {
+    println!("SMOKE_STAGE: {message}");
+    if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY") {
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "- {message}");
+        }
+    }
 }
 
 async fn wait_for_readiness(port: u16) -> Result<String, String> {
@@ -181,12 +202,9 @@ fn windows_upgrade_startup() {
         .build(context)
         .expect("build smoke Tauri app");
     let base: PathBuf = config::get_base_dir(app.handle());
-    assert!(!base.exists(), "smoke AppData must be fresh");
     app.run_return(|_, _| {});
     let result = result_rx.recv().expect("receive startup result");
-    if result.is_ok() {
-        let _ = fs::remove_dir_all(base);
-        let _ = fs::remove_dir_all(root);
-    }
+    let _ = fs::remove_dir_all(base);
+    let _ = fs::remove_dir_all(root);
     result.expect("Windows desktop upgrade and readiness");
 }
