@@ -23,12 +23,18 @@ export const placements = [
   'bottom end',
 ] as const
 
+/**
+ * 单个 placement 同时存在的 toast 上限：渲染层（maxVisibleToasts）与丢弃层
+ * （placementKeys 超限关最旧）共用同一数值。
+ */
+const MAX_VISIBLE_TOASTS = 3
+
 export const queues = Object.fromEntries(
-  placements.map(p => [p, new ToastQueue({ maxVisibleToasts: 3 })]),
+  placements.map(p => [p, new ToastQueue({ maxVisibleToasts: MAX_VISIBLE_TOASTS })]),
 ) as Record<Placement, ToastQueue>
 
 const linuxQueues = Object.fromEntries(
-  placements.map(p => [p, new ToastQueue({ maxVisibleToasts: 3, wrapUpdate: fn => fn() })]),
+  placements.map(p => [p, new ToastQueue({ maxVisibleToasts: MAX_VISIBLE_TOASTS, wrapUpdate: fn => fn() })]),
 ) as Record<Placement, ToastQueue>
 
 export const activeQueues = navigator.platform.toLowerCase().includes('linux')
@@ -37,6 +43,29 @@ export const activeQueues = navigator.platform.toLowerCase().includes('linux')
 
 const toastContents = new Map<string, ToastContentValue>()
 const placementsKeys = new Map<string, Placement>()
+/**
+ * 每个 placement 的存活 key（按创建顺序，旧→新）。stately queue 对超出
+ * maxVisibleToasts 的条目只做「窗口外排队、等旧条目关闭后复现」，常驻
+ * （timeout: 0）气泡会无限积压并在旧气泡关闭时复现；这里在新 toast 入队后
+ * 直接关闭最旧的条目，保证任何时刻只存在最新的 MAX_VISIBLE_TOASTS 条。
+ */
+const placementOrder = new Map<Placement, string[]>()
+
+function forgetKey(key: string): void {
+  toastContents.delete(key)
+  const placement = placementsKeys.get(key)
+  placementsKeys.delete(key)
+  if (placement === undefined)
+    return
+  const order = placementOrder.get(placement)
+  if (order === undefined)
+    return
+  const index = order.indexOf(key)
+  if (index >= 0)
+    order.splice(index, 1)
+  if (order.length === 0)
+    placementOrder.delete(placement)
+}
 
 /**
  * 统一 toast API：直接调用创建，toast.update/close/clear 通过 key 管理。
@@ -47,18 +76,26 @@ export const toast = Object.assign(
   (message: string | ReactNode, options?: ToastOptions) => {
     // 默认右下角；个别调用方需要其他位置时显式传 placement
     const { placement = 'bottom end', timeout, onClose, ...rest } = options || {}
-    let key = ''
     const content = { title: message, ...rest }
-    key = activeQueues[placement].add(content, {
+    const key = activeQueues[placement].add(content, {
       timeout,
       onClose: () => {
-        toastContents.delete(key)
-        placementsKeys.delete(key)
+        // 自动超时 / 用户关闭 / 外部 close 都会走到这里（HeroUI 包了一层 rAF 异步）
+        forgetKey(key)
         onClose?.()
       },
     })
     toastContents.set(key, content)
     placementsKeys.set(key, placement)
+    const order = placementOrder.get(placement) ?? []
+    order.push(key)
+    placementOrder.set(placement, order)
+    // 丢弃超出上限的最旧条目（含 rAF 清理延迟期内的死 key），维持「仅最新 N 条」
+    while (order.length > MAX_VISIBLE_TOASTS) {
+      const oldest = order.shift()
+      if (oldest !== undefined)
+        activeQueues[placement].close(oldest)
+    }
     return key
   },
   {
@@ -71,15 +108,20 @@ export const toast = Object.assign(
 
     close(key: string): void {
       const placement = placementsKeys.get(key)
-      if (placement)
+      if (placement) {
         activeQueues[placement].close(key)
-      else
+        // onClose 是 rAF 异步回调，这里同步清理登记，紧随其后的 add 不会把死 key 计入限额
+        forgetKey(key)
+      }
+      else {
         toastContents.delete(key)
+      }
     },
 
     clear(): void {
       toastContents.clear()
       placementsKeys.clear()
+      placementOrder.clear()
       placements.forEach(p => activeQueues[p].clear())
     },
   },

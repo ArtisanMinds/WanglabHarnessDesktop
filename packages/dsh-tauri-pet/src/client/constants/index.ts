@@ -40,3 +40,15 @@ export const PET_DEFAULT_SIZE = 100
 export const PET_SIZE_MIN = 50
 export const PET_SIZE_MAX = 200
 export const PET_SIZE_STEP = 5
+
+/** 实时活动折叠：流式 delta 事件逐 token 触发，按会话做 trailing 节流合并推送。 */
+export const PET_ACTIVITY_THROTTLE_MS = 300
+/** 思考文本只保留尾部窗口：展示「最新思考内容」，同时限制跨窗口传输体积。 */
+export const PET_REASONING_TAIL_LENGTH = 160
+
+/** dsh 会话事件词汇表（@deepseek-ai/dsh-session KNOWN_SESSION_EVENT_TYPES）中实时活动折叠用到的类型。 */
+export const SESSION_EVENT_ASSISTANT_CHUNK = 'assistant/chunk'
+export const SESSION_EVENT_TOOL_CALL = 'tool/call'
+export const SESSION_EVENT_TOOL_RESULT = 'tool/result'
+export const SESSION_EVENT_STEP_START = 'step/start'
+export const SESSION_EVENT_TURN_END = 'turn/end'

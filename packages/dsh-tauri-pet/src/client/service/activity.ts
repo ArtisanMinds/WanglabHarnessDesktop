@@ -1,12 +1,25 @@
 import type { ClientContext } from 'dsh-tauri/client'
+import type { SessionLiveActivity } from '../types'
 import { createLifecycleController } from 'dsh-tauri/client'
+import { PET_ACTIVITY_THROTTLE_MS } from '../constants'
+import { foldSessionActivity } from '../utils/activity'
 import { toTransferable } from '../utils/transferable'
 import { pushPetSession } from './pet'
 
 type SessionAction = 'create' | 'update' | 'remove'
 
+/**
+ * rc.2+ 会话 binding 附带的事件窗口（MutableSessionEventSource，service.js 组装
+ * binding 时挂在 eventSource 字段）；alpha 运行时缺失，必须探测使用。
+ */
+interface RawSessionEventSource {
+  getSnapshot: () => { entries: readonly unknown[] }
+  subscribe: (listener: () => void) => () => void
+}
+
 interface RawSessionBinding {
   sessionId: string
+  eventSource?: RawSessionEventSource
   session: {
     getSnapshot: () => unknown
     subscribe: (listener: () => void) => () => void
@@ -24,13 +37,24 @@ interface RawSessions {
   binding: (id: string) => RawSessionBinding | undefined
 }
 
+/** 每个已绑定会话的观察状态：订阅清理 + 折叠出的实时活动 + 节流定时器。 */
+interface SessionWatch {
+  disposers: Array<() => void>
+  /** 事件窗口折叠结果；undefined 表示该会话无事件窗口（alpha），null 表示当前无活动 */
+  activity?: SessionLiveActivity | null
+  activityTimer?: ReturnType<typeof setTimeout>
+}
+
 /**
  * 将 DSH 会话原始快照按生命周期推送给桌宠窗口，不生成宠物专用 projection。
+ * rc.2+ 会话额外订阅事件窗口（binding.eventSource）：流式 delta 逐 token 触发，
+ * 按会话做 trailing 节流，到期时按当前窗口重算实时活动（进行中的工具调用 /
+ * 思考流）并以 liveActivity 字段并入快照；alpha 缺失事件窗口时退级为纯快照转发。
  */
 export function installPetSessionForwarder(ctx: ClientContext): void {
   ctx.effect(() => {
     const controller = createLifecycleController()
-    const disposers = new Map<string, () => void>()
+    const watches = new Map<string, SessionWatch>()
     const known = new Set<string>()
     let disposed = false
 
@@ -53,7 +77,36 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
       const value = snapshot && typeof snapshot === 'object'
         ? snapshot as Record<string, unknown>
         : { value: snapshot }
-      return { id: binding.sessionId, ...(summary ?? {}), ...value }
+      const merged: Record<string, unknown> = { id: binding.sessionId, ...(summary ?? {}), ...value }
+      // 仅在探测到事件窗口的会话上附带 liveActivity；null 也是有效值（清除过期活动展示）
+      const watch = watches.get(id)
+      if (watch?.activity !== undefined)
+        merged.liveActivity = watch.activity
+      return merged
+    }
+
+    /** 订阅事件窗口：这里只做 trailing 节流，到期时按当前窗口整体重算一次，一次突发只推送一帧。 */
+    function attachEventSource(id: string, binding: RawSessionBinding, watch: SessionWatch): void {
+      const source = binding.eventSource
+      if (source === undefined || typeof source.getSnapshot !== 'function' || typeof source.subscribe !== 'function')
+        return
+      // 绑定即折叠一次，create 帧就携带已运行会话的实时活动
+      watch.activity = foldSessionActivity(source.getSnapshot().entries)
+      watch.disposers.push(source.subscribe(() => {
+        if (disposed || watches.get(id) !== watch || watch.activityTimer !== undefined)
+          return
+        watch.activityTimer = globalThis.setTimeout(() => {
+          watch.activityTimer = undefined
+          watch.activity = foldSessionActivity(source.getSnapshot().entries)
+          emit('update', snapshotOf(id, binding))
+        }, PET_ACTIVITY_THROTTLE_MS)
+      }))
+      watch.disposers.push(() => {
+        if (watch.activityTimer !== undefined) {
+          globalThis.clearTimeout(watch.activityTimer)
+          watch.activityTimer = undefined
+        }
+      })
     }
 
     function bind(id: string, action: SessionAction): void {
@@ -62,8 +115,20 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
         emit(action, { id })
         return
       }
+      const watch: SessionWatch = { disposers: [] }
+      watches.set(id, watch)
+      attachEventSource(id, binding, watch)
       emit(action, snapshotOf(id, binding))
-      disposers.set(id, binding.session.subscribe(() => emit('update', snapshotOf(id, binding))))
+      watch.disposers.push(binding.session.subscribe(() => emit('update', snapshotOf(id, binding))))
+    }
+
+    function unbind(id: string): void {
+      const watch = watches.get(id)
+      if (watch === undefined)
+        return
+      for (const dispose of watch.disposers)
+        dispose()
+      watches.delete(id)
     }
 
     function sync(): void {
@@ -71,8 +136,7 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
       const ids = new Set(list.ids)
       for (const id of known) {
         if (!ids.has(id)) {
-          disposers.get(id)?.()
-          disposers.delete(id)
+          unbind(id)
           emit('remove', { id })
         }
       }
@@ -83,7 +147,7 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
             bind(id, 'create')
           continue
         }
-        if (disposers.has(id))
+        if (watches.has(id))
           emit('update', snapshotOf(id, binding))
         else
           bind(id, known.has(id) ? 'update' : 'create')
@@ -98,9 +162,8 @@ export function installPetSessionForwarder(ctx: ClientContext): void {
     controller.add(() => globalThis.clearInterval(retryTimer))
     controller.add(() => {
       disposed = true
-      for (const dispose of disposers.values())
-        dispose()
-      disposers.clear()
+      for (const id of [...watches.keys()])
+        unbind(id)
       known.clear()
     })
     sync()
