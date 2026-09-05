@@ -17,14 +17,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::fs;
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{Cursor, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{
-    http::{header::CONTENT_LENGTH, Method, Request, Response, StatusCode},
-    AppHandle, Emitter, Manager,
-};
+use tauri::{AppHandle, Emitter, Manager};
 use zip::ZipArchive;
 
 /// 宠物大小百分比合法区间（精灵图缩放 50%–200%，与插件设置页滑条一致）。
@@ -49,39 +46,6 @@ const PET_SPRITE_ROWS: u8 = 11;
 
 /// 设置变化推送给 pet 窗口的事件名；会话生命周期使用 `session:*` 事件。
 pub const PET_STATUS_EVENT: &str = "pet://status";
-
-/// 内置宠物协议配置文件（JSONC）：dsh-tauri-pet 包 assets/config.jsonc，
-/// 结构对齐子仓库 dsh-pet 的 assets/config.jsonc（animations / animationWeights /
-/// pets / physics / eventsRefreshSec）。只读、白名单限定，运行时按需解析。
-const BUILTIN_CONFIG_FILE: &str = "config.jsonc";
-/// 内置配置的最大体积（与清单同一档位的受限读取上限）。
-const PET_CONFIG_MAX_BYTES: u64 = 256 * 1024;
-
-#[cfg(target_os = "windows")]
-const BUILTIN_ASSET_ORIGIN: &str = "http://dsh-pet.localhost";
-#[cfg(not(target_os = "windows"))]
-const BUILTIN_ASSET_ORIGIN: &str = "dsh-pet://localhost";
-
-/// 内置宠物媒体的固定白名单；资源所有权属于 dsh-tauri-pet 包，不能由前端源码
-/// 相对路径直接注入桌面 bundle。
-const BUILTIN_ASSET_NAMES: &[(&str, &str)] = &[
-    ("idle", "maid-idle.webm"),
-    ("turn", "maid-turn.webm"),
-    ("move", "maid-move.webm"),
-    ("drag", "maid-drag.webm"),
-    ("wave", "maid-wave.webm"),
-    ("waiting", "maid-waiting.webm"),
-    ("running", "maid-running.webm"),
-    ("review", "maid-review.webm"),
-    ("failed", "maid-failed.webm"),
-    ("bubble", "maid-bubble.webm"),
-    ("fallback", "maid-deepseek-whale.gif"),
-];
-
-#[derive(Debug, Clone, Serialize)]
-pub struct BuiltinPetAssets {
-    pub assets: std::collections::BTreeMap<String, String>,
-}
 
 /// 只驻留当前进程的可见性；会话动作和 Toast 完全由 pet WebView 管理。
 #[derive(Debug, Clone)]
@@ -177,11 +141,15 @@ pub struct PetAsset {
 }
 
 /// 将缺省、旧版未限定 id 或非法选择归一化为内置默认宠物的精确 id。
+/// 合法值：默认宠物 id、预设宠物 id（~/.dsh/pets 目录，安全字符集）或来源限定 id。
 fn normalize_active_pet(active_pet: Option<&str>) -> String {
     let Some(id) = active_pet.map(str::trim).filter(|id| !id.is_empty()) else {
         return DEFAULT_ACTIVE_PET_ID.to_string();
     };
-    if id == DEFAULT_ACTIVE_PET_ID || parse_qualified_id(id).is_ok() {
+    if id == DEFAULT_ACTIVE_PET_ID
+        || crate::bridge::preset_pet::safe_preset_id(id)
+        || parse_qualified_id(id).is_ok()
+    {
         id.to_string()
     } else {
         DEFAULT_ACTIVE_PET_ID.to_string()
@@ -379,8 +347,9 @@ fn parse_qualified_id(id: &str) -> Result<(PetSource, &str), String> {
     Ok((source, manifest_id))
 }
 
+/// 校验激活宠物 id：默认宠物、预设宠物（安全字符集）或来源限定 id。
 fn validate_active_pet_id(id: &str) -> Result<(), String> {
-    if id == DEFAULT_ACTIVE_PET_ID {
+    if id == DEFAULT_ACTIVE_PET_ID || crate::bridge::preset_pet::safe_preset_id(id) {
         return Ok(());
     }
     parse_qualified_id(id).map(|_| ())
@@ -630,422 +599,6 @@ fn find_pet_directory(
         }
     }
     Ok(None)
-}
-
-fn builtin_asset_file(name: &str) -> Option<(&'static str, &'static str)> {
-    BUILTIN_ASSET_NAMES
-        .iter()
-        .find(|(key, file)| *key == name || *file == name)
-        .map(|(_, file)| {
-            let mime = if file.ends_with(".webm") {
-                "video/webm"
-            } else {
-                "image/gif"
-            };
-            (*file, mime)
-        })
-}
-
-/// 内置资源目录（canonicalize 后）的进程级缓存。
-///
-/// `dsh-pet://` 协议对每个视频的加载请求都会走 `resolve_builtin_asset_path`，
-/// 而 debug 构建下 `bundled_plugin_dir` 每次都会全量重扫 `packages/*` 并解析
-/// 每个包的 package.json（`discover_dev_internal_plugins`），11 个内置资产 +
-/// config 的几十次请求会把初次加载拖慢到数秒~20 秒；内置资源运行期只读且目录
-/// 结构固定（首装后不变），缓存一次即可。
-fn builtin_assets_root(app: &AppHandle) -> Result<&'static PathBuf, String> {
-    static ROOT: OnceLock<Result<PathBuf, String>> = OnceLock::new();
-    ROOT.get_or_init(|| {
-        let plugin = match crate::service::plugin::bundled_plugin_dir(app, "dsh-tauri-pet") {
-            Some(plugin) => plugin,
-            None => {
-                return Err("PET_BUILTIN_ASSET_NOT_FOUND: dsh-tauri-pet is not deployed".to_string())
-            }
-        };
-        plugin.join("assets").canonicalize().map_err(|error| {
-            format!("PET_BUILTIN_ASSET_ROOT_FAILED: failed to resolve assets directory: {error}")
-        })
-    })
-    .as_ref()
-    .map_err(|error| error.clone())
-}
-
-fn resolve_builtin_asset_path(app: &AppHandle, file: &str) -> Result<PathBuf, String> {
-    let assets_root = builtin_assets_root(app)?;
-    let candidate = assets_root.join(file);
-    let link_metadata = fs::symlink_metadata(&candidate).map_err(|error| {
-        format!("PET_BUILTIN_ASSET_READ_FAILED: failed to inspect {}: {error}", candidate.display())
-    })?;
-    if link_metadata.file_type().is_symlink() || !link_metadata.is_file() {
-        return Err(format!(
-            "PET_BUILTIN_ASSET_INVALID: {} is not a regular file",
-            candidate.display()
-        ));
-    }
-    let resolved = candidate.canonicalize().map_err(|error| {
-        format!("PET_BUILTIN_ASSET_READ_FAILED: failed to resolve {}: {error}", candidate.display())
-    })?;
-    if !resolved.starts_with(&assets_root) {
-        return Err("PET_BUILTIN_ASSET_INVALID: asset escapes dsh-tauri-pet/assets".to_string());
-    }
-    let metadata = fs::metadata(&resolved).map_err(|error| {
-        format!("PET_BUILTIN_ASSET_READ_FAILED: failed to inspect {}: {error}", resolved.display())
-    })?;
-    if !metadata.is_file() {
-        return Err(format!(
-            "PET_BUILTIN_ASSET_INVALID: {} is not a regular file",
-            resolved.display()
-        ));
-    }
-    if metadata.len() > PET_SPRITESHEET_MAX_BYTES {
-        return Err(format!(
-            "PET_BUILTIN_ASSET_TOO_LARGE: {} exceeds {PET_SPRITESHEET_MAX_BYTES} bytes",
-            resolved.display()
-        ));
-    }
-    Ok(resolved)
-}
-
-fn protocol_error(status: StatusCode, error: &str) -> Response<Vec<u8>> {
-    log::warn!("{error}");
-    Response::builder()
-        .status(status)
-        .header("Content-Type", "text/plain; charset=utf-8")
-        .body(error.as_bytes().to_vec())
-        .unwrap()
-}
-
-/// 从不同平台的自定义协议请求路径中提取单一资源名。Windows WebView 有时会
-/// 把 authority 规范化进 path（`/localhost/idle`），因此这里兼容该表示，仍只
-/// 接受固定白名单，不能借此访问任意目录。
-fn builtin_asset_name(path: &str) -> Option<&str> {
-    let path = path.trim_matches('/');
-    let name = path.strip_prefix("localhost/").unwrap_or(path);
-    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains(':') || name.contains("..") {
-        return None;
-    }
-    Some(name)
-}
-
-/// 受控内置媒体的 URL manifest；实际字节由 dsh-pet 协议按需流式提供。
-#[tauri::command]
-pub fn get_builtin_pet_assets() -> BuiltinPetAssets {
-    let assets = BUILTIN_ASSET_NAMES
-        .iter()
-        .map(|(key, file)| ((*key).to_string(), format!("{BUILTIN_ASSET_ORIGIN}/{file}")))
-        .collect();
-    BuiltinPetAssets { assets }
-}
-
-/// 剥除 JSONC 注释（行注释 // 与块注释 /* */），保留字符串字面量原样。
-/// 与子仓库 dsh-pet host 的 stripJsonc 语义一致（不逐字复制正则，避免 URL
-/// 里的 // 被误剥）。
-fn strip_jsonc(src: &str) -> String {
-    let bytes: Vec<char> = src.chars().collect();
-    let mut out = String::with_capacity(src.len());
-    let mut index = 0;
-    let mut in_string = false;
-    let mut escaped = false;
-    while index < bytes.len() {
-        let c = bytes[index];
-        if in_string {
-            out.push(c);
-            if escaped {
-                escaped = false;
-            } else if c == '\\' {
-                escaped = true;
-            } else if c == '"' {
-                in_string = false;
-            }
-            index += 1;
-            continue;
-        }
-        match c {
-            '"' => {
-                in_string = true;
-                out.push(c);
-                index += 1;
-            }
-            '/' if index + 1 < bytes.len() && bytes[index + 1] == '/' => {
-                index += 2;
-                while index < bytes.len() && bytes[index] != '\n' {
-                    index += 1;
-                }
-            }
-            '/' if index + 1 < bytes.len() && bytes[index + 1] == '*' => {
-                index += 2;
-                let mut closed = false;
-                while index + 1 < bytes.len() {
-                    if bytes[index] == '*' && bytes[index + 1] == '/' {
-                        index += 2;
-                        closed = true;
-                        break;
-                    }
-                    index += 1;
-                }
-                if !closed {
-                    break;
-                }
-            }
-            _ => {
-                out.push(c);
-                index += 1;
-            }
-        }
-    }
-    out
-}
-
-/// 统一内置配置校验错误前缀；detail 可以是 &str 或 String。
-fn config_invalid(detail: impl Into<String>) -> String {
-    format!("PET_BUILTIN_CONFIG_INVALID: {}", detail.into())
-}
-
-/// 校验内置 config.jsonc 的协议形状（子仓库 dsh-pet assets/config.jsonc 协议子集）：
-/// - 顶层必须含 pets（非空数组，每个有非空 id）与 animations / animationWeights；
-/// - animations 必须含 idle/turn/drag/clicks 字符串池、moves（default 对象 +
-///   actions 数组）、categories（id/weight/actions）、可选 events；
-/// - 所有池条目（idle/turn/drag/clicks、moves.actions[].name、categories[].actions、
-///   events.*）必须命中内置资产键白名单（BUILTIN_ASSET_NAMES 的 key）；
-/// - animationWeights 的 idle/turn/move 必须是非负数字。
-/// 任一不符返回带 PET_BUILTIN_CONFIG_INVALID 前缀的错误，不做静默兜底。
-fn validate_builtin_pet_config(value: &Value) -> Result<(), String> {
-    let invalid = config_invalid;
-    let root = value
-        .as_object()
-        .ok_or_else(|| invalid("config root must be an object".to_string()))?;
-
-    let pets = root
-        .get("pets")
-        .and_then(Value::as_array)
-        .ok_or_else(|| invalid("pets must be a non-empty array".to_string()))?;
-    if pets.is_empty() {
-        return Err(invalid("pets must contain at least one pet".to_string()));
-    }
-    for pet in pets {
-        let id = pet
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .ok_or_else(|| invalid("each pet must have a non-empty string id".to_string()))?;
-        validate_manifest_id(id).map_err(|_| invalid("pet id is not a safe manifest id".to_string()))?;
-    }
-
-    let animations = root
-        .get("animations")
-        .and_then(Value::as_object)
-        .ok_or_else(|| invalid("animations must be an object".to_string()))?;
-    for pool in ["idle", "turn", "drag", "clicks"] {
-        let entries = animations
-            .get(pool)
-            .and_then(Value::as_array)
-            .ok_or_else(|| invalid(format!("animations.{pool} must be an array")))?;
-        validate_pool_entries(entries, pool)?;
-    }
-
-    let moves = animations
-        .get("moves")
-        .and_then(Value::as_object)
-        .ok_or_else(|| invalid("animations.moves must be an object".to_string()))?;
-    if !moves.contains_key("default") || moves.get("default").and_then(Value::as_object).is_none() {
-        return Err(invalid("animations.moves.default must be an object".to_string()));
-    }
-    let move_actions = moves
-        .get("actions")
-        .and_then(Value::as_array)
-        .ok_or_else(|| invalid("animations.moves.actions must be an array".to_string()))?;
-    for action in move_actions {
-        let name = action
-            .get("name")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .ok_or_else(|| invalid("each moves action must have a non-empty name".to_string()))?;
-        if !builtin_asset_key_known(name) {
-            return Err(invalid(format!(
-                "moves action '{name}' is not a built-in asset key"
-            )));
-        }
-    }
-
-    let categories = animations
-        .get("categories")
-        .and_then(Value::as_array)
-        .ok_or_else(|| invalid("animations.categories must be an array".to_string()))?;
-    for category in categories {
-        let id = category
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .ok_or_else(|| invalid("each category must have a non-empty id".to_string()))?;
-        let _ = id;
-        let weight = category
-            .get("weight")
-            .and_then(Value::as_f64)
-            .ok_or_else(|| invalid("each category must have a numeric weight".to_string()))?;
-        if !weight.is_finite() || weight < 0.0 {
-            return Err(invalid("category weight must be a non-negative number".to_string()));
-        }
-        let actions = category
-            .get("actions")
-            .and_then(Value::as_array)
-            .ok_or_else(|| invalid("each category must have an actions array".to_string()))?;
-        validate_pool_entries(actions, "categories.actions")?;
-    }
-
-    if let Some(events) = animations.get("events") {
-        let events = events
-            .as_object()
-            .ok_or_else(|| invalid("animations.events must be an object".to_string()))?;
-        for (event, pool) in events {
-            let pool = pool
-                .as_array()
-                .ok_or_else(|| invalid(format!("animations.events.{event} must be an array")))?;
-            validate_pool_entries(pool, &format!("events.{event}"))?;
-        }
-    }
-
-    let weights = root
-        .get("animationWeights")
-        .and_then(Value::as_object)
-        .ok_or_else(|| invalid("animationWeights must be an object".to_string()))?;
-    for key in ["idle", "turn", "move"] {
-        let weight = weights
-            .get(key)
-            .and_then(Value::as_f64)
-            .ok_or_else(|| invalid(format!("animationWeights.{key} must be a number")))?;
-        if !weight.is_finite() || weight < 0.0 {
-            return Err(invalid(format!(
-                "animationWeights.{key} must be a non-negative number"
-            )));
-        }
-    }
-    Ok(())
-}
-
-/// 池条目必须是内置资产键白名单内的非空字符串；空池（无动画可用）也允许，
-/// 由运行时回落默认动画，但写了未知键必须显式报错。
-fn validate_pool_entries(entries: &[Value], pool: &str) -> Result<(), String> {
-    let invalid = config_invalid;
-    for entry in entries {
-        let name = entry
-            .as_str()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .ok_or_else(|| invalid(format!("{pool} entries must be non-empty strings")))?;
-        if !builtin_asset_key_known(name) {
-            return Err(invalid(format!(
-                "{pool} entry '{name}' is not a built-in asset key"
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn builtin_asset_key_known(name: &str) -> bool {
-    BUILTIN_ASSET_NAMES.iter().any(|(key, _)| *key == name)
-}
-
-/// 读取并解析内置 dsh-tauri-pet/assets/config.jsonc（JSONC 协议），返回校验后的 JSON。
-/// 与媒体同一资源边界：固定文件名 + 白名单目录 + 限量读取 + 显式错误前缀。
-#[tauri::command]
-pub fn get_builtin_pet_config(app: AppHandle) -> Result<Value, String> {
-    let path = resolve_builtin_asset_path(&app, BUILTIN_CONFIG_FILE).map_err(|error| {
-        error.replacen(
-            "PET_BUILTIN_ASSET_",
-            "PET_BUILTIN_CONFIG_",
-            1,
-        )
-    })?;
-    let bytes = read_bounded_file(
-        &path,
-        PET_CONFIG_MAX_BYTES,
-        "PET_BUILTIN_CONFIG_READ_FAILED",
-    )?;
-    let text = std::str::from_utf8(&bytes)
-        .map_err(|error| format!("PET_BUILTIN_CONFIG_INVALID: config is not UTF-8: {error}"))?;
-    let json = strip_jsonc(text);
-    let value: Value = serde_json::from_str(&json)
-        .map_err(|error| format!("PET_BUILTIN_CONFIG_INVALID: invalid JSON: {error}"))?;
-    validate_builtin_pet_config(&value)?;
-    Ok(value)
-}
-
-/// 为 dsh-pet 自定义协议读取固定白名单资源；调用方已在 builder 中限制为 pet WebView。
-pub fn builtin_pet_asset_response(
-    app: &AppHandle,
-    webview_label: &str,
-    request: Request<Vec<u8>>,
-) -> Response<Vec<u8>> {
-    if webview_label != pet_window::PET_WINDOW_LABEL {
-        return protocol_error(StatusCode::FORBIDDEN, "PET_BUILTIN_ASSET_FORBIDDEN: request is not from pet window");
-    }
-    if request.method() != Method::GET && request.method() != Method::HEAD {
-        return protocol_error(StatusCode::METHOD_NOT_ALLOWED, "PET_BUILTIN_ASSET_METHOD_INVALID: only GET and HEAD are allowed");
-    }
-    let Some(name) = builtin_asset_name(request.uri().path()) else {
-        return protocol_error(StatusCode::FORBIDDEN, "PET_BUILTIN_ASSET_PATH_INVALID: path is not a safe asset name");
-    };
-    let Some((file_name, mime)) = builtin_asset_file(name) else {
-        return protocol_error(StatusCode::NOT_FOUND, "PET_BUILTIN_ASSET_NOT_FOUND: asset is not in the built-in whitelist");
-    };
-    let path = match resolve_builtin_asset_path(app, file_name) {
-        Ok(path) => path,
-        Err(error) => return protocol_error(StatusCode::NOT_FOUND, &error),
-    };
-    let Ok(file) = fs::File::open(&path) else {
-        return protocol_error(StatusCode::NOT_FOUND, "PET_BUILTIN_ASSET_READ_FAILED: asset could not be opened");
-    };
-    let Ok(length) = file.metadata().map(|metadata| metadata.len()) else {
-        return protocol_error(StatusCode::NOT_FOUND, "PET_BUILTIN_ASSET_READ_FAILED: asset metadata unavailable");
-    };
-    let base = Response::builder()
-        .header("Content-Type", mime)
-        .header("Accept-Ranges", "bytes");
-    if request.method() == Method::HEAD {
-        return base.header(CONTENT_LENGTH, length).status(StatusCode::OK).body(Vec::new()).unwrap();
-    }
-    let Some(range) = request.headers().get("range").and_then(|value| value.to_str().ok()) else {
-        let mut bytes = Vec::new();
-        let mut limited = file.take(PET_SPRITESHEET_MAX_BYTES.saturating_add(1));
-        if limited.read_to_end(&mut bytes).is_err() || bytes.len() as u64 > PET_SPRITESHEET_MAX_BYTES {
-            return Response::builder().status(StatusCode::PAYLOAD_TOO_LARGE).body(Vec::new()).unwrap();
-        }
-        return base.header(CONTENT_LENGTH, bytes.len()).status(StatusCode::OK).body(bytes).unwrap();
-    };
-    let Some((start, end)) = parse_single_byte_range(range, length) else {
-        return base.header("Content-Range", format!("bytes */{length}")).status(StatusCode::RANGE_NOT_SATISFIABLE).body(Vec::new()).unwrap();
-    };
-    let size = end - start + 1;
-    let Ok(capacity) = usize::try_from(size) else {
-        return Response::builder().status(StatusCode::RANGE_NOT_SATISFIABLE).body(Vec::new()).unwrap();
-    };
-    let mut bytes = vec![0; capacity];
-    let mut file = file;
-    if file.seek(SeekFrom::Start(start)).is_err() || file.read_exact(&mut bytes).is_err() {
-        return Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(Vec::new()).unwrap();
-    }
-    base.header(CONTENT_LENGTH, size)
-        .header("Content-Range", format!("bytes {start}-{end}/{length}"))
-        .status(StatusCode::PARTIAL_CONTENT)
-        .body(bytes)
-        .unwrap()
-}
-
-fn parse_single_byte_range(value: &str, length: u64) -> Option<(u64, u64)> {
-    let value = value.strip_prefix("bytes=")?.split(',').next()?.trim();
-    let (start, end) = value.split_once('-')?;
-    if start.is_empty() {
-        let suffix = end.parse::<u64>().ok()?;
-        if suffix == 0 || length == 0 { return None; }
-        return Some((length.saturating_sub(suffix), length - 1));
-    }
-    let start = start.parse::<u64>().ok()?;
-    if start >= length { return None; }
-    let end = if end.is_empty() { length - 1 } else { end.parse::<u64>().ok()?.min(length - 1) };
-    (end >= start).then_some((start, end))
 }
 
 /// 按来源限定 id 读取真实精灵图。
@@ -1395,7 +948,11 @@ mod tests {
             normalize_active_pet(Some("codex:custom_pet")),
             "codex:custom_pet"
         );
-        for legacy_or_invalid in ["cat", "shiba", "other:pet", "chat:../pet"] {
+        // 未限定 id（预设宠物，安全字符集）与来源限定 id 都是合法激活选择；
+        // 只有非法字符集 / 未知来源限定才回落内置宠物。
+        assert_eq!(normalize_active_pet(Some("cat")), "cat");
+        assert_eq!(normalize_active_pet(Some("shiba")), "shiba");
+        for legacy_or_invalid in ["other:pet", "chat:../pet", "bad id", "x/y"] {
             assert_eq!(
                 normalize_active_pet(Some(legacy_or_invalid)),
                 DEFAULT_ACTIVE_PET_ID,
@@ -1583,107 +1140,5 @@ mod tests {
         let error = extract_pet_archive(&archive, &directory.0).unwrap_err();
         assert!(error.starts_with("PET_PATH_INVALID:"));
         assert!(!directory.0.exists(), "完整校验失败前不得创建 staging");
-    }
-
-    #[test]
-    fn strip_jsonc_removes_line_and_block_comments_only_outside_strings() {
-        let src = r#"{
-  // 行注释
-  "idle": ["idle"], /* 块注释 */ "turn": ["turn"],
-  "url": "https://example.com/a//b", // 行尾注释
-  "s": "/* not a comment */"
-}"#;
-        let stripped = strip_jsonc(src);
-        assert!(!stripped.contains("行注释"));
-        assert!(!stripped.contains("块注释"));
-        assert!(!stripped.contains("行尾注释"));
-        assert!(stripped.contains("\"https://example.com/a//b\""));
-        assert!(stripped.contains("\"/* not a comment */\""));
-        let parsed: serde_json::Value = serde_json::from_str(&stripped).expect("valid JSON");
-        assert_eq!(parsed["idle"][0], "idle");
-        assert_eq!(parsed["turn"][0], "turn");
-    }
-
-    #[test]
-    fn builtin_config_accepts_protocol_shaped_document() {
-        let value: Value = serde_json::from_str(
-            r#"{
-  "pets": [{ "id": "maid-deepseek-whale", "name": "Maid", "size": 220 }],
-  "animations": {
-    "idle": ["idle"],
-    "turn": ["turn"],
-    "drag": ["drag"],
-    "clicks": ["wave"],
-    "moves": { "default": { "minDist": 60 }, "actions": [{ "name": "move" }] },
-    "categories": [
-      { "id": "小动作", "weight": 80, "actions": ["wave", "bubble", "turn"] }
-    ],
-    "events": { "balance": ["bubble"] }
-  },
-  "animationWeights": { "idle": 10, "turn": 5, "move": 5 },
-  "physics": { "gravity": 1400 }
-}"#,
-        )
-        .unwrap();
-        assert!(validate_builtin_pet_config(&value).is_ok());
-    }
-
-    #[test]
-    fn builtin_config_rejects_unknown_asset_keys_and_bad_shape() {
-        let unknown_pool: Value = serde_json::from_str(
-            r#"{
-  "pets": [{ "id": "maid-deepseek-whale" }],
-  "animations": {
-    "idle": ["not-a-key"],
-    "turn": ["turn"],
-    "drag": ["drag"],
-    "clicks": ["wave"],
-    "moves": { "default": {}, "actions": [] },
-    "categories": []
-  },
-  "animationWeights": { "idle": 1, "turn": 1, "move": 1 }
-}"#,
-        )
-        .unwrap();
-        let error = validate_builtin_pet_config(&unknown_pool).unwrap_err();
-        assert!(error.starts_with("PET_BUILTIN_CONFIG_INVALID:"));
-        assert!(error.contains("not-a-key"));
-
-        let missing_pets: Value = serde_json::from_str(
-            r#"{
-  "animations": {
-    "idle": ["idle"],
-    "turn": ["turn"],
-    "drag": ["drag"],
-    "clicks": ["wave"],
-    "moves": { "default": {}, "actions": [] },
-    "categories": []
-  },
-  "animationWeights": { "idle": 1, "turn": 1, "move": 1 }
-}"#,
-        )
-        .unwrap();
-        assert!(validate_builtin_pet_config(&missing_pets)
-            .unwrap_err()
-            .starts_with("PET_BUILTIN_CONFIG_INVALID:"));
-
-        let bad_weights: Value = serde_json::from_str(
-            r#"{
-  "pets": [{ "id": "maid-deepseek-whale" }],
-  "animations": {
-    "idle": ["idle"],
-    "turn": ["turn"],
-    "drag": ["drag"],
-    "clicks": ["wave"],
-    "moves": { "default": {}, "actions": [] },
-    "categories": []
-  },
-  "animationWeights": { "idle": -1, "turn": 1, "move": 1 }
-}"#,
-        )
-        .unwrap();
-        assert!(validate_builtin_pet_config(&bad_weights)
-            .unwrap_err()
-            .starts_with("PET_BUILTIN_CONFIG_INVALID:"));
     }
 }

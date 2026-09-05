@@ -2,7 +2,11 @@
 
 ## dsh-pet
 
-The `assets/maid-*.webm` animation files and `assets/maid-deepseek-whale.gif` preview in this package are copied from [`PC2005-cloud/dsh-pet`](https://github.com/PC2005-cloud/dsh-pet) at commit `899150eb85c819820b9e990b595dfc261f341bc2` and adapted only by renaming for use in DeepSeek Harness Desktop.
+The pet media assets (WebM animations, preview GIFs and `config.jsonc`) are **no
+longer bundled** in this package. They are downloaded at runtime from
+[`PC2005-cloud/dsh-pet`](https://github.com/PC2005-cloud/dsh-pet) via the preset
+pet catalog (`src-tauri/resources/preset-pets.json`) and installed under
+`~/.dsh/pets/<id>`. The catalog pins a specific commit for reproducible downloads.
 
 MIT License
 

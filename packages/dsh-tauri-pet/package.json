@@ -32,7 +32,6 @@
   "files": [
     "README.md",
     "THIRD_PARTY_NOTICES.md",
-    "assets",
     "cordis.patch.yml",
     "dist",
     "skills"
