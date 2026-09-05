@@ -222,7 +222,7 @@ export function PreinstallSetup() {
     <div className="flex h-full w-full items-center justify-center bg-canvas">
       <div className="flex w-[min(560px,88vw)] flex-col gap-5">
         <header className="flex flex-col items-center gap-1.5 text-center">
-          <Typography type="h4">{t('preinstall.title')}</Typography>
+          <Typography type="h4" className="!text-ink">{t('preinstall.title')}</Typography>
           <Typography color="muted" type="body-sm" className="max-w-[440px]">{t('preinstall.subtitle')}</Typography>
         </header>
 

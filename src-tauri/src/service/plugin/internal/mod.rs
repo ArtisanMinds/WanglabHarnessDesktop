@@ -561,6 +561,16 @@ async fn ensure_inner(
             continue;
         };
         let name = installed_name(preset).to_string();
+        // 捆绑目录被解析到但源 package.json 不可读（悬空源/资源被清理）：pnpm 对指向
+        // 不存在目录的 `link:` 依赖会静默 exit 0（日志特征 `Installing a dependency
+        // from a non-existent directory`），重装必然再次假成功，形成启动死循环。这类
+        // 是「应用资源缺失」而非「路径变更」：直接给出精确错误，阻断本轮重装。
+        if !bundled.join("package.json").is_file() {
+            return Err(format!(
+                "INTERNAL_PLUGIN_SOURCE_MISSING: 内置插件 {name} 的捆绑源目录 {} 缺失或不可读（应用资源目录可能被移动/删除或盘符变更）。pnpm 会静默跳过安装（exit 0 无产物），导致服务启动时 loader 抛 ERR_MODULE_NOT_FOUND。请重新安装应用或恢复应用资源目录后重试。",
+                bundled.display()
+            ));
+        }
         let expected = bundled_dep_spec(&bundled);
         // ① 依赖声明：未声明，或声明的值不再指向当前捆绑目录（路径变更/被改
         // 写）→ 重装；② 依赖真实性：node_modules 链接/拷贝须真实存在（用户
