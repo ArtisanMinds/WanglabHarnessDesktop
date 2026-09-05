@@ -291,6 +291,15 @@ fn reconcile_models(provider: &str, previous: &Value, remote: &[serde_json::Valu
                 .cloned()
                 .unwrap_or_else(|| Value::Mapping(Default::default()));
             value["id"] = Value::String(id.to_string());
+            if let Some(name) = model["name"]
+                .as_str()
+                .or_else(|| model["display_name"].as_str())
+                .filter(|name| !name.is_empty())
+            {
+                value["name"] = Value::String(name.to_string());
+            } else if value["name"].is_null() {
+                value["name"] = Value::String(id.to_string());
+            }
             for (target, source) in [
                 ("contextWindow", "context_window"),
                 ("maxTokens", "max_output_tokens"),
@@ -347,13 +356,15 @@ mod tests {
             serde_yaml::from_str("[{id: retired}, {id: returned, contextWindow: 99999}]").unwrap();
         let remote = vec![
             serde_json::json!({"id":"returned"}),
-            serde_json::json!({"id":"new-model"}),
+            serde_json::json!({"id":"new-model", "display_name":"Current model"}),
             serde_json::json!({"id":"returned"}),
         ];
         let result = reconcile_models("openai", &previous, &remote);
         assert_eq!(result.as_sequence().unwrap().len(), 2);
         assert_eq!(result[0]["contextWindow"].as_u64(), Some(99999));
+        assert_eq!(result[0]["name"], "returned");
         assert_eq!(result[1]["id"], "new-model");
+        assert_eq!(result[1]["name"], "Current model");
         assert_eq!(
             reconcile_models("openai", &previous, &[]),
             Value::Sequence(vec![])
