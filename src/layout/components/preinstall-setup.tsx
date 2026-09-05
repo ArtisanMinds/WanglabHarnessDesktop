@@ -288,11 +288,13 @@ export function PreinstallSetup() {
                     <p className="text-center text-xs text-muted">{t('preinstall.can_uncheck_hint')}</p>
                   </If>
 
-                  {/* 操作区：跳过 / 确定（无变更时主按钮蜕变为「跳过」） */}
+                  {/* 操作区：有变更 → 弱「跳过」+ 主「确认」；无变更 → 主按钮独占「跳过」，避免重复入口 */}
                   <div className="flex items-center justify-end gap-2">
-                    <Button className="h-8 rounded-md" size="sm" variant="tertiary" onPress={handleSkip} isDisabled={installing}>
-                      {t('preinstall.skip')}
-                    </Button>
+                    <If cond={hasChanges}>
+                      <Button className="h-8 rounded-md" size="sm" variant="tertiary" onPress={handleSkip} isDisabled={installing}>
+                        {t('preinstall.skip')}
+                      </Button>
+                    </If>
                     <If cond={!hasChanges}>
                       <Then>
                         <Button
