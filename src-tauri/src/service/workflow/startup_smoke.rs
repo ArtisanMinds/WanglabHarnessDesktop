@@ -77,26 +77,22 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         );
     }
 
-    // 三个真实入口直接并发争用目录；安装和启动共用的互斥锁负责排序。
-    let install_app = app.clone();
-    let installer =
-        tauri::async_runtime::spawn(async move { bridge::install_dependencies(install_app).await });
-    let auto_app = app.clone();
-    let auto_start = tauri::async_runtime::spawn(async move { start(auto_app).await });
-    let plugin_app = app.clone();
-    let plugins =
-        tauri::async_runtime::spawn(
-            async move { bridge::ensure_internal_plugins(plugin_app).await },
-        );
-    let manual_app = app.clone();
-    let manual_start = tauri::async_runtime::spawn(async move { launch(manual_app).await });
-    if !installer.await.map_err(|e| e.to_string())?? {
+    let latest = download::fetch_latest_dsh_pkg_info().await?;
+    // 先轮询安装以取得目录锁，首次异步停服时让其余真实入口同时等待这把锁。
+    let (installed, auto_started, plugins_ready, manual_started) = tokio::join!(
+        biased;
+        super::install(app, Some(latest)),
+        start(app.clone()),
+        bridge::ensure_internal_plugins(app.clone()),
+        launch(app.clone()),
+    );
+    if !installed? {
         return Err("SMOKE_CORE_NOT_UPDATED".to_string());
     }
     smoke_note("Core installation completed");
-    auto_start.await.map_err(|e| e.to_string())??;
-    plugins.await.map_err(|e| e.to_string())??;
-    manual_start.await.map_err(|e| e.to_string())??;
+    auto_started?;
+    plugins_ready?;
+    manual_started?;
     if !core::paired_core_ready(app) {
         return Err("SMOKE_PAIR_MISMATCH".to_string());
     }
