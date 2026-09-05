@@ -46,6 +46,7 @@ const ALLOWED_INVOKE_CMDS = new Set([
   'import_pet',
   'get_pet_asset',
   'get_builtin_pet_assets',
+  'get_builtin_pet_config',
 ])
 
 export function useIframeInvoke(iframeRef: RefObject<HTMLIFrameElement | null>): void {

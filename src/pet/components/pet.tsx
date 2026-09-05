@@ -1,11 +1,18 @@
 import type { CSSProperties, Ref, RefObject, SyntheticEvent } from 'react'
 import type { PetHandle, PetStatus } from '../hooks/use-pet'
+import type { PetConfig } from '../pet-config'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window'
-import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
 import { PET_STATUSES } from '../hooks/use-pet'
+import {
+  pick,
+  pickCategoryAction,
+  poolEntryToStatus,
+  rollKind,
+} from '../pet-config'
 
 const BUILT_IN_PET_ID = 'maid-deepseek-whale'
 const PET_BASE_WIDTH = 220
@@ -20,9 +27,11 @@ const PET_WINDOW_PAD_Y = 82
 const PET_BUBBLE_MIN_WIDTH = 420
 const IDLE_DURATIONS = [280, 110, 110, 140, 140, 320] as const
 /**
- * 待机转向插播间隔下限/上限（ms）：平时以循环待机动画为主（参考 dsh-pet
- * animationWeights idle:10 / turn:5 的权重语义——turn 是播完掷骰链里的低频事件），
+ * 待机转向插播间隔下限/上限（ms）：平时以循环待机动画为主，参考 dsh-pet
+ * animationWeights idle:10 / turn:5 的权重语义——turn 是播完掷骰链里的低频事件，
  * 只有长时间持续待机才偶尔插播一次转身，避免高频切换的观感。
+ * 当内置 config.jsonc 可用时，实际掷骰改由协议权重（rollKind）驱动，这两个
+ * 常量仅作为「每次掷骰的间隔」使用。
  */
 const IDLE_TURN_DELAY_MIN = 25000
 const IDLE_TURN_DELAY_MAX = 50000
@@ -44,6 +53,8 @@ const ACTIONS = {
 
 type VideoKey = 'idle' | 'turn' | 'move' | 'drag' | 'wave' | 'waiting' | 'running' | 'review' | 'failed' | 'bubble'
 type Animation = PetStatus | 'bubble' | 'dragging'
+/** 一次性回应（点击/待机链）可用的播放状态：会话状态 + bubble，排除拖拽专用。 */
+type AdHocStatus = Exclude<Animation, 'dragging' | 'moving-left' | 'moving-right'>
 
 interface Asset {
   columns: number
@@ -89,10 +100,12 @@ export function Pet(props: PetProps) {
   const [failed, setFailed] = useState(false)
   const [override, setOverride] = useState<{ loop: boolean, revision: number, status: PetStatus } | null>(null)
   const revisionRef = useRef(0)
-  const [adHoc, setAdHoc] = useState<{ seq: number, status: 'turn' | 'waving' } | null>(null)
+  const [adHoc, setAdHoc] = useState<{ seq: number, status: AdHocStatus } | null>(null)
   const adHocRef = useRef(adHoc)
   adHocRef.current = adHoc
   const adHocSeqRef = useRef(0)
+  // 内置配置（dsh-pet assets/config.jsonc 协议）：加载失败时回落内置默认池。
+  const [config, setConfig] = useState<PetConfig | null>(null)
   const [reducedMotion, setReducedMotion] = useState(() => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
   const videoARef = useRef<HTMLVideoElement | null>(null)
   const videoBRef = useRef<HTMLVideoElement | null>(null)
@@ -105,6 +118,21 @@ export function Pet(props: PetProps) {
   overrideRef.current = override
   const prevClickRef = useRef(0)
   const handleEndedRef = useRef<(event?: Event) => void>(() => {})
+
+  // 内置配置驱动动画池：池条目是内置资产键（idle/turn/move/drag/wave/waiting/running/
+  // review/failed/bubble/fallback），经 poolEntryToStatus 映射为播放状态。配置缺失
+  // 或命令失败时回落与旧实现一致的默认池（idle/turn/wave）。
+  const pools = useMemo(() => {
+    const animations = config?.animations
+    return {
+      idlePool: animations?.idle.length ? animations.idle : ['idle'],
+      turnPool: animations?.turn.length ? animations.turn : ['turn'],
+      clicksPool: animations?.clicks.length ? animations.clicks : ['wave'],
+      categories: animations?.categories ?? [],
+      weights: config?.animationWeights ?? { idle: 10, turn: 5, move: 5 },
+    }
+  }, [config])
+  const { idlePool, turnPool, clicksPool, categories, weights } = pools
 
   const activePet = normalizeActivePet(rustStatus.active_pet)
   const isBuiltin = activePet === BUILT_IN_PET_ID
@@ -152,6 +180,12 @@ export function Pet(props: PetProps) {
       if (!disposed)
         setAssets(value.assets ?? {})
     }).catch(() => {})
+    void invoke<PetConfig>('get_builtin_pet_config').then((value) => {
+      if (!disposed)
+        setConfig(value)
+    }).catch((error) => {
+      console.warn('[pet] PET_BUILTIN_CONFIG_LOAD_FAILED:', error)
+    })
     return () => {
       disposed = true
       unlisten?.()
@@ -259,26 +293,54 @@ export function Pet(props: PetProps) {
   }, [activity, adHoc?.seq, assets, isBuiltin, override?.loop, override?.revision])
 
   // 点击回应：clickCount 变化（useDrag 判定「500ms 内两次按下且未拖拽 = 双击」后递增）
-  // → 播放一次 waving。adHoc 优先级在会话 override 之上：双击回应可打断会话状态，
-  // 播完回落原动画（handleEnded）。
+  // → 播放一次点击回应动画。adHoc 优先级在会话 override 之上：双击回应可打断会话状态，
+  // 播完回落原动画（handleEnded）。动画名来自内置 config.jsonc 的 clicks 池（协议）；
+  // 配置缺失/池条目不可播放时回落 waving。
   useEffect(() => {
     if (props.clickCount === undefined || props.clickCount === prevClickRef.current)
       return undefined
     prevClickRef.current = props.clickCount
+    const status = toAdHocStatus(pick(clicksPool)) ?? 'waving'
     // 点击回应：以 props 变化驱动一次性动画状态，属于事件联动而非渲染副作用。
     // eslint-disable-next-line react/set-state-in-effect
-    setAdHoc({ seq: ++adHocSeqRef.current, status: 'waving' })
-  }, [props.clickCount])
+    setAdHoc({ seq: ++adHocSeqRef.current, status })
+  }, [props.clickCount, clicksPool])
 
-  // 待机转向链（参考 dsh-pet 的权重掷骰链）：内置宠物长时间持续待机时，
-  // 才以低频（IDLE_TURN_DELAY_MIN~MAX 随机）插播一次转身动画，平时保持循环待机。
+  // 待机链（dsh-pet 权重掷骰链）：内置宠物长时间持续待机时，以低频
+  // （IDLE_TURN_DELAY_MIN~MAX 随机间隔）按 config.jsonc 的 animationWeights 掷骰，
+  // 命中 turn/action 才插播一次一次性动画，平时保持循环待机。move 命中时因 DSH
+  // 不自动漫游而保持待机（协议字段保留，行为对齐「移除自动移动」规格）。
   useEffect(() => {
     if (isBuiltin === false || reducedMotion || activity !== 'idle')
       return undefined
-    const delay = IDLE_TURN_DELAY_MIN + Math.random() * (IDLE_TURN_DELAY_MAX - IDLE_TURN_DELAY_MIN)
-    const timer = window.setTimeout(setAdHoc, delay, { seq: ++adHocSeqRef.current, status: 'turn' })
+    let timer: number | undefined
+    function scheduleNextRoll() {
+      const delay = IDLE_TURN_DELAY_MIN + Math.random() * (IDLE_TURN_DELAY_MAX - IDLE_TURN_DELAY_MIN)
+      timer = window.setTimeout(() => {
+        const kind = rollKind(Math.random(), weights)
+        if (kind === 'turn' && turnPool.length > 0) {
+          const status = toAdHocStatus(pick(turnPool))
+          if (status !== null && status !== 'idle') {
+            setAdHoc({ seq: ++adHocSeqRef.current, status })
+            return
+          }
+        }
+        if (kind === 'action' && categories.length > 0) {
+          const current = adHocRef.current?.status ?? 'idle'
+          const action = pickCategoryAction(categories, idlePool, 'left', current)
+          const status = toAdHocStatus(action.name)
+          if (status !== null && status !== 'idle' && action.name !== current) {
+            setAdHoc({ seq: ++adHocSeqRef.current, status })
+            return
+          }
+        }
+        // idle / move（不自动漫游）/ 不可播放条目：继续待机并等待下一次掷骰。
+        scheduleNextRoll()
+      }, delay)
+    }
+    scheduleNextRoll()
     return () => window.clearTimeout(timer)
-  }, [activity, isBuiltin, reducedMotion])
+  }, [activity, categories, idlePool, isBuiltin, reducedMotion, turnPool, weights])
 
   useEffect(() => {
     const sprite = spriteRef.current
@@ -424,6 +486,22 @@ export function Pet(props: PetProps) {
 
 function isPetStatus(value: string): value is PetStatus {
   return (PET_STATUSES as readonly string[]).includes(value)
+}
+
+/**
+ * 把内置配置池条目（内置资产键）映射为可播放的一次性回应状态（AdHocStatus）。
+ * 资产键 'wave' 归一化为播放状态 'waving'；拖拽/方向专用状态不参与回应池；
+ * 其余条目必须是会话状态或 bubble，否则返回 null（调用方回落默认动画）。
+ */
+function toAdHocStatus(entry: string): AdHocStatus | null {
+  const status = poolEntryToStatus(entry)
+  if (status === 'bubble')
+    return status
+  if (status === 'dragging' || status === 'moving-left' || status === 'moving-right')
+    return null
+  // isPetStatus 收窄为 PetStatus；拖拽/方向状态已在上方排除，剩余的 PetStatus
+  // 全部属于 AdHocStatus（= 会话状态 + bubble）。
+  return isPetStatus(status) ? (status as AdHocStatus) : null
 }
 
 function normalizeActivePet(value: string | null | undefined): string {

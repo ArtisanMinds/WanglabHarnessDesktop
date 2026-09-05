@@ -35,6 +35,8 @@ Chat 宠物安装在 `${DSH_HOME:-$HOME/.dsh}/pets`，Codex 宠物安装在
 | `set_pet_size` | 持久化 50–200% 的大小 |
 | `list_pets` | 按 `source` 列出 Chat 或 Codex 宠物 |
 | `get_pet_asset` | 获取指定宠物的完整 8×11 spritesheet data URL |
+| `get_builtin_pet_assets` | 返回内置媒体（WebM/GIF）的 URL manifest |
+| `get_builtin_pet_config` | 返回内置协议配置（`assets/config.jsonc`，dsh-pet 协议子集） |
 | `import_pet` | 导入 Codex `.zip` 资源包 |
 | `set_pet_activity` | 更新 `idle`、`turn`、`moving-left`、`moving-right`、`waving`、`waiting`、`running`、`review` 或 `failed` |
 

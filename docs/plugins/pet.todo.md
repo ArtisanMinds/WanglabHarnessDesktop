@@ -153,6 +153,31 @@ BongoCat 是窗口行为基准，不是完整交互基准。它在 mousedown 立
 
 ## 4. 当前实现检查点
 
+### 4.0 最近完成（feat/pet-reapply，config.jsonc 协议支持）
+
+- 内置协议配置文件已落地：`packages/dsh-tauri-pet/assets/config.jsonc`，结构对齐
+  子仓库 `source/dsh-pet/dsh-pet/assets/config.jsonc`（animations / animationWeights /
+  pets / physics / eventsRefreshSec），动画池条目引用内置资产键白名单
+  （`BUILTIN_ASSET_NAMES` 的 key），由 `package.json#files: assets` 随插件部署。
+- Rust 新增 `get_builtin_pet_config` 命令：从已部署的 `dsh-tauri-pet/assets/config.jsonc`
+  限量读取（256 KiB），`strip_jsonc` 剥注释（字符串字面量内不误剥），`serde_json` 解析，
+  `validate_builtin_pet_config` 校验协议形状（pets/animations 各池/moves/categories/events/
+  animationWeights），所有池条目必须命中内置资产键白名单，错误统一
+  `PET_BUILTIN_CONFIG_INVALID:` 前缀，不做静默兜底；已注册进 builder 命令表与
+  iframe invoke 白名单，插件客户端 `fetchBuiltinPetConfig()` 可调用。
+- pet WebView：新增纯函数模块 `src/pet/pet-config.ts`（rollKind / pick /
+  pickWeightedCategory / pickCategoryAction / poolEntryToStatus，移植 dsh-pet
+  src/shared/pickers.ts）并配 9 条单测；`src/pet/components/pet.tsx` 启动加载配置，
+  待机链按协议权重掷骰（move 命中因 DSH 无自动漫游保持待机），点击回应改从 clicks 池
+  抽取，池条目经 `toAdHocStatus` 归一化（wave→waving）且拒绝拖拽/方向专用状态。
+- 验证：`pnpm typecheck`、`pnpm --filter dsh-tauri-pet typecheck/build`、
+  `eslint src/pet packages/dsh-tauri-pet/src/client --max-warnings=0` 零 warning、
+  `vitest run src/pet/pet-config.test.ts` 9/9、`cargo check --lib`、
+  `cargo test bridge::pet::tests --lib` 14/14、`pnpm build` 全部通过。
+  完整 `pnpm test -- --run` 仅 3 条失败，全部来自 `test/plugin-resource-closure.test.ts`
+  （读取 `src-tauri/resources/node_modules` 部署产物，fresh worktree 不含该生成目录，
+  源 checkout 下通过，与本次改动无关）。
+
 ### 4.1 已完成并应保留
 
 - 三个参考仓库已加入 `source/*` 子模块。

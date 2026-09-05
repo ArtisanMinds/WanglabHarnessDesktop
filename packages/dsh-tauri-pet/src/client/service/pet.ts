@@ -1,7 +1,8 @@
-import type { PetAsset, PetListItem, PetSource, PetStatus } from '../types'
+import type { PetAsset, PetConfig, PetListItem, PetSource, PetStatus } from '../types'
 import { invokeBridgedTauri } from 'dsh-tauri/client'
 import {
   CMD_GET_BUILTIN_PET_ASSETS,
+  CMD_GET_BUILTIN_PET_CONFIG,
   CMD_GET_PET_ASSET,
   CMD_GET_PET_STATUS,
   CMD_HIDE_PET,
@@ -60,4 +61,9 @@ export function pushPetSession(
 
 export function fetchBuiltinPetAssets(): Promise<{ assets: Record<string, string> }> {
   return invokeBridgedTauri<{ assets: Record<string, string> }>(CMD_GET_BUILTIN_PET_ASSETS)
+}
+
+/** 内置协议配置（dsh-pet assets/config.jsonc 协议子集）：动画池/权重/宠物定义。 */
+export function fetchBuiltinPetConfig(): Promise<PetConfig> {
+  return invokeBridgedTauri<PetConfig>(CMD_GET_BUILTIN_PET_CONFIG)
 }

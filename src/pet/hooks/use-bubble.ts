@@ -20,9 +20,11 @@ const DESCRIPTION_MAX_LENGTH = 120
 /** 终态气泡自动隐藏时长（毫秒）：失败展示 4s、待审阅 2.5s（对齐参考实现的完成脉冲）。实时状态（running / waiting）常驻，由后续会话事件更新内容。 */
 const FAILED_BUBBLE_TIMEOUT = 4000
 const REVIEW_BUBBLE_TIMEOUT = 2500
-/** 失败动画脉冲时长（毫秒）：对齐参考实现 companion-reducer 的工具失败脉冲 ttlMs=1800。
+/**
+ * 失败动画脉冲时长（毫秒）：对齐参考实现 companion-reducer 的工具失败脉冲 ttlMs=1800。
  * 失败只作为瞬态脉冲展示一次，到期自动恢复到底层会话状态，避免 DSH 快照上粘性的
- * lastAgentError 经插件 250ms 心跳重发后永久占用 'failed'、阻塞其他会话的动画切换。 */
+ * lastAgentError 经插件 250ms 心跳重发后永久占用 'failed'、阻塞其他会话的动画切换。
+ */
 const FAILED_PULSE_TTL = 1800
 
 /** 桌宠窗口的会话气泡：DSH 发送原始会话快照，本 hook 私有管理会话→toast key 映射，仅暴露聚合宠物状态。 */
