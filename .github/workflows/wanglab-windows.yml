@@ -30,9 +30,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: wanglab-v0.2.0
+          RELEASE_TAG: wanglab-v0.2.1
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop 0.2.0"
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop 0.2.1"
           mapfile -d '' assets < <(find release-assets -type f -name '*.exe' -print0)
           test "${#assets[@]}" -gt 0
           gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber

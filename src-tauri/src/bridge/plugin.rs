@@ -93,6 +93,8 @@ pub async fn skip_preinstall_plugins(app_handle: AppHandle) -> Result<(), String
 /// workflow 自启动路径仍保留最佳努力语义。
 #[tauri::command]
 pub async fn ensure_internal_plugins(app_handle: AppHandle) -> Result<(), String> {
+    let _transition_guard = crate::service::workflow::acquire_core_transition().await?;
+    crate::service::core::require_paired_core(&app_handle)?;
     plugin::ensure_internal_plugins(&app_handle).await
 }
 

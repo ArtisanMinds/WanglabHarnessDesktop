@@ -56,6 +56,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --config release-msi-version.tmp.json
 
+      - name: Verify upgrade and Desktop readiness
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'wanglab-previous-core.zip'
+          Invoke-WebRequest 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.1-rc.2/deepseek-harness-pkg-windows.zip' -OutFile $fixture
+          $env:WANGLAB_UPGRADE_CORE_ZIP = $fixture
+          cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib windows_upgrade_startup -- --ignored --nocapture --test-threads=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload build outputs
         uses: actions/upload-artifact@v6
         with:

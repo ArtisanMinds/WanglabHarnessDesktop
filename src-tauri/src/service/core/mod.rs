@@ -42,3 +42,15 @@ pub(crate) fn paired_core_ready(app_handle: &tauri::AppHandle) -> bool {
             == Some(crate::config::WANGLAB_DSH_COMMIT)
         && crate::config::get_dsh_binary_path(app_handle).is_file()
 }
+
+/// 旧核心不得安装新版内置插件或进入启动流程。
+pub(crate) fn require_paired_core(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    if paired_core_ready(app_handle) {
+        Ok(())
+    } else {
+        Err(format!(
+            "CORE_INSTALL_REQUIRED: install the paired Core {} before starting Harness",
+            crate::config::WANGLAB_DSH_VERSION
+        ))
+    }
+}

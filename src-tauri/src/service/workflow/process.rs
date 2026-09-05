@@ -107,7 +107,7 @@ impl Drop for LaunchGuard {
     }
 }
 
-/// 核心目录操作互斥锁：统一串行化「切换目录」与「启动并登记进程」两个临界区。
+/// 核心目录操作互斥锁：安装、切换、启动补丁和内置插件准备共用同一临界区。
 ///
 /// 不能只用一个布尔守卫：两个并发切换可能互相覆盖/清除状态，且 launch 在检查
 /// 守卫与登记进程之间仍存在窗口。使用同一把 Tokio mutex 后，切换从停服到目录
@@ -118,13 +118,13 @@ fn core_transition_lock() -> &'static Arc<tokio::sync::Mutex<()>> {
     LOCK.get_or_init(|| Arc::new(tokio::sync::Mutex::new(())))
 }
 
-/// 获取核心目录操作互斥锁，最长等待 15 秒。
+/// 获取核心目录操作互斥锁，最长等待 10 分钟，覆盖升级下载与插件准备耗时。
 ///
 /// 调用方必须从获取锁开始，持续持有到目录切换完成或 Harness 进程登记完成；
 /// RAII guard 会在所有成功/失败路径自动释放。超时必须失败返回，避免切换或启动
 /// 卡死后永久阻塞后续所有核心操作。
 pub async fn acquire_core_transition() -> Result<tokio::sync::OwnedMutexGuard<()>, String> {
-    const CORE_TRANSITION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+    const CORE_TRANSITION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
     tokio::time::timeout(
         CORE_TRANSITION_TIMEOUT,
         Arc::clone(core_transition_lock()).lock_owned(),

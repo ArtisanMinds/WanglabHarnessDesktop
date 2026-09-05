@@ -22,6 +22,8 @@ mod install;
 mod launch;
 mod process;
 mod sweep;
+#[cfg(all(test, windows))]
+mod startup_smoke;
 
 pub use health::proxy_health_check;
 pub use install::install;

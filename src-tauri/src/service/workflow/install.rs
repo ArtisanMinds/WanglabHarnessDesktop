@@ -17,6 +17,8 @@ pub async fn install(
     app_handle: &tauri::AppHandle,
     mut dsh_latest: Option<download::LatestDshPkg>,
 ) -> Result<bool, String> {
+    // 安装、补丁和启动互斥，避免先补旧核心、随后解压覆盖，或新进程锁住旧目录。
+    let _transition_guard = super::process::acquire_core_transition().await?;
     log::info!("Starting installation process");
     // dsh 任务实际下载解压时置 true
     let mut dsh_updated = false;

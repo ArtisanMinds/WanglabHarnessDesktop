@@ -158,6 +158,7 @@ fn web_supports_no_open_flag(
 
 /// 检测并启动 Harness 服务
 pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let _transition_guard = super::process::acquire_core_transition().await?;
     let setting = config::get_store_dat_setting(&app_handle);
     let node_binary_path = config::get_node_binary_path(&app_handle);
     // 活动核心的入口：本地核心存在时优先本地（需求 3），否则预打包
@@ -183,6 +184,10 @@ pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
         log::info!("Runtime files missing (node/dsh), resetting installed flag");
         return Ok(());
     }
+    if !crate::service::core::paired_core_ready(&app_handle) {
+        log::info!("Paired Core is not ready, deferring auto-start until installation completes");
+        return Ok(());
+    }
 
     if has_owned_process() {
         log::info!("Owned Harness process is already running");
@@ -199,7 +204,7 @@ pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
     log::info!("Starting Harness service");
     status::set_status(status::Status::Starting);
     status::emit_status(&app_handle);
-    launch(app_handle).await?;
+    launch_locked(app_handle).await?;
     // 之后由 scheduler/task/tick_check_dsh_process/mod.rs 检测状态
 
     Ok(())
@@ -259,6 +264,13 @@ fn is_duplicate_loader_exit(exit_code: u32, stderr: &str) -> bool {
 
 /// 启动 Harness 服务进程
 pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let _transition_guard = super::process::acquire_core_transition().await?;
+    launch_locked(app_handle).await
+}
+
+/// 与安装共用目录锁，读取入口、应用补丁和登记进程必须使用同一份核心。
+async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
+    crate::service::core::require_paired_core(&app_handle)?;
     crate::service::local_defaults::refresh_models(&app_handle).await?;
     let mut setting = config::get_store_dat_setting(&app_handle);
     let node_binary_path = config::get_node_binary_path(&app_handle);
@@ -275,10 +287,6 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
         log::error!("Harness not installed");
         return Err("HARNESS_NOT_FOUND: Harness not installed".to_string());
     }
-
-    // 从这里开始持有与核心切换共用的互斥锁：最终状态检查、启动守卫、残留清扫
-    // 及新进程登记必须处于同一临界区，避免切换在检查后插入。
-    let _transition_guard = super::process::acquire_core_transition().await?;
 
     // 避免重复启动（配合启动守卫，确保并发调用只拉起一个进程）
     if has_owned_process() {
@@ -374,10 +382,14 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     }
     // alpha 的 iframe 无法稳定完成 SameSite=Strict browser-session Cookie 交换：
     // 补丁让 dsh 接受 `--skip-auth`，仅在桌面端显式传该标志时跳过 browser-session
-    // 层（保留 Host/Origin fence）；普通 `dsh web` 不受影响。旧核心无锚点时
-    // patch_dsh 安全跳过，不改变旧版行为。
-    if let Err(e) = crate::service::patch::alpha_auth::apply(&app_handle) {
-        log::warn!("alpha --skip-auth patch failed: {e}");
+    // 层（保留 Host/Origin fence）；普通 `dsh web` 不受影响。配套核心若补丁
+    // 不完整必须立即报错，避免启动后持续 401、让界面一直等待。
+    crate::service::patch::alpha_auth::apply(&app_handle)?;
+    if !crate::service::patch::alpha_auth::web_startup_supports_skip_auth(&app_handle) {
+        return Err(
+            "HARNESS_AUTH_UNAVAILABLE: paired Core desktop authentication support is incomplete"
+                .to_string(),
+        );
     }
     // renderer 的 SlotOutlet 一行导出补丁（dsh-tauri-ui 设置侧边栏依赖）：只补
     // 活动核心的 dsh-client-ui-renderer lib/client.js，已含导出即跳过（幂等；核心

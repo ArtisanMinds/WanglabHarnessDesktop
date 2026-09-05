@@ -73,13 +73,8 @@ fn sync_cli_link(app_handle: &AppHandle) {
 /// 启动逻辑由前端显式调用 `launch_harness` 完成，避免重复拉起进程。
 #[tauri::command]
 pub async fn install_dependencies(app_handle: AppHandle) -> Result<bool, String> {
-    // 并发/重入防护：使用独立互斥锁而非依赖 Status::Installing——
-    // 失败路径会复位状态，若用状态判断则一次失败后所有后续调用都会被
-    // “Installation process already running” 静默跳过直到重启应用。
-    let Ok(_install_guard) = install_lock().try_lock() else {
-        log::info!("Installation process already running, skipping");
-        return Ok(false);
-    };
+    // 并发调用等待实际安装结束再检查，不能提前返回并让调用方启动半成品核心。
+    let _install_guard = install_lock().lock().await;
 
     // 以实际安装状态为准：本地安装与 GitHub 最新 release 的 commit hash
     // 不一致时，说明上游 pkg 有更新/修复，需要自动重新下载。
@@ -97,7 +92,13 @@ pub async fn install_dependencies(app_handle: AppHandle) -> Result<bool, String>
     if !core::paired_core_ready(&app_handle) {
         workflow::status::set_status(workflow::status::Status::Installing);
         workflow::status::emit_status(&app_handle);
-        let latest = download::fetch_latest_dsh_pkg_info().await?;
+        let latest = match download::fetch_latest_dsh_pkg_info().await {
+            Ok(latest) => latest,
+            Err(error) => {
+                reset_install_status(&app_handle);
+                return Err(error);
+            }
+        };
         let updated = match workflow::install(&app_handle, Some(latest)).await {
             Ok(updated) => updated,
             Err(error) => {
