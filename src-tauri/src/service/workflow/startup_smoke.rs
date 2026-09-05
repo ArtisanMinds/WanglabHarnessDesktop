@@ -79,7 +79,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
 
     // 下载事件确认安装已进入临界区，再让三个真实入口同时争用目录。
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::channel(1);
-    let event = app.listen("install-progress", move |_| {
+    let event = window.listen("install-progress", move |_| {
         let _ = progress_tx.try_send(());
     });
     let install_app = app.clone();
@@ -90,7 +90,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("SMOKE_INSTALL_PROGRESS: {e}"))?
         .ok_or("SMOKE_INSTALL_PROGRESS_CLOSED")?;
     smoke_note("Core installation entered progress");
-    app.unlisten(event);
+    window.unlisten(event);
     if tokio::time::timeout(Duration::from_millis(20), super::acquire_core_transition())
         .await
         .is_ok()
