@@ -646,12 +646,32 @@ fn builtin_asset_file(name: &str) -> Option<(&'static str, &'static str)> {
         })
 }
 
+/// 内置资源目录（canonicalize 后）的进程级缓存。
+///
+/// `dsh-pet://` 协议对每个视频的加载请求都会走 `resolve_builtin_asset_path`，
+/// 而 debug 构建下 `bundled_plugin_dir` 每次都会全量重扫 `packages/*` 并解析
+/// 每个包的 package.json（`discover_dev_internal_plugins`），11 个内置资产 +
+/// config 的几十次请求会把初次加载拖慢到数秒~20 秒；内置资源运行期只读且目录
+/// 结构固定（首装后不变），缓存一次即可。
+fn builtin_assets_root(app: &AppHandle) -> Result<&'static PathBuf, String> {
+    static ROOT: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    ROOT.get_or_init(|| {
+        let plugin = match crate::service::plugin::bundled_plugin_dir(app, "dsh-tauri-pet") {
+            Some(plugin) => plugin,
+            None => {
+                return Err("PET_BUILTIN_ASSET_NOT_FOUND: dsh-tauri-pet is not deployed".to_string())
+            }
+        };
+        plugin.join("assets").canonicalize().map_err(|error| {
+            format!("PET_BUILTIN_ASSET_ROOT_FAILED: failed to resolve assets directory: {error}")
+        })
+    })
+    .as_ref()
+    .map_err(|error| error.clone())
+}
+
 fn resolve_builtin_asset_path(app: &AppHandle, file: &str) -> Result<PathBuf, String> {
-    let plugin = crate::service::plugin::bundled_plugin_dir(app, "dsh-tauri-pet")
-        .ok_or_else(|| "PET_BUILTIN_ASSET_NOT_FOUND: dsh-tauri-pet is not deployed".to_string())?;
-    let assets_root = plugin.join("assets").canonicalize().map_err(|error| {
-        format!("PET_BUILTIN_ASSET_ROOT_FAILED: failed to resolve assets directory: {error}")
-    })?;
+    let assets_root = builtin_assets_root(app)?;
     let candidate = assets_root.join(file);
     let link_metadata = fs::symlink_metadata(&candidate).map_err(|error| {
         format!("PET_BUILTIN_ASSET_READ_FAILED: failed to inspect {}: {error}", candidate.display())

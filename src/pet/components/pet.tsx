@@ -204,6 +204,19 @@ export function Pet(props: PetProps) {
   }, [])
 
   useEffect(() => {
+    // 窗口由隐藏恢复显示（主 webview 重新开启宠物）时，WebView2 在隐藏窗口
+    // 上可能暂停媒体播放；这里在 visible 恢复为 true 时重放前台视频，避免
+    // 宠物「显示出来但静止不动」。元素始终常驻 DOM（CSS invisible），无需重载 src。
+    if (!visible)
+      return undefined
+    const front = frontIdxRef.current === 0 ? videoARef.current : videoBRef.current
+    if (front !== null && front.paused && front.src !== '' && !front.error) {
+      void front.play().catch(() => setFailed(true))
+    }
+    return undefined
+  }, [visible])
+
+  useEffect(() => {
     if (isBuiltin)
       return undefined
     let disposed = false
@@ -424,63 +437,70 @@ export function Pet(props: PetProps) {
   } as CSSProperties
 
   return (
-    <If cond={visible}>
-      <main className="pointer-events-none fixed inset-0 flex items-end justify-center overflow-visible" style={style}>
-        {/* 视频筐本身不响应事件：可交互面收缩到下方 PET_HIT_BOX 命中区（与 dsh-pet
-            .dsh-pet-hit 一致），事件从命中区冒泡到 app.tsx 的 dragRef 壳触发拖拽。 */}
-        <div className="pointer-events-none relative h-[calc(var(--pet-width)*var(--pet-aspect))] w-[var(--pet-width)] select-none">
-          <If cond={isBuiltin}>
-            {/* 双 video 缓冲：前台 opacity-100 淡入、后台 opacity-0 淡出，
-                切换经 loadeddata 就绪后交换（见开关 effect），无空窗/黑帧闪跳。
-                视频均 pointer-events-none，避免截获命中区外的点击。 */}
-            <video
-              ref={videoARef}
-              className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${frontIdx === 0 ? 'opacity-100' : 'opacity-0'}`}
-              muted
-              playsInline
-              preload="auto"
-              onError={() => setFailed(true)}
-            />
-            <video
-              ref={videoBRef}
-              className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${frontIdx === 1 ? 'opacity-100' : 'opacity-0'}`}
-              muted
-              playsInline
-              preload="auto"
-              onError={() => setFailed(true)}
-            />
-          </If>
-          <If cond={!isBuiltin && hasCustomAsset}>
-            <div
-              ref={spriteRef}
-              className="pointer-events-none absolute inset-0 bg-contain bg-no-repeat"
-              style={{
-                backgroundImage: customAsset ? `url(${customAsset.spritesheet})` : undefined,
-                backgroundSize: customAsset ? `${customAsset.columns * 100}% ${customAsset.rows * 100}%` : undefined,
-              }}
-            />
-            {/* 探测精灵图真实像素尺寸，换算成帧比例供窗口缩放使用；0×0 不可见。 */}
-            <img
-              className="pointer-events-none absolute h-0 w-0 opacity-0"
-              src={customAsset?.spritesheet}
-              alt=""
-              draggable={false}
-              onError={() => setFailed(true)}
-              onLoad={handleSpriteLoaded}
-            />
-          </If>
-          <If cond={failed && assets.fallback !== undefined}>
-            <img className="pointer-events-none absolute inset-0 h-full w-full object-contain" src={assets.fallback} alt="" draggable={false} />
-          </If>
-          {/* 命中区：唯一可交互面（拖拽/双击），尺寸与 dsh-pet .dsh-pet-hit 一致。 */}
-          <div
-            ref={props.hitboxRef}
-            className="pointer-events-auto absolute cursor-grab touch-none select-none"
-            style={PET_HIT_BOX}
+    // 保持 <main> 与全部子元素（双 video、命中区）常驻 DOM，visible=false 时仅用
+    // visibility:hidden 隐藏：隐藏/重开（主 webview 关闭宠物再开启）不会重挂载出
+    // 新元素，useDrag 的监听器与视频加载 effect 都只绑定/加载一次，无需 F5 恢复；
+    // 不用 display:none —— useOmitIgnoreCursorEvents 依赖 hitbox 的 getBoundingClientRect
+    // 做鼠标穿透判定，display:none 会得到全 0 rect。窗口本身的显隐由 Rust 的
+    // show/hide 控制，这里只负责 WebView 内部一致性。
+    <main
+      className={`pointer-events-none fixed inset-0 flex items-end justify-center overflow-visible ${visible ? '' : 'invisible'}`}
+      style={style}
+    >
+      {/* 视频筐本身不响应事件：可交互面收缩到下方 PET_HIT_BOX 命中区（与 dsh-pet
+          .dsh-pet-hit 一致），事件从命中区冒泡到 app.tsx 的 dragRef 壳触发拖拽。 */}
+      <div className="pointer-events-none relative h-[calc(var(--pet-width)*var(--pet-aspect))] w-[var(--pet-width)] select-none">
+        <If cond={isBuiltin}>
+          {/* 双 video 缓冲：前台 opacity-100 淡入、后台 opacity-0 淡出，
+              切换经 loadeddata 就绪后交换（见开关 effect），无空窗/黑帧闪跳。
+              视频均 pointer-events-none，避免截获命中区外的点击。 */}
+          <video
+            ref={videoARef}
+            className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${frontIdx === 0 ? 'opacity-100' : 'opacity-0'}`}
+            muted
+            playsInline
+            preload="auto"
+            onError={() => setFailed(true)}
           />
-        </div>
-      </main>
-    </If>
+          <video
+            ref={videoBRef}
+            className={`pointer-events-none absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${frontIdx === 1 ? 'opacity-100' : 'opacity-0'}`}
+            muted
+            playsInline
+            preload="auto"
+            onError={() => setFailed(true)}
+          />
+        </If>
+        <If cond={!isBuiltin && hasCustomAsset}>
+          <div
+            ref={spriteRef}
+            className="pointer-events-none absolute inset-0 bg-contain bg-no-repeat"
+            style={{
+              backgroundImage: customAsset ? `url(${customAsset.spritesheet})` : undefined,
+              backgroundSize: customAsset ? `${customAsset.columns * 100}% ${customAsset.rows * 100}%` : undefined,
+            }}
+          />
+          {/* 探测精灵图真实像素尺寸，换算成帧比例供窗口缩放使用；0×0 不可见。 */}
+          <img
+            className="pointer-events-none absolute h-0 w-0 opacity-0"
+            src={customAsset?.spritesheet}
+            alt=""
+            draggable={false}
+            onError={() => setFailed(true)}
+            onLoad={handleSpriteLoaded}
+          />
+        </If>
+        <If cond={failed && assets.fallback !== undefined}>
+          <img className="pointer-events-none absolute inset-0 h-full w-full object-contain" src={assets.fallback} alt="" draggable={false} />
+        </If>
+        {/* 命中区：唯一可交互面（拖拽/双击），尺寸与 dsh-pet .dsh-pet-hit 一致。 */}
+        <div
+          ref={props.hitboxRef}
+          className="pointer-events-auto absolute cursor-grab touch-none select-none"
+          style={PET_HIT_BOX}
+        />
+      </div>
+    </main>
   )
 }
 
