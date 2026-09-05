@@ -4,8 +4,10 @@
  * 像 dataelement/dsh-desktop 一样往侧栏塞图标：入口是 `.sidebar.settings`
  * 容器（dsh-tauri-ui 的设置触发器所在处）的子元素——紧贴 `.dsh-tu-settingsTrigger`
  * 右侧的原生按钮，样式复刻官方 `.rtSEdW_iconButton`（见 styles 的
- * .dshpet-iconButton）。按钮只有「激活/未激活」两态：激活时右上角绿色小圆点，
- * 点击即在桌面端切换桌宠启用状态，不弹任何面板（设置走 settings.section 页）。
+ * .dshpet-iconButton）。按钮有「未选择/激活」两态：未选择任何宠物时（桌宠尚未
+ * 启用）点击只提示「未选择宠物，请在设置页选择你的宠物」，不改变启用状态；
+ * 已选择宠物后点击即在桌面端切换桌宠启用状态，不弹任何面板（设置走
+ * settings.section 页）。
  *
  * 挂载策略参照 dsh-tauri-session 的 workspace-patch：MutationObserver 监听
  * document.body，侧栏就绪后插入并持续看护（React 重渲染容器后自动补插）；
@@ -19,7 +21,18 @@ import { beginPetStatusFetch, commitPetStatusFetch, getPetUiSnapshot, setPetStat
 /** 入口图标（爪印，currentColor 跟随官方 iconButton 悬停变色）。 */
 const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 13.5c-2.7 0-5.5 2-5.5 4.3 0 1.4 1 2.2 2.3 2.2 1 0 1.9-.6 3.2-.6s2.2.6 3.2.6c1.3 0 2.3-.8 2.3-2.2 0-2.3-2.8-4.3-5.5-4.3z"/><path d="M7.3 8.1c-1 .1-1.8 1.2-1.7 2.5.1 1.2 1 2.1 2 2 .9-.1 1.7-1.2 1.6-2.4-.1-1.2-1-2.2-1.9-2.1z"/><path d="M12 4.5c-1.1 0-2 1.1-2 2.5s.9 2.5 2 2.5 2-1.1 2-2.5-.9-2.5-2-2.5z"/><path d="M16.7 8.1c-.9-.1-1.8.9-1.9 2.1-.1 1.2.7 2.3 1.6 2.4 1 .1 1.9-.8 2-2 .1-1.3-.7-2.4-1.7-2.5z"/><path d="M4.8 12.3c-.8.3-1.2 1.4-.9 2.4.3 1 1.2 1.6 2 1.3.8-.3 1.1-1.4.8-2.4-.3-1-1.1-1.6-1.9-1.3z"/><path d="M19.2 12.3c-.8-.3-1.6.3-1.9 1.3-.3 1 0 2.1.8 2.4.8.3 1.7-.3 2-1.3.3-1-.1-2.1-.9-2.4z"/></svg>'
 
-/** 切换桌宠启用状态（入口按钮点击；失败仅记录，设置页内有完整错误展示）。 */
+/** 未选择宠物提示展示时长（ms）。 */
+const NO_PET_HINT_MS = 2600
+
+/** 桌宠是否已选择（启用即视为已选择；未启用=未选择，点击只提示）。 */
+function petSelected(): boolean {
+  return Boolean(getPetUiSnapshot().status?.enabled)
+}
+
+/**
+ * 切换桌宠启用状态（入口按钮点击；已选择宠物后启用，失败仅记录，设置页内有
+ * 完整错误展示）。
+ */
 async function togglePetEnabled(): Promise<void> {
   const current = getPetUiSnapshot().status
   const enabled = Boolean(current?.enabled)
@@ -37,6 +50,17 @@ async function togglePetEnabled(): Promise<void> {
   }
 }
 
+/** 点击未选择宠物时短暂展示「请在设置页选择你的宠物」提示。 */
+function flashNoPetHint(button: HTMLButtonElement): void {
+  const previous = button.getAttribute('data-tip') ?? ''
+  button.setAttribute('data-tip', text('noPetSelected'))
+  button.classList.add('dshpet-iconHint')
+  window.setTimeout(() => {
+    button.classList.remove('dshpet-iconHint')
+    button.setAttribute('data-tip', previous)
+  }, NO_PET_HINT_MS)
+}
+
 /** 创建入口按钮（绿点常驻 DOM，用 aria-pressed + 类名表达两态）。 */
 function createPetIconButton(): HTMLButtonElement {
   const button = document.createElement('button')
@@ -47,6 +71,11 @@ function createPetIconButton(): HTMLButtonElement {
   button.setAttribute('aria-label', text('name'))
   button.innerHTML = `${PET_ICON_SVG}<span class="dshpet-iconDot" aria-hidden="true" />`
   button.addEventListener('click', () => {
+    // 未选择宠物：只提示，不改变启用状态（选择走设置页）。
+    if (!petSelected()) {
+      flashNoPetHint(button)
+      return
+    }
     void togglePetEnabled()
   })
   return button

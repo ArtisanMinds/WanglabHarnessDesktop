@@ -24,24 +24,24 @@ export interface PetAsset {
   spritesheet: string
 }
 
-/** 内置协议配置（dsh-pet assets/config.jsonc 协议子集），由 Rust 校验后返回。 */
-export interface PetConfig {
-  pets: { id: string, name?: string, size?: number }[]
-  animations: {
-    idle: string[]
-    turn: string[]
-    drag: string[]
-    clicks: string[]
-    moves: {
-      default: Record<string, number>
-      actions: { name: string, params?: Record<string, number> }[]
-    }
-    categories: { id: string, weight: number, noMirror?: boolean, actions: string[] }[]
-    events?: Record<string, string[]>
-  }
-  animationWeights: { idle: number, turn: number, move: number }
-  physics?: Record<string, unknown>
-  eventsRefreshSec?: Record<string, number>
+/** 预设宠物清单条目（`resources/preset-pets.json` 的展示层投影）。 */
+export interface PresetPetItem {
+  desc?: string | null
+  id: string
+  image?: string | null
+  installed: boolean
+  name: string
+  size_mb?: number | null
+  /** 当前下载阶段（idle|downloading|extracting|done|failed），跨挂载恢复下载中视图用。 */
+  phase?: PresetDownloadProgress['phase'] | null
+}
+
+/** 预设宠物下载进度快照（设置页轮询 `get_preset_download_progress`）。 */
+export interface PresetDownloadProgress {
+  phase: 'idle' | 'downloading' | 'extracting' | 'done' | 'failed'
+  received: number
+  total: number
+  error?: string | null
 }
 
 export interface WorkspaceItem {
@@ -88,12 +88,18 @@ export type LocaleKey
     | 'collapsePet'
     | 'create'
     | 'createFailed'
+    | 'download'
+    | 'downloadFailed'
+    | 'downloading'
     | 'emptyImported'
+    | 'enable'
     | 'import'
     | 'importFailed'
     | 'listFailed'
+    | 'loading'
     | 'name'
 
+    | 'noPetSelected'
     | 'petDescWhale'
     | 'petNameWhale'
     | 'select'

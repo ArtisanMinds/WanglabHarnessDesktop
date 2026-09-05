@@ -60,6 +60,8 @@ const style = c([
     zIndex: '10',
   }),
   c('.dshpet-iconButton:hover::after, .dshpet-iconButton:focus-visible::after', { opacity: '1' }),
+  // 未选择宠物提示：点击时短暂强制显示气泡（与 hover 共用同一 data-tip 气泡）。
+  c('.dshpet-iconButton.dshpet-iconHint::after', { opacity: '1' }),
   // 激活态绿色小圆点（右上角），未激活时隐藏。
   c('.dshpet-iconDot', {
     position: 'absolute',
@@ -228,11 +230,53 @@ const style = c([
     flexDirection: 'column',
     gap: '2px',
   }),
-  c('.dshpet-cardName', { fontWeight: '600', fontSize: '14px', lineHeight: '20px' }),
+  c('.dshpet-cardNameRow', {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    minWidth: '0',
+  }),
+  c('.dshpet-cardName', { fontWeight: '600', fontSize: '14px', lineHeight: '20px', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+  // 名字旁的下载尺寸标签（`[number]mb`）。
+  c('.dshpet-cardSize', {
+    flex: 'none',
+    fontSize: '11px',
+    lineHeight: '16px',
+    padding: '0 6px',
+    borderRadius: '999px',
+    border: '1px solid var(--dsw-alias-border-weak, rgba(127,127,127,0.2))',
+    color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))',
+    background: 'var(--dsw-alias-bg-layer-1)',
+  }),
   c('.dshpet-cardDesc', {
     fontSize: '12px',
     lineHeight: '18px',
     color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))',
+  }),
+  // 描述下方的下载进度条（预设宠物下载/解压中显示）。
+  c('.dshpet-cardProgress', {
+    display: 'block',
+    width: '100%',
+    height: '4px',
+    borderRadius: '999px',
+    background: 'var(--dsw-alias-bg-layer-1)',
+    overflow: 'hidden',
+    marginTop: '4px',
+  }),
+  c('.dshpet-cardProgressFill', {
+    display: 'block',
+    height: '100%',
+    borderRadius: '999px',
+    background: 'var(--dsw-alias-brand-primary)',
+    transition: 'width 0.15s ease',
+  }),
+  c('.dshpet-cardProgressIndeterminate', {
+    width: '40%',
+    animation: 'dshpet-progress-indeterminate 1.2s ease-in-out infinite',
+  }),
+  c('@keyframes dshpet-progress-indeterminate', {
+    from: { transform: 'translateX(-100%)' },
+    to: { transform: 'translateX(250%)' },
   }),
   c('.dshpet-cardAction', {
     flex: 'none',
@@ -261,6 +305,14 @@ const style = c([
     lineHeight: '20px',
     borderRadius: '12px',
     border: '1px dashed var(--dsw-alias-border-weak, rgba(127,127,127,0.2))',
+    color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))',
+  }),
+  // 初次加载占位（首次打开设置页、清单尚未到达时显示，避免空卡片闪烁）。
+  c('.dshpet-loading', {
+    padding: '24px 16px',
+    textAlign: 'center',
+    fontSize: '13px',
+    lineHeight: '20px',
     color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))',
   }),
   c('.dshpet-error', {

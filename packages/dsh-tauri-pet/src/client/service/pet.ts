@@ -1,13 +1,14 @@
-import type { PetAsset, PetConfig, PetListItem, PetSource, PetStatus } from '../types'
+import type { PetAsset, PetListItem, PetSource, PetStatus, PresetDownloadProgress, PresetPetItem } from '../types'
 import { invokeBridgedTauri } from 'dsh-tauri/client'
 import {
-  CMD_GET_BUILTIN_PET_ASSETS,
-  CMD_GET_BUILTIN_PET_CONFIG,
+  CMD_DOWNLOAD_PRESET_PET,
   CMD_GET_PET_ASSET,
   CMD_GET_PET_STATUS,
+  CMD_GET_PRESET_DOWNLOAD_PROGRESS,
   CMD_HIDE_PET,
   CMD_IMPORT_PET,
   CMD_LIST_PETS,
+  CMD_LIST_PRESET_PETS,
   CMD_PUSH_PET_SESSION,
   CMD_SET_ACTIVE_PET,
   CMD_SET_PET_ENABLED,
@@ -59,11 +60,17 @@ export function pushPetSession(
   return invokeBridgedTauri<void>(CMD_PUSH_PET_SESSION, { action, session })
 }
 
-export function fetchBuiltinPetAssets(): Promise<{ assets: Record<string, string> }> {
-  return invokeBridgedTauri<{ assets: Record<string, string> }>(CMD_GET_BUILTIN_PET_ASSETS)
+/** 预设宠物清单（resources/preset-pets.json + 本机安装状态）。 */
+export function fetchPresetPets(): Promise<PresetPetItem[]> {
+  return invokeBridgedTauri<PresetPetItem[]>(CMD_LIST_PRESET_PETS)
 }
 
-/** 内置协议配置（dsh-pet assets/config.jsonc 协议子集）：动画池/权重/宠物定义。 */
-export function fetchBuiltinPetConfig(): Promise<PetConfig> {
-  return invokeBridgedTauri<PetConfig>(CMD_GET_BUILTIN_PET_CONFIG)
+/** 开始下载并安装预设宠物（后台执行；进度用 fetchPresetDownloadProgress 轮询）。 */
+export function downloadPresetPet(id: string): Promise<void> {
+  return invokeBridgedTauri<void>(CMD_DOWNLOAD_PRESET_PET, { id })
+}
+
+/** 查询预设宠物下载进度。 */
+export function fetchPresetDownloadProgress(id: string): Promise<PresetDownloadProgress> {
+  return invokeBridgedTauri<PresetDownloadProgress>(CMD_GET_PRESET_DOWNLOAD_PROGRESS, { id })
 }
