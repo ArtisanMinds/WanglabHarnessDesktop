@@ -101,7 +101,8 @@ brew install dsh-tauri-desk/desktop/deepseek-harness
 <table>
   <tr>
     <td align="center"><strong>QQ 群</strong><br /><img src="./docs/images/community/qq-qrcode.jpg" width="360" alt="QQ 群二维码" /></td>
-    <td align="center"><strong>微信群</strong><br /><img src="./docs/images/community/wx-qrcode.png" width="360" alt="微信群二维码" /></td>
+    <td align="center"><strong>微信群(已满,请先加我微信) -> </strong><br /><img src="./docs/images/community/wx-qrcode.png" width="360" alt="微信群二维码" /></td>
+    <td align="center"><strong>个人微信</strong><br /><img src="https://github.com/user-attachments/assets/c1d6e493-b608-4a6d-b387-dfcaa37ccfdc" width="360" alt="微信群二维码" /></td>
   </tr>
 </table>
 
