@@ -148,4 +148,31 @@ mod tests {
             .expect("valid manifest")
             .is_none());
     }
+
+    #[test]
+    fn desktop_022_is_offered_to_existing_users_with_its_verified_installer() {
+        for current in ["0.1.0", "0.2.0", "0.2.1", "0.2.2"] {
+            let manifest: ReleaseManifest = serde_json::from_value(serde_json::json!({
+                "version": "0.2.2",
+                "tag": "v0.2.2",
+                "publishedAt": "2026-09-06T00:00:00Z",
+                "assets": [{
+                    "name": platform_asset(),
+                    "url": "https://seuwanglab.com/downloads/wanglab-harness-desktop/releases/v0.2.2/installer",
+                    "digest": format!("sha256:{}", "b".repeat(64)),
+                    "platform": "windows",
+                    "arch": "x86_64"
+                }]
+            })).unwrap();
+            let update = release_from_manifest(manifest, current).unwrap();
+            if current == "0.2.2" {
+                assert!(update.is_none());
+            } else {
+                let update = update.unwrap();
+                assert_eq!(update.version, "0.2.2");
+                assert_eq!(update.digest, Some(format!("sha256:{}", "b".repeat(64))));
+                assert!(update.url.contains("/v0.2.2/"));
+            }
+        }
+    }
 }

@@ -14,10 +14,10 @@ pub const DSH_CORE_URL: &str =
     "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
 pub const WANGLAB_DSH_VERSION: &str = "0.1.2-rc.1";
-pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab";
-pub const WANGLAB_DSH_COMMIT: &str = "f0315c8cb4d8316d48fa0ad4e1d057fc8fd540f6";
+pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab022";
+pub const WANGLAB_DSH_COMMIT: &str = "9cc0a2e3b42f25463d1958c56bbd953274d7830f";
 pub const WANGLAB_DSH_DIGEST: &str =
-    "sha256:e91a59a86071d8aeb3c6a13751300fd970560b34296fe19d861788a43ff96e57";
+    "sha256:ba5132edcdf84c987720587a19b48933cfb72d72f1e3d6885f979673d7d1f813";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。
@@ -95,6 +95,8 @@ pub const STORE_DAT_DEV_FILE: &str = ".store.dev.dat";
 pub const STORE_SETTING_KEY: &str = "setting";
 /// Store 中记录主窗口几何（位置/大小/最大化）的键
 pub const STORE_WINDOW_STATE_KEY: &str = "window_state";
+/// Store 中记录桌宠（外置透明宠物窗口）几何（位置/大小）的键
+pub const STORE_PET_WINDOW_STATE_KEY: &str = "pet_window_state";
 
 /// 健康检查超时
 pub const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);

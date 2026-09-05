@@ -30,7 +30,7 @@ pub(crate) use runtime::prepare_active_runtime;
 #[allow(unused_imports)]
 pub use source::{active_dsh_binary, active_source, active_version, CoreSource, HarnessCore};
 pub(crate) use version::prune_inactive;
-pub use version::{download_version, list, remove_version, set_active};
+pub use version::{download_version, has_installed_version, list, remove_version, set_active};
 
 /// 内网安装与 Desktop 的固定发行版本和提交记录必须一致。
 pub(crate) fn paired_core_ready(app_handle: &tauri::AppHandle) -> bool {

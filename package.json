@@ -1,7 +1,7 @@
 {
   "name": "wanglab-harness-desktop",
   "type": "module",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "packageManager": "pnpm@10.28.2",
   "description": "Wanglab Harness Desktop — Create Future Here.",
@@ -51,7 +51,6 @@
     "@deepseek-ai/dsh-api-workspace-controller": "catalog:dsh",
     "@deepseek-ai/dsh-client-connection": "catalog:dsh",
     "@deepseek-ai/dsh-client-locale": "catalog:dsh",
-    "@deepseek-ai/dsh-client-runtime": "catalog:dsh",
     "@deepseek-ai/dsh-client-store": "catalog:dsh",
     "@deepseek-ai/dsh-client-ui-conversation": "catalog:dsh",
     "@deepseek-ai/dsh-client-ui-layout": "catalog:dsh",

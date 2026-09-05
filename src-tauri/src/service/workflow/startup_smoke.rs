@@ -16,7 +16,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     let archive = fs::read(archive_path).map_err(|e| e.to_string())?;
     download::verify_sha256(
         &archive,
-        "4c04619e29f9d5cadfdc46da0d65d32a7d1c6fc3f419a38b86b8dd39dfd88dce",
+        "e91a59a86071d8aeb3c6a13751300fd970560b34296fe19d861788a43ff96e57",
     )?;
     let window = app
         .get_webview_window("main")
@@ -40,8 +40,8 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     setting.port = port;
     setting.manual_port = Some(port);
     setting.active_core = Some("app".to_string());
-    setting.dsh_pkg_tag = Some("dsh-0.1.1-rc.2-wanglab".to_string());
-    setting.dsh_pkg_commit = Some("40a72cfabc3c7c7bd0a64c8c4cc1b7ab1efdada1".to_string());
+    setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab".to_string());
+    setting.dsh_pkg_commit = Some("f0315c8cb4d8316d48fa0ad4e1d057fc8fd540f6".to_string());
     config::set_store_dat_setting(app, setting);
 
     let home = config::get_dsh_data_path(app);
@@ -77,7 +77,10 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         );
     }
 
-    let latest = download::fetch_latest_dsh_pkg_info().await?;
+    let mut latest = download::fetch_latest_dsh_pkg_info().await?;
+    // CI 在官网上传前校验同一份发行资产；生产代码仍固定走官网并核验摘要。
+    latest.asset_url = std::env::var("WANGLAB_TEST_CORE_URL")
+        .map_err(|_| "SMOKE_FIXTURE_MISSING: WANGLAB_TEST_CORE_URL")?;
     // 先轮询安装以取得目录锁，首次异步停服时让其余真实入口同时等待这把锁。
     let (installed, auto_started, plugins_ready, manual_started) = tokio::join!(
         biased;
@@ -180,8 +183,18 @@ fn windows_upgrade_startup() {
         .build(context)
         .expect("build smoke Tauri app");
     let base: PathBuf = config::get_base_dir(app.handle());
+    let log_path = config::get_service_log_path(app.handle());
     app.run_return(|_, _| {});
     let result = result_rx.recv().expect("receive startup result");
+    if result.is_err() {
+        if let Ok(log) = fs::read_to_string(log_path) {
+            let token = regex::Regex::new(r"([?&]token=)[^\s&]+").unwrap();
+            smoke_note(&format!(
+                "Core log: {}",
+                token.replace_all(&log, "$1[REDACTED]")
+            ));
+        }
+    }
     let _ = fs::remove_dir_all(base);
     let _ = fs::remove_dir_all(root);
     if let Err(error) = result {

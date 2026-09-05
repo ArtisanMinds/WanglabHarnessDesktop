@@ -54,6 +54,8 @@ const ROUTES: &[(&str, &str)] = &[
     ("deepseek", "https://10.201.2.89:31417/v1"),
 ];
 
+const CATALOG_MIGRATION: &str = ".wanglab-model-catalog-v2.yaml";
+
 pub fn apply(app_handle: &AppHandle) -> Result<(), String> {
     let home = config::get_dsh_data_path(app_handle);
     apply_to(&home)
@@ -103,7 +105,7 @@ fn read_yaml(path: &Path) -> Result<Value, String> {
 fn write_yaml(path: &Path, value: &Value, private: bool) -> Result<(), String> {
     let contents =
         serde_yaml::to_string(value).map_err(|e| format!("LOCAL_DEFAULTS_SERIALIZE: {e}"))?;
-    let backup = path.with_extension("yaml.before-wanglab-0.2.0");
+    let backup = path.with_extension("yaml.before-wanglab-0.2.2");
     if path.exists() && !backup.exists() {
         fs::copy(path, &backup).map_err(|e| format!("LOCAL_DEFAULTS_BACKUP: {e}"))?;
     }
@@ -151,6 +153,8 @@ pub async fn refresh_models(app_handle: &AppHandle) -> Result<(), String> {
     let path = home.join("settings.yaml");
     let snapshot = read_yaml(&path)?;
     let credentials = read_yaml(&home.join(".credentials.yaml"))?;
+    let migration = home.join(CATALOG_MIGRATION);
+    let migrating = !migration.exists();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(12))
         .danger_accept_invalid_certs(true)
@@ -160,23 +164,49 @@ pub async fn refresh_models(app_handle: &AppHandle) -> Result<(), String> {
         let current = route(&snapshot, provider);
         let configured = current["baseURL"].as_str() == Some(base);
         let key_ref = current["apiKeyEnv"].as_str().unwrap_or_default();
-        let key = std::env::var(key_ref).ok().or_else(|| credentials["refs"][key_ref].as_str().map(str::to_owned));
+        let key = std::env::var(key_ref)
+            .ok()
+            .or_else(|| credentials["refs"][key_ref].as_str().map(str::to_owned));
         let client = client.clone();
         async move {
-            if !configured { return (*provider, *base, None); }
-            let Some(key) = key else { return (*provider, *base, None); };
-            let url = if *provider == "anthropic" { format!("{base}/v1/models") } else { format!("{base}/models") };
+            if !configured {
+                return (*provider, *base, None);
+            }
+            let Some(key) = key else {
+                return (*provider, *base, None);
+            };
+            let url = if *provider == "anthropic" {
+                format!("{base}/v1/models")
+            } else {
+                format!("{base}/models")
+            };
             let result = async {
-                let response = client.get(url).bearer_auth(key).send().await
+                let mut request = client.get(url).bearer_auth(&key);
+                if *provider == "anthropic" {
+                    request = request
+                        .header("x-api-key", &key)
+                        .header("anthropic-version", "2023-06-01");
+                }
+                let response = request
+                    .send()
+                    .await
                     .map_err(|e| format!("MODEL_CATALOG_REQUEST: {e}"))?
-                    .error_for_status().map_err(|e| format!("MODEL_CATALOG_STATUS: {e}"))?;
-                let body: serde_json::Value = response.json().await.map_err(|e| format!("MODEL_CATALOG_JSON: {e}"))?;
-                body["data"].as_array().cloned().ok_or_else(|| "MODEL_CATALOG_INVALID: missing data array".to_string())
-            }.await;
+                    .error_for_status()
+                    .map_err(|e| format!("MODEL_CATALOG_STATUS: {e}"))?;
+                let body: serde_json::Value = response
+                    .json()
+                    .await
+                    .map_err(|e| format!("MODEL_CATALOG_JSON: {e}"))?;
+                body["data"]
+                    .as_array()
+                    .cloned()
+                    .ok_or_else(|| "MODEL_CATALOG_INVALID: missing data array".to_string())
+            }
+            .await;
             match result {
                 Ok(models) => (*provider, *base, Some(models)),
                 Err(error) => {
-                    log::warn!("Model refresh failed for {provider}, retaining last successful catalog: {error}");
+                    log::warn!("Model refresh failed for {provider}: {error}");
                     (*provider, *base, None)
                 }
             }
@@ -187,17 +217,62 @@ pub async fn refresh_models(app_handle: &AppHandle) -> Result<(), String> {
     let before = settings.clone();
     for (provider, base, models) in results {
         let current = route_mut(&mut settings, provider);
-        if current["baseURL"].as_str() != Some(base) {
+        if current["baseURL"].as_str() != Some(base)
+            || ["baseURL", "api", "apiKeyEnv"]
+                .iter()
+                .any(|field| current[*field] != route(&snapshot, provider)[*field])
+        {
             continue;
         }
-        if let Some(models) = models {
-            current["models"] = reconcile_models(provider, &current["models"], &models);
-        }
+        update_catalog(current, provider, models.as_deref(), migrating);
     }
     if settings != before {
         write_yaml(&path, &settings, false)?;
     }
+    if migrating {
+        write_yaml(
+            &migration,
+            &serde_yaml::from_str("version: 2\n").unwrap(),
+            false,
+        )?;
+    }
     Ok(())
+}
+
+/// 首次迁移时，未验证的旧目录不能充当断网缓存；以后保留上次成功结果。
+fn update_catalog(
+    current: &mut Value,
+    provider: &str,
+    models: Option<&[serde_json::Value]>,
+    migrating: bool,
+) {
+    if let Some(models) = models {
+        let mut previous = current["models"].clone();
+        if let Some(overrides) = current["modelOverrides"].as_mapping() {
+            let entries = previous.as_sequence_mut();
+            if let Some(entries) = entries {
+                for (id, fields) in overrides {
+                    if let Some(existing) = entries.iter_mut().find(|entry| entry["id"] == *id) {
+                        merge_missing(existing, fields);
+                    } else {
+                        let mut entry = fields.clone();
+                        if entry.is_mapping() {
+                            entry["id"] = id.clone();
+                            entries.push(entry);
+                        }
+                    }
+                }
+            }
+        }
+        current["models"] = reconcile_models(provider, &previous, models);
+    } else if migrating {
+        current["models"] = Value::Sequence(vec![]);
+    } else {
+        return;
+    }
+    if let Some(mapping) = current.as_mapping_mut() {
+        mapping.remove(Value::String("modelOverrides".to_string()));
+    }
 }
 
 fn reconcile_models(provider: &str, previous: &Value, remote: &[serde_json::Value]) -> Value {
@@ -283,5 +358,38 @@ mod tests {
             reconcile_models("openai", &previous, &[]),
             Value::Sequence(vec![])
         );
+    }
+
+    #[test]
+    fn offline_upgrade_clears_unverified_history_but_later_restarts_keep_verified_models() {
+        let mut current: Value = serde_yaml::from_str(
+            "models: [{id: retired}]\nmodelOverrides: {retired: {maxTokens: 2048}}\n",
+        )
+        .unwrap();
+        update_catalog(&mut current, "openai", None, true);
+        assert_eq!(current["models"], Value::Sequence(vec![]));
+        assert!(current["modelOverrides"].is_null());
+        update_catalog(
+            &mut current,
+            "openai",
+            Some(&[serde_json::json!({"id": "available"})]),
+            false,
+        );
+        update_catalog(&mut current, "openai", None, false);
+        assert_eq!(current["models"][0]["id"], "available");
+    }
+
+    #[test]
+    fn catalog_refresh_preserves_overrides_only_for_advertised_models() {
+        let mut current: Value = serde_yaml::from_str("models: []\nmodelOverrides: {available: {contextWindow: 99999}, retired: {maxTokens: 2048}}\n").unwrap();
+        update_catalog(
+            &mut current,
+            "openai",
+            Some(&[serde_json::json!({"id": "available"})]),
+            true,
+        );
+        assert_eq!(current["models"].as_sequence().unwrap().len(), 1);
+        assert_eq!(current["models"][0]["contextWindow"].as_u64(), Some(99999));
+        assert!(current["modelOverrides"].is_null());
     }
 }

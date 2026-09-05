@@ -3,8 +3,8 @@ import { Button, Chip, Label, Tooltip } from '@heroui/react'
 import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
-import { useDshCores } from '../hooks/use-dsh-cores'
 import { toast } from '@/utils/toast'
+import { useDshCores } from '../hooks/use-dsh-cores'
 import { Item } from './item'
 import { PanelHeader } from './panel-header'
 import { PanelState } from './panel-state'
@@ -41,17 +41,17 @@ export function ConfigCore() {
         description=""
         action={(
           <Tooltip>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="tertiary"
-            aria-label={t('core.refresh')}
-            isDisabled={busy || loading}
-            onPress={refresh}
-          >
-            <ArrowRotateRight className="size-4" />
-          </Button>
-          <Tooltip.Content>{t('core.refresh')}</Tooltip.Content>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              aria-label={t('core.refresh')}
+              isDisabled={busy || loading}
+              onPress={refresh}
+            >
+              <ArrowRotateRight className="size-4" />
+            </Button>
+            <Tooltip.Content>{t('core.refresh')}</Tooltip.Content>
           </Tooltip>
         )}
       />
@@ -72,16 +72,16 @@ export function ConfigCore() {
             right={(
               <If cond={!!current?.dir}>
                 <Tooltip>
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="tertiary"
-                  aria-label={t('core.open_dir')}
-                  onPress={openDirectory}
-                >
-                  <FolderOpen className="size-4" />
-                </Button>
-                <Tooltip.Content>{t('core.open_dir')}</Tooltip.Content>
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="tertiary"
+                    aria-label={t('core.open_dir')}
+                    onPress={openDirectory}
+                  >
+                    <FolderOpen className="size-4" />
+                  </Button>
+                  <Tooltip.Content>{t('core.open_dir')}</Tooltip.Content>
                 </Tooltip>
               </If>
             )}

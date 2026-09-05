@@ -307,62 +307,41 @@ pub async fn check_dsh_update(
         return Ok(None);
     }
 
-    // 当前已运行版本高于推荐版本时也不提示更新；否则从高版本核心切换后，
-    // latest release 仍可能被误判为更新并再次弹出通知。
-    if let Some(installed_version) = active_dsh_version(&app_handle) {
-        if config::is_dsh_version_above_recommended(&app_handle, &installed_version) {
-            log::info!(
-                "Suppressing dsh update because installed version is above recommended: {}",
-                installed_version
-            );
-            return Ok(None);
-        }
+    let latest = download::fetch_latest_dsh_pkg_info().await?;
+
+    // 相同 DSH 版本的 Wanglab 补丁修订也必须更新，不能只按 SemVer 跳过。
+    if !core::paired_core_ready(&app_handle) {
+        return Ok(Some(latest));
     }
 
-    let latest = download::fetch_latest_dsh_pkg_info().await?;
+    // 关键修复1：最新 release 的版本号已经在已装核心列表里（含 active 和非 active
+    // 槽位），就不提示更新。避免「老版本激活 + 新版已下载但未切换」场景下白点一次
+    // 「立即更新」做整包重下——版本号（用户视角的版本）已经在那了，没必要再拉一遍。
     if let Some(version) = download::parse_version_from_tag(&latest.tag) {
-        if config::is_dsh_version_above_recommended(&app_handle, &version) {
+        if core::has_installed_version(&app_handle, &version).await {
             log::info!(
-                "Suppressing dsh update above recommended version: {}",
+                "Suppressing dsh update toast because latest version is already installed: {}",
                 version
             );
             return Ok(None);
         }
     }
-    let record_commit = config::get_dsh_pkg_commit(&app_handle);
-    let record_tag = config::get_dsh_pkg_tag(&app_handle);
-    let installed_version = active_dsh_version(&app_handle);
 
-    // 老记录没有 tag，反查 pkg 仓库 tags 列表确认记录对应的发布版本；
-    // 反查失败时由 resolve_update 回退到“以实际文件为准”的保守分支
-    let legacy_tags = if record_tag.is_none() {
-        download::fetch_dsh_pkg_tags().await.unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-
-    match download::resolve_update(
-        record_commit.as_deref(),
-        record_tag.as_deref(),
-        installed_version.as_deref(),
-        &latest,
-        &legacy_tags,
-    ) {
-        download::UpdateCheck::UpToDate => Ok(None),
-        download::UpdateCheck::UpdateAvailable => Ok(Some(latest)),
-        download::UpdateCheck::HealUpToDate => {
-            // 安装文件已是最新 release，只是记录滞后：修正记录后下次启动
-            // 直接走 commit 比对快速路径，不再误报
+    // 关键修复2：最新 release 高于推荐版本时（通常是 alpha/beta/preview 序号
+    // 大于稳定 RC）不自动推。stable 用户不该被打扰去装 alpha 测试版；用户想追
+    // preview 自行去核心面板下载。这条规则先于「installed 比 latest 低」检查，
+    // 否则装了 0.1.1-rc.1 的用户会被弹 0.1.3-alpha.1 更新。
+    if let Some(version) = download::parse_version_from_tag(&latest.tag) {
+        if config::is_dsh_version_above_recommended(&app_handle, &version) {
             log::info!(
-                "Installed Harness files already at latest release, healing stale record: {} ({})",
-                latest.tag,
-                latest.commit
+                "Suppressing dsh update toast because latest is above recommended (preview/alpha): {}",
+                version
             );
-            config::set_dsh_pkg_commit(&app_handle, latest.commit.clone());
-            config::set_dsh_pkg_tag(&app_handle, latest.tag.clone());
-            Ok(None)
+            return Ok(None);
         }
     }
+
+    Ok(Some(latest))
 }
 
 /// 启动 Harness 服务
