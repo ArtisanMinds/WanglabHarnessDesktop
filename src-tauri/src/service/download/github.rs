@@ -633,6 +633,12 @@ pub fn resolve_update(
             .iter()
             .find(|(_, commit)| Some(commit.as_str()) == record_commit)
         {
+            // 反查到的 tag 与最新 release 同名 → 同一发布（之前 record_tag 缺失
+            // 没能提前命中 record_matches_latest_release，常见于 API 限流期安装把
+            // commit 写成完整 SHA、本次检查又限流把 latest.commit 兜底成 build-id，
+            // 此时 tag/commit 两种形态互不相等，单看 commit 反查到原 tag 后必须再
+            // 对齐一次 tag）。原逻辑在此分支一律按「同版本热修」处理会误报更新。
+            Some((tag, _)) if tag.as_str() == latest.tag.as_str() => UpdateCheck::UpToDate,
             Some((tag, _)) => match parse_version_from_tag(tag) {
                 Some(record_version) if record_behind_latest(&record_version) => {
                     UpdateCheck::HealUpToDate
@@ -1179,5 +1185,51 @@ mod tests {
             &[],
         );
         assert_eq!(decision, UpdateCheck::HealUpToDate);
+    }
+
+    #[test]
+    fn resolve_legacy_tag_match_latest_tag_is_up_to_date() {
+        // 回归：record_tag 缺失 + record_commit 为完整 SHA（API 正常时安装写入），
+        // 本次检查 API 限流 → latest.commit 兜底成 build-id。两种 commit 形态互不相等，
+        // `record_matches_latest_release` 提前判定为不匹配；进入 legacy_tags 反查后
+        // 必须再对齐一次 tag（同名即同一发布），不再盲目按「同版本热修」误报更新。
+        let latest = latest(
+            "dsh-0.1.2-rc.1-33729514615",
+            "33729514615", // 限流兜底
+        );
+        let tags = vec![(
+            "dsh-0.1.2-rc.1-33729514615".to_string(),
+            "abc123def4567890abcdef1234567890abcdef12".to_string(),
+        )];
+        let decision = resolve_update(
+            Some("abc123def4567890abcdef1234567890abcdef12"),
+            None,
+            Some("0.1.2-rc.1"),
+            &latest,
+            &tags,
+        );
+        assert_eq!(decision, UpdateCheck::UpToDate);
+    }
+
+    #[test]
+    fn resolve_legacy_tag_older_build_is_still_hotfix_update() {
+        // 反向回归：legacy_tags 反查到的是真正的同版本旧 build（不是 latest），
+        // 必须仍然报告 UpdateAvailable（hotfix），不能让上面的修复误伤这一支。
+        let latest = latest(
+            "dsh-0.1.2-rc.1-33729514615",
+            "33729514615",
+        );
+        let tags = vec![(
+            "dsh-0.1.2-rc.1-33600000000".to_string(), // 旧 build，不是 latest
+            "11122233344455556666777788899900aaaabbbb".to_string(),
+        )];
+        let decision = resolve_update(
+            Some("11122233344455556666777788899900aaaabbbb"),
+            None,
+            Some("0.1.2-rc.1"),
+            &latest,
+            &tags,
+        );
+        assert_eq!(decision, UpdateCheck::UpdateAvailable);
     }
 }
