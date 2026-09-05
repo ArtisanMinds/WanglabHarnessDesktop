@@ -20,8 +20,8 @@ if ($buildExit -ne 0) {
     Write-Output "::error title=Windows test compilation::$detail"
     exit $buildExit
 }
-if ($testExecutables.Count -eq 0) {
-    throw 'No Windows test executable was generated'
+if ($testExecutables.Count -ne 1) {
+    throw "Expected one Windows library test executable, got $($testExecutables.Count)"
 }
 
 # tauri-build links the Common Controls manifest only into application binaries.
@@ -44,3 +44,4 @@ foreach ($executable in $testExecutables) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Output "Applied application manifest to $executable"
 }
+Add-Content -Path $env:GITHUB_ENV -Value "WANGLAB_WINDOWS_TEST_EXE=$($testExecutables[0])"

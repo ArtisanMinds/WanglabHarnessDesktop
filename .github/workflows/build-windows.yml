@@ -73,7 +73,7 @@ jobs:
         shell: pwsh
         run: |
           $testLog = Join-Path $env:RUNNER_TEMP 'wanglab-backend-tests.log'
-          cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib -- --test-threads=1 2>&1 | Tee-Object -FilePath $testLog
+          & $env:WANGLAB_WINDOWS_TEST_EXE --test-threads=1 2>&1 | Tee-Object -FilePath $testLog
           $testExit = $LASTEXITCODE
           if ($testExit -ne 0) {
             $detail = (Get-Content $testLog -Tail 120) -join "`n"
@@ -92,7 +92,7 @@ jobs:
           Invoke-WebRequest 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.2-rc.1/deepseek-harness-pkg-windows.zip' -OutFile $fixture
           $env:WANGLAB_UPGRADE_CORE_ZIP = $fixture
           $env:WANGLAB_TEST_CORE_URL = 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.2-rc.1-desktop-0.2.2/deepseek-harness-pkg-windows.zip'
-          cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib windows_upgrade_startup -- --ignored --nocapture --test-threads=1
+          & $env:WANGLAB_WINDOWS_TEST_EXE windows_upgrade_startup --ignored --nocapture --test-threads=1
           if ($LASTEXITCODE -ne 0) {
             if (Test-Path $env:GITHUB_STEP_SUMMARY) {
               $detail = (Get-Content $env:GITHUB_STEP_SUMMARY -Raw).Replace("`r", ' ').Replace("`n", ' ')
