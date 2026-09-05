@@ -38,9 +38,6 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check internal plugin types
-        run: pnpm -r --filter './packages/*' typecheck
-
       # WiX 只接受纯数字版本；NSIS 仍使用完整 SemVer。
       - name: Prepare MSI version override
         shell: bash
@@ -58,6 +55,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --config release-msi-version.tmp.json
+
+      - name: Check internal plugin types
+        run: pnpm -r --filter './packages/*' typecheck
 
       - name: Test Windows backend
         run: cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib -- --test-threads=1
