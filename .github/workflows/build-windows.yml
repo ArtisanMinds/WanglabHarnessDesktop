@@ -35,6 +35,12 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
@@ -60,7 +66,17 @@ jobs:
         run: pnpm -r --filter './packages/*' typecheck
 
       - name: Test Windows backend
-        run: cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib -- --test-threads=1
+        shell: pwsh
+        run: |
+          $testLog = Join-Path $env:RUNNER_TEMP 'wanglab-backend-tests.log'
+          cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib -- --test-threads=1 2>&1 | Tee-Object -FilePath $testLog
+          $testExit = $LASTEXITCODE
+          if ($testExit -ne 0) {
+            $detail = (Get-Content $testLog -Tail 120) -join "`n"
+            $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows backend tests::$detail"
+            exit $testExit
+          }
 
       - name: Test frontend and internal plugins
         run: pnpm test --run
