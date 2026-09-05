@@ -206,5 +206,17 @@ fn windows_upgrade_startup() {
     let result = result_rx.recv().expect("receive startup result");
     let _ = fs::remove_dir_all(base);
     let _ = fs::remove_dir_all(root);
-    result.expect("Windows desktop upgrade and readiness");
+    if let Err(error) = result {
+        if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY") {
+            use std::io::Write;
+            if let Ok(mut file) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let _ = writeln!(file, "\n**SMOKE_FAILURE:** `{error}`");
+            }
+        }
+        panic!("Windows desktop upgrade and readiness: {error}");
+    }
 }

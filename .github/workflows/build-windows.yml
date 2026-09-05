@@ -63,7 +63,13 @@ jobs:
           Invoke-WebRequest 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.1-rc.2/deepseek-harness-pkg-windows.zip' -OutFile $fixture
           $env:WANGLAB_UPGRADE_CORE_ZIP = $fixture
           cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib windows_upgrade_startup -- --ignored --nocapture --test-threads=1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path $env:GITHUB_STEP_SUMMARY) {
+              $detail = (Get-Content $env:GITHUB_STEP_SUMMARY -Raw).Replace("`r", ' ').Replace("`n", ' ')
+              Write-Output "::error file=src-tauri/src/service/workflow/startup_smoke.rs::$detail"
+            }
+            exit $LASTEXITCODE
+          }
 
       - name: Upload build outputs
         uses: actions/upload-artifact@v6
