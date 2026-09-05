@@ -298,7 +298,13 @@ export function Pet(props: PetProps) {
     const source = assets[name]
     if (source === undefined)
       return undefined
-    const once = !(override?.loop ?? isLoopingAnimation(activity))
+    // adHoc（点击回应/待机插播）是一次性动画：是否循环只由动画自身决定，不能继承
+    // override 的 loop 标志——否则会话运行（override.loop=true）期间双击的点击回应
+    // 视频会被加载成循环播放，ended 永不触发、adHoc 永不清除，宠物卡在双击动画
+    // 里回不到会话动画（待机时 override 为 null 走 isLoopingAnimation，故不复现）。
+    const once = adHoc === null
+      ? !(override?.loop ?? isLoopingAnimation(activity))
+      : !isLoopingAnimation(activity)
     const revision = override?.revision
     // adHoc seq：点击同一动画时 seq 递增强制重播（对应 dsh-pet 的 seq 重放）。
     const seq = adHoc?.seq ?? 0
@@ -343,7 +349,7 @@ export function Pet(props: PetProps) {
       if (pendingRef.current?.gen === gen)
         pendingRef.current = null
     }
-  }, [activity, adHoc?.seq, assets, isPreset, override?.loop, override?.revision, pools])
+  }, [activity, adHoc, assets, isPreset, override?.loop, override?.revision, pools])
 
   // 点击回应：clickCount 变化（useDrag 判定「500ms 内两次按下且未拖拽 = 双击」后递增）
   // → 播放一次点击回应动画。adHoc 优先级在会话 override 之上：双击回应可打断会话状态，
@@ -403,7 +409,12 @@ export function Pet(props: PetProps) {
       return undefined
     const element = sprite
     const loadedAsset = asset
-    const sequence = spriteSequence(activity, reducedMotion, override?.loop ?? isLoopingAnimation(activity))
+    // 与视频路径同理：adHoc 播放期间 loop 只由动画自身决定，不继承 override 的
+    // loop 标志，避免会话运行期间点击回应精灵动作循环到 adHoc 计时器到期才回落。
+    const loop = adHoc === null
+      ? (override?.loop ?? isLoopingAnimation(activity))
+      : isLoopingAnimation(activity)
+    const sequence = spriteSequence(activity, reducedMotion, loop)
     let index = 0
     let timer: number | undefined
     function paint() {
@@ -421,7 +432,7 @@ export function Pet(props: PetProps) {
       if (timer !== undefined)
         window.clearTimeout(timer)
     }
-  }, [activity, activePet, adHoc?.seq, customAsset, customAssetPet, isPreset, override?.loop, reducedMotion])
+  }, [activity, activePet, adHoc, customAsset, customAssetPet, isPreset, override?.loop, reducedMotion])
 
   useEffect(() => {
     if (override?.loop !== false || override === null || isPreset || !hasCustomAsset)
