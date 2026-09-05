@@ -28,6 +28,8 @@ const SUCCESS_TOAST_TIMEOUT = 3000
  * lastAgentError 经插件 250ms 心跳重发后永久占用 'failed'、阻塞其他会话的动画切换。
  */
 const FAILED_PULSE_TTL = 1800
+/** [pet-activity] 临时诊断：按会话去重 liveActivity 日志（定位后随打点移除）。 */
+const activityDebugSeen = new Map<string, string>()
 
 /** 桌宠窗口的会话气泡：DSH 发送原始会话快照，本 hook 私有管理会话→toast key 映射，仅暴露聚合宠物状态。 */
 export function useBubble(): BubbleHandle {
@@ -321,6 +323,13 @@ function statusLabel(status: PetStatus | undefined): string {
 function liveActivityLabel(session: BubbleSession): string | undefined {
   if (sessionStatus(session) !== 'running')
     return undefined
+  // [pet-activity] 临时诊断：运行中会话实际收到的 liveActivity 原始值
+  // （"null" = 插件没推字段或明确为空 → 问题在插件侧；有对象但气泡仍「思考中」→ 问题在本文件）（定位后移除）
+  const raw = JSON.stringify(session.liveActivity ?? null)
+  if (activityDebugSeen.get(session.id) !== raw) {
+    activityDebugSeen.set(session.id, raw)
+    console.warn('[pet-activity] pet running activity', session.id, raw)
+  }
   const activity = session.liveActivity
   if (!activity || typeof activity !== 'object')
     return undefined
