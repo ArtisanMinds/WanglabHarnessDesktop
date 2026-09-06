@@ -229,6 +229,7 @@ async fn wait_for_readiness(port: u16) -> Result<String, String> {
 #[test]
 #[ignore = "requires Windows release resources and the previous public Core ZIP"]
 fn windows_upgrade_startup() {
+    assert!(!tauri::is_dev(), "run this test with --features tauri/custom-protocol");
     assert!(
         !cfg!(debug_assertions),
         "run this test with --release for isolated DSH_HOME"

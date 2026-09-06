@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
-$buildOutput = & cargo test --manifest-path src-tauri/Cargo.toml --release --locked --lib --no-run --message-format=json-render-diagnostics 2>&1
+# Native WebView tests load the same embedded pages as the release application.
+$buildOutput = & cargo test --manifest-path src-tauri/Cargo.toml --release --features tauri/custom-protocol --locked --lib --no-run --message-format=json-render-diagnostics 2>&1
 $buildExit = $LASTEXITCODE
 $testExecutables = @()
 foreach ($line in $buildOutput) {
