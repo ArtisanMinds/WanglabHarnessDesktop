@@ -40,9 +40,7 @@ const PET_MANIFEST_MAX_BYTES: u64 = 64 * 1024;
 const PET_SPRITESHEET_MAX_BYTES: u64 = 8 * 1024 * 1024;
 const PET_SPRITESHEET_MAX_DIMENSION: u32 = 16_384;
 const PET_SPRITESHEET_MAX_PIXELS: u64 = 64 * 1024 * 1024;
-const PET_SPRITE_VERSION: u8 = 2;
 const PET_SPRITE_COLUMNS: u8 = 8;
-const PET_SPRITE_ROWS: u8 = 11;
 
 /// 设置变化推送给 pet 窗口的事件名；会话生命周期使用 `session:*` 事件。
 pub const PET_STATUS_EVENT: &str = "pet://status";
@@ -152,7 +150,7 @@ impl PetSource {
     }
 }
 
-/// `pet.json` 的受支持字段；缺省版本按 Codex v2 处理。
+/// `pet.json` 的受支持字段；无版本标记的旧包按图集尺寸识别。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PetManifest {
@@ -161,13 +159,9 @@ struct PetManifest {
     display_name: Option<String>,
     #[serde(default)]
     description: Option<String>,
-    #[serde(default = "default_sprite_version")]
-    sprite_version_number: u8,
+    #[serde(default)]
+    sprite_version_number: Option<u8>,
     spritesheet_path: String,
-}
-
-fn default_sprite_version() -> u8 {
-    PET_SPRITE_VERSION
 }
 
 /// 列表项使用来源限定 id，避免 chat 与 codex 同名时互相覆盖。
@@ -177,6 +171,7 @@ pub struct PetListItem {
     pub name: String,
     pub description: Option<String>,
     pub thumbnail: Option<String>,
+    pub sprite_rows: Option<u8>,
     pub source: String,
 }
 
@@ -240,7 +235,10 @@ fn fail_pet(app: &AppHandle, error: String) -> String {
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .fail(error.clone());
-    emit_pet_status(app, &status_from_setting(&config::get_store_dat_setting(app)));
+    emit_pet_status(
+        app,
+        &status_from_setting(&config::get_store_dat_setting(app)),
+    );
     error
 }
 
@@ -254,9 +252,12 @@ fn validate_pet_assets(app: &AppHandle, id: &str) -> Result<(), String> {
     let idle = config["animations"]["idle"]
         .as_array()
         .ok_or("PET_PRESET_ASSETS_MISSING: idle animation pool is missing")?;
-    if idle.is_empty() || idle.iter().any(|name| {
-        name.as_str().is_none_or(|name| !assets.assets.contains_key(name))
-    }) {
+    if idle.is_empty()
+        || idle.iter().any(|name| {
+            name.as_str()
+                .is_none_or(|name| !assets.assets.contains_key(name))
+        })
+    {
         return Err("PET_PRESET_ASSETS_MISSING: idle animations are not installed".to_string());
     }
     Ok(())
@@ -294,8 +295,7 @@ pub fn set_pet_enabled(app: AppHandle, enabled: bool) -> Result<PetStatus, Strin
         validate_selected_pet(&app, &config::get_store_dat_setting(&app))
             .map_err(|error| fail_pet(&app, error))?;
     }
-    pet_window::set_pet_window_visible(&app, enabled)
-        .map_err(|error| fail_pet(&app, error))?;
+    pet_window::set_pet_window_visible(&app, enabled).map_err(|error| fail_pet(&app, error))?;
     let updated = config::update_store_dat_setting(&app, |setting| {
         setting.pet_enabled = enabled;
     });
@@ -353,11 +353,7 @@ pub fn set_pet_size(app: AppHandle, size: f64) -> Result<PetStatus, String> {
 
 /// 将 DSH 会话原始数据推送到独立桌宠 WebView，不在桌面端构造宠物专用结构。
 #[tauri::command]
-pub fn push_pet_session(
-    app: AppHandle,
-    action: String,
-    session: Value,
-) -> Result<(), String> {
+pub fn push_pet_session(app: AppHandle, action: String, session: Value) -> Result<(), String> {
     let action = action.trim();
     if !matches!(action, "create" | "update" | "remove") {
         return Err("PET_SESSION_ACTION_INVALID: action must be create/update/remove".to_string());
@@ -375,12 +371,8 @@ pub fn push_pet_session(
         "remove" => "session:remove",
         _ => unreachable!("session action was validated above"),
     };
-    app.emit_to(
-        pet_window::PET_WINDOW_LABEL,
-        event,
-        session,
-    )
-    .map_err(|error| format!("PET_SESSION_PUSH_FAILED: failed to emit session {id}: {error}"))
+    app.emit_to(pet_window::PET_WINDOW_LABEL, event, session)
+        .map_err(|error| format!("PET_SESSION_PUSH_FAILED: failed to emit session {id}: {error}"))
 }
 
 /// 按物理像素增量移动桌宠窗口，限制在可见显示器并保存最终位置。
@@ -425,10 +417,14 @@ pub fn report_pet_render(
     error: Option<String>,
 ) -> Result<(), String> {
     if window.label() != pet_window::PET_WINDOW_LABEL {
-        return Err("PET_RENDER_SOURCE_INVALID: only the pet window may report media status".to_string());
+        return Err(
+            "PET_RENDER_SOURCE_INVALID: only the pet window may report media status".to_string(),
+        );
     }
     let setting = config::get_store_dat_setting(&app);
-    if !setting.pet_enabled || normalize_active_pet(setting.active_pet.as_deref()).as_deref() != Some(id.as_str()) {
+    if !setting.pet_enabled
+        || normalize_active_pet(setting.active_pet.as_deref()).as_deref() != Some(id.as_str())
+    {
         return Ok(());
     }
     let error = error.map(|error| error.chars().take(2000).collect::<String>());
@@ -557,10 +553,10 @@ fn parse_manifest_bytes(bytes: &[u8]) -> Result<PetManifest, String> {
     let manifest: PetManifest = serde_json::from_slice(bytes)
         .map_err(|error| format!("PET_MANIFEST_INVALID: invalid pet.json: {error}"))?;
     validate_manifest_id(&manifest.id)?;
-    if manifest.sprite_version_number != PET_SPRITE_VERSION {
-        return Err(format!(
-            "PET_SPRITE_VERSION_UNSUPPORTED: spriteVersionNumber must be {PET_SPRITE_VERSION}"
-        ));
+    if !matches!(manifest.sprite_version_number, None | Some(1 | 2)) {
+        return Err(
+            "PET_SPRITE_VERSION_UNSUPPORTED: spriteVersionNumber must be 1 or 2".to_string(),
+        );
     }
     safe_relative_path(&manifest.spritesheet_path)?;
     Ok(manifest)
@@ -647,19 +643,46 @@ fn spritesheet_dimensions(bytes: &[u8]) -> Result<(&'static str, u32, u32), Stri
             "PET_ASSET_DIMENSIONS_INVALID: spritesheet dimensions exceed {PET_SPRITESHEET_MAX_DIMENSION}px or {PET_SPRITESHEET_MAX_PIXELS} pixels"
         ));
     }
-    if width % u32::from(PET_SPRITE_COLUMNS) != 0 || height % u32::from(PET_SPRITE_ROWS) != 0 {
+    if width % u32::from(PET_SPRITE_COLUMNS) != 0 || (height % 9 != 0 && height % 11 != 0) {
         return Err(format!(
-            "PET_ASSET_DIMENSIONS_INVALID: v2 spritesheet must be divisible by {PET_SPRITE_COLUMNS} columns and {PET_SPRITE_ROWS} rows"
+            "PET_ASSET_DIMENSIONS_INVALID: spritesheet must have {PET_SPRITE_COLUMNS} columns and 9 or 11 rows"
         ));
     }
     Ok((mime, width, height))
 }
 
-fn image_data_url(directory: &Path, relative: &str) -> Result<String, String> {
-    let path = contained_file(directory, relative)?;
+fn sprite_layout(version: Option<u8>, height: u32) -> Result<(u8, u8), String> {
+    // 兼容旧 Harness 已接受的无标记 v2 包；标准 v1 图集高度不能被 11 整除。
+    let version = version.unwrap_or(if height % 11 == 0 { 2 } else { 1 });
+    let rows = match version {
+        1 => 9,
+        2 => 11,
+        _ => return Err("PET_SPRITE_VERSION_UNSUPPORTED: expected v1 or v2".to_string()),
+    };
+    if height == 0 || height % u32::from(rows) != 0 {
+        return Err(format!(
+            "PET_ASSET_DIMENSIONS_INVALID: v{version} spritesheet must have {rows} rows"
+        ));
+    }
+    Ok((version, rows))
+}
+
+fn load_sprite_asset(
+    directory: &Path,
+    source: PetSource,
+    manifest: &PetManifest,
+) -> Result<PetAsset, String> {
+    let path = contained_file(directory, &manifest.spritesheet_path)?;
     let bytes = read_bounded_file(&path, PET_SPRITESHEET_MAX_BYTES, "PET_ASSET_READ_FAILED")?;
-    let (mime, _, _) = spritesheet_dimensions(&bytes)?;
-    Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
+    let (mime, _, height) = spritesheet_dimensions(&bytes)?;
+    let (sprite_version_number, rows) = sprite_layout(manifest.sprite_version_number, height)?;
+    Ok(PetAsset {
+        id: qualified_id(source, &manifest.id),
+        spritesheet: format!("data:{mime};base64,{}", STANDARD.encode(bytes)),
+        sprite_version_number,
+        columns: PET_SPRITE_COLUMNS,
+        rows,
+    })
 }
 
 fn manifest_to_list_item(
@@ -674,16 +697,20 @@ fn manifest_to_list_item(
         .filter(|value| !value.is_empty())
         .unwrap_or(&manifest.id)
         .to_string();
+    let (thumbnail, sprite_rows) = match load_sprite_asset(directory, source, &manifest) {
+        Ok(asset) => (Some(asset.spritesheet), Some(asset.rows)),
+        Err(_) => (None, None),
+    };
     let description = manifest
         .description
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let thumbnail = image_data_url(directory, &manifest.spritesheet_path).ok();
     PetListItem {
         id: qualified_id(source, &manifest.id),
         name,
         description,
         thumbnail,
+        sprite_rows,
         source: source.as_str().to_string(),
     }
 }
@@ -759,14 +786,7 @@ pub fn get_pet_asset(app: AppHandle, id: String) -> Result<PetAsset, String> {
             qualified_id(source, manifest_id)
         )
     })?;
-    let spritesheet = image_data_url(&directory, &manifest.spritesheet_path)?;
-    Ok(PetAsset {
-        id: qualified_id(source, &manifest.id),
-        spritesheet,
-        sprite_version_number: PET_SPRITE_VERSION,
-        columns: PET_SPRITE_COLUMNS,
-        rows: PET_SPRITE_ROWS,
-    })
+    load_sprite_asset(&directory, source, &manifest)
 }
 
 fn pet_import_lock() -> &'static Mutex<()> {
@@ -942,7 +962,7 @@ fn extract_pet_archive(bytes: &[u8], staging: &Path) -> Result<PetManifest, Stri
     }
 
     let manifest = read_manifest(staging)?;
-    image_data_url(staging, &manifest.spritesheet_path)?;
+    load_sprite_asset(staging, PetSource::Chat, &manifest)?;
     Ok(manifest)
 }
 
@@ -955,9 +975,8 @@ fn unique_staging_path(staging_root: &Path) -> PathBuf {
 }
 
 fn prepare_staging_root(root: &Path) -> Result<PathBuf, String> {
-    fs::create_dir_all(root).map_err(|error| {
-        format!("PET_DIR_FAILED: failed to create Codex pets directory: {error}")
-    })?;
+    fs::create_dir_all(root)
+        .map_err(|error| format!("PET_DIR_FAILED: failed to create pets directory: {error}"))?;
     let staging_root = root.join(".staging");
     match fs::symlink_metadata(&staging_root) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
@@ -986,9 +1005,14 @@ fn path_exists_including_symlink(path: &Path) -> Result<bool, String> {
     }
 }
 
-/// 导入 Codex v2 宠物：上传文件名不参与安装路径，只在 `~/.codex/pets` 内按清单 id 提交。
+/// 导入资源包：旧调用默认 Codex，Harness 页和市场明确选择 Chat 目录。
 #[tauri::command]
-pub fn import_pet(app: AppHandle, name: String, data: String) -> Result<PetListItem, String> {
+pub fn import_pet(
+    app: AppHandle,
+    name: String,
+    data: String,
+    source: Option<String>,
+) -> Result<PetListItem, String> {
     // 前端协议仍携带文件名，但文件名可能含 Unicode/空格且属于不可信展示数据。
     let _ = name;
     let encoded_limit = PET_PACKAGE_MAX_BYTES.div_ceil(3) * 4;
@@ -1006,32 +1030,67 @@ pub fn import_pet(app: AppHandle, name: String, data: String) -> Result<PetListI
         ));
     }
 
-    let root = pets_dir(&app, PetSource::Codex)?;
+    let source = PetSource::parse(source.as_deref().unwrap_or("codex"))?;
+    let root = pets_dir(&app, source)?;
+    install_pet_archive(&root, source, &bytes, None)
+}
+
+pub(super) fn install_harness_pet(
+    app: &AppHandle,
+    id: &str,
+    bytes: &[u8],
+) -> Result<PetListItem, String> {
+    validate_manifest_id(id)?;
+    let root = pets_dir(app, PetSource::Chat)?;
+    install_pet_archive(&root, PetSource::Chat, bytes, Some(id))
+}
+
+pub(super) fn installed_harness_pet_ids(app: &AppHandle) -> Result<HashSet<String>, String> {
+    let root = pets_dir(app, PetSource::Chat)?;
+    Ok(immediate_pet_directories(&root)?
+        .into_iter()
+        .filter_map(|directory| read_manifest(&directory).ok().map(|manifest| manifest.id))
+        .collect())
+}
+
+fn install_pet_archive(
+    root: &Path,
+    source: PetSource,
+    bytes: &[u8],
+    expected_id: Option<&str>,
+) -> Result<PetListItem, String> {
+    if bytes.len() > PET_PACKAGE_MAX_BYTES {
+        return Err("PET_PACKAGE_TOO_LARGE: pet package exceeds 32 MiB".to_string());
+    }
     let _guard = pet_import_lock()
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    let staging_root = prepare_staging_root(&root)?;
+    let staging_root = prepare_staging_root(root)?;
     let staging = unique_staging_path(&staging_root);
     let result = (|| {
-        let manifest = extract_pet_archive(&bytes, &staging)?;
+        let manifest = extract_pet_archive(bytes, &staging)?;
+        if expected_id.is_some_and(|id| id != manifest.id) {
+            return Err(
+                "PET_PACKAGE_ID_MISMATCH: archive does not match the catalog pet".to_string(),
+            );
+        }
         let target = root.join(&manifest.id);
         if path_exists_including_symlink(&target)? {
             return Err(format!(
-                "PET_ALREADY_IMPORTED: Codex pet target {} already exists",
+                "PET_ALREADY_IMPORTED: pet target {} already exists",
                 manifest.id
             ));
         }
-        if let Some((existing, _)) = find_pet_directory(&root, &manifest.id)? {
+        if let Some((existing, _)) = find_pet_directory(root, &manifest.id)? {
             return Err(format!(
-                "PET_ALREADY_IMPORTED: Codex pet id {} already exists at {}",
+                "PET_ALREADY_IMPORTED: pet id {} already exists at {}",
                 manifest.id,
                 existing.display()
             ));
         }
-        fs::rename(&staging, &target).map_err(|error| {
-            format!("PET_IMPORT_COMMIT_FAILED: failed to install Codex pet: {error}")
-        })?;
-        Ok(manifest_to_list_item(PetSource::Codex, &target, manifest))
+        fs::rename(&staging, &target)
+            .map_err(|error| format!("PET_IMPORT_COMMIT_FAILED: failed to install pet: {error}"))?;
+        Ok(manifest_to_list_item(source, &target, manifest))
     })();
     if result.is_err() {
         let _ = fs::remove_dir_all(&staging);
@@ -1082,6 +1141,66 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "需要 prepare-pet-market 生成的真实资源包"]
+    fn market_original_and_adapted_packages_install() {
+        let fixtures = PathBuf::from(
+            std::env::var_os("WANGLAB_PET_FIXTURES")
+                .expect("WANGLAB_PET_FIXTURES 必须指向 release-packages"),
+        );
+        let market = fixtures.join("site-staging-pets/downloads/wanglab-harness/pets");
+        let catalog: crate::bridge::pet_market::MarketCatalog =
+            serde_json::from_slice(&fs::read(market.join("catalog.json")).unwrap()).unwrap();
+        assert_eq!(
+            catalog
+                .pets
+                .iter()
+                .map(|pet| pet.id.as_str())
+                .collect::<Vec<_>>(),
+            ["codenono", "nimbus", "kimlet-hover-clap", "muskie"]
+        );
+        let root = TestDirectory::new("market-real-packages");
+        for pet in catalog.pets {
+            let original = fs::read(
+                fixtures
+                    .join("pet-market-source")
+                    .join(&pet.id)
+                    .join("original.zip"),
+            )
+            .unwrap();
+            let original_item = install_pet_archive(
+                &root.0.join("original"),
+                PetSource::Chat,
+                &original,
+                Some(&pet.id),
+            )
+            .unwrap();
+            assert_eq!(original_item.id, format!("chat:{}", pet.id));
+            assert_eq!(original_item.sprite_rows, Some(9));
+            let url = reqwest::Url::parse(&pet.archive_url).unwrap();
+            let relative = url
+                .path()
+                .strip_prefix("/downloads/wanglab-harness/pets/")
+                .unwrap();
+            let adapted = fs::read(market.join(relative)).unwrap();
+            let adapted_item = install_pet_archive(
+                &root.0.join("adapted"),
+                PetSource::Chat,
+                &adapted,
+                Some(&pet.id),
+            )
+            .unwrap();
+            assert_eq!(adapted_item, original_item);
+            let installed = root.0.join("adapted").join(&pet.id);
+            assert!(fs::read_to_string(installed.join("LICENSE"))
+                .unwrap()
+                .contains(&pet.author.name));
+            assert!(fs::read_to_string(installed.join("ATTRIBUTION.md"))
+                .unwrap()
+                .contains(&pet.source_url));
+        }
+    }
+
+    #[test]
     fn active_pet_has_no_implicit_default() {
         assert_eq!(normalize_active_pet(None), None);
         assert_eq!(normalize_active_pet(Some("   ")), None);
@@ -1095,7 +1214,10 @@ mod tests {
             normalize_active_pet(Some("codex:custom_pet")).as_deref(),
             Some("codex:custom_pet")
         );
-        assert_eq!(normalize_active_pet(Some("custom-preset")).as_deref(), Some("custom-preset"));
+        assert_eq!(
+            normalize_active_pet(Some("custom-preset")).as_deref(),
+            Some("custom-preset")
+        );
         for legacy_or_invalid in ["other:pet", "chat:../pet", "bad id", "x/y"] {
             assert_eq!(
                 normalize_active_pet(Some(legacy_or_invalid)),
@@ -1185,12 +1307,12 @@ mod tests {
     }
 
     #[test]
-    fn manifest_parsing_defaults_to_v2_and_qualifies_source_ids() {
+    fn manifest_parsing_preserves_unspecified_version_and_qualifies_source_ids() {
         let manifest = parse_manifest_bytes(
             br#"{"id":"blue_whale","displayName":"Blue Whale","description":"Chat pet","spritesheetPath":"art/pet.webp"}"#,
         )
         .unwrap();
-        assert_eq!(manifest.sprite_version_number, 2);
+        assert_eq!(manifest.sprite_version_number, None);
         assert_eq!(
             qualified_id(PetSource::Chat, &manifest.id),
             "chat:blue_whale"
@@ -1202,16 +1324,16 @@ mod tests {
     }
 
     #[test]
-    fn manifest_rejects_invalid_ids_and_non_v2_sprites() {
+    fn manifest_rejects_invalid_ids_and_unknown_sprite_versions() {
         let invalid_id =
             parse_manifest_bytes(br#"{"id":"../pet","spritesheetPath":"spritesheet.webp"}"#)
                 .unwrap_err();
         assert!(invalid_id.starts_with("PET_ID_INVALID:"));
-        let v1 = parse_manifest_bytes(
-            br#"{"id":"legacy","spriteVersionNumber":1,"spritesheetPath":"spritesheet.webp"}"#,
+        let unknown = parse_manifest_bytes(
+            br#"{"id":"future","spriteVersionNumber":3,"spritesheetPath":"spritesheet.webp"}"#,
         )
         .unwrap_err();
-        assert!(v1.starts_with("PET_SPRITE_VERSION_UNSUPPORTED:"));
+        assert!(unknown.starts_with("PET_SPRITE_VERSION_UNSUPPORTED:"));
     }
 
     #[test]
@@ -1298,7 +1420,7 @@ mod tests {
     }
 
     #[test]
-    fn spritesheet_dimensions_require_v2_grid_and_bounds() {
+    fn spritesheet_dimensions_require_supported_grid_and_bounds() {
         let valid = valid_test_webp();
         assert_eq!(
             spritesheet_dimensions(&valid).unwrap(),
@@ -1316,6 +1438,46 @@ mod tests {
         assert!(spritesheet_dimensions(&oversized)
             .unwrap_err()
             .starts_with("PET_ASSET_DIMENSIONS_INVALID:"));
+    }
+
+    #[test]
+    fn sprite_layout_accepts_legacy_and_current_packs_without_reinterpreting_explicit_versions() {
+        assert_eq!(sprite_layout(None, 1872).unwrap(), (1, 9));
+        assert_eq!(sprite_layout(Some(1), 1872).unwrap(), (1, 9));
+        assert_eq!(sprite_layout(None, 2288).unwrap(), (2, 11));
+        assert_eq!(sprite_layout(Some(2), 2288).unwrap(), (2, 11));
+        assert!(sprite_layout(Some(2), 1872).is_err());
+        assert!(sprite_layout(Some(1), 2288).is_err());
+        assert!(sprite_layout(None, 0).is_err());
+    }
+
+    #[test]
+    fn market_install_checks_identity_and_preserves_existing_files() {
+        let manifest =
+            br#"{"id":"sample","spriteVersionNumber":2,"spritesheetPath":"spritesheet.webp"}"#;
+        let webp = valid_test_webp();
+        let archive = build_archive(&[("pet.json", manifest), ("spritesheet.webp", &webp)]);
+        let root = TestDirectory::new("market-install");
+        assert!(
+            install_pet_archive(&root.0, PetSource::Chat, &archive, Some("different"))
+                .unwrap_err()
+                .starts_with("PET_PACKAGE_ID_MISMATCH:")
+        );
+        assert!(!root.0.join("sample").exists());
+        let item = install_pet_archive(&root.0, PetSource::Chat, &archive, Some("sample")).unwrap();
+        assert_eq!(item.id, "chat:sample");
+        assert_eq!(item.source, "chat");
+        fs::write(root.0.join("sample/user-notes.txt"), b"keep").unwrap();
+        assert!(
+            install_pet_archive(&root.0, PetSource::Chat, &archive, Some("sample"))
+                .unwrap_err()
+                .starts_with("PET_ALREADY_IMPORTED:")
+        );
+        assert_eq!(
+            fs::read(root.0.join("sample/user-notes.txt")).unwrap(),
+            b"keep"
+        );
+        assert_eq!(fs::read_dir(root.0.join(".staging")).unwrap().count(), 0);
     }
 
     #[test]

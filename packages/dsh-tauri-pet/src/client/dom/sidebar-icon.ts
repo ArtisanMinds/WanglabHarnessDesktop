@@ -14,7 +14,7 @@
  * guard 属性 + 位置校验防止重复插入与死循环。
  */
 import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
-import { text } from '../locales'
+import { subscribePetLocale, text } from '../locales'
 import { hidePet, installPetStatusSync, setPetEnabled, showPet } from '../service/pet'
 import { getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
 import { isPetVisible } from '../utils/status'
@@ -93,6 +93,7 @@ function syncIconState(button: HTMLButtonElement): void {
   const active = isPetVisible(status)
   button.classList.toggle('dshpet-iconOn', active)
   button.setAttribute('aria-pressed', String(active))
+  button.setAttribute('aria-label', text('name'))
   if (!button.classList.contains('dshpet-iconHint'))
     button.setAttribute('data-tip', status?.error ? text('loadFailed') : text('name'))
 }
@@ -114,6 +115,7 @@ export function installSidebarPetIcon(): () => void {
   let patchedRail: boolean | undefined
 
   const unsubscribe = subscribePetUi(() => syncIconState(button))
+  const unsubscribeLocale = subscribePetLocale(() => syncIconState(button))
   const stopStatusSync = installPetStatusSync()
   syncIconState(button)
 
@@ -191,6 +193,7 @@ export function installSidebarPetIcon(): () => void {
   return () => {
     observer.disconnect()
     unsubscribe()
+    unsubscribeLocale()
     stopStatusSync()
     button.remove()
     if (rowHost) {

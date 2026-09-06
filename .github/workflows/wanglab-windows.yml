@@ -20,6 +20,11 @@ jobs:
     needs: build-windows
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - name: Download Windows packages
         uses: actions/download-artifact@v7
         with:
@@ -30,9 +35,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: wanglab-v0.2.3
         run: |
-          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop 0.2.3"
+          APP_VERSION="$(node -p 'require("./package.json").version')"
+          RELEASE_TAG="wanglab-v$APP_VERSION"
+          if EXISTING_COMMIT="$(gh release view "$RELEASE_TAG" --json targetCommitish --jq '.targetCommitish' 2>/dev/null)"; then
+            test "$EXISTING_COMMIT" = "$GITHUB_SHA" || { echo 'Refusing to overwrite a release from another commit'; exit 1; }
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop $APP_VERSION" --notes 'Self-hosted pet market and v1/v2 spritesheet support.'
+          fi
           mapfile -d '' assets < <(find release-assets -type f -name '*.exe' -print0)
           test "${#assets[@]}" -gt 0
           gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber

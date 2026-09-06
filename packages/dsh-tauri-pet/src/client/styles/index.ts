@@ -173,9 +173,11 @@ const style = c([
   c('.dshpet-sizeLabel', { flex: 'none', fontWeight: '500' }),
   c('.dshpet-sizeSlider', {
     flex: '1',
+    minWidth: '0',
     accentColor: 'var(--dsw-alias-brand-primary)',
     cursor: 'pointer',
   }),
+  c('.dshpet-sizeValue', { width: '4ch', flex: 'none', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }),
   c('.dshpet-hint', {
     margin: '0',
     fontSize: '12px',
@@ -188,7 +190,7 @@ const style = c([
     alignItems: 'center',
     gap: '12px',
     padding: '12px 14px',
-    borderRadius: '12px',
+    borderRadius: '8px',
     border: '1px solid var(--dsw-alias-border-weak, rgba(127,127,127,0.2))',
     background: 'var(--dsw-alias-bg-base)',
   }),
@@ -212,6 +214,7 @@ const style = c([
   }),
   c('.dshpet-cardThumbSprite', {
     position: 'relative',
+    height: '61px',
   }, [
     c('& > img', {
       position: 'absolute',
@@ -222,6 +225,7 @@ const style = c([
       left: '0',
       top: '0',
     }),
+    c('&[data-sprite-rows="9"] > img', { height: '900%' }),
   ]),
   c('.dshpet-cardBody', {
     flex: '1',
@@ -289,6 +293,11 @@ const style = c([
     color: 'var(--dsw-alias-label-primary)',
     fontSize: '12px',
     lineHeight: '18px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    minHeight: '30px',
   }, [
     c('&:hover:not(:disabled)', { background: 'var(--dsw-alias-interactive-bg-hover)' }),
     c('&:disabled', { opacity: '0.4', cursor: 'default' }),
@@ -321,6 +330,41 @@ const style = c([
     overflowWrap: 'anywhere',
     color: 'var(--dsw-alias-state-error-primary, var(--dsw-alias-danger-text, #ff7a7a))',
   }),
+  c('.dshpet-toolIcon', { width: '30px', height: '30px', padding: '6px', justifyContent: 'center' }),
+  c('.dshpet-market', { display: 'grid', gap: '12px', minWidth: '0' }),
+  c('.dshpet-marketTools, .dshpet-marketError', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }),
+  c('.dshpet-marketTools', { justifyContent: 'flex-end' }),
+  c('.dshpet-marketError', { fontSize: '13px', flexWrap: 'wrap' }),
+  c('.dshpet-marketGrid', {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+    gap: '12px',
+  }),
+  c('.dshpet-marketCard', {
+    minWidth: '0',
+    border: '1px solid var(--dsw-alias-border-weak, rgba(127,127,127,0.2))',
+    borderRadius: '8px',
+    overflow: 'hidden',
+  }),
+  c('.dshpet-marketPreview', {
+    height: '156px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'var(--dsw-alias-bg-layer-1)',
+    overflow: 'hidden',
+    padding: '8px',
+    fontSize: '13px',
+  }),
+  c('.dshpet-marketPreview img', { width: '100%', height: '100%', objectFit: 'contain' }),
+  c('.dshpet-marketBody', { padding: '12px', display: 'grid', gap: '8px', minWidth: '0', overflowWrap: 'anywhere' }),
+  c('.dshpet-marketBody h3', { margin: '0', fontSize: '14px', lineHeight: '20px', fontWeight: '600' }),
+  c('.dshpet-marketAuthor', {
+    color: 'var(--dsw-alias-label-secondary)',
+    fontSize: '12px',
+  }),
+  c('.dshpet-marketMeta', { display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '11px', color: 'var(--dsw-alias-label-secondary)' }),
+  c('.dshpet-marketProgress', { display: 'block', width: '100%', height: '4px', accentColor: 'var(--dsw-alias-brand-primary)' }),
 ])
 
 export function mountPetStyles(): () => void {

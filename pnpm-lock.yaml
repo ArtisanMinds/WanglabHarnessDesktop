@@ -660,6 +660,9 @@ importers:
       react:
         specifier: catalog:runtime
         version: 19.2.8
+      react-if-lite:
+        specifier: catalog:runtime
+        version: 0.1.0(react@19.2.8)
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)

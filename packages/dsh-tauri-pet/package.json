@@ -71,6 +71,7 @@
     "css-render": "catalog:ui",
     "dsh-tauri-tsdown": "workspace:*",
     "react": "catalog:runtime",
+    "react-if-lite": "catalog:runtime",
     "tsdown": "catalog:cli"
   }
 }

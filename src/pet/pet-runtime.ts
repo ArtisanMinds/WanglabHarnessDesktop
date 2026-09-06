@@ -42,8 +42,10 @@ export const INITIAL_PET_STATUS: PetRuntimeStatus = {
 export async function loadPetResources(id: string, renderId: number): Promise<PetResources> {
   if (id.includes(':')) {
     const sprite = await invoke<PetSpriteAsset>('get_pet_asset', { id })
-    if (sprite.id !== id || sprite.sprite_version_number !== 2 || sprite.columns !== 8
-      || sprite.rows !== 11 || !/^data:image\/(?:png|webp);base64,\S+$/.test(sprite.spritesheet)) {
+    const supportedLayout = (sprite.sprite_version_number === 1 && sprite.rows === 9)
+      || (sprite.sprite_version_number === 2 && sprite.rows === 11)
+    if (sprite.id !== id || !supportedLayout || sprite.columns !== 8
+      || !/^data:image\/(?:png|webp);base64,\S+$/.test(sprite.spritesheet)) {
       throw new Error('PET_ASSET_INVALID: unsupported or missing spritesheet')
     }
     return { id, renderId, sprite, config: null, assets: {} }

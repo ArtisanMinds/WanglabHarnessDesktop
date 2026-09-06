@@ -18,6 +18,7 @@ export interface PetListItem {
   name: string
   source: PetSource
   thumbnail?: string
+  sprite_rows?: number | null
 }
 
 export interface PetAsset {
@@ -46,6 +47,38 @@ export interface PresetDownloadProgress {
   received: number
   total: number
   error?: string | null
+}
+
+export interface MarketPetItem {
+  id: string
+  name: string
+  description: string
+  author: { name: string, url: string }
+  sourceUrl: string
+  license: string
+  licenseUrl: string
+  previewUrl: string
+  spritesheetUrl: string
+  spriteVersion: number
+  archiveUrl: string
+  sha256: string
+  size: number
+  installed: boolean
+  phase: PresetDownloadProgress['phase']
+}
+
+export interface PetMarketSnapshot {
+  loading: boolean
+  pets: MarketPetItem[]
+  downloads: Record<string, PresetDownloadProgress>
+  error: string | null
+}
+
+export interface PetMarketProps {
+  active: string | null
+  busy: boolean
+  onChoose: (id: string) => Promise<void>
+  onInstalled: () => Promise<void>
 }
 
 export interface WorkspaceItem {
@@ -110,6 +143,7 @@ export type LocaleKey
     | 'createFailed'
     | 'download'
     | 'downloadFailed'
+    | 'downloadInvalid'
     | 'downloading'
     | 'emptyImported'
     | 'emptyPets'
@@ -119,16 +153,18 @@ export type LocaleKey
     | 'listFailed'
     | 'loadFailed'
     | 'loading'
+    | 'market'
+    | 'marketEmpty'
+    | 'marketFailed'
     | 'name'
 
     | 'noPetSelected'
+    | 'refresh'
+    | 'retry'
     | 'select'
     | 'selected'
     | 'setPetFailed'
     | 'setSizeFailed'
-    | 'sizeHint'
     | 'sizeLabel'
-    | 'tabCodexDesc'
-    | 'tabInstalledDesc'
     | 'toggleFailed'
     | 'wakePet'

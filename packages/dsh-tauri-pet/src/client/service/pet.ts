@@ -78,8 +78,8 @@ export function fetchPetAsset(id: string): Promise<PetAsset> {
   return invokeBridgedTauri<PetAsset>(CMD_GET_PET_ASSET, { id })
 }
 
-export function importPet(name: string, data: string): Promise<PetListItem> {
-  return invokeBridgedTauri<PetListItem>(CMD_IMPORT_PET, { name, data })
+export function importPet(name: string, data: string, source: PetSource = 'chat'): Promise<PetListItem> {
+  return invokeBridgedTauri<PetListItem>(CMD_IMPORT_PET, { name, data, source })
 }
 
 /** Forward one untouched DSH session snapshot to the pet webview. */

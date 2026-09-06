@@ -13,9 +13,10 @@ const DICT_ZH: Record<LocaleKey, string> = {
   create: '创建',
   createFailed: '创建宠物会话失败',
   download: '下载',
-  downloadFailed: '下载预设宠物失败',
+  downloadFailed: '下载宠物失败',
+  downloadInvalid: '下载文件校验失败，请重试',
   downloading: '下载中',
-  emptyImported: '尚未导入宠物，点击右上角「导入」添加 .zip 资源包',
+  emptyImported: '暂无导入的宠物',
   emptyPets: '暂无宠物',
   enable: '启用',
   import: '导入',
@@ -23,16 +24,18 @@ const DICT_ZH: Record<LocaleKey, string> = {
   listFailed: '读取宠物列表失败',
   loadFailed: '宠物加载失败',
   loading: '加载中…',
+  market: '市场',
+  marketEmpty: '暂无可下载的宠物',
+  marketFailed: '宠物市场暂时无法连接',
   name: '宠物',
-  noPetSelected: '未选择宠物，请在设置页选择你的宠物',
+  noPetSelected: '未选择宠物',
+  refresh: '刷新',
+  retry: '重试',
   select: '选择',
   selected: '已选',
   setPetFailed: '选择宠物失败',
   setSizeFailed: '设置宠物大小失败',
-  sizeHint: '调整桌宠窗口的显示大小（50–200%）',
   sizeLabel: '大小',
-  tabCodexDesc: '从 Codex 或压缩包中导入 Codex 宠物（支持 .zip 文件）',
-  tabInstalledDesc: '宠物会管理对话串，并突出显示需要关注的事项',
   toggleFailed: '切换桌宠窗口失败',
   wakePet: '唤醒宠物',
 }
@@ -43,9 +46,10 @@ const DICT_EN: Record<LocaleKey, string> = {
   create: 'Create',
   createFailed: 'Failed to create a pet session',
   download: 'Download',
-  downloadFailed: 'Failed to download preset pet',
+  downloadFailed: 'Failed to download pet',
+  downloadInvalid: 'Download verification failed. Please retry.',
   downloading: 'Downloading',
-  emptyImported: 'No pets imported yet. Click “Import” to add a .zip package',
+  emptyImported: 'No imported pets',
   emptyPets: 'No pets',
   enable: 'Enable',
   import: 'Import',
@@ -53,35 +57,43 @@ const DICT_EN: Record<LocaleKey, string> = {
   listFailed: 'Failed to load pet list',
   loadFailed: 'Failed to load pet',
   loading: 'Loading…',
+  market: 'Market',
+  marketEmpty: 'No pets available',
+  marketFailed: 'Pet market is unavailable',
   name: 'Pets',
-  noPetSelected: 'No pet selected. Please choose your pet in the settings page',
+  noPetSelected: 'No pet selected',
+  refresh: 'Refresh',
+  retry: 'Retry',
   select: 'Choose',
   selected: 'Selected',
   setPetFailed: 'Failed to select pet',
   setSizeFailed: 'Failed to set pet size',
-  sizeHint: 'Adjust the pet window size (50–200%)',
   sizeLabel: 'Size',
-  tabCodexDesc: 'Import Codex pets from Codex or archives (.zip files supported)',
-  tabInstalledDesc: 'Pets manage your conversation threads and highlight items that need attention',
   toggleFailed: 'Failed to toggle the pet window',
   wakePet: 'Wake pet',
 }
 
 let activeLocale = 'en'
-const localeRevision = createExternalStore({ revision: 0 })
+const localeState = createExternalStore({ locale: activeLocale })
 
 export function installLocale(ctx: ClientContext): void {
   activeLocale = ctx.locale.getLocale().active
+  localeState.set({ locale: activeLocale })
   ctx.locale.register(NS, 'zh', DICT_ZH)
   ctx.locale.register(NS, 'en', DICT_EN)
   ctx.locale.subscribe(() => {
     activeLocale = ctx.locale.getLocale().active
-    localeRevision.set(state => ({ revision: state.revision + 1 }))
+    localeState.set({ locale: activeLocale })
   })
 }
 
-export function usePetLocale(): void {
-  useSyncExternalStore(localeRevision.subscribe, () => localeRevision.getSnapshot().revision)
+export function subscribePetLocale(listener: () => void): () => void {
+  return localeState.subscribe(listener)
+}
+
+export function usePetLocale(): Record<LocaleKey, string> {
+  const locale = useSyncExternalStore(localeState.subscribe, () => localeState.getSnapshot().locale)
+  return locale.toLowerCase().startsWith('en') ? DICT_EN : DICT_ZH
 }
 
 export function text(key: LocaleKey): string {

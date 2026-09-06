@@ -131,7 +131,10 @@ async fn wait_for_pet(app: &tauri::AppHandle, ready: bool) -> Result<bridge::Pet
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    Err(format!("SMOKE_PET_RENDER_TIMEOUT: {:?}", bridge::get_pet_status(app.clone())))
+    Err(format!(
+        "SMOKE_PET_RENDER_TIMEOUT: {:?}",
+        bridge::get_pet_status(app.clone())
+    ))
 }
 
 /// 使用测试专用图集在真实 WebView2 中解码，避免仅验证窗口开关就误判桌宠可见。
@@ -143,17 +146,40 @@ async fn exercise_pet_render(app: &tauri::AppHandle) -> Result<(), String> {
     if bridge::set_pet_enabled(app.clone(), true).is_ok() {
         return Err("SMOKE_PET_EMPTY_SELECTION_ENABLED".to_string());
     }
-    let directory = config::get_dsh_data_path(app).join("pets/render-fixture");
+    for (version, rows) in [(1, 9), (2, 11)] {
+        exercise_sprite_render(app, version, rows).await?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+async fn exercise_sprite_render(
+    app: &tauri::AppHandle,
+    version: u8,
+    rows: u32,
+) -> Result<(), String> {
+    let id = format!("render-fixture-v{version}");
+    let directory = config::get_dsh_data_path(app).join("pets").join(&id);
     fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
-    let manifest = serde_json::json!({
-        "id": "render-fixture",
+    let mut manifest = serde_json::json!({
+        "id": id,
         "displayName": "Render fixture",
-        "spriteVersionNumber": 2,
+        "spriteVersionNumber": version,
         "spritesheetPath": "sprite.png"
     });
-    fs::write(directory.join("pet.json"), serde_json::to_vec(&manifest).unwrap())
-        .map_err(|e| e.to_string())?;
-    let sprite = image::RgbaImage::from_fn(128, 176, |x, y| {
+    // 原站的 v1 包没有版本字段，真实 WebView 也必须能够加载。
+    if version == 1 {
+        manifest
+            .as_object_mut()
+            .unwrap()
+            .remove("spriteVersionNumber");
+    }
+    fs::write(
+        directory.join("pet.json"),
+        serde_json::to_vec(&manifest).unwrap(),
+    )
+    .map_err(|e| e.to_string())?;
+    let sprite = image::RgbaImage::from_fn(128, rows * 16, |x, y| {
         if (3..13).contains(&(x % 16)) && (2..15).contains(&(y % 16)) {
             image::Rgba([35, 180, 145, 255])
         } else {
@@ -161,21 +187,27 @@ async fn exercise_pet_render(app: &tauri::AppHandle) -> Result<(), String> {
         }
     });
     let mut png = Cursor::new(Vec::new());
-    sprite.write_to(&mut png, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+    sprite
+        .write_to(&mut png, image::ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
     let png = png.into_inner();
     let sprite_path = directory.join("sprite.png");
     fs::write(&sprite_path, &png).map_err(|e| e.to_string())?;
-    let selected = bridge::set_active_pet(app.clone(), "chat:render-fixture".to_string())?;
+    let selected = bridge::set_active_pet(app.clone(), format!("chat:{id}"))?;
     if selected.ready {
         return Err("SMOKE_PET_READY_BEFORE_DECODE".to_string());
     }
     bridge::set_pet_enabled(app.clone(), true)?;
     wait_for_pet(app, true).await?;
-    let window = app.get_webview_window("pet").ok_or("SMOKE_PET_WINDOW_MISSING")?;
+    let window = app
+        .get_webview_window("pet")
+        .ok_or("SMOKE_PET_WINDOW_MISSING")?;
     if !window.is_visible().map_err(|e| e.to_string())? {
         return Err("SMOKE_PET_WINDOW_NOT_VISIBLE".to_string());
     }
-    smoke_note("pet WebView2 sprite decoding and window visibility passed");
+    smoke_note(&format!(
+        "pet v{version} WebView2 sprite decoding and window visibility passed"
+    ));
 
     let hidden = bridge::hide_pet(app.clone())?;
     if hidden.ready || hidden.visible || !hidden.enabled {
@@ -229,7 +261,10 @@ async fn wait_for_readiness(port: u16) -> Result<String, String> {
 #[test]
 #[ignore = "requires Windows release resources and the previous public Core ZIP"]
 fn windows_upgrade_startup() {
-    assert!(!tauri::is_dev(), "run this test with --features tauri/custom-protocol");
+    assert!(
+        !tauri::is_dev(),
+        "run this test with --features tauri/custom-protocol"
+    );
     assert!(
         !cfg!(debug_assertions),
         "run this test with --release for isolated DSH_HOME"
