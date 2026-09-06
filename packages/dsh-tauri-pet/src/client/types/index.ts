@@ -10,7 +10,7 @@ export interface PetStatus {
   revision: number
 }
 
-export type PetSource = 'chat' | 'codex'
+export type PetSource = 'chat'
 
 export interface PetListItem {
   description?: string
@@ -137,15 +137,13 @@ export interface ConversationInputLeftProps {
 }
 
 export type LocaleKey
-  = | 'codex'
-    | 'collapsePet'
+  = | 'collapsePet'
     | 'create'
     | 'createFailed'
     | 'download'
     | 'downloadFailed'
     | 'downloadInvalid'
     | 'downloading'
-    | 'emptyImported'
     | 'emptyPets'
     | 'enable'
     | 'import'

@@ -17,7 +17,7 @@ import { reportPetRender } from '../pet-runtime'
 
 const PET_BASE_WIDTH = 220
 const PET_DEFAULT_SIZE_PERCENT = 100
-const PET_SIZE_MIN_PERCENT = 50
+const PET_SIZE_MIN_PERCENT = 25
 const PET_SIZE_MAX_PERCENT = 200
 /** 透明窗口右侧留白（逻辑像素），与 Rust pet_window_logical_size 的 PAD 常量一致。 */
 const PET_WINDOW_PAD_X = 32

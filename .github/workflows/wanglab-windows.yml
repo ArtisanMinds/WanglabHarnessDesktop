@@ -41,7 +41,7 @@ jobs:
           if EXISTING_COMMIT="$(gh release view "$RELEASE_TAG" --json targetCommitish --jq '.targetCommitish' 2>/dev/null)"; then
             test "$EXISTING_COMMIT" = "$GITHUB_SHA" || { echo 'Refusing to overwrite a release from another commit'; exit 1; }
           else
-            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop $APP_VERSION" --notes 'Self-hosted pet market and v1/v2 spritesheet support.'
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "Wanglab Harness Desktop $APP_VERSION" --notes 'Pet settings now show only Pets and Market, without reading Codex pet directories. Pet size supports 25%-200%, with the size control shown only in Pets.'
           fi
           mapfile -d '' assets < <(find release-assets -type f -name '*.exe' -print0)
           test "${#assets[@]}" -gt 0

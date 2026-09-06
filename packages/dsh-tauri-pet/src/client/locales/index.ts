@@ -8,7 +8,6 @@ import { PET_CLIENT_NS as NS } from '../constants'
 export { PET_CLIENT_NS as NS } from '../constants'
 
 const DICT_ZH: Record<LocaleKey, string> = {
-  codex: 'Codex',
   collapsePet: '收起宠物',
   create: '创建',
   createFailed: '创建宠物会话失败',
@@ -16,7 +15,6 @@ const DICT_ZH: Record<LocaleKey, string> = {
   downloadFailed: '下载宠物失败',
   downloadInvalid: '下载文件校验失败，请重试',
   downloading: '下载中',
-  emptyImported: '暂无导入的宠物',
   emptyPets: '暂无宠物',
   enable: '启用',
   import: '导入',
@@ -41,7 +39,6 @@ const DICT_ZH: Record<LocaleKey, string> = {
 }
 
 const DICT_EN: Record<LocaleKey, string> = {
-  codex: 'Codex',
   collapsePet: 'Collapse pet',
   create: 'Create',
   createFailed: 'Failed to create a pet session',
@@ -49,7 +46,6 @@ const DICT_EN: Record<LocaleKey, string> = {
   downloadFailed: 'Failed to download pet',
   downloadInvalid: 'Download verification failed. Please retry.',
   downloading: 'Downloading',
-  emptyImported: 'No imported pets',
   emptyPets: 'No pets',
   enable: 'Enable',
   import: 'Import',

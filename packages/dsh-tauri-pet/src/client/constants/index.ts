@@ -38,7 +38,7 @@ export const PET_SETTINGS_ROW_CLASS = 'dshpet-settingsRow'
 export const PET_ICON_RETRY_MS = 500
 export const PET_ICON_RETRY_MAX = 30
 export const PET_DEFAULT_SIZE = 100
-export const PET_SIZE_MIN = 50
+export const PET_SIZE_MIN = 25
 export const PET_SIZE_MAX = 200
 export const PET_SIZE_STEP = 5
 

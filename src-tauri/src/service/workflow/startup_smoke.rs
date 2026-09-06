@@ -146,6 +146,16 @@ async fn exercise_pet_render(app: &tauri::AppHandle) -> Result<(), String> {
     if bridge::set_pet_enabled(app.clone(), true).is_ok() {
         return Err("SMOKE_PET_EMPTY_SELECTION_ENABLED".to_string());
     }
+    let source_error = bridge::list_pets(app.clone(), "codex".to_string())
+        .expect_err("Codex pet directories must not be read");
+    if !source_error.starts_with("PET_SOURCE_INVALID:") {
+        return Err(format!("SMOKE_PET_EXTERNAL_SOURCE_ACCEPTED: {source_error}"));
+    }
+    for size in [0.0, 24.9, 201.0, f64::NAN] {
+        if bridge::set_pet_size(app.clone(), size).is_ok() {
+            return Err(format!("SMOKE_PET_INVALID_SIZE_ACCEPTED: {size}"));
+        }
+    }
     for (version, rows) in [(1, 9), (2, 11)] {
         exercise_sprite_render(app, version, rows).await?;
     }
@@ -209,12 +219,43 @@ async fn exercise_sprite_render(
         "pet v{version} WebView2 sprite decoding and window visibility passed"
     ));
 
+    for percent in [50.0, 25.0] {
+        let status = bridge::set_pet_size(app.clone(), percent)?;
+        if status.pet_size != Some(percent)
+            || config::get_store_dat_setting(app).pet_size != Some(percent)
+            || crate::desktop::pet::get_pet_size_percent(app) != percent
+        {
+            return Err(format!("SMOKE_PET_SIZE_NOT_SAVED: {percent}"));
+        }
+        // 测试图集每帧为正方形，原生窗口应跟随 WebView 实际比例，而非默认图集比例。
+        let expected_height = 220.0 * percent / 100.0 + 82.0;
+        let mut resized = false;
+        for _ in 0..50 {
+            let size = window
+                .inner_size()
+                .map_err(|e| e.to_string())?
+                .to_logical::<f64>(window.scale_factor().map_err(|e| e.to_string())?);
+            if (size.width - 420.0).abs() <= 1.0 && (size.height - expected_height).abs() <= 1.0 {
+                resized = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        if !resized {
+            return Err(format!("SMOKE_PET_SIZE_NOT_APPLIED: {percent}"));
+        }
+    }
+    smoke_note("pet 25% size persistence and native window resizing passed");
+
     let hidden = bridge::hide_pet(app.clone())?;
     if hidden.ready || hidden.visible || !hidden.enabled {
         return Err("SMOKE_PET_HIDE_STATE_INVALID".to_string());
     }
     bridge::show_pet(app.clone())?;
-    wait_for_pet(app, true).await?;
+    let woken = wait_for_pet(app, true).await?;
+    if woken.pet_size != Some(25.0) {
+        return Err("SMOKE_PET_SIZE_LOST_ON_WAKE".to_string());
+    }
     smoke_note("pet hide and wake passed");
 
     // 保留合法尺寸头但截断 PNG，确保真正走到浏览器解码错误回报路径。

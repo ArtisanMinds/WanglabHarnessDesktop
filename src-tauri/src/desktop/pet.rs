@@ -43,8 +43,8 @@ const PET_BUILTIN_ASPECT: f64 = 9.0 / 16.0;
 /// 自定义 Codex v2 精灵图默认 8x11 的 192x208 比例；实际比例以前端加载后为准，
 /// 这里仅作为窗口初始/DPI 尺寸的近似，避免与前端内置画布比例互相打架。
 const PET_CUSTOM_ASPECT: f64 = 208.0 / 192.0;
-/// 宠物大小百分比合法区间（设置页滑条 50%–200%；bridge/pet.rs 引用同一常量）。
-pub const PET_SIZE_MIN_PERCENT: f64 = 50.0;
+/// 宠物大小百分比合法区间（设置页滑条 25%-200%；bridge/pet.rs 引用同一常量）。
+pub const PET_SIZE_MIN_PERCENT: f64 = 25.0;
 pub const PET_SIZE_MAX_PERCENT: f64 = 200.0;
 /// 未设置 pet_size 时的默认缩放（100% = 精灵图原始尺寸）。
 pub const PET_SIZE_DEFAULT_PERCENT: f64 = 100.0;
@@ -123,7 +123,7 @@ pub fn get_pet_size_percent<R: Runtime>(app: &AppHandle<R>) -> f64 {
 }
 
 /// 当前激活宠物使用的画布比例（高度/宽度）：预设 WebM（未限定 id）固定 9/16，
-/// 自定义精灵图（chat:/codex: 来源限定 id）用 208/192 作为窗口初始/DPI 尺寸的近似。
+/// 自定义精灵图（chat: 来源限定 id）用 208/192 作为窗口初始/DPI 尺寸的近似。
 /// 真正的自定义比例由前端加载后修正，因此这里不再把 208/192 硬编码给所有宠物，
 /// 避免窗口大小的两个来源互相冲突。
 pub fn pet_window_aspect<R: Runtime>(app: &AppHandle<R>) -> f64 {
@@ -133,7 +133,7 @@ pub fn pet_window_aspect<R: Runtime>(app: &AppHandle<R>) -> f64 {
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    // 来源限定 id（chat:/codex:）是自定义精灵图；未限定 id（预设宠物）用 WebM 9/16。
+    // 来源限定 id（chat:）是自定义精灵图；未限定 id（预设宠物）用 WebM 9/16。
     if active.map(|value| !value.contains(':')).unwrap_or(true) {
         PET_BUILTIN_ASPECT
     } else {
@@ -447,7 +447,7 @@ mod tests {
     #[test]
     fn pet_window_logical_size_scales_with_percent() {
         // 窗口顶部为 Toast 区，宠物资源本身仍按内置 16:9 画布或 8x11 atlas 尺寸绘制。
-        for percent in [50.0, 100.0, 200.0] {
+        for percent in [25.0, 50.0, 100.0, 200.0] {
             let (width, height) = pet_window_logical_size(percent, PET_CUSTOM_ASPECT);
             let scale = percent / 100.0;
             // 大比例时窗口跟随宠物宽度，小比例时兜底到 Toast 区最小宽度。
@@ -465,7 +465,7 @@ mod tests {
     #[test]
     fn pet_window_aspect_matches_builtin_and_custom() {
         // 未设置 / 空白 / 未限定 id（预设 WebM）都走内置 16:9 比例；
-        // 来源限定 id（chat:/codex:）走自定义图集比例。
+        // 来源限定 id（chat:）走自定义图集比例。
         // 使用一个真实 AppHandle 才能读设置，这里仅验证比例常量与归一化分支的纯逻辑。
         assert_eq!(PET_BUILTIN_ASPECT, 9.0 / 16.0);
         assert_eq!(PET_CUSTOM_ASPECT, 208.0 / 192.0);
@@ -478,7 +478,7 @@ mod tests {
         assert!(is_builtin(Some("   ")));
         assert!(is_builtin(Some("maid-deepseek-whale")));
         assert!(is_builtin(Some("another-preset")));
-        assert!(!is_builtin(Some("codex:blue_whale")));
+        assert!(!is_builtin(Some("chat:blue_whale")));
         assert!(!is_builtin(Some("chat:cat")));
     }
 

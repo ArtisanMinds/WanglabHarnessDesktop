@@ -21,10 +21,10 @@ use std::io::{Cursor, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use zip::ZipArchive;
 
-/// 宠物大小百分比合法区间（精灵图缩放 50%–200%，与插件设置页滑条一致）。
+/// 宠物大小百分比合法区间（精灵图缩放 25%-200%，与插件设置页滑条一致）。
 pub const PET_SIZE_MIN: f64 = pet_window::PET_SIZE_MIN_PERCENT;
 pub const PET_SIZE_MAX: f64 = pet_window::PET_SIZE_MAX_PERCENT;
 
@@ -114,7 +114,7 @@ pub struct PetStatus {
     pub visible: bool,
     /// 未选择宠物时为 None，不再自动补入默认资源。
     pub active_pet: Option<String>,
-    /// 宠物大小百分比（50–200，100 = 精灵图原始尺寸）；None = 未设置（默认 100）。
+    /// 宠物大小百分比（25-200，100 = 精灵图原始尺寸）；None = 未设置（默认 100）。
     pub pet_size: Option<f64>,
     /// 媒体已在宠物 WebView 内成功解码，才允许主界面显示激活指示。
     pub ready: bool,
@@ -129,23 +129,20 @@ pub struct PetStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PetSource {
     Chat,
-    Codex,
 }
 
 impl PetSource {
-    /// 来源字符串是跨 iframe 的安全边界，只接受两个精确值。
+    /// 来源字符串是跨 iframe 的安全边界，只接受应用自己的宠物目录。
     fn parse(value: &str) -> Result<Self, String> {
         match value {
             "chat" => Ok(Self::Chat),
-            "codex" => Ok(Self::Codex),
-            _ => Err("PET_SOURCE_INVALID: source must be chat or codex".to_string()),
+            _ => Err("PET_SOURCE_INVALID: source must be chat".to_string()),
         }
     }
 
     fn as_str(self) -> &'static str {
         match self {
             Self::Chat => "chat",
-            Self::Codex => "codex",
         }
     }
 }
@@ -164,7 +161,7 @@ struct PetManifest {
     spritesheet_path: String,
 }
 
-/// 列表项使用来源限定 id，避免 chat 与 codex 同名时互相覆盖。
+/// 列表项保留 chat: 前缀，与已安装宠物的选择协议兼容。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PetListItem {
     pub id: String,
@@ -327,7 +324,7 @@ pub fn set_active_pet(app: AppHandle, id: String) -> Result<PetStatus, String> {
     Ok(status)
 }
 
-/// 设置宠物大小百分比（设置页滑条，50–200），并实时同步窗口尺寸。
+/// 设置宠物大小百分比（设置页滑条，25-200），并实时同步窗口尺寸。
 #[tauri::command]
 pub fn set_pet_size(app: AppHandle, size: f64) -> Result<PetStatus, String> {
     if !size.is_finite() || !(PET_SIZE_MIN..=PET_SIZE_MAX).contains(&size) {
@@ -444,16 +441,10 @@ pub fn report_pet_render(
     Ok(())
 }
 
-/// 返回来源对应的真实目录；chat 直接使用 `$DSH_HOME/pets`，codex 直接使用
-/// 用户主目录下的 `.codex/pets`，均不经过应用 AppData。
+/// 宠物只使用 `$DSH_HOME/pets`，不读取其他应用的资源目录。
 fn pets_dir(app: &AppHandle, source: PetSource) -> Result<PathBuf, String> {
     match source {
         PetSource::Chat => Ok(config::get_dsh_data_path(app).join("pets")),
-        PetSource::Codex => app
-            .path()
-            .home_dir()
-            .map(|home| home.join(".codex").join("pets"))
-            .map_err(|error| format!("PET_HOME_DIR_FAILED: failed to resolve home dir: {error}")),
     }
 }
 
@@ -1005,7 +996,7 @@ fn path_exists_including_symlink(path: &Path) -> Result<bool, String> {
     }
 }
 
-/// 导入资源包：旧调用默认 Codex，Harness 页和市场明确选择 Chat 目录。
+/// 导入资源包默认使用应用自己的宠物目录。
 #[tauri::command]
 pub fn import_pet(
     app: AppHandle,
@@ -1030,7 +1021,7 @@ pub fn import_pet(
         ));
     }
 
-    let source = PetSource::parse(source.as_deref().unwrap_or("codex"))?;
+    let source = PetSource::parse(source.as_deref().unwrap_or("chat"))?;
     let root = pets_dir(&app, source)?;
     install_pet_archive(&root, source, &bytes, None)
 }
@@ -1211,14 +1202,16 @@ mod tests {
             "有效 id 应只去除首尾空白"
         );
         assert_eq!(
-            normalize_active_pet(Some("codex:custom_pet")).as_deref(),
-            Some("codex:custom_pet")
-        );
-        assert_eq!(
             normalize_active_pet(Some("custom-preset")).as_deref(),
             Some("custom-preset")
         );
-        for legacy_or_invalid in ["other:pet", "chat:../pet", "bad id", "x/y"] {
+        for legacy_or_invalid in [
+            "codex:custom_pet",
+            "other:pet",
+            "chat:../pet",
+            "bad id",
+            "x/y",
+        ] {
             assert_eq!(
                 normalize_active_pet(Some(legacy_or_invalid)),
                 None,
@@ -1228,8 +1221,13 @@ mod tests {
     }
 
     #[test]
-    fn upgrade_clears_removed_default_but_preserves_custom_selection() {
-        for id in [None, Some(""), Some(REMOVED_PRESET_PET_ID)] {
+    fn upgrade_clears_removed_sources_but_preserves_application_pets() {
+        for id in [
+            None,
+            Some(""),
+            Some(REMOVED_PRESET_PET_ID),
+            Some("codex:custom"),
+        ] {
             let mut setting = config::Setting {
                 active_pet: id.map(str::to_string),
                 pet_enabled: true,
@@ -1243,12 +1241,12 @@ mod tests {
         }
         for enabled in [false, true] {
             let mut setting = config::Setting {
-                active_pet: Some("codex:custom".to_string()),
+                active_pet: Some("chat:custom".to_string()),
                 pet_enabled: enabled,
                 ..Default::default()
             };
             migrate_pet_selection(&mut setting);
-            assert_eq!(setting.active_pet.as_deref(), Some("codex:custom"));
+            assert_eq!(setting.active_pet.as_deref(), Some("chat:custom"));
             assert_eq!(setting.pet_enabled, enabled);
         }
     }
@@ -1317,10 +1315,6 @@ mod tests {
             qualified_id(PetSource::Chat, &manifest.id),
             "chat:blue_whale"
         );
-        assert_eq!(
-            qualified_id(PetSource::Codex, &manifest.id),
-            "codex:blue_whale"
-        );
     }
 
     #[test]
@@ -1348,7 +1342,10 @@ mod tests {
         assert!(parse_qualified_id("other:pet_1")
             .unwrap_err()
             .starts_with("PET_SOURCE_INVALID:"));
-        assert!(parse_qualified_id("codex:../pet")
+        assert!(parse_qualified_id("codex:pet_1")
+            .unwrap_err()
+            .starts_with("PET_SOURCE_INVALID:"));
+        assert!(parse_qualified_id("chat:../pet")
             .unwrap_err()
             .starts_with("PET_ID_INVALID:"));
     }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PET_STATUS_MESSAGE, PET_STATUS_SOURCE } from '../constants'
 import { getPetUiSnapshot, setPetStatus } from '../store'
 import { isPetStatus, isPetVisible } from '../utils/status'
-import { activatePet, importPet, installPetStatusSync } from './pet'
+import { activatePet, fetchPetList, importPet, installPetStatusSync } from './pet'
 
 const { invokeBridgedTauri } = vi.hoisted(() => ({ invokeBridgedTauri: vi.fn() }))
 vi.mock('dsh-tauri/client', async () => ({
@@ -32,12 +32,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('pet selection and render status', () => {
-  it('imports website packages into Harness unless Codex is explicitly selected', async () => {
+  it('lists and imports pets only in the application pet directory', async () => {
+    await fetchPetList()
     await importPet('pet.zip', 'cGV0')
-    await importPet('pet.zip', 'cGV0', 'codex')
     expect(invokeBridgedTauri.mock.calls).toEqual([
+      ['list_pets', { source: 'chat' }],
       ['import_pet', { name: 'pet.zip', data: 'cGV0', source: 'chat' }],
-      ['import_pet', { name: 'pet.zip', data: 'cGV0', source: 'codex' }],
     ])
   })
 

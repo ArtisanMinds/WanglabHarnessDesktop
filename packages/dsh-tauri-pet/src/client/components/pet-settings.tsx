@@ -28,7 +28,6 @@ const PRESET_DOWNLOAD_POLL_MS = 400
 /** 模块级清单缓存：跨组件挂载复用，避免反复打开设置页闪烁（初次仍显示加载占位）。 */
 let cachedPresetPets: PresetPetItem[] | null = null
 let cachedChatPets: PetListItem[] | null = null
-let cachedCodexPets: PetListItem[] | null = null
 
 interface PetCardProps {
   actionLabel: string
@@ -126,13 +125,12 @@ export function presetCardAction(
 export function PetSettings(props: PetSettingsProps): ReactElement {
   const messages = usePetLocale()
   const { status } = useSyncExternalStore(subscribePetUi, getPetUiSnapshot, getPetUiSnapshot)
-  const [tab, setTab] = useState<'pets' | 'market' | 'codex'>('pets')
+  const [tab, setTab] = useState<'pets' | 'market'>('pets')
   const [marketOpened, setMarketOpened] = useState(false)
   // 无缓存（首次挂载）时进入加载态，避免空列表闪烁；有缓存直接渲染、后台静默刷新。
   const [busy, setBusy] = useState(() => cachedPresetPets === null)
   const [error, setError] = useState<string | null>(null)
   const [chatPets, setChatPets] = useState<PetListItem[]>(() => cachedChatPets ?? [])
-  const [codexPets, setCodexPets] = useState<PetListItem[]>(() => cachedCodexPets ?? [])
   const [presetPets, setPresetPets] = useState<PresetPetItem[]>(() => cachedPresetPets ?? [])
   /** 各预设宠物下载进度（key = preset id；phase=done/failed 后由轮询清理）。 */
   const [downloads, setDownloads] = useState<Record<string, PresetDownloadProgress>>({})
@@ -194,16 +192,14 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
   useEffect(() => {
     let cancelled = false
     const revision = beginPetStatusFetch()
-    void Promise.all([fetchPetStatus(), fetchPetList('chat'), fetchPetList('codex'), fetchPresetPets()])
-      .then(([nextStatus, nextChatPets, nextCodexPets, nextPresetPets]) => {
+    void Promise.all([fetchPetStatus(), fetchPetList(), fetchPresetPets()])
+      .then(([nextStatus, nextChatPets, nextPresetPets]) => {
         if (cancelled)
           return
         commitPetStatusFetch(revision, nextStatus)
         cachedChatPets = nextChatPets
-        cachedCodexPets = nextCodexPets
         cachedPresetPets = nextPresetPets
         setChatPets(nextChatPets)
-        setCodexPets(nextCodexPets)
         setPresetPets(nextPresetPets)
         // 跨挂载恢复进行中的下载：清单 phase 标记 downloading/extracting 的项重新轮询，
         // 避免「返回应用再进设置」丢失进度视图、重复点击触发 PET_PRESET_BUSY。
@@ -333,15 +329,8 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     setBusy(true)
     setError(null)
     try {
-      const source = tab === 'codex' ? 'codex' : 'chat'
-      await importPet(file.name, await readAsBase64(file), source)
-      if (source === 'codex') {
-        cachedCodexPets = await fetchPetList('codex')
-        setCodexPets(cachedCodexPets)
-      }
-      else {
-        await refreshChatPets()
-      }
+      await importPet(file.name, await readAsBase64(file))
+      await refreshChatPets()
     }
     catch (importError) {
       console.error('[dsh-tauri-pet] import failed:', importError)
@@ -353,7 +342,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
   }
 
   async function refreshChatPets(): Promise<void> {
-    cachedChatPets = await fetchPetList('chat')
+    cachedChatPets = await fetchPetList()
     setChatPets(cachedChatPets)
   }
 
@@ -409,27 +398,6 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     </>
   )
 
-  const codexPanel = (
-    <div className="dshpet-cards">
-      {codexPets.length === 0
-        ? <div className="dshpet-empty">{messages.emptyImported}</div>
-        : codexPets.map(item => (
-            <PetCard
-              key={item.id}
-              thumbnail={item.thumbnail}
-              thumbnailType={item.thumbnail ? 'spritesheet' : undefined}
-              spriteRows={item.sprite_rows}
-              name={item.name}
-              desc={item.description ?? ''}
-              active={active === item.id}
-              disabled={busy || active === item.id}
-              actionLabel={messages[active === item.id ? 'selected' : 'select']}
-              onAction={() => { void choose(item.id) }}
-            />
-          ))}
-    </div>
-  )
-
   return (
     <div className="dshpet-page">
       <div className="dshpet-tabs">
@@ -455,15 +423,6 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
           >
             {messages.market}
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'codex'}
-            className={tab === 'codex' ? 'dshpet-tabBtn dshpet-tabBtnActive' : 'dshpet-tabBtn'}
-            onClick={() => setTab('codex')}
-          >
-            {messages.codex}
-          </button>
         </div>
         <div className="dshpet-tabTools">
           <If cond={tab === 'pets'}>
@@ -472,7 +431,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
               {messages.create}
             </button>
           </If>
-          <If cond={tab !== 'market'}>
+          <If cond={tab === 'pets'}>
             <label className="dshpet-toolBtn" aria-disabled={busy}>
               <IconImport />
               {messages.import}
@@ -491,34 +450,35 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
         </div>
       </div>
       <If cond={tab === 'pets'}>{petsPanel}</If>
-      <If cond={tab === 'codex'}>{codexPanel}</If>
       <If cond={marketOpened}>
         <div hidden={tab !== 'market'}>
           <PetMarket active={active} busy={busy} onChoose={choose} onInstalled={refreshChatPets} />
         </div>
       </If>
       {displayError ? <div className="dshpet-error" role="alert">{displayError}</div> : null}
-      <div className="dshpet-sizeRow">
-        <span className="dshpet-sizeLabel">{messages.sizeLabel}</span>
-        <input
-          type="range"
-          className="dshpet-sizeSlider"
-          min={PET_SIZE_MIN}
-          max={PET_SIZE_MAX}
-          step={PET_SIZE_STEP}
-          value={size}
-          aria-label={messages.sizeLabel}
-          onChange={(event) => {
-            const value = Number(event.target.value)
-            setSize(value)
-            void commitSize(value)
-          }}
-        />
-        <output className="dshpet-sizeValue">
-          {size}
-          %
-        </output>
-      </div>
+      <If cond={tab === 'pets'}>
+        <div className="dshpet-sizeRow">
+          <span className="dshpet-sizeLabel">{messages.sizeLabel}</span>
+          <input
+            type="range"
+            className="dshpet-sizeSlider"
+            min={PET_SIZE_MIN}
+            max={PET_SIZE_MAX}
+            step={PET_SIZE_STEP}
+            value={size}
+            aria-label={messages.sizeLabel}
+            onChange={(event) => {
+              const value = Number(event.target.value)
+              setSize(value)
+              void commitSize(value)
+            }}
+          />
+          <output className="dshpet-sizeValue">
+            {size}
+            %
+          </output>
+        </div>
+      </If>
     </div>
   )
 }
