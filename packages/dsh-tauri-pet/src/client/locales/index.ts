@@ -3,12 +3,7 @@ import type { ClientContext } from 'dsh-tauri/client'
 import type { LocaleKey } from '../types'
 import { createExternalStore } from 'dsh-tauri/client'
 import { useSyncExternalStore } from 'react'
-import {
-  BUILTIN_PET_DESC_EN,
-  BUILTIN_PET_DESC_ZH,
-  BUILTIN_PET_NAME,
-  PET_CLIENT_NS as NS,
-} from '../constants'
+import { PET_CLIENT_NS as NS } from '../constants'
 
 export { PET_CLIENT_NS as NS } from '../constants'
 
@@ -21,15 +16,15 @@ const DICT_ZH: Record<LocaleKey, string> = {
   downloadFailed: '下载预设宠物失败',
   downloading: '下载中',
   emptyImported: '尚未导入宠物，点击右上角「导入」添加 .zip 资源包',
+  emptyPets: '暂无宠物',
   enable: '启用',
   import: '导入',
   importFailed: '导入宠物失败',
   listFailed: '读取宠物列表失败',
+  loadFailed: '宠物加载失败',
   loading: '加载中…',
   name: '宠物',
   noPetSelected: '未选择宠物，请在设置页选择你的宠物',
-  petDescWhale: BUILTIN_PET_DESC_ZH,
-  petNameWhale: BUILTIN_PET_NAME,
   select: '选择',
   selected: '已选',
   setPetFailed: '选择宠物失败',
@@ -51,15 +46,15 @@ const DICT_EN: Record<LocaleKey, string> = {
   downloadFailed: 'Failed to download preset pet',
   downloading: 'Downloading',
   emptyImported: 'No pets imported yet. Click “Import” to add a .zip package',
+  emptyPets: 'No pets',
   enable: 'Enable',
   import: 'Import',
   importFailed: 'Failed to import pet',
   listFailed: 'Failed to load pet list',
+  loadFailed: 'Failed to load pet',
   loading: 'Loading…',
   name: 'Pets',
   noPetSelected: 'No pet selected. Please choose your pet in the settings page',
-  petDescWhale: BUILTIN_PET_DESC_EN,
-  petNameWhale: BUILTIN_PET_NAME,
   select: 'Choose',
   selected: 'Selected',
   setPetFailed: 'Failed to select pet',

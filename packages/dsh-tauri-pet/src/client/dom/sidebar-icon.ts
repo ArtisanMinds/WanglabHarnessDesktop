@@ -15,8 +15,9 @@
  */
 import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
 import { text } from '../locales'
-import { fetchPetStatus, hidePet, setPetEnabled, showPet } from '../service/pet'
-import { beginPetStatusFetch, commitPetStatusFetch, getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
+import { hidePet, installPetStatusSync, setPetEnabled, showPet } from '../service/pet'
+import { getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
+import { isPetVisible } from '../utils/status'
 
 /** 入口图标（爪印，currentColor 跟随官方 iconButton 悬停变色）。 */
 const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 13.5c-2.7 0-5.5 2-5.5 4.3 0 1.4 1 2.2 2.3 2.2 1 0 1.9-.6 3.2-.6s2.2.6 3.2.6c1.3 0 2.3-.8 2.3-2.2 0-2.3-2.8-4.3-5.5-4.3z"/><path d="M7.3 8.1c-1 .1-1.8 1.2-1.7 2.5.1 1.2 1 2.1 2 2 .9-.1 1.7-1.2 1.6-2.4-.1-1.2-1-2.2-1.9-2.1z"/><path d="M12 4.5c-1.1 0-2 1.1-2 2.5s.9 2.5 2 2.5 2-1.1 2-2.5-.9-2.5-2-2.5z"/><path d="M16.7 8.1c-.9-.1-1.8.9-1.9 2.1-.1 1.2.7 2.3 1.6 2.4 1 .1 1.9-.8 2-2 .1-1.3-.7-2.4-1.7-2.5z"/><path d="M4.8 12.3c-.8.3-1.2 1.4-.9 2.4.3 1 1.2 1.6 2 1.3.8-.3 1.1-1.4.8-2.4-.3-1-1.1-1.6-1.9-1.3z"/><path d="M19.2 12.3c-.8-.3-1.6.3-1.9 1.3-.3 1 0 2.1.8 2.4.8.3 1.7-.3 2-1.3.3-1-.1-2.1-.9-2.4z"/></svg>'
@@ -24,16 +25,16 @@ const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="curr
 /** 未选择宠物提示展示时长（ms）。 */
 const NO_PET_HINT_MS = 2600
 
-/** 桌宠是否已选择（启用即视为已选择；未启用=未选择，点击只提示）。 */
+/** 选择与启用独立；已选择但尚未启用的宠物也可以直接唤醒。 */
 function petSelected(): boolean {
-  return Boolean(getPetUiSnapshot().status?.enabled)
+  return Boolean(getPetUiSnapshot().status?.active_pet)
 }
 
 /**
  * 切换桌宠启用状态（入口按钮点击；已选择宠物后启用，失败仅记录，设置页内有
  * 完整错误展示）。
  */
-async function togglePetEnabled(): Promise<void> {
+async function togglePetEnabled(button: HTMLButtonElement): Promise<void> {
   const current = getPetUiSnapshot().status
   const enabled = Boolean(current?.enabled)
   const visible = Boolean(current?.visible)
@@ -47,17 +48,17 @@ async function togglePetEnabled(): Promise<void> {
   }
   catch (error) {
     console.error('[dsh-tauri-pet] sidebar icon toggle failed:', error)
+    flashPetHint(button, text('toggleFailed'))
   }
 }
 
 /** 点击未选择宠物时短暂展示「请在设置页选择你的宠物」提示。 */
-function flashNoPetHint(button: HTMLButtonElement): void {
-  const previous = button.getAttribute('data-tip') ?? ''
-  button.setAttribute('data-tip', text('noPetSelected'))
+function flashPetHint(button: HTMLButtonElement, message: string): void {
+  button.setAttribute('data-tip', message)
   button.classList.add('dshpet-iconHint')
   window.setTimeout(() => {
     button.classList.remove('dshpet-iconHint')
-    button.setAttribute('data-tip', previous)
+    syncIconState(button)
   }, NO_PET_HINT_MS)
 }
 
@@ -73,10 +74,15 @@ function createPetIconButton(): HTMLButtonElement {
   button.addEventListener('click', () => {
     // 未选择宠物：只提示，不改变启用状态（选择走设置页）。
     if (!petSelected()) {
-      flashNoPetHint(button)
+      flashPetHint(button, text('noPetSelected'))
       return
     }
-    void togglePetEnabled()
+    if (button.disabled)
+      return
+    button.disabled = true
+    void togglePetEnabled(button).finally(() => {
+      button.disabled = false
+    })
   })
   return button
 }
@@ -84,9 +90,11 @@ function createPetIconButton(): HTMLButtonElement {
 /** 按共享状态缓存同步按钮两态（绿点显隐 + aria-pressed）。 */
 function syncIconState(button: HTMLButtonElement): void {
   const status = getPetUiSnapshot().status
-  const active = Boolean(status?.enabled && status?.visible)
+  const active = isPetVisible(status)
   button.classList.toggle('dshpet-iconOn', active)
   button.setAttribute('aria-pressed', String(active))
+  if (!button.classList.contains('dshpet-iconHint'))
+    button.setAttribute('data-tip', status?.error ? text('loadFailed') : text('name'))
 }
 
 /**
@@ -106,13 +114,7 @@ export function installSidebarPetIcon(): () => void {
   let patchedRail: boolean | undefined
 
   const unsubscribe = subscribePetUi(() => syncIconState(button))
-  const revision = beginPetStatusFetch()
-  void fetchPetStatus()
-    .then((status) => {
-      if (getPetUiSnapshot().status === null)
-        commitPetStatusFetch(revision, status)
-    })
-    .catch(error => console.error('[dsh-tauri-pet] fetchPetStatus failed:', error))
+  const stopStatusSync = installPetStatusSync()
   syncIconState(button)
 
   /**
@@ -189,6 +191,7 @@ export function installSidebarPetIcon(): () => void {
   return () => {
     observer.disconnect()
     unsubscribe()
+    stopStatusSync()
     button.remove()
     if (rowHost) {
       rowHost.classList.remove(PET_SETTINGS_ROW_CLASS)

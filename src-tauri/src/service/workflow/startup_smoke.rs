@@ -1,6 +1,6 @@
 //! 在隔离的 Windows AppData 和 DSH_HOME 中验证真实升级、并发启动及桌面就绪检查。
 
-use std::{fs, path::PathBuf, time::Duration};
+use std::{fs, io::Cursor, path::PathBuf, time::Duration};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 use super::{has_owned_process, launch, proxy_health_check, start, stop};
@@ -10,6 +10,7 @@ use crate::{
 };
 
 async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
+    exercise_pet_render(app).await?;
     smoke_note("begin isolated upgrade");
     let archive_path = std::env::var_os("WANGLAB_UPGRADE_CORE_ZIP")
         .ok_or("SMOKE_FIXTURE_MISSING: WANGLAB_UPGRADE_CORE_ZIP")?;
@@ -119,6 +120,86 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+async fn wait_for_pet(app: &tauri::AppHandle, ready: bool) -> Result<bridge::PetStatus, String> {
+    for _ in 0..150 {
+        let status = bridge::get_pet_status(app.clone());
+        if ready && status.ready || !ready && status.error.is_some() {
+            return Ok(status);
+        }
+        if ready && status.error.is_some() {
+            return Err(format!("SMOKE_PET_RENDER_FAILED: {status:?}"));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err(format!("SMOKE_PET_RENDER_TIMEOUT: {:?}", bridge::get_pet_status(app.clone())))
+}
+
+/// 使用测试专用图集在真实 WebView2 中解码，避免仅验证窗口开关就误判桌宠可见。
+async fn exercise_pet_render(app: &tauri::AppHandle) -> Result<(), String> {
+    let initial = bridge::get_pet_status(app.clone());
+    if initial.active_pet.is_some() || initial.enabled || initial.visible || initial.ready {
+        return Err(format!("SMOKE_PET_DEFAULT_RETAINED: {initial:?}"));
+    }
+    if bridge::set_pet_enabled(app.clone(), true).is_ok() {
+        return Err("SMOKE_PET_EMPTY_SELECTION_ENABLED".to_string());
+    }
+    let directory = config::get_dsh_data_path(app).join("pets/render-fixture");
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let manifest = serde_json::json!({
+        "id": "render-fixture",
+        "displayName": "Render fixture",
+        "spriteVersionNumber": 2,
+        "spritesheetPath": "sprite.png"
+    });
+    fs::write(directory.join("pet.json"), serde_json::to_vec(&manifest).unwrap())
+        .map_err(|e| e.to_string())?;
+    let sprite = image::RgbaImage::from_fn(128, 176, |x, y| {
+        if (3..13).contains(&(x % 16)) && (2..15).contains(&(y % 16)) {
+            image::Rgba([35, 180, 145, 255])
+        } else {
+            image::Rgba([0, 0, 0, 0])
+        }
+    });
+    let mut png = Cursor::new(Vec::new());
+    sprite.write_to(&mut png, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+    let png = png.into_inner();
+    let sprite_path = directory.join("sprite.png");
+    fs::write(&sprite_path, &png).map_err(|e| e.to_string())?;
+    let selected = bridge::set_active_pet(app.clone(), "chat:render-fixture".to_string())?;
+    if selected.ready {
+        return Err("SMOKE_PET_READY_BEFORE_DECODE".to_string());
+    }
+    bridge::set_pet_enabled(app.clone(), true)?;
+    wait_for_pet(app, true).await?;
+    let window = app.get_webview_window("pet").ok_or("SMOKE_PET_WINDOW_MISSING")?;
+    if !window.is_visible().map_err(|e| e.to_string())? {
+        return Err("SMOKE_PET_WINDOW_NOT_VISIBLE".to_string());
+    }
+    smoke_note("pet WebView2 sprite decoding and window visibility passed");
+
+    let hidden = bridge::hide_pet(app.clone())?;
+    if hidden.ready || hidden.visible || !hidden.enabled {
+        return Err("SMOKE_PET_HIDE_STATE_INVALID".to_string());
+    }
+    bridge::show_pet(app.clone())?;
+    wait_for_pet(app, true).await?;
+    smoke_note("pet hide and wake passed");
+
+    // 保留合法尺寸头但截断 PNG，确保真正走到浏览器解码错误回报路径。
+    fs::write(&sprite_path, &png[..33]).map_err(|e| e.to_string())?;
+    bridge::show_pet(app.clone())?;
+    let failed = wait_for_pet(app, false).await?;
+    if failed.ready || failed.visible || window.is_visible().map_err(|e| e.to_string())? {
+        return Err(format!("SMOKE_PET_FAILURE_REMAINS_VISIBLE: {failed:?}"));
+    }
+    fs::write(&sprite_path, &png).map_err(|e| e.to_string())?;
+    bridge::show_pet(app.clone())?;
+    wait_for_pet(app, true).await?;
+    bridge::set_pet_enabled(app.clone(), false)?;
+    smoke_note("pet corrupt media detection and retry passed");
+    Ok(())
+}
+
 fn smoke_note(message: &str) {
     println!("SMOKE_STAGE: {message}");
     if let Some(path) = std::env::var_os("GITHUB_STEP_SUMMARY") {
@@ -162,11 +243,18 @@ fn windows_upgrade_startup() {
     let (result_tx, result_rx) = std::sync::mpsc::channel();
     let app = tauri::Builder::default()
         .any_thread()
+        .manage(crate::desktop::pet_mouse::PetMouseStreamState::default())
+        .invoke_handler(crate::desktop::handler())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External("about:blank".parse()?))
                 .visible(false)
                 .build()?;
+            config::update_store_dat_setting(app.handle(), |setting| {
+                setting.active_pet = Some("maid-deepseek-whale".to_string());
+                setting.pet_enabled = true;
+            });
+            crate::desktop::pet::init_pet_window(app.handle());
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let result =

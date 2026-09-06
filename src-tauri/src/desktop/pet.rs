@@ -408,13 +408,10 @@ pub fn set_pet_window_visible<R: Runtime>(app: &AppHandle<R>, visible: bool) -> 
 /// 在 setup 阶段预创建两个隐藏窗口，再沿用永久启用设置显示它们。
 /// 这样设置页同步 command 只会 show/hide 已存在窗口，不会在 command handler
 /// 内调用 WebviewWindowBuilder，避免 Tauri/Windows 的消息循环死锁。
-pub fn init_pet_window<R: Runtime>(app: &AppHandle<R>) {
-    let enabled = crate::config::get_store_dat_setting(app).pet_enabled;
+pub fn init_pet_window(app: &AppHandle) {
     let pet = ensure_pet_window(app);
-    if let Ok(pet) = pet {
-        if enabled {
-            let _ = pet.show();
-        }
+    if pet.is_ok() {
+        crate::bridge::pet::restore_pet(app);
     } else {
         log::error!("PET_WINDOW_INIT_FAILED: failed to pre-create pet windows");
     }

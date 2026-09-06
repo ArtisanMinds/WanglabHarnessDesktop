@@ -26,7 +26,7 @@ export function beginPetStatusFetch(): number {
 export function commitPetStatusFetch(revision: number, status: PetStatus): boolean {
   if (revision !== fetchRevision)
     return false
-  petUiStore.set(state => (state.status === status ? state : { ...state, status }))
+  petUiStore.set(state => (state.status && state.status.revision > status.revision ? state : { ...state, status }))
   return true
 }
 
@@ -43,5 +43,5 @@ export function getPetUiSnapshot(): PetShared {
 /** 写入桌宠状态缓存。 */
 export function setPetStatus(status: PetStatus | null): void {
   fetchRevision += 1
-  petUiStore.set(state => (state.status === status ? state : { ...state, status }))
+  petUiStore.set(state => (status && state.status && state.status.revision > status.revision ? state : { ...state, status }))
 }

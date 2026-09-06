@@ -318,6 +318,7 @@ const style = c([
   c('.dshpet-error', {
     fontSize: '12px',
     lineHeight: '18px',
+    overflowWrap: 'anywhere',
     color: 'var(--dsw-alias-state-error-primary, var(--dsw-alias-danger-text, #ff7a7a))',
   }),
 ])

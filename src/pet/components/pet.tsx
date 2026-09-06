@@ -1,12 +1,11 @@
 import type { CSSProperties, Ref, RefObject, SyntheticEvent } from 'react'
 import type { PetHandle, PetStatus } from '../hooks/use-pet'
-import type { PetConfig } from '../pet-config'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window'
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
 import { PET_STATUSES } from '../hooks/use-pet'
+import { usePetRuntime } from '../hooks/use-pet-runtime'
 import {
   pick,
   pickCategoryAction,
@@ -14,8 +13,8 @@ import {
   resolvePresetName,
   rollKind,
 } from '../pet-config'
+import { reportPetRender } from '../pet-runtime'
 
-const BUILT_IN_PET_ID = 'maid-deepseek-whale'
 const PET_BASE_WIDTH = 220
 const PET_DEFAULT_SIZE_PERCENT = 100
 const PET_SIZE_MIN_PERCENT = 50
@@ -54,21 +53,6 @@ const ACTIONS = {
 
 type Animation = PetStatus | 'bubble' | 'dragging'
 
-interface Asset {
-  columns: number
-  id: string
-  rows: number
-  sprite_version_number: number
-  spritesheet: string
-}
-
-interface RustPetStatus {
-  active_pet?: string | null
-  enabled?: boolean
-  pet_size?: number | null
-  visible?: boolean | null
-}
-
 export interface PetProps {
   ref?: Ref<PetHandle | null>
   hitboxRef?: RefObject<HTMLDivElement | null>
@@ -90,9 +74,7 @@ interface Frame {
 
 /** 桌宠唯一视觉组件：资源加载、WebM/Codex v2 播放和 Tauri 窗口细节全部封装。 */
 export function Pet(props: PetProps) {
-  const [rustStatus, setRustStatus] = useState<RustPetStatus>({ enabled: true, visible: true })
-  const [customAsset, setCustomAsset] = useState<Asset | null>(null)
-  const [customAssetPet, setCustomAssetPet] = useState<string | null>(null)
+  const { status: rustStatus, activePet, renderId, visible, isPreset, config, assets, customAsset } = usePetRuntime()
   const [spriteAspect, setSpriteAspect] = useState<{ id: string, value: number } | null>(null)
   const [failed, setFailed] = useState(false)
   const [override, setOverride] = useState<{ loop: boolean, revision: number, status: PetStatus } | null>(null)
@@ -101,13 +83,6 @@ export function Pet(props: PetProps) {
   const adHocRef = useRef(adHoc)
   adHocRef.current = adHoc
   const adHocSeqRef = useRef(0)
-  // 预设宠物资源（config.jsonc + webm manifest）：按宠物 id 一起拉取并整体更新，
-  // 避免切换宠物时残留上一个宠物的动画池/URL（旧数据在 fetch 完成前不生效）。
-  const [petResources, setPetResources] = useState<{
-    pet: string
-    config: PetConfig | null
-    assets: Record<string, string>
-  } | null>(null)
   const [reducedMotion, setReducedMotion] = useState(() => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
   const videoARef = useRef<HTMLVideoElement | null>(null)
   const videoBRef = useRef<HTMLVideoElement | null>(null)
@@ -121,19 +96,6 @@ export function Pet(props: PetProps) {
   const prevClickRef = useRef(0)
   const handleEndedRef = useRef<(event?: Event) => void>(() => {})
 
-  const activePet = normalizeActivePet(rustStatus.active_pet)
-  // 预设宠物（未限定 id，来自 ~/.dsh/pets 下载产物）走 WebM 协议渲染；
-  // 来源限定 id（chat:/codex:）走 Codex v2 精灵图渲染。
-  const isPreset = !activePet.includes(':')
-  // 预设宠物资源按当前激活宠物生效：切换宠物时旧资源保持到新 fetch 完成，避免闪烁。
-  // 统一 memo 成稳定的 config/assets 引用，避免每次渲染产生新对象导致视频 effect 重跑。
-  const { config, assets } = useMemo(() => {
-    const preset = petResources !== null && petResources.pet === activePet ? petResources : null
-    return {
-      config: preset?.config ?? null,
-      assets: preset?.assets ?? {},
-    }
-  }, [activePet, petResources])
   // 预设宠物配置驱动动画池：池条目是动画名（webm 文件名主名，如 待机呼吸休闲），
   // 点击/拖拽/待机链按名字从 assets map 取 URL。配置缺失或命令失败时回落与旧
   // 实现一致的默认池（idle/turn/wave），这些名字在 assets 中不存在时自然不播放。
@@ -156,11 +118,10 @@ export function Pet(props: PetProps) {
   // 一次性动画在 override 之上但低于手势方向：点击回应可打断会话状态，拖拽方向仍优先。
   const activity: Animation | string = dragHold ? 'dragging' : props.status ?? adHoc?.status ?? override?.status ?? 'idle'
   const size = normalizePetSize(rustStatus.pet_size)
-  const visible = rustStatus.enabled !== false && rustStatus.visible !== false
-  const hasCustomAsset = customAsset !== null && customAssetPet === activePet
+  const hasCustomAsset = customAsset !== null
   // 预设 WebM 画布 16:9（高/宽 = 9/16，与 dsh-pet 协议一致）；自定义精灵图用
   // 加载后探测到的真实画布比例（帧高/帧宽），未探测到前回落到图集默认比例。
-  const petAspect = isPreset ? 9 / 16 : (spriteAspect?.id === activePet ? spriteAspect.value : 208 / 192)
+  const petAspect = isPreset ? 9 / 16 : (spriteAspect !== null && spriteAspect.id === activePet ? spriteAspect.value : 208 / 192)
 
   useImperativeHandle(props.ref, () => ({
     change(options) {
@@ -176,55 +137,6 @@ export function Pet(props: PetProps) {
   }), [props.status])
 
   useEffect(() => {
-    let disposed = false
-    let unlisten: (() => void) | undefined
-    void listen<RustPetStatus>('pet://status', (event) => {
-      if (!disposed)
-        setRustStatus(event.payload)
-    }).then((dispose) => {
-      if (disposed)
-        dispose()
-      else
-        unlisten = dispose
-    }).catch(() => {})
-    void invoke<RustPetStatus>('get_pet_status').then((value) => {
-      if (!disposed)
-        setRustStatus(value)
-    }).catch(() => {})
-    return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [])
-
-  // 预设宠物按 activePet 拉取协议配置与媒体 manifest；切换宠物时重载。
-  // 已安装预设的 config.jsonc 池条目（待机呼吸休闲 等）即 webm 文件名主名，
-  // assets map 的 key 与池条目一一对应，动画链/点击/拖拽直接按名字取 URL。
-  useEffect(() => {
-    if (isPreset === false)
-      return undefined
-    let disposed = false
-    void Promise.all([
-      invoke<PetConfig>('get_preset_pet_config', { id: activePet }).catch((error) => {
-        console.warn('[pet] PET_PRESET_CONFIG_LOAD_FAILED:', error)
-        return null
-      }),
-      invoke<{ assets?: Record<string, string> }>('get_preset_pet_assets', { id: activePet }).catch((error) => {
-        console.warn('[pet] PET_PRESET_ASSETS_LOAD_FAILED:', error)
-        return { assets: {} }
-      }),
-    ]).then(([config, value]) => {
-      if (disposed)
-        return
-      // 一起提交，避免 config 与 assets 不同步导致短暂按旧池解析。
-      setPetResources({ pet: activePet, config, assets: value.assets ?? {} })
-    })
-    return () => {
-      disposed = true
-    }
-  }, [activePet, isPreset])
-
-  useEffect(() => {
     const query = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
     if (query === undefined)
       return undefined
@@ -234,34 +146,6 @@ export function Pet(props: PetProps) {
     query.addEventListener('change', updateMotion)
     return () => query.removeEventListener('change', updateMotion)
   }, [])
-
-  useEffect(() => {
-    // 窗口由隐藏恢复显示（主 webview 重新开启宠物）时，WebView2 在隐藏窗口
-    // 上可能暂停媒体播放；这里在 visible 恢复为 true 时重放前台视频，避免
-    // 宠物「显示出来但静止不动」。元素始终常驻 DOM（CSS invisible），无需重载 src。
-    if (!visible)
-      return undefined
-    const front = frontIdxRef.current === 0 ? videoARef.current : videoBRef.current
-    if (front !== null && front.paused && front.src !== '' && !front.error) {
-      void front.play().catch(() => setFailed(true))
-    }
-    return undefined
-  }, [visible])
-
-  useEffect(() => {
-    if (isPreset)
-      return undefined
-    let disposed = false
-    void invoke<Asset>('get_pet_asset', { id: activePet }).then((value) => {
-      if (!disposed && isSupportedAsset(value)) {
-        setCustomAsset(value)
-        setCustomAssetPet(activePet)
-      }
-    }).catch(() => {})
-    return () => {
-      disposed = true
-    }
-  }, [activePet, isPreset])
 
   // 原生窗口尺寸跟随当前资源真实画布比例缩放（设置页 drag 滑块实时生效），
   // 避免与 Rust 只按图集默认比例重设窗口导致两处 set_size 打架（issue #308）。
@@ -286,7 +170,7 @@ export function Pet(props: PetProps) {
     // loadeddata 后才交换前台并淡入，旧视频淡出 + pause + 清 onended（拆雷，
     // 防止后台残留事件掐断前台动画）；全程无空窗/黑帧，动画切换不闪跳。
     // 只用于预设宠物（WebM）；自定义宠物走精灵图渲染，不走视频。
-    if (isPreset === false || videoARef.current === null || videoBRef.current === null)
+    if (!visible || isPreset === false || videoARef.current === null || videoBRef.current === null)
       return undefined
     // 预设配置池条目 = 动画名 = webm 文件名主名；adHoc 已携带动画名时直接命中，
     // 会话状态（waiting/running/review/failed/bubble）经 PRESET_SESSION_ANIMATIONS
@@ -321,7 +205,11 @@ export function Pet(props: PetProps) {
     target.src = source
     target.loop = !once
     target.onended = once ? event => handleEndedRef.current(event) : null
-    target.load()
+    function onError() {
+      setFailed(true)
+      if (!assets.fallback)
+        reportPetRender({ active_pet: activePet, render_id: renderId }, 'PET_MEDIA_DECODE_FAILED: could not decode pet video')
+    }
     const onReady = () => {
       target.removeEventListener('loadeddata', onReady)
       if (pendingRef.current?.gen !== gen)
@@ -337,19 +225,29 @@ export function Pet(props: PetProps) {
       // eslint-disable-next-line react/set-state-in-effect
       setFrontIdx(frontIdxRef.current)
       pendingRef.current = null
-      void target.play().catch(() => setFailed(true))
+      void target.play().then(() => {
+        setFailed(false)
+        reportPetRender({ active_pet: activePet, render_id: renderId })
+      }).catch((error) => {
+        setFailed(true)
+        if (!assets.fallback)
+          reportPetRender({ active_pet: activePet, render_id: renderId }, `PET_MEDIA_PLAY_FAILED: ${String(error)}`)
+      })
     }
     target.addEventListener('loadeddata', onReady)
+    target.addEventListener('error', onError)
+    target.load()
     if (target.readyState >= 2)
       onReady()
     return () => {
       target.removeEventListener('loadeddata', onReady)
+      target.removeEventListener('error', onError)
       // 若本次加载尚未完成（StrictMode 双挂载 / 依赖变化提前清理），清掉 pending，
       // 让下一次 effect 重新发起加载，避免「监听器已移除但 pending 仍在」的死锁。
       if (pendingRef.current?.gen === gen)
         pendingRef.current = null
     }
-  }, [activity, adHoc, assets, isPreset, override?.loop, override?.revision, pools])
+  }, [activePet, activity, adHoc, assets, isPreset, override?.loop, override?.revision, pools, renderId, visible])
 
   // 点击回应：clickCount 变化（useDrag 判定「500ms 内两次按下且未拖拽 = 双击」后递增）
   // → 播放一次点击回应动画。adHoc 优先级在会话 override 之上：双击回应可打断会话状态，
@@ -405,7 +303,7 @@ export function Pet(props: PetProps) {
   useEffect(() => {
     const sprite = spriteRef.current
     const asset = customAsset
-    if (isPreset || asset === null || customAssetPet !== activePet || sprite === null)
+    if (!visible || isPreset || asset === null || sprite === null)
       return undefined
     const element = sprite
     const loadedAsset = asset
@@ -432,7 +330,7 @@ export function Pet(props: PetProps) {
       if (timer !== undefined)
         window.clearTimeout(timer)
     }
-  }, [activity, activePet, adHoc, customAsset, customAssetPet, isPreset, override?.loop, reducedMotion])
+  }, [activity, adHoc, customAsset, isPreset, override?.loop, reducedMotion, visible])
 
   useEffect(() => {
     if (override?.loop !== false || override === null || isPreset || !hasCustomAsset)
@@ -477,8 +375,13 @@ export function Pet(props: PetProps) {
     if (customAsset !== null) {
       const frameWidth = image.naturalWidth / customAsset.columns
       const frameHeight = image.naturalHeight / customAsset.rows
-      if (frameWidth > 0 && frameHeight > 0)
+      if (frameWidth > 0 && frameHeight > 0) {
         setSpriteAspect({ id: customAsset.id, value: frameHeight / frameWidth })
+        reportPetRender(rustStatus)
+      }
+      else {
+        reportPetRender(rustStatus, 'PET_MEDIA_DECODE_FAILED: spritesheet has no visible frames')
+      }
     }
     setFailed(false)
   }
@@ -512,7 +415,6 @@ export function Pet(props: PetProps) {
             muted
             playsInline
             preload="auto"
-            onError={() => setFailed(true)}
           />
           <video
             ref={videoBRef}
@@ -520,7 +422,6 @@ export function Pet(props: PetProps) {
             muted
             playsInline
             preload="auto"
-            onError={() => setFailed(true)}
           />
         </If>
         <If cond={!isPreset && hasCustomAsset}>
@@ -534,16 +435,25 @@ export function Pet(props: PetProps) {
           />
           {/* 探测精灵图真实像素尺寸，换算成帧比例供窗口缩放使用；0×0 不可见。 */}
           <img
+            key={`${activePet}:${renderId}`}
             className="pointer-events-none absolute h-0 w-0 opacity-0"
             src={customAsset?.spritesheet}
             alt=""
             draggable={false}
-            onError={() => setFailed(true)}
+            onError={() => reportPetRender(rustStatus, 'PET_MEDIA_DECODE_FAILED: could not decode pet spritesheet')}
             onLoad={handleSpriteLoaded}
           />
         </If>
         <If cond={failed && assets.fallback !== undefined}>
-          <img className="pointer-events-none absolute inset-0 h-full w-full object-contain" src={assets.fallback} alt="" draggable={false} />
+          <img
+            key={`${activePet}:${renderId}`}
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+            src={assets.fallback}
+            alt=""
+            draggable={false}
+            onLoad={() => reportPetRender(rustStatus)}
+            onError={() => reportPetRender(rustStatus, 'PET_MEDIA_DECODE_FAILED: could not decode pet fallback image')}
+          />
         </If>
         {/* 命中区：唯一可交互面（拖拽/双击），尺寸与 dsh-pet .dsh-pet-hit 一致。 */}
         <div
@@ -578,23 +488,10 @@ function toAdHocStatus(entry: string | undefined): string | null {
   return isPetStatus(status) ? status : (status.length > 0 ? status : null)
 }
 
-function normalizeActivePet(value: string | null | undefined): string {
-  const normalized = value?.trim()
-  return normalized || BUILT_IN_PET_ID
-}
-
 function normalizePetSize(value: number | null | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value))
     return PET_DEFAULT_SIZE_PERCENT
   return Math.min(PET_SIZE_MAX_PERCENT, Math.max(PET_SIZE_MIN_PERCENT, value))
-}
-
-function isSupportedAsset(value: Asset): boolean {
-  return value.sprite_version_number === 2
-    && value.columns === 8
-    && value.rows === 11
-    && typeof value.spritesheet === 'string'
-    && value.spritesheet.length > 0
 }
 
 function isLoopingAnimation(activity: Animation | string): boolean {

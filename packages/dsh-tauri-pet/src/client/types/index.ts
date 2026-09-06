@@ -1,9 +1,13 @@
 /** Shared client types for pet settings and raw session forwarding. */
 export interface PetStatus {
-  active_pet: string
+  active_pet: string | null
   enabled: boolean
   pet_size?: number | null
   visible: boolean
+  ready: boolean
+  error: string | null
+  render_id: number
+  revision: number
 }
 
 export type PetSource = 'chat' | 'codex'
@@ -108,16 +112,16 @@ export type LocaleKey
     | 'downloadFailed'
     | 'downloading'
     | 'emptyImported'
+    | 'emptyPets'
     | 'enable'
     | 'import'
     | 'importFailed'
     | 'listFailed'
+    | 'loadFailed'
     | 'loading'
     | 'name'
 
     | 'noPetSelected'
-    | 'petDescWhale'
-    | 'petNameWhale'
     | 'select'
     | 'selected'
     | 'setPetFailed'

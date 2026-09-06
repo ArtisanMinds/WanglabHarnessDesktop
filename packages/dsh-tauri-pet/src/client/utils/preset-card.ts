@@ -12,7 +12,7 @@ import type { PresetDownloadProgress, PresetPetItem } from '../types'
  */
 export function resolvePresetCardAction(
   item: Pick<PresetPetItem, 'id' | 'installed' | 'phase'>,
-  active: string,
+  active: string | null,
   progress: PresetDownloadProgress | null | undefined,
 ): 'download' | 'downloading' | 'enable' | 'selected' {
   if (item.id === active)

@@ -1,5 +1,8 @@
 import type { RefObject } from 'react'
+import type { PetRuntimeStatus } from '@/pet/pet-runtime'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { useEffect } from 'react'
 import { useEvent } from 'react-use'
 import { getIframeOrigin } from '@/utils/iframe'
 
@@ -51,6 +54,29 @@ const ALLOWED_INVOKE_CMDS = new Set([
 ])
 
 export function useIframeInvoke(iframeRef: RefObject<HTMLIFrameElement | null>): void {
+  useEffect(() => {
+    let disposed = false
+    let unlisten: (() => void) | undefined
+    void listen<PetRuntimeStatus>('pet://status', (event) => {
+      const origin = getIframeOrigin(iframeRef)
+      if (!disposed && origin) {
+        iframeRef.current?.contentWindow?.postMessage(
+          { source: 'dsh-desktop-pet', type: 'dsh://pet:status', status: event.payload },
+          origin,
+        )
+      }
+    }).then((dispose) => {
+      if (disposed)
+        dispose()
+      else
+        unlisten = dispose
+    }).catch(error => console.error('[iframe-invoke] pet status listener failed:', error))
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [iframeRef])
+
   function handleMessage(event: MessageEvent<InvokeBridgeRequest>) {
     const data = event.data
     if (!data || typeof data !== 'object' || data.source !== 'dsh-tauri-invoke') {

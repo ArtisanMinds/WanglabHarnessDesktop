@@ -1,9 +1,10 @@
 import type { ChangeEvent, ReactElement } from 'react'
 import type { PetListItem, PetSettingsProps, PresetDownloadProgress, PresetPetItem } from '../types'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { BUILTIN_PET_ID, PET_DEFAULT_SIZE, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
+import { PET_DEFAULT_SIZE, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
 import { text, usePetLocale } from '../locales'
 import {
+  activatePet,
   downloadPresetPet,
   fetchPetList,
   fetchPetStatus,
@@ -11,7 +12,6 @@ import {
   fetchPresetPets,
   hidePet,
   importPet,
-  setActivePet,
   setPetEnabled,
   setPetSize,
   showPet,
@@ -114,7 +114,7 @@ function readAsBase64(file: File): Promise<string> {
 /** 预设宠物卡片右侧动作（已选/下载中/启用/下载），纯状态机见 utils/preset-card。 */
 export function presetCardAction(
   item: Pick<PresetPetItem, 'id' | 'installed' | 'phase'>,
-  active: string,
+  active: string | null,
   progress: PresetDownloadProgress | null | undefined,
 ): 'download' | 'downloading' | 'enable' | 'selected' {
   return resolvePresetCardAction(item, active, progress)
@@ -137,7 +137,8 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
   const committedSizeRef = useRef<number | null>(null)
   const enabled = Boolean(status?.enabled)
   const visible = Boolean(status?.visible)
-  const active = status?.active_pet ?? BUILTIN_PET_ID
+  const active = status?.active_pet ?? null
+  const displayError = error ?? (status?.error ? `${text('loadFailed')}: ${status.error}` : null)
   const statusSize = status?.pet_size ?? PET_DEFAULT_SIZE
 
   useEffect(() => {
@@ -146,13 +147,12 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
   }, [statusSize])
 
   const refreshPresets = useCallback(async (): Promise<void> => {
+    const revision = beginPetStatusFetch()
     try {
       const [nextPresetPets, nextStatus] = await Promise.all([fetchPresetPets(), fetchPetStatus()])
       cachedPresetPets = nextPresetPets
       setPresetPets(nextPresetPets)
-      const revision = beginPetStatusFetch()
       commitPetStatusFetch(revision, nextStatus)
-      setPetStatus(nextStatus)
     }
     catch (refreshError) {
       console.error('[dsh-tauri-pet] refresh preset pets failed:', refreshError)
@@ -254,38 +254,17 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     }
   }
 
-  /** 启用预设宠物：选择它，并确保桌宠被唤醒（自动触发唤醒）。 */
-  async function enablePreset(id: string): Promise<void> {
-    if (busy || active === id)
-      return
-    setBusy(true)
-    setError(null)
-    try {
-      let nextStatus = await setActivePet(id)
-      if (!nextStatus.enabled)
-        nextStatus = await setPetEnabled(true)
-      setPetStatus(nextStatus)
-    }
-    catch (enableError) {
-      console.error('[dsh-tauri-pet] enable preset failed:', enableError)
-      setError(text('setPetFailed'))
-    }
-    finally {
-      setBusy(false)
-    }
-  }
-
   async function choose(id: string): Promise<void> {
     if (busy || active === id)
       return
     setBusy(true)
     setError(null)
     try {
-      setPetStatus(await setActivePet(id))
+      setPetStatus(await activatePet(id))
     }
     catch (chooseError) {
       console.error('[dsh-tauri-pet] choose failed:', chooseError)
-      setError(text('setPetFailed'))
+      setError(`${text('setPetFailed')}: ${String(chooseError)}`)
     }
     finally {
       setBusy(false)
@@ -293,7 +272,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
   }
 
   async function toggleVisibility(): Promise<void> {
-    if (busy)
+    if (busy || !active)
       return
     setBusy(true)
     setError(null)
@@ -307,7 +286,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     }
     catch (toggleError) {
       console.error('[dsh-tauri-pet] visibility failed:', toggleError)
-      setError(text('toggleFailed'))
+      setError(`${text('toggleFailed')}: ${String(toggleError)}`)
     }
     finally {
       setBusy(false)
@@ -385,7 +364,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
                     actionLabel={action === 'selected' ? text('selected') : action === 'enable' ? text('enable') : downloading ? text('downloading') : text('download')}
                     onAction={() => {
                       if (action === 'enable')
-                        void enablePreset(item.id)
+                        void choose(item.id)
                       else if (action === 'download')
                         void startDownload(item.id)
                     }}
@@ -405,6 +384,9 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
                   onAction={() => { void choose(item.id) }}
                 />
               ))}
+              {presetPets.length === 0 && chatPets.length === 0
+                ? <div className="dshpet-empty">{text('emptyPets')}</div>
+                : null}
             </div>
           )}
     </>
@@ -441,7 +423,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
             className={tab === 'pets' ? 'dshpet-tabBtn dshpet-tabBtnActive' : 'dshpet-tabBtn'}
             onClick={() => setTab('pets')}
           >
-            Pets
+            {text('name')}
           </button>
           <button
             type="button"
@@ -450,21 +432,16 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
             className={tab === 'codex' ? 'dshpet-tabBtn dshpet-tabBtnActive' : 'dshpet-tabBtn'}
             onClick={() => setTab('codex')}
           >
-            Codex
+            {text('codex')}
           </button>
         </div>
         <div className="dshpet-tabTools">
           {tab === 'pets'
             ? (
-                <>
-                  <button type="button" className="dshpet-toolBtn" disabled={busy} onClick={() => { void createPet() }}>
-                    <IconPlus />
-                    {text('create')}
-                  </button>
-                  <button type="button" className="dshpet-toolBtn" disabled={busy} onClick={() => { void toggleVisibility() }}>
-                    {visible ? text('collapsePet') : text('wakePet')}
-                  </button>
-                </>
+                <button type="button" className="dshpet-toolBtn" disabled={busy} onClick={() => { void createPet() }}>
+                  <IconPlus />
+                  {text('create')}
+                </button>
               )
             : (
                 <label className="dshpet-toolBtn" aria-disabled={busy}>
@@ -479,6 +456,9 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
                   />
                 </label>
               )}
+          <button type="button" className="dshpet-toolBtn" disabled={busy || !active} onClick={() => { void toggleVisibility() }}>
+            {visible ? text('collapsePet') : text('wakePet')}
+          </button>
         </div>
       </div>
       <p className="dshpet-tabDesc">
@@ -486,7 +466,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
       </p>
       <div className="dshpet-divider" role="separator" />
       {tab === 'pets' ? petsPanel : codexPanel}
-      {error ? <div className="dshpet-error" role="alert">{error}</div> : null}
+      {displayError ? <div className="dshpet-error" role="alert">{displayError}</div> : null}
       <div className="dshpet-sizeRow">
         <span className="dshpet-sizeLabel">{text('sizeLabel')}</span>
         <input

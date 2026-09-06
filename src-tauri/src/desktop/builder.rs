@@ -593,6 +593,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::desktop::notification::show_native_notification,
         crate::bridge::log_frontend,
         crate::bridge::get_pet_status,
+        crate::bridge::report_pet_render,
         crate::bridge::set_pet_enabled,
         crate::bridge::set_active_pet,
         crate::bridge::set_pet_size,
@@ -633,7 +634,7 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             #[cfg(target_os = "macos")]
             install_macos_menu(&app_handle)?;
             tray(&app_handle)?;
-            // 桌宠窗口：按「是否启用」设置惰性创建/显示（幂等）。
+            // 先预创建透明窗口，再迁移旧默认宠物并恢复有效选择。
             crate::desktop::pet::init_pet_window(&app_handle);
             setup(app_handle.clone());
             Ok(())
@@ -661,7 +662,7 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 if window.label() == crate::desktop::pet::PET_WINDOW_LABEL {
                     api.prevent_close();
-                    let _ = window.hide();
+                    let _ = crate::bridge::hide_pet(window.app_handle().clone());
                     return;
                 }
                 // get_store_dat_setting 内部已归一化，取值只可能是 tray 或 quit

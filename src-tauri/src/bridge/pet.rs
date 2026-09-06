@@ -28,8 +28,8 @@ use zip::ZipArchive;
 pub const PET_SIZE_MIN: f64 = pet_window::PET_SIZE_MIN_PERCENT;
 pub const PET_SIZE_MAX: f64 = pet_window::PET_SIZE_MAX_PERCENT;
 
-/// 缺省选择对外统一呈现的精确内置宠物 id。
-pub const DEFAULT_ACTIVE_PET_ID: &str = "maid-deepseek-whale";
+/// 升级时清除已移除的初始选择，不删除用户磁盘上的资源。
+const REMOVED_PRESET_PET_ID: &str = "maid-deepseek-whale";
 /// 导入桌宠资源包的压缩大小上限（32 MiB）。
 const PET_PACKAGE_MAX_BYTES: usize = 32 * 1024 * 1024;
 /// 防止 zip 炸弹的条目数与解压后总大小上限。
@@ -51,11 +51,54 @@ pub const PET_STATUS_EVENT: &str = "pet://status";
 #[derive(Debug, Clone)]
 struct PetTransientState {
     visible: bool,
+    ready: bool,
+    error: Option<String>,
+    render_id: u64,
+    revision: u64,
 }
 
 impl Default for PetTransientState {
     fn default() -> Self {
-        Self { visible: true }
+        Self {
+            visible: false,
+            ready: false,
+            error: None,
+            render_id: 0,
+            revision: 0,
+        }
+    }
+}
+
+impl PetTransientState {
+    fn begin_render(&mut self, visible: bool) {
+        self.visible = visible;
+        self.ready = false;
+        self.error = None;
+        self.render_id += 1;
+        self.revision += 1;
+    }
+
+    fn fail(&mut self, error: String) {
+        self.visible = false;
+        self.ready = false;
+        self.error = Some(error);
+        self.revision += 1;
+    }
+
+    fn report(&mut self, render_id: u64, error: Option<String>) -> bool {
+        // 旧窗口请求、已收起窗口及加载失败后的迟到成功回调均不得重新点亮图标。
+        if self.render_id != render_id || !self.visible {
+            return false;
+        }
+        if let Some(error) = error {
+            self.fail(error);
+        } else if !self.ready {
+            self.ready = true;
+            self.revision += 1;
+        } else {
+            return false;
+        }
+        true
     }
 }
 
@@ -71,10 +114,17 @@ pub struct PetStatus {
     pub enabled: bool,
     /// 桌宠窗口当前是否应显示。
     pub visible: bool,
-    /// 当前桌宠 id；持久值缺省或空白时始终返回内置默认 id。
-    pub active_pet: String,
+    /// 未选择宠物时为 None，不再自动补入默认资源。
+    pub active_pet: Option<String>,
     /// 宠物大小百分比（50–200，100 = 精灵图原始尺寸）；None = 未设置（默认 100）。
     pub pet_size: Option<f64>,
+    /// 媒体已在宠物 WebView 内成功解码，才允许主界面显示激活指示。
+    pub ready: bool,
+    pub error: Option<String>,
+    /// 每次唤醒或切换生成新编号，隔离旧媒体的异步回调。
+    pub render_id: u64,
+    /// 主界面按修订号忽略迟到的命令应答，防止覆盖较新的加载结果。
+    pub revision: u64,
 }
 
 /// 文件系统宠物的数据来源。
@@ -140,19 +190,16 @@ pub struct PetAsset {
     pub rows: u8,
 }
 
-/// 将缺省、旧版未限定 id 或非法选择归一化为内置默认宠物的精确 id。
-/// 合法值：默认宠物 id、预设宠物 id（~/.dsh/pets 目录，安全字符集）或来源限定 id。
-fn normalize_active_pet(active_pet: Option<&str>) -> String {
-    let Some(id) = active_pet.map(str::trim).filter(|id| !id.is_empty()) else {
-        return DEFAULT_ACTIVE_PET_ID.to_string();
-    };
-    if id == DEFAULT_ACTIVE_PET_ID
-        || crate::bridge::preset_pet::safe_preset_id(id)
-        || parse_qualified_id(id).is_ok()
-    {
-        id.to_string()
-    } else {
-        DEFAULT_ACTIVE_PET_ID.to_string()
+/// 缺省、已移除的初始宠物与非法选择均保持未选择状态。
+fn normalize_active_pet(active_pet: Option<&str>) -> Option<String> {
+    let id = active_pet.map(str::trim).filter(|id| !id.is_empty())?;
+    validate_active_pet_id(id).ok().map(|_| id.to_string())
+}
+
+fn migrate_pet_selection(setting: &mut config::Setting) {
+    setting.active_pet = normalize_active_pet(setting.active_pet.as_deref());
+    if setting.active_pet.is_none() {
+        setting.pet_enabled = false;
     }
 }
 
@@ -162,21 +209,76 @@ fn status_from_setting(setting: &config::Setting) -> PetStatus {
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
+    status_from_state(setting, &transient)
+}
+
+fn status_from_state(setting: &config::Setting, transient: &PetTransientState) -> PetStatus {
+    let active_pet = normalize_active_pet(setting.active_pet.as_deref());
+    let enabled = setting.pet_enabled && active_pet.is_some();
+    let visible = enabled && transient.visible;
     PetStatus {
-        enabled: setting.pet_enabled,
-        visible: setting.pet_enabled && transient.visible,
-        active_pet: normalize_active_pet(setting.active_pet.as_deref()),
+        enabled,
+        visible,
+        active_pet,
         pet_size: setting.pet_size,
+        ready: visible && transient.ready,
+        error: transient.error.clone(),
+        render_id: transient.render_id,
+        revision: transient.revision,
     }
 }
 
-/// 把最新状态推送给 pet 窗口（动作与设置变化共用同一事件）。
+/// 同时通知宠物窗口与主窗口；主窗口再通过受限桥同步 iframe 中的图标。
 fn emit_pet_status(app: &AppHandle, status: &PetStatus) {
-    let _ = app.emit_to(
-        pet_window::PET_WINDOW_LABEL,
-        PET_STATUS_EVENT,
-        status.clone(),
-    );
+    let _ = app.emit(PET_STATUS_EVENT, status.clone());
+}
+
+fn fail_pet(app: &AppHandle, error: String) -> String {
+    log::error!("[pet] {error}");
+    let _ = pet_window::set_pet_window_visible(app, false);
+    transient_state()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .fail(error.clone());
+    emit_pet_status(app, &status_from_setting(&config::get_store_dat_setting(app)));
+    error
+}
+
+fn validate_pet_assets(app: &AppHandle, id: &str) -> Result<(), String> {
+    validate_active_pet_id(id)?;
+    if id.contains(':') {
+        return get_pet_asset(app.clone(), id.to_string()).map(|_| ());
+    }
+    let config = super::preset_pet::get_preset_pet_config(app.clone(), id.to_string())?;
+    let assets = super::preset_pet::get_preset_pet_assets(app.clone(), id.to_string())?;
+    let idle = config["animations"]["idle"]
+        .as_array()
+        .ok_or("PET_PRESET_ASSETS_MISSING: idle animation pool is missing")?;
+    if idle.is_empty() || idle.iter().any(|name| {
+        name.as_str().is_none_or(|name| !assets.assets.contains_key(name))
+    }) {
+        return Err("PET_PRESET_ASSETS_MISSING: idle animations are not installed".to_string());
+    }
+    Ok(())
+}
+
+fn validate_selected_pet(app: &AppHandle, setting: &config::Setting) -> Result<(), String> {
+    let id = normalize_active_pet(setting.active_pet.as_deref())
+        .ok_or("PET_NOT_SELECTED: select an installed pet first")?;
+    validate_pet_assets(app, &id)
+}
+
+/// 在预创建窗口后恢复设置，旧默认宠物不会随升级重新启用。
+pub fn restore_pet(app: &AppHandle) {
+    let mut setting = config::get_store_dat_setting(app);
+    let previous = (setting.active_pet.clone(), setting.pet_enabled);
+    migrate_pet_selection(&mut setting);
+    if previous != (setting.active_pet.clone(), setting.pet_enabled) {
+        setting = config::update_store_dat_setting(app, migrate_pet_selection);
+    }
+    if setting.pet_enabled {
+        let _ = set_pet_enabled(app.clone(), true);
+    }
 }
 
 /// 查询桌宠当前完整状态。
@@ -188,14 +290,19 @@ pub fn get_pet_status(app: AppHandle) -> PetStatus {
 /// 启用/停用桌宠；启用同时显示，停用同时隐藏并永久落盘。
 #[tauri::command]
 pub fn set_pet_enabled(app: AppHandle, enabled: bool) -> Result<PetStatus, String> {
+    if enabled {
+        validate_selected_pet(&app, &config::get_store_dat_setting(&app))
+            .map_err(|error| fail_pet(&app, error))?;
+    }
+    pet_window::set_pet_window_visible(&app, enabled)
+        .map_err(|error| fail_pet(&app, error))?;
     let updated = config::update_store_dat_setting(&app, |setting| {
         setting.pet_enabled = enabled;
     });
     transient_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner())
-        .visible = enabled;
-    pet_window::set_pet_window_visible(&app, enabled)?;
+        .begin_render(enabled);
     let status = status_from_setting(&updated);
     emit_pet_status(&app, &status);
     Ok(status)
@@ -205,10 +312,16 @@ pub fn set_pet_enabled(app: AppHandle, enabled: bool) -> Result<PetStatus, Strin
 #[tauri::command]
 pub fn set_active_pet(app: AppHandle, id: String) -> Result<PetStatus, String> {
     let id = id.trim().to_string();
-    validate_active_pet_id(&id)?;
+    validate_pet_assets(&app, &id)?;
     let updated = config::update_store_dat_setting(&app, |setting| {
         setting.active_pet = Some(id);
     });
+    let mut transient = transient_state()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let visible = transient.visible && updated.pet_enabled;
+    transient.begin_render(visible);
+    drop(transient);
     let status = status_from_setting(&updated);
     emit_pet_status(&app, &status);
     Ok(status)
@@ -225,6 +338,10 @@ pub fn set_pet_size(app: AppHandle, size: f64) -> Result<PetStatus, String> {
     let updated = config::update_store_dat_setting(&app, |setting| {
         setting.pet_size = Some(size);
     });
+    transient_state()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .revision += 1;
     // 窗口尺寸由 pet WebView（知道当前资源真实画布比例）在收到状态事件后实时设置；
     // Rust 不再绕开前端重复 set_size，避免内置鲸鱼（16:9）与自定义图集比例不一致时被
     // 两处高度交替重设，造成大小变更时上下闪烁（issue #308）。DPI 变化仍由 Rust 的
@@ -282,27 +399,53 @@ pub fn show_pet(app: AppHandle) -> Result<PetStatus, String> {
     if !setting.pet_enabled {
         return Err("PET_DISABLED: pet window is not enabled".to_string());
     }
-    transient_state()
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .visible = true;
-    pet_window::set_pet_window_visible(&app, true)?;
-    let status = status_from_setting(&setting);
-    emit_pet_status(&app, &status);
-    Ok(status)
+    set_pet_enabled(app, true)
 }
 
 /// 临时隐藏桌宠窗口，不改变永久 enabled；重启后已启用宠物重新显示。
 #[tauri::command]
 pub fn hide_pet(app: AppHandle) -> Result<PetStatus, String> {
+    pet_window::set_pet_window_visible(&app, false)?;
     transient_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner())
-        .visible = false;
-    pet_window::set_pet_window_visible(&app, false)?;
+        .begin_render(false);
     let status = status_from_setting(&config::get_store_dat_setting(&app));
     emit_pet_status(&app, &status);
     Ok(status)
+}
+
+/// 仅接受宠物 WebView 的真实媒体加载结果，拒绝 iframe 伪造激活状态。
+#[tauri::command]
+pub fn report_pet_render(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    id: String,
+    render_id: u64,
+    error: Option<String>,
+) -> Result<(), String> {
+    if window.label() != pet_window::PET_WINDOW_LABEL {
+        return Err("PET_RENDER_SOURCE_INVALID: only the pet window may report media status".to_string());
+    }
+    let setting = config::get_store_dat_setting(&app);
+    if !setting.pet_enabled || normalize_active_pet(setting.active_pet.as_deref()).as_deref() != Some(id.as_str()) {
+        return Ok(());
+    }
+    let error = error.map(|error| error.chars().take(2000).collect::<String>());
+    let mut transient = transient_state()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if !transient.report(render_id, error.clone()) {
+        return Ok(());
+    }
+    if let Some(error) = error {
+        log::error!("[pet] {id}: {error}");
+        let _ = pet_window::set_pet_window_visible(&app, false);
+    }
+    let status = status_from_state(&setting, &transient);
+    drop(transient);
+    emit_pet_status(&app, &status);
+    Ok(())
 }
 
 /// 返回来源对应的真实目录；chat 直接使用 `$DSH_HOME/pets`，codex 直接使用
@@ -347,9 +490,12 @@ fn parse_qualified_id(id: &str) -> Result<(PetSource, &str), String> {
     Ok((source, manifest_id))
 }
 
-/// 校验激活宠物 id：默认宠物、预设宠物（安全字符集）或来源限定 id。
+/// 已移除的默认宠物不能重新成为隐式选择。
 fn validate_active_pet_id(id: &str) -> Result<(), String> {
-    if id == DEFAULT_ACTIVE_PET_ID || crate::bridge::preset_pet::safe_preset_id(id) {
+    if id == REMOVED_PRESET_PET_ID {
+        return Err("PET_PRESET_REMOVED: this preset is no longer provided".to_string());
+    }
+    if crate::bridge::preset_pet::safe_preset_id(id) {
         return Ok(());
     }
     parse_qualified_id(id).map(|_| ())
@@ -936,29 +1082,93 @@ mod tests {
     }
 
     #[test]
-    fn active_pet_defaults_to_exact_builtin_id() {
-        assert_eq!(normalize_active_pet(None), DEFAULT_ACTIVE_PET_ID);
-        assert_eq!(normalize_active_pet(Some("   ")), DEFAULT_ACTIVE_PET_ID);
+    fn active_pet_has_no_implicit_default() {
+        assert_eq!(normalize_active_pet(None), None);
+        assert_eq!(normalize_active_pet(Some("   ")), None);
+        assert_eq!(normalize_active_pet(Some(REMOVED_PRESET_PET_ID)), None);
         assert_eq!(
-            normalize_active_pet(Some(" chat:custom-pet ")),
-            "chat:custom-pet",
+            normalize_active_pet(Some(" chat:custom-pet ")).as_deref(),
+            Some("chat:custom-pet"),
             "有效 id 应只去除首尾空白"
         );
         assert_eq!(
-            normalize_active_pet(Some("codex:custom_pet")),
-            "codex:custom_pet"
+            normalize_active_pet(Some("codex:custom_pet")).as_deref(),
+            Some("codex:custom_pet")
         );
-        // 未限定 id（预设宠物，安全字符集）与来源限定 id 都是合法激活选择；
-        // 只有非法字符集 / 未知来源限定才回落内置宠物。
-        assert_eq!(normalize_active_pet(Some("cat")), "cat");
-        assert_eq!(normalize_active_pet(Some("shiba")), "shiba");
+        assert_eq!(normalize_active_pet(Some("custom-preset")).as_deref(), Some("custom-preset"));
         for legacy_or_invalid in ["other:pet", "chat:../pet", "bad id", "x/y"] {
             assert_eq!(
                 normalize_active_pet(Some(legacy_or_invalid)),
-                DEFAULT_ACTIVE_PET_ID,
-                "旧版或非法 id {legacy_or_invalid} 应回落内置宠物"
+                None,
+                "非法 id {legacy_or_invalid} 不能成为默认选择"
             );
         }
+    }
+
+    #[test]
+    fn upgrade_clears_removed_default_but_preserves_custom_selection() {
+        for id in [None, Some(""), Some(REMOVED_PRESET_PET_ID)] {
+            let mut setting = config::Setting {
+                active_pet: id.map(str::to_string),
+                pet_enabled: true,
+                pet_size: Some(125.0),
+                ..Default::default()
+            };
+            migrate_pet_selection(&mut setting);
+            assert_eq!(setting.active_pet, None);
+            assert!(!setting.pet_enabled);
+            assert_eq!(setting.pet_size, Some(125.0));
+        }
+        for enabled in [false, true] {
+            let mut setting = config::Setting {
+                active_pet: Some("codex:custom".to_string()),
+                pet_enabled: enabled,
+                ..Default::default()
+            };
+            migrate_pet_selection(&mut setting);
+            assert_eq!(setting.active_pet.as_deref(), Some("codex:custom"));
+            assert_eq!(setting.pet_enabled, enabled);
+        }
+    }
+
+    #[test]
+    fn status_requires_selection_enablement_and_render_confirmation() {
+        let mut transient = PetTransientState::default();
+        transient.begin_render(true);
+        let mut setting = config::Setting {
+            pet_enabled: true,
+            ..Default::default()
+        };
+        let status = status_from_state(&setting, &transient);
+        assert!(!status.enabled && !status.visible && !status.ready);
+        assert_eq!(status.active_pet, None);
+        setting.active_pet = Some("chat:custom".to_string());
+        let status = status_from_state(&setting, &transient);
+        assert!(status.enabled && status.visible);
+        assert!(!status.ready, "显示透明窗口不代表媒体已加载");
+        assert!(transient.report(transient.render_id, None));
+        assert!(status_from_state(&setting, &transient).ready);
+        setting.pet_enabled = false;
+        let status = status_from_state(&setting, &transient);
+        assert!(!status.enabled && !status.visible && !status.ready);
+    }
+
+    #[test]
+    fn render_failures_hide_the_pet_and_old_reports_cannot_reactivate_it() {
+        let mut transient = PetTransientState::default();
+        transient.begin_render(true);
+        let first_render = transient.render_id;
+        assert!(transient.report(first_render, None));
+        assert!(transient.ready);
+        assert!(transient.report(first_render, Some("PET_MEDIA_DECODE_FAILED".to_string())));
+        assert!(!transient.visible && !transient.ready);
+        assert!(!transient.report(first_render, None));
+        transient.begin_render(true);
+        assert!(!transient.ready && transient.error.is_none());
+        assert!(!transient.report(first_render, Some("late error".to_string())));
+        assert!(transient.report(transient.render_id, None));
+        transient.begin_render(false);
+        assert!(!transient.report(transient.render_id, None));
     }
 
     #[test]
@@ -970,7 +1180,8 @@ mod tests {
         let status = status_from_setting(&setting);
         assert!(!status.enabled);
         assert!(!status.visible);
-        assert_eq!(status.active_pet, DEFAULT_ACTIVE_PET_ID);
+        assert!(!status.ready);
+        assert_eq!(status.active_pet, None);
     }
 
     #[test]
