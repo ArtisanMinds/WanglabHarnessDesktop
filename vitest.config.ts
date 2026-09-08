@@ -11,7 +11,7 @@ import { defineConfig } from 'vitest/config'
  */
 export default defineConfig({
   test: {
-    include: ['src/**/*.{test,spec}.{ts,tsx,js,mjs,cjs}', 'packages/**/*.{test,spec}.{ts,tsx,js,mjs,cjs}'],
+    include: ['src/**/*.{test,spec}.{ts,tsx,js,mjs,cjs}', 'packages/**/*.{test,spec}.{ts,tsx,js,mjs,cjs}', 'test/toast.test.ts'],
     maxWorkers: 4,
     testTimeout: 30_000,
     hookTimeout: 30_000,

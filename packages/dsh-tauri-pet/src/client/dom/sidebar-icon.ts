@@ -4,10 +4,8 @@
  * 像 dataelement/dsh-desktop 一样往侧栏塞图标：入口是 `.sidebar.settings`
  * 容器（dsh-tauri-ui 的设置触发器所在处）的子元素——紧贴 `.dshp-settings-trigger`
  * 右侧的原生按钮，样式复刻官方 `.rtSEdW_iconButton`（见 styles 的
- * .dshp-pet__icon-button）。按钮有「未选择/激活」两态：未选择任何宠物时（桌宠尚未
- * 启用）点击只提示「未选择宠物，请在设置页选择你的宠物」，不改变启用状态；
- * 已选择宠物后点击即在桌面端切换桌宠启用状态，不弹任何面板（设置走
- * settings.section 页）。
+ * .dshp-pet__icon-button）。按钮有「未激活/激活」两态；点击后在桌面端切换桌宠
+ * 启用状态，不弹任何面板（设置走 settings.section 页）。
  *
  * 挂载策略参照 dsh-tauri-session 的 workspace-patch：MutationObserver 监听
  * document.body，侧栏就绪后插入并持续看护（React 重渲染容器后自动补插）；
@@ -15,8 +13,7 @@
  *
  * 可用性：无任何可用宠物（已安装预设或应用内宠物均无）时入口隐藏，避免
  * 展示一个点了没意义的按钮；快照由本模块挂载时拉取一次，设置页在清单变化
- * （下载完成/导入）后写回。桌宠仍启用（如宠物数据被外部清理）时保留入口，
- * 让用户还能从侧栏关闭桌宠。
+ * （下载完成/导入）后写回。
  */
 import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
 import { subscribePetLocale, text } from '../locales'
@@ -97,7 +94,7 @@ function createPetIconButton(): HTMLButtonElement {
 function syncIconState(button: HTMLButtonElement): void {
   const shared = getPetUiSnapshot()
   const status = shared.status
-  button.hidden = !shared.petsAvailable && !status?.enabled
+  button.hidden = !shared.petsAvailable
   const active = isPetVisible(status)
   button.classList.toggle('dshp-pet__icon--on', active)
   button.setAttribute('aria-pressed', String(active))
