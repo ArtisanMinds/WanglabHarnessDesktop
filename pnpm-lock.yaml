@@ -204,6 +204,9 @@ catalogs:
       specifier: ^7.8.0
       version: 7.8.0
   ui:
+    '@css-render/plugin-bem':
+      specifier: ^0.15.7
+      version: 0.15.14
     css-render:
       specifier: ^0.15.14
       version: 0.15.14
@@ -538,6 +541,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
     devDependencies:
       dsh-tauri-tsdown:
         specifier: workspace:*
@@ -554,6 +560,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -563,9 +572,6 @@ importers:
       pathe:
         specifier: catalog:utils
         version: 2.0.3
-      smol-toml:
-        specifier: catalog:utils
-        version: 1.8.0
       yaml:
         specifier: catalog:testing
         version: 2.9.0
@@ -585,6 +591,9 @@ importers:
       marked:
         specifier: catalog:ui
         version: 18.0.11
+      smol-toml:
+        specifier: catalog:utils
+        version: 1.8.0
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
@@ -594,6 +603,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
     devDependencies:
       dsh-tauri-tsdown:
         specifier: workspace:*
@@ -610,6 +622,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -617,6 +632,24 @@ importers:
         specifier: catalog:utils
         version: 2.0.3
     devDependencies:
+      '@deepseek-ai/dsh-agent':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(1db965049c70d2701e95bc05007621a4)
+      '@deepseek-ai/dsh-llm':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)
+      '@deepseek-ai/dsh-session':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)))
+      '@deepseek-ai/dsh-tools':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(6691fd63ba6ce944067615b7d0e0cc38)
+      '@deepseek-ai/dsh-user-approval':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-agent@0.1.2-rc.1(1db965049c70d2701e95bc05007621a4))(@deepseek-ai/dsh-brand@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)))(@deepseek-ai/dsh-session@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-scope@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2))))(@deepseek-ai/dsh-system-prompt@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-llm@0.1.2-rc.1(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.1-rc.2(@deepseek-ai/cordis@4.0.2))))
+      '@deepseek-ai/dsh-workspace':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(35473e50508464e8b89409f6c496b34c)
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -635,6 +668,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: catalog:dsh
@@ -651,9 +687,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: catalog:dsh
         version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)
-      css-render:
-        specifier: catalog:ui
-        version: 0.15.14
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -672,6 +705,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
     devDependencies:
       dsh-tauri-tsdown:
         specifier: workspace:*
@@ -685,6 +721,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -714,6 +753,21 @@ importers:
         specifier: workspace:*
         version: link:../dsh-tauri
     devDependencies:
+      '@css-render/plugin-bem':
+        specifier: catalog:ui
+        version: 0.15.14(css-render@0.15.14)
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: catalog:dsh
+        version: 0.1.2-rc.1(@deepseek-ai/cordis@4.0.2)(react@19.2.8)
+      '@gravity-ui/icons':
+        specifier: catalog:runtime
+        version: 2.21.0(react@19.2.8)
+      css-render:
+        specifier: catalog:ui
+        version: 0.15.14
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -726,6 +780,9 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -932,6 +989,11 @@ packages:
   '@clack/prompts@1.7.0':
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
     engines: {node: '>= 20.12.0'}
+
+  '@css-render/plugin-bem@0.15.14':
+    resolution: {integrity: sha512-QK513CJ7yEQxm/P3EwsI+d+ha8kSOcjGvD6SevM41neEMxdULE+18iuQK6tEChAWMOQNQPLG/Rw3Khb69r5neg==}
+    peerDependencies:
+      css-render: ~0.15.14
 
   '@deepseek-ai/cordis-plugin-include@1.0.7':
     resolution: {integrity: sha512-bZ4S1YuOmwOeE97HnslQ6ggVQbaWz4GejJ8OcY4P/DIyc1Qhu/3Szt1XSw6c/pd37kRkxxJXGwt4cmCxWSBBuw==}
@@ -5639,6 +5701,10 @@ snapshots:
       fast-string-width: 3.0.2
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
+
+  '@css-render/plugin-bem@0.15.14(css-render@0.15.14)':
+    dependencies:
+      css-render: 0.15.14
 
   '@deepseek-ai/cordis-plugin-include@1.0.7(@deepseek-ai/cordis-plugin-loader@1.0.3)(@deepseek-ai/cordis@4.0.2)':
     dependencies:

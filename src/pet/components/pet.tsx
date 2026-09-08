@@ -7,15 +7,22 @@ import { If } from 'react-if-lite'
 import { PET_STATUSES } from '../hooks/use-pet'
 import { usePetRuntime } from '../hooks/use-pet-runtime'
 import {
+  fallbackPresetName,
+  isLoopingAnimation,
   pick,
   pickCategoryAction,
   poolEntryToStatus,
   resolvePresetName,
   rollKind,
+  spriteStatusFallback,
 } from '../pet-config'
 import { reportPetRender } from '../pet-runtime'
 
 const PET_BASE_WIDTH = 220
+/** 已安装预设被清理/未安装时的提示文案：桌宠窗口无 i18n 基础设施（气泡文案同样硬编码），按窗口语言就近显示。 */
+const PRESET_MISSING_HINT = (document.documentElement.lang || navigator.language || 'zh-CN').toLowerCase().startsWith('zh')
+  ? '预设宠物未安装，请在设置中下载'
+  : 'Preset pet not installed. Download it in Settings.'
 const PET_DEFAULT_SIZE_PERCENT = 100
 const PET_SIZE_MIN_PERCENT = 25
 const PET_SIZE_MAX_PERCENT = 200
@@ -96,6 +103,7 @@ export function Pet(props: PetProps) {
   const prevClickRef = useRef(0)
   const handleEndedRef = useRef<(event?: Event) => void>(() => {})
 
+  const presetMissing = isPreset && rustStatus.error?.includes('PET_PRESET_NOT_INSTALLED') === true
   // 预设宠物配置驱动动画池：池条目是动画名（webm 文件名主名，如 待机呼吸休闲），
   // 点击/拖拽/待机链按名字从 assets map 取 URL。配置缺失或命令失败时回落与旧
   // 实现一致的默认池（idle/turn/wave），这些名字在 assets 中不存在时自然不播放。
@@ -174,9 +182,14 @@ export function Pet(props: PetProps) {
       return undefined
     // 预设配置池条目 = 动画名 = webm 文件名主名；adHoc 已携带动画名时直接命中，
     // 会话状态（waiting/running/review/failed/bubble）经 PRESET_SESSION_ANIMATIONS
-    // 叠加映射到具体动画名（写代码/轻快记录/玩游戏气急败坏…），映射名无资产时
-    // resolvePresetName 返回 null → 保持当前动画。
+    // 叠加映射到具体动画名（写代码/轻快记录/玩游戏气急败坏…）。
     const name = resolvePresetName(activity, pools, assets)
+      // 会话状态（override/props 驱动）解析不到资产时不得静默保持当前动画——旧语义
+      // 会让宠物永久卡在上一个循环上：细分工作档资产缺失的旧预设（e1ff8c1 资产差集
+      // 前的安装）中，会话运行显示待机、拖拽结束后永远循环拖拽动画。改为降级链
+      // （细分工作档 → 粗态写代码 → 待机池，见 fallbackPresetName）；adHoc（点击
+      // 回应/待机插播）缺失仍保持当前动画，避免把一次性风味动画错播成工作/待机动画。
+      ?? (adHoc === null ? fallbackPresetName(activity, pools, assets) : null)
     if (name === null)
       return undefined
     const source = assets[name]
@@ -461,6 +474,14 @@ export function Pet(props: PetProps) {
           className="pointer-events-auto absolute cursor-grab touch-none select-none"
           style={PET_HIT_BOX}
         />
+        <If cond={presetMissing}>
+          {/* 预设宠物未安装：视频层无可播放资产会静默空白，用可见提示引导去设置页下载（issue #401）。 */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center select-none">
+            <div className="max-w-[95%] rounded-lg bg-black/60 px-3 py-1.5 text-center text-xs leading-relaxed text-white">
+              {PRESET_MISSING_HINT}
+            </div>
+          </div>
+        </If>
       </div>
     </main>
   )
@@ -494,13 +515,6 @@ function normalizePetSize(value: number | null | undefined): number {
   return Math.min(PET_SIZE_MAX_PERCENT, Math.max(PET_SIZE_MIN_PERCENT, value))
 }
 
-function isLoopingAnimation(activity: Animation | string): boolean {
-  // moving-* 与 dragging 仅存在于原生拖拽期间（手势状态），持续播放直到拖拽结束。
-  return activity === 'idle' || activity === 'running'
-    || activity === 'moving-left' || activity === 'moving-right'
-    || activity === 'dragging'
-}
-
 function spriteSequence(activity: Animation | string, reducedMotion: boolean, loop: boolean): { frames: Frame[], loopStart: number | null } {
   const idleFrames = IDLE_DURATIONS.map((duration, column) => ({ column, duration: duration * 6, row: 0 }))
   const action = spriteAction(activity)
@@ -516,7 +530,10 @@ function spriteSequence(activity: Animation | string, reducedMotion: boolean, lo
 function spriteAction(activity: Animation | string): Frame[] {
   if (activity === 'idle')
     return IDLE_DURATIONS.map((duration, column) => ({ column, duration, row: 0 }))
-  const mapped = activity === 'turn' ? 'moving-right' : activity === 'bubble' ? 'waving' : activity === 'dragging' ? 'moving-right' : activity
+  // 自定义图集无细分档行：先近似映射到既有行（thinking→waiting 等），
+  // 此类档位对预设宠物（WebM）不影响——它们走 resolvePresetName 直接命中资产。
+  const base = spriteStatusFallback(activity)
+  const mapped = base === 'turn' ? 'moving-right' : base === 'bubble' ? 'waving' : base === 'dragging' ? 'moving-right' : base
   const config = ACTIONS[mapped as keyof typeof ACTIONS] ?? ACTIONS.waving
   return Array.from({ length: config.frames }, (_, column) => ({
     column,

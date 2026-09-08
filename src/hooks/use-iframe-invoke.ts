@@ -53,6 +53,7 @@ const ALLOWED_INVOKE_CMDS = new Set([
   'download_market_pet',
   'get_market_pet_progress',
   'download_preset_pet',
+  'update_preset_pet',
   'get_preset_download_progress',
 ])
 

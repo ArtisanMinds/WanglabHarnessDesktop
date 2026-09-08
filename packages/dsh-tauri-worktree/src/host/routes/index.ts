@@ -6,18 +6,18 @@
  * status 的 isGit 判定遵守「会话未知时不猜测」的竞态语义（isGit: null）。
  */
 
-import type { HostContext, PluginConfig } from '../types/index.js'
+import type { HostContext, PluginConfig } from '../types'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { routeHandler, withConnectionAuth } from 'dsh-tauri'
 import { join } from 'pathe'
-import { WORKTREE_API_PREFIX } from '../../shared/constants.js'
-import { gitToplevel } from '../service/git.js'
-import { checkoutToLocalAndHandback, inheritSessionIntoWorktree } from '../service/handoff.js'
-import { discardWorktree, ensureWorktree, worktreeKey, worktreePath } from '../service/operation.js'
-import { findSession, resolveProjectPath } from '../service/session.js'
-import { loadBinding } from '../storage/index.js'
+import { WORKTREE_API_PREFIX } from '../../shared/constants'
+import { gitToplevel } from '../service/git'
+import { checkoutToLocalAndHandback, inheritSessionIntoWorktree } from '../service/handoff'
+import { discardWorktree, ensureWorktree, worktreeKey, worktreePath } from '../service/operation'
+import { findSession, resolveProjectPath } from '../service/session'
+import { loadBinding } from '../storage'
 
 /** 构建路由列表。 */
 interface DiscardJob {

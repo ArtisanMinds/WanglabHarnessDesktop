@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'pathe'
 import { simpleGit } from 'simple-git'
 import { afterEach, describe, expect, it } from 'vitest'
-import { projectDirname } from './git.js'
-import { computeHash, discardWorktree, ensureWorktree, worktreePath } from './operation.js'
+import { projectDirname } from './git'
+import { computeHash, discardWorktree, ensureWorktree, worktreePath } from './operation'
 
 const temporaryDirectories: string[] = []
 

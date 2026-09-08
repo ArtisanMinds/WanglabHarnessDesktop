@@ -8,7 +8,7 @@ import { activeQueues, placements } from '@/utils/toast'
 
 interface ToastProviderProps {
   children?: ReactNode
-  hideCloseButton?: boolean
+  custom?: boolean
 }
 
 /**
@@ -36,14 +36,9 @@ export function ToastProvider(props: ToastProviderProps) {
           placement={placement}
           queue={activeQueues[placement]}
         >
-          {props.hideCloseButton
+          {props.custom
             ? ({ toast: item }) => {
                 const content = { ...item.content, ...updates.get(item.key) }
-
-                // 对齐 HeroUI 默认渲染（getDefaultChildren）：indicator === null
-                // 隐藏图标；isLoading 时显示 Spinner；否则显示内容或按 variant 的
-                // 默认图标（default/accent→Info、success→Success、warning→Warning、
-                // danger→Danger）。
                 return (
                   <Toast toast={item} variant={content?.variant}>
                     <If cond={content?.isLoading} else={<Toast.Indicator variant={content?.variant} />}>
@@ -56,13 +51,15 @@ export function ToastProvider(props: ToastProviderProps) {
                         <Toast.Title>{content?.title}</Toast.Title>
                       </If>
                       <If cond={content?.description !== undefined}>
-                        <Toast.Description>{content?.description}</Toast.Description>
+                        <Toast.Description className="line-clamp-2">
+                          {content?.description}
+                        </Toast.Description>
                       </If>
                     </Toast.Content>
                   </Toast>
                 )
               }
-            : undefined}
+            : null}
         </Toast.Provider>
       ))}
       {props.children}

@@ -82,5 +82,5 @@ and appear in settings; waking retries loading.
 pnpm --filter dsh-tauri-pet typecheck
 pnpm --filter dsh-tauri-pet build
 pnpm exec eslint packages/dsh-tauri-pet/src/client --max-warnings=0
-pnpm exec vitest run packages/dsh-tauri-pet/src/client/utils/activity.test.ts
+pnpm exec vitest run packages/dsh-tauri-pet/src/host/reducer.test.ts
 ```

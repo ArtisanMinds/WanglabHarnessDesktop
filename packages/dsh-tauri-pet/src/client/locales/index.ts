@@ -35,6 +35,8 @@ const DICT_ZH: Record<LocaleKey, string> = {
   setSizeFailed: '设置宠物大小失败',
   sizeLabel: '大小',
   toggleFailed: '切换桌宠窗口失败',
+  update: '更新',
+  updateFailed: '更新预设宠物失败',
   wakePet: '唤醒宠物',
 }
 
@@ -66,19 +68,28 @@ const DICT_EN: Record<LocaleKey, string> = {
   setSizeFailed: 'Failed to set pet size',
   sizeLabel: 'Size',
   toggleFailed: 'Failed to toggle the pet window',
+  update: 'Update',
+  updateFailed: 'Failed to update preset pet',
   wakePet: 'Wake pet',
 }
 
 let activeLocale = 'en'
 const localeState = createExternalStore({ locale: activeLocale })
 
-export function installLocale(ctx: ClientContext): void {
+export function registerLocale(ctx: ClientContext): void {
   activeLocale = ctx.locale.getLocale().active
   localeState.set({ locale: activeLocale })
   ctx.locale.register(NS, 'zh', DICT_ZH)
   ctx.locale.register(NS, 'en', DICT_EN)
   ctx.locale.subscribe(() => {
-    activeLocale = ctx.locale.getLocale().active
+    try {
+      activeLocale = ctx.locale.getLocale().active
+    }
+    catch {
+      // 插件 reload/卸载时上下文会短暂失效（inactive context），服务访问器抛错；
+      // 此时无需更新本地 locale 快照，忽略本次通知避免 `locale subscriber crashed` 刷屏。
+      return
+    }
     localeState.set({ locale: activeLocale })
   })
 }

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PET_STATUS_MESSAGE, PET_STATUS_SOURCE } from '../constants'
 import { getPetUiSnapshot, setPetStatus } from '../store'
 import { isPetStatus, isPetVisible } from '../utils/status'
-import { activatePet, fetchPetList, importPet, installPetStatusSync } from './pet'
+import { activatePet, fetchPetList, importPet, registerPetStatusSync } from './pet'
 
 const { invokeBridgedTauri } = vi.hoisted(() => ({ invokeBridgedTauri: vi.fn() }))
 vi.mock('dsh-tauri/client', async () => ({
@@ -86,7 +86,7 @@ describe('pet selection and render status', () => {
     invokeBridgedTauri.mockReturnValue(new Promise<PetStatus>((resolve) => {
       finishFetch = resolve
     }))
-    const dispose = installPetStatusSync()
+    const dispose = registerPetStatusSync()
     function send(next: PetStatus, source: unknown = parent): void {
       target.dispatchEvent(Object.assign(new Event('message'), {
         source,

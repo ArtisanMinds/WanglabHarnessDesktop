@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react'
 import type { MarketPetItem, PetMarketProps, PresetDownloadProgress } from '../types'
+import { ArrowDownToLine, ArrowRotateRight, Icon, useMountStyle } from 'dsh-tauri-ui/client'
 import { useEffect, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
 import { usePetLocale } from '../locales'
 import { createPetMarketSession, initialMarketSnapshot } from '../service/market'
 import { progressPercent } from '../utils/preset-card'
-import { IconImport, IconRefresh } from './icons'
+import petMarketStyle from './pet-market.cssr'
 
 interface MarketCardProps {
   pet: MarketPetItem
@@ -26,16 +27,16 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
   const percent = progress ? progressPercent(progress) : null
 
   return (
-    <article className="dshpet-marketCard" aria-label={pet.name}>
-      <div className="dshpet-marketPreview">
+    <article className="dshp-pet__market-card" aria-label={pet.name}>
+      <div className="dshp-pet__market-preview">
         <If cond={!imageFailed} else={<span>{pet.name}</span>}>
           <img src={pet.previewUrl} alt={pet.name} onError={() => setImageFailed(true)} loading="lazy" />
         </If>
       </div>
-      <div className="dshpet-marketBody">
+      <div className="dshp-pet__market-body">
         <h3>{pet.name}</h3>
-        <span className="dshpet-marketAuthor">{pet.author.name}</span>
-        <div className="dshpet-marketMeta">
+        <span className="dshp-pet__market-author">{pet.author.name}</span>
+        <div className="dshp-pet__market-meta">
           <span>
             {(pet.size / 1024 / 1024).toFixed(1)}
             {' '}
@@ -44,12 +45,12 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
         </div>
         <button
           type="button"
-          className={active ? 'dshpet-cardAction dshpet-cardActionActive' : 'dshpet-cardAction'}
+          className={active ? 'dshp-pet__card-action dshp-pet__card-actionActive' : 'dshp-pet__card-action'}
           disabled={busy || active || downloading}
           onClick={pet.installed ? onChoose : onDownload}
         >
           <If cond={!pet.installed && !downloading}>
-            <If cond={failed} then={<IconRefresh />} else={<IconImport />} />
+            <If cond={failed} then={<Icon as={ArrowRotateRight} />} else={<Icon as={ArrowDownToLine} />} />
           </If>
           {messages[label]}
           <If cond={downloading && percent !== null}>
@@ -60,10 +61,10 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
           </If>
         </button>
         <If cond={downloading}>
-          <progress className="dshpet-marketProgress" aria-label={messages.downloading} max={100} value={percent ?? undefined} />
+          <progress className="dshp-pet__market-progress" aria-label={messages.downloading} max={100} value={percent ?? undefined} />
         </If>
         <If cond={failed}>
-          <p className="dshpet-error" role="alert">{messages[progress?.error?.includes('MISMATCH') ? 'downloadInvalid' : 'downloadFailed']}</p>
+          <p className="dshp-pet__error" role="alert">{messages[progress?.error?.includes('MISMATCH') ? 'downloadInvalid' : 'downloadFailed']}</p>
         </If>
       </div>
     </article>
@@ -71,6 +72,7 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
 }
 
 export function PetMarket(props: PetMarketProps): ReactElement {
+  useMountStyle(petMarketStyle, 'dsh-tauri-pet-market-styles')
   const messages = usePetLocale()
   const [snapshot, setSnapshot] = useState(initialMarketSnapshot)
   const sessionRef = useRef<ReturnType<typeof createPetMarketSession> | null>(null)
@@ -90,28 +92,28 @@ export function PetMarket(props: PetMarketProps): ReactElement {
   }, [])
 
   return (
-    <section className="dshpet-market" aria-label={messages.market}>
-      <div className="dshpet-marketTools">
-        <div className="dshpet-tabTools">
-          <button type="button" className="dshpet-toolBtn dshpet-toolIcon" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }} aria-label={messages.refresh} title={messages.refresh}><IconRefresh /></button>
+    <section className="dshp-pet__market" aria-label={messages.market}>
+      <div className="dshp-pet__market-tools">
+        <div className="dshp-pet__tab-tools">
+          <button type="button" className="dshp-pet__tool-btn dshp-pet__tool-icon" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }} aria-label={messages.refresh} title={messages.refresh}><Icon as={ArrowRotateRight} /></button>
         </div>
       </div>
       <If cond={Boolean(snapshot.error)}>
-        <div className="dshpet-marketError" role="alert">
+        <div className="dshp-pet__market-error" role="alert">
           <span>{messages.marketFailed}</span>
-          <button type="button" className="dshpet-toolBtn" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }}>
-            <IconRefresh />
+          <button type="button" className="dshp-pet__tool-btn" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }}>
+            <Icon as={ArrowRotateRight} />
             {messages.retry}
           </button>
         </div>
       </If>
       <If cond={snapshot.loading && snapshot.pets.length === 0}>
-        <p className="dshpet-loading" role="status">{messages.loading}</p>
+        <p className="dshp-pet__loading" role="status">{messages.loading}</p>
       </If>
       <If cond={!snapshot.loading && !snapshot.error && snapshot.pets.length === 0}>
-        <p className="dshpet-empty">{messages.marketEmpty}</p>
+        <p className="dshp-pet__empty">{messages.marketEmpty}</p>
       </If>
-      <div className="dshpet-marketGrid">
+      <div className="dshp-pet__market-grid">
         {snapshot.pets.map(pet => (
           <MarketCard
             key={pet.id}

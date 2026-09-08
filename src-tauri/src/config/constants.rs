@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-/// 捆绑的 Node.js 运行时版本（满足当前 DSH 的 v22.19.0+ 或 v24+ 要求）
+/// 捆绑的 Node.js 运行时版本，与配套 Core 的原生模块保持 Node 22 ABI。
 pub const NODE_VERSION: &str = "v22.22.0";
 
 /// Node.js 官方下载地址
@@ -14,10 +14,10 @@ pub const DSH_CORE_URL: &str =
     "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
 pub const WANGLAB_DSH_VERSION: &str = "0.1.2-rc.1";
-pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab022";
-pub const WANGLAB_DSH_COMMIT: &str = "9cc0a2e3b42f25463d1958c56bbd953274d7830f";
+pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab030";
+pub const WANGLAB_DSH_COMMIT: &str = "0caf7505ae40bf04733395190d1deb7ec0be9ffc";
 pub const WANGLAB_DSH_DIGEST: &str =
-    "sha256:ba5132edcdf84c987720587a19b48933cfb72d72f1e3d6885f979673d7d1f813";
+    "sha256:8539d2875f96c18121f381efebf860e98168f0fd828a2035b723385e111f69a7";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。

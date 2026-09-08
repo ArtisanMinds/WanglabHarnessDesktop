@@ -749,12 +749,15 @@ mod tests {
         assert!(cmd.contains(r#"findstr /r /x "v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*""#));
         assert!(cmd.contains("EQU 22 if defined NODE_MINOR if %NODE_MINOR% GEQ 19"));
         assert!(!cmd.contains("NODE_MAJOR% EQU 23"));
+        assert!(!cmd.contains("NODE_MAJOR% GEQ 24"));
         assert!(ps1.contains(r#"-match '^v(\d+)\.(\d+)\.(\d+)$'"#));
         assert!(ps1.contains("$major -eq 22 -and $minor -ge 19"));
         assert!(!ps1.contains("$major -eq 23"));
+        assert!(!ps1.contains("$major -ge 24"));
         assert!(SH_NODE_RESOLVE.contains(r#"awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/"#));
         assert!(SH_NODE_RESOLVE.contains("$MAJOR\" -eq 22 ] && [ \"$MINOR\" -ge 19"));
         assert!(!SH_NODE_RESOLVE.contains("$MAJOR\" -eq 23"));
+        assert!(!SH_NODE_RESOLVE.contains("$MAJOR\" -ge 24"));
     }
 
     /// cmd shim 不得把 Node 预发布版本误判为满足稳定版 engines 范围。
@@ -779,7 +782,8 @@ mod tests {
             ("v22.19.0", true),
             ("v22.19.0-rc.1", false),
             ("v23.11.1", false),
-            ("v24.0.0", true),
+            ("v22.22.0", true),
+            ("v24.0.0", false),
             ("v24.0.0-nightly.1", false),
         ] {
             std::fs::write(

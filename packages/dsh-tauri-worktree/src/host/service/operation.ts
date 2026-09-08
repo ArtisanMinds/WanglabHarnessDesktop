@@ -17,15 +17,15 @@ import type {
   OperationResult,
   WorktreeParams,
   WorktreeProcessController,
-} from '../types/index.js'
+} from '../types'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { rmdir } from 'node:fs/promises'
 import process from 'node:process'
 import { join, resolve } from 'pathe'
-import { WORKTREE_BRANCH_NAME_PATTERN } from '../constants/index.js'
-import { listBindings, loadBinding, removeBinding, saveBinding } from '../storage/index.js'
-import { removeDirectoryReliably } from './filesystem.js'
+import { WORKTREE_BRANCH_NAME_PATTERN } from '../constants'
+import { listBindings, loadBinding, removeBinding, saveBinding } from '../storage'
+import { removeDirectoryReliably } from './filesystem'
 import {
   applyStagedPatch,
   carryStagedChanges,
@@ -35,7 +35,7 @@ import {
   projectDirname,
   shortHead,
   stagedPatch,
-} from './git.js'
+} from './git'
 
 /** 计算 hash：项目路径 + 会话 ID → sha256 前 12 位。 */
 export function computeHash(projectPath: string, sessionId: string): string {
