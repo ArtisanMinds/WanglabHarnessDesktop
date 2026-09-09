@@ -98,7 +98,6 @@ async function checkHealthViaProxy(): Promise<ReadinessProbeResult> {
 
     const lower = result.toLowerCase()
     if (lower.startsWith('healthy')) {
-      console.warn('[Harness] health check passed:', result.split(' - <!doctype html>')[0])
       return {
         healthy: true,
         notOwned: false,
@@ -127,10 +126,8 @@ async function checkHealthViaProxy(): Promise<ReadinessProbeResult> {
         reason: message,
       }
     }
-    if (message.includes('502') || message.includes('Bad Gateway')) {
-      console.warn('[Harness] transient 502 during health check, retrying')
-    }
-    else {
+    if (!message.includes('HARNESS_NOT_READY') && !message.includes('HARNESS_BOOT_MANIFEST_REQUEST_FAILED')
+      && !message.includes('502') && !message.includes('Bad Gateway')) {
       console.error('[Harness] health check failed:', err)
     }
     return {

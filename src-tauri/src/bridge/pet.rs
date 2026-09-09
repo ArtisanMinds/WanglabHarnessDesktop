@@ -400,6 +400,9 @@ fn emit_pet_session(app: &AppHandle, action: &str, payload: &Value) {
 /// 而是作为宿主流的消费者。流中断（宿主未就绪/重启）时退避重连，幂等可恢复。
 async fn consume_pet_session_stream(app: &AppHandle, url: &str) -> Result<(), String> {
     let client = reqwest::Client::builder()
+        .no_proxy()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .read_timeout(std::time::Duration::from_secs(45))
         .build()
         .map_err(|error| error.to_string())?;
     let response = client
@@ -451,6 +454,10 @@ async fn consume_pet_session_stream(app: &AppHandle, url: &str) -> Result<(), St
 pub fn spawn_pet_session_stream(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
+            if !crate::service::workflow::has_owned_process() {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
             let setting = config::get_store_dat_setting(&app);
             let url = format!("http://127.0.0.1:{}{}", setting.port, SESSION_STREAM_PATH);
             match consume_pet_session_stream(&app, &url).await {

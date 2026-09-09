@@ -468,7 +468,16 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
         dsh_home.to_string_lossy().into_owned(),
     );
     envs.insert("DSH_TELEMETRY_DISABLED".to_string(), "1".to_string());
-    envs.insert("NODE_TLS_REJECT_UNAUTHORIZED".to_string(), "0".to_string());
+    let extra_ca = std::env::var_os("NODE_EXTRA_CA_CERTS").map(std::path::PathBuf::from);
+    let ca_bundle = crate::service::local_tls::node_ca_bundle(
+        &config::get_base_dir(&app_handle),
+        extra_ca.as_deref(),
+    )?;
+    envs.insert("NODE_TLS_REJECT_UNAUTHORIZED".to_string(), "1".to_string());
+    envs.insert(
+        "NODE_EXTRA_CA_CERTS".to_string(),
+        ca_bundle.to_string_lossy().into_owned(),
+    );
     envs.insert("NO_COLOR".to_string(), "1".to_string());
     envs.insert("DSH_WEB_PORT".to_string(), setting.port.to_string());
     // 把服务实际使用的 node 路径显式交给子进程（pnpm/dsh shim 的 DSH_NODE

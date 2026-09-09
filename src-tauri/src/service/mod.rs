@@ -4,6 +4,7 @@ pub mod core;
 pub mod download;
 pub mod fs_guard;
 pub mod local_defaults;
+pub(crate) mod local_tls;
 pub mod migrate;
 pub(crate) mod patch;
 pub mod plugin;

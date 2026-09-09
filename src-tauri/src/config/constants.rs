@@ -14,10 +14,10 @@ pub const DSH_CORE_URL: &str =
     "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
 pub const WANGLAB_DSH_VERSION: &str = "0.1.2-rc.1";
-pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab030";
-pub const WANGLAB_DSH_COMMIT: &str = "0caf7505ae40bf04733395190d1deb7ec0be9ffc";
+pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab032";
+pub const WANGLAB_DSH_COMMIT: &str = "90e7887e78256f577b945dc3a22a1926d59cf131";
 pub const WANGLAB_DSH_DIGEST: &str =
-    "sha256:8539d2875f96c18121f381efebf860e98168f0fd828a2035b723385e111f69a7";
+    "sha256:bbcc677fe359b2766fe367d5937e9f1c39024f1a7464b680dc8a6480d6ec2240";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。

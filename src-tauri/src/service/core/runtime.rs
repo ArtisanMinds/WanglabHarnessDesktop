@@ -360,6 +360,13 @@ fn link_required_plugins(app_handle: &AppHandle, core_root: &Path) -> Result<(),
         if internal_ids.contains(&name) || !is_safe_package_name(&name) {
             continue;
         }
+        let core_entry = core_node_modules.join(&name);
+        if core_entry.join("package.json").is_file()
+            && std::fs::symlink_metadata(&core_entry)
+                .is_ok_and(|metadata| !metadata.file_type().is_symlink())
+        {
+            continue;
+        }
         let source = profile.join("node_modules").join(&name);
         if !source.join("package.json").is_file() {
             log::warn!(

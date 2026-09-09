@@ -157,7 +157,7 @@ pub async fn refresh_models(app_handle: &AppHandle) -> Result<(), String> {
     let migrating = !migration.exists();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(12))
-        .danger_accept_invalid_certs(true)
+        .add_root_certificate(super::local_tls::root_certificate()?)
         .build()
         .map_err(|e| format!("MODEL_CATALOG_CLIENT: {e}"))?;
     let requests = ROUTES.iter().map(|(provider, base)| {
