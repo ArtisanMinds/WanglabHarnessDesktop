@@ -368,6 +368,32 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
     // 不阻断启动（回落 web 档案的老行为）。
     crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
 
+    // 核心 bundle 层自愈（issue #452）：当前档案的 `dsh.profile.bundles` 必须带
+    // 桌面端内嵌 web UI 依赖的 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`
+    // （顺序即补丁层应用顺序）。档案目录被 CLI/外部初始化过（`dsh plugin add`
+    // 对无清单目录只写 dsh-base）、首次初始化中途失败、用户手工编辑清单都会剥掉
+    // web 层，此时宿主不提供 webServer/connection/webRuntime，内置插件与市场插件
+    // 全部停在 pending，服务启动必然失败——日志只显示「N entries did not
+    // activate / waiting for service: webServer」，看不出根因。缺失时按官方 web
+    // 模板补齐（只补不删，用户插件条目原样保留），本轮启动即可恢复。必须在
+    // 任何插件操作与 spawn 之前做。最佳努力：失败只告警，不阻断启动。
+    if let Err(e) = crate::service::profile::ensure_active_profile_core_bundles(&app_handle) {
+        log::warn!("ensure active profile core bundles failed: {e}");
+    }
+
+    // 安全模式：安全档案的契约是「只加载 web 模板核心 bundles、不带任何用户插件」，
+    // 但档案目录一旦存在就绝不重建（用户可能反复进出安全模式），而内置插件自愈与
+    // 首次引导安装都作用于「当时的活动档案」，于是安全档案里会累积用户插件——它们
+    // 往往正是启动失败的元凶，不清干净的话每次进入安全模式都带着同一批插件重启，
+    // 隔离形同虚设。必须在 spawn dsh 之前做（服务未运行时改清单、删 node_modules
+    // 目录才安全），且要早于下面的 win_inspector::apply：apply 依据「插件是否装入
+    // profile」决定挂载还是清理 patch 行，先清插件才能让遗留挂载行被正确剥离。
+    // 内置插件与核心包由被调方保留；非安全档案直接跳过。最佳努力：失败只告警，
+    // 不阻断启动（清理不彻底只是隔离效果打折，启动阻塞则让应用彻底不可用）。
+    if let Err(e) = crate::service::plugin::purge_user_plugins_in_safe_profile(&app_handle) {
+        log::warn!("safe mode user plugin purge failed: {e}");
+    }
+
     // Linux 起步前探测 inotify 监视上限：harness 服务（dsh web）用 chokidar 递归
     // 监视 profile 目录，上限过低会在启动一瞬间抛 ENOSPC 直接退出（issue #116）。
     // 进程无法自我调高该参数，这里只做告警（启动日志 + 读取 run logs 中的环境信息），

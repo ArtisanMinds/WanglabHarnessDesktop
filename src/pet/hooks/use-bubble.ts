@@ -1,5 +1,7 @@
 import type { ToastContentValue } from '@heroui/react'
+import type { PetRuntimeStatus } from '../pet-runtime'
 import type { PetStatus } from './use-pet'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useEffect, useState } from 'react'
 import { toast } from '@/utils/toast'
@@ -127,6 +129,40 @@ export function useBubble(): BubbleHandle {
     let hasPendingAgg = false
     let aggFlushTimer: number | undefined
     let disposed = false
+    let acceptsSessions = true
+    let petRevision = -1
+
+    function clearSessions() {
+      for (const timers of [hideTimers, pulseTimers, pruneTimers]) {
+        timers.forEach(timer => window.clearTimeout(timer))
+        timers.clear()
+      }
+      if (aggFlushTimer !== undefined)
+        window.clearTimeout(aggFlushTimer)
+      aggFlushTimer = undefined
+      pendingAgg = undefined
+      hasPendingAgg = false
+      lastAgg = undefined
+      toastKeys.forEach(key => toast.close(key))
+      toastKeys.clear()
+      sessions.clear()
+      previousStatus.clear()
+      failedUntil.clear()
+      consumedFailed.clear()
+      dismissed.clear()
+    }
+
+    function receivePetStatus(next: PetRuntimeStatus) {
+      if (disposed || next.revision < petRevision)
+        return
+      petRevision = next.revision
+      acceptsSessions = next.enabled && next.visible
+      if (!acceptsSessions) {
+        // 隐藏时宿主会断开 SSE 并清空累计态；本地同步清理，避免唤醒后残留已结束的会话。
+        clearSessions()
+        setStatus(undefined)
+      }
+    }
 
     /** 合并窗口到期：把窗口内「最新」聚合态下发（中间态已丢弃，只发最终值）。 */
     const flushPendingAgg = () => {
@@ -346,6 +382,8 @@ export function useBubble(): BubbleHandle {
     }
 
     const apply = (payload: unknown, action: SessionAction) => {
+      if (disposed || !acceptsSessions)
+        return
       const session = rawSession(payload)
       if (!session)
         return
@@ -367,6 +405,7 @@ export function useBubble(): BubbleHandle {
       listen('session:create', e => apply(e.payload, 'create')),
       listen('session:update', e => apply(e.payload, 'update')),
       listen('session:remove', e => apply(e.payload, 'remove')),
+      listen<PetRuntimeStatus>('pet://status', e => receivePetStatus(e.payload)),
     ])
       .then((listeners) => {
         if (disposed) {
@@ -374,6 +413,7 @@ export function useBubble(): BubbleHandle {
         }
         else {
           unlisteners = listeners
+          return invoke<PetRuntimeStatus>('get_pet_status').then(receivePetStatus)
         }
       })
       .catch(() => { })
@@ -382,19 +422,7 @@ export function useBubble(): BubbleHandle {
       disposed = true
       unlisteners.forEach(u => u())
 
-      // 统一清理所有 Map 定时器与 Toast
-      const clearAllTimers = (map: Map<string, number>) => {
-        map.forEach(t => window.clearTimeout(t))
-        map.clear()
-      }
-      clearAllTimers(hideTimers)
-      clearAllTimers(pulseTimers)
-      clearAllTimers(pruneTimers)
-      if (aggFlushTimer !== undefined)
-        window.clearTimeout(aggFlushTimer)
-
-      toastKeys.forEach(k => toast.close(k))
-      toastKeys.clear()
+      clearSessions()
     }
   }, [])
 
