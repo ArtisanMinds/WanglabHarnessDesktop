@@ -6,7 +6,7 @@ import { ToastProvider } from './components/toast-provider'
 import { queryClient } from './config/client'
 import { App } from './layout'
 import '@/utils/logger'
-import './style/main.css'
+import './styles/main.css'
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

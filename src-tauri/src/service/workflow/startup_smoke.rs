@@ -17,7 +17,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     let archive = fs::read(archive_path).map_err(|e| e.to_string())?;
     download::verify_sha256(
         &archive,
-        "e91a59a86071d8aeb3c6a13751300fd970560b34296fe19d861788a43ff96e57",
+        "bbcc677fe359b2766fe367d5937e9f1c39024f1a7464b680dc8a6480d6ec2240",
     )?;
     let window = app
         .get_webview_window("main")
@@ -41,8 +41,8 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     setting.port = port;
     setting.manual_port = Some(port);
     setting.active_core = Some("app".to_string());
-    setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab".to_string());
-    setting.dsh_pkg_commit = Some("f0315c8cb4d8316d48fa0ad4e1d057fc8fd540f6".to_string());
+    setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab032".to_string());
+    setting.dsh_pkg_commit = Some("90e7887e78256f577b945dc3a22a1926d59cf131".to_string());
     config::set_store_dat_setting(app, setting);
 
     let home = config::get_dsh_data_path(app);
@@ -51,6 +51,7 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     fs::write(&sentinel, "existing user data").map_err(|e| e.to_string())?;
     let profile = crate::service::profile::create(app, "Upgrade")?;
     crate::service::profile::set_active(app, &profile.id)?;
+    exercise_session_upgrade(app, "seed").await?;
 
     let connection = config::get_dsh_install_path(app)
         .join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
@@ -111,12 +112,41 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         return Err("SMOKE_USER_DATA_CHANGED".to_string());
     }
     stop(app.clone()).await?;
+    exercise_session_upgrade(app, "verify").await?;
     start(app.clone()).await?;
     println!(
         "Windows restart readiness: {}",
         wait_for_readiness(port).await?
     );
     smoke_note("restart readiness passed");
+    exercise_session_upgrade(app, "restart").await?;
+    Ok(())
+}
+
+async fn exercise_session_upgrade(app: &tauri::AppHandle, mode: &str) -> Result<(), String> {
+    let script =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../scripts/smoke-session-upgrade.mjs");
+    let mut command = tokio::process::Command::new(config::get_node_binary_path(app));
+    command
+        .arg(script)
+        .arg(mode)
+        .arg(config::get_dsh_install_path(app))
+        .arg(config::get_dsh_data_path(app))
+        .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let output = tokio::time::timeout(Duration::from_secs(60), command.output())
+        .await
+        .map_err(|e| format!("SMOKE_SESSION_TIMEOUT: {mode}: {e}"))?
+        .map_err(|e| format!("SMOKE_SESSION_SPAWN: {mode}: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "SMOKE_SESSION_UPGRADE: {mode}: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    smoke_note(String::from_utf8_lossy(&output.stdout).trim());
     Ok(())
 }
 
@@ -137,6 +167,16 @@ async fn wait_for_pet(app: &tauri::AppHandle, ready: bool) -> Result<bridge::Pet
     ))
 }
 
+async fn wait_for_pet_closed(app: &tauri::AppHandle) -> Result<(), String> {
+    for _ in 0..150 {
+        if app.get_webview_window("pet").is_none() {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err("SMOKE_PET_WINDOW_NOT_DESTROYED".to_string())
+}
+
 /// 使用测试专用图集在真实 WebView2 中解码，避免仅验证窗口开关就误判桌宠可见。
 async fn exercise_pet_render(app: &tauri::AppHandle) -> Result<(), String> {
     let initial = bridge::get_pet_status(app.clone());
@@ -149,7 +189,9 @@ async fn exercise_pet_render(app: &tauri::AppHandle) -> Result<(), String> {
     let source_error = bridge::list_pets(app.clone(), "codex".to_string())
         .expect_err("Codex pet directories must not be read");
     if !source_error.starts_with("PET_SOURCE_INVALID:") {
-        return Err(format!("SMOKE_PET_EXTERNAL_SOURCE_ACCEPTED: {source_error}"));
+        return Err(format!(
+            "SMOKE_PET_EXTERNAL_SOURCE_ACCEPTED: {source_error}"
+        ));
     }
     for size in [0.0, 24.9, 201.0, f64::NAN] {
         if bridge::set_pet_size(app.clone(), size).is_ok() {
@@ -247,28 +289,45 @@ async fn exercise_sprite_render(
     }
     smoke_note("pet 25% size persistence and native window resizing passed");
 
-    let hidden = bridge::hide_pet(app.clone())?;
-    if hidden.ready || hidden.visible || !hidden.enabled {
+    let hidden = bridge::set_pet_enabled(app.clone(), false)?;
+    if hidden.ready
+        || hidden.visible
+        || hidden.enabled
+        || config::get_store_dat_setting(app).pet_enabled
+    {
         return Err("SMOKE_PET_HIDE_STATE_INVALID".to_string());
     }
-    bridge::show_pet(app.clone())?;
+    wait_for_pet_closed(app).await?;
+    crate::desktop::pet::init_pet_window(app);
+    if bridge::get_pet_status(app.clone()).enabled || app.get_webview_window("pet").is_some() {
+        return Err("SMOKE_PET_CLOSE_NOT_PERSISTED".to_string());
+    }
+    bridge::set_pet_enabled(app.clone(), true)?;
     let woken = wait_for_pet(app, true).await?;
     if woken.pet_size != Some(25.0) {
         return Err("SMOKE_PET_SIZE_LOST_ON_WAKE".to_string());
     }
-    smoke_note("pet hide and wake passed");
+    let recreated = app
+        .get_webview_window("pet")
+        .ok_or("SMOKE_PET_WINDOW_MISSING")?;
+    if !recreated.is_visible().map_err(|e| e.to_string())? {
+        return Err("SMOKE_PET_RECREATED_WINDOW_NOT_VISIBLE".to_string());
+    }
+    smoke_note("pet persistent close, window destruction and wake passed");
 
     // 保留合法尺寸头但截断 PNG，确保真正走到浏览器解码错误回报路径。
     fs::write(&sprite_path, &png[..33]).map_err(|e| e.to_string())?;
-    bridge::show_pet(app.clone())?;
+    bridge::set_pet_enabled(app.clone(), true)?;
     let failed = wait_for_pet(app, false).await?;
-    if failed.ready || failed.visible || window.is_visible().map_err(|e| e.to_string())? {
+    if failed.ready || failed.visible {
         return Err(format!("SMOKE_PET_FAILURE_REMAINS_VISIBLE: {failed:?}"));
     }
+    wait_for_pet_closed(app).await?;
     fs::write(&sprite_path, &png).map_err(|e| e.to_string())?;
-    bridge::show_pet(app.clone())?;
+    bridge::set_pet_enabled(app.clone(), true)?;
     wait_for_pet(app, true).await?;
     bridge::set_pet_enabled(app.clone(), false)?;
+    wait_for_pet_closed(app).await?;
     smoke_note("pet corrupt media detection and retry passed");
     Ok(())
 }

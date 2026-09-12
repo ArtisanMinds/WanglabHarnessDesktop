@@ -7,6 +7,7 @@ pub mod local_defaults;
 pub(crate) mod local_tls;
 pub mod migrate;
 pub(crate) mod patch;
+pub mod perm;
 pub mod plugin;
 pub mod profile;
 pub mod scheduler;

@@ -1,7 +1,7 @@
 //! bridge/pet.rs — 桌宠（外置透明宠物窗口）的 Tauri 命令出口。
 //!
 //! 这些命令被 dsh 容器（iframe 内的 dsh 界面 / dsh-tauri-pet 插件）经 invoke
-//! 桥调用（壳层桥监听模块 `src/hooks/use-iframe-invoke.ts` 把 iframe 的
+//! 桥调用（壳层桥监听模块 `src/hooks/use-invoke-iframe.ts` 把 iframe 的
 //! postMessage invoke 转发到 `@tauri-apps/api/core` 的 `invoke`）。所有状态
 //! 读写统一落在 `config::setting`（持久化）与 `desktop::pet`（窗口）。
 //! 错误遵循仓库约定：`Result<_, String>`，Err 以大写协议前缀开头（如
@@ -13,6 +13,7 @@
 use crate::config;
 use crate::desktop::pet as pet_window;
 use base64::{engine::general_purpose::STANDARD, Engine};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -20,10 +21,9 @@ use std::fs;
 use std::io::{Cursor, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, WebviewWindow};
 use zip::ZipArchive;
-use futures_util::StreamExt;
 
 /// 宠物大小百分比合法区间（精灵图缩放 25%-200%，与插件设置页滑条一致）。
 pub const PET_SIZE_MIN: f64 = pet_window::PET_SIZE_MIN_PERCENT;
@@ -46,20 +46,18 @@ const PET_SPRITE_COLUMNS: u8 = 8;
 /// 设置变化推送给 pet 窗口的事件名；会话生命周期使用 `session:*` 事件。
 pub const PET_STATUS_EVENT: &str = "pet://status";
 
-/// 只驻留当前进程的可见性；会话动作和 Toast 完全由 pet WebView 管理。
+/// 当前渲染代的就绪状态；启用开关始终来自持久设置。
 #[derive(Debug, Clone)]
-struct PetTransientState {
-    visible: bool,
+struct PetRenderState {
     ready: bool,
     error: Option<String>,
     render_id: u64,
     revision: u64,
 }
 
-impl Default for PetTransientState {
+impl Default for PetRenderState {
     fn default() -> Self {
         Self {
-            visible: false,
             ready: false,
             error: None,
             render_id: 0,
@@ -68,9 +66,8 @@ impl Default for PetTransientState {
     }
 }
 
-impl PetTransientState {
-    fn begin_render(&mut self, visible: bool) {
-        self.visible = visible;
+impl PetRenderState {
+    fn begin_render(&mut self) {
         self.ready = false;
         self.error = None;
         self.render_id += 1;
@@ -78,7 +75,6 @@ impl PetTransientState {
     }
 
     fn fail(&mut self, error: String) {
-        self.visible = false;
         self.ready = false;
         self.error = Some(error);
         self.revision += 1;
@@ -86,7 +82,7 @@ impl PetTransientState {
 
     fn report(&mut self, render_id: u64, error: Option<String>) -> bool {
         // 旧窗口请求、已收起窗口及加载失败后的迟到成功回调均不得重新点亮图标。
-        if self.render_id != render_id || !self.visible {
+        if self.render_id != render_id || self.error.is_some() {
             return false;
         }
         if let Some(error) = error {
@@ -101,17 +97,19 @@ impl PetTransientState {
     }
 }
 
-fn transient_state() -> &'static Mutex<PetTransientState> {
-    static STATE: OnceLock<Mutex<PetTransientState>> = OnceLock::new();
-    STATE.get_or_init(|| Mutex::new(PetTransientState::default()))
+fn render_state() -> &'static Mutex<PetRenderState> {
+    static STATE: OnceLock<Mutex<PetRenderState>> = OnceLock::new();
+    STATE.get_or_init(|| Mutex::new(PetRenderState::default()))
 }
 
 /// 桌宠当前完整状态（设置页、插件与 pet 窗口读取）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PetStatus {
-    /// 桌宠能力是否永久启用。
+    /// 桌宠是否启用（持久化）。关闭宠物即写 false，重启后保持关闭。
     pub enabled: bool,
     /// 桌宠窗口当前是否应显示。
+    ///
+    /// 持久开关决定是否显示；加载失败时关闭窗口并在设置页保留错误。
     pub visible: bool,
     /// 未选择宠物时为 None，不再自动补入默认资源。
     pub active_pet: Option<String>,
@@ -181,6 +179,8 @@ pub struct PetAsset {
     pub sprite_version_number: u8,
     pub columns: u8,
     pub rows: u8,
+    pub frame_width: u32,
+    pub frame_height: u32,
 }
 
 /// 缺省、已移除的初始宠物与非法选择均保持未选择状态。
@@ -196,28 +196,28 @@ fn migrate_pet_selection(setting: &mut config::Setting) {
     }
 }
 
-/// 将持久设置和进程内瞬态状态合并为唯一的对外状态。
+/// 由持久设置推导唯一的对外状态（窗口可见性 = 持久开关，没有额外的进程内状态）。
 fn status_from_setting(setting: &config::Setting) -> PetStatus {
-    let transient = transient_state()
+    let render = render_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .clone();
-    status_from_state(setting, &transient)
+    status_from_state(setting, &render)
 }
 
-fn status_from_state(setting: &config::Setting, transient: &PetTransientState) -> PetStatus {
+fn status_from_state(setting: &config::Setting, render: &PetRenderState) -> PetStatus {
     let active_pet = normalize_active_pet(setting.active_pet.as_deref());
     let enabled = setting.pet_enabled && active_pet.is_some();
-    let visible = enabled && transient.visible;
+    let visible = enabled && render.error.is_none();
     PetStatus {
         enabled,
         visible,
         active_pet,
         pet_size: setting.pet_size,
-        ready: visible && transient.ready,
-        error: transient.error.clone(),
-        render_id: transient.render_id,
-        revision: transient.revision,
+        ready: visible && render.ready,
+        error: render.error.clone(),
+        render_id: render.render_id,
+        revision: render.revision,
     }
 }
 
@@ -228,12 +228,12 @@ fn emit_pet_status(app: &AppHandle, status: &PetStatus) {
 
 fn fail_pet(app: &AppHandle, error: String) -> String {
     log::error!("[pet] {error}");
-    let _ = pet_window::set_pet_window_visible(app, false);
-    transient_state()
+    render_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .fail(error.clone());
     sync_pet_session_stream(app, false);
+    defer_pet_window_op(app);
     emit_pet_status(
         app,
         &status_from_setting(&config::get_store_dat_setting(app)),
@@ -246,20 +246,11 @@ fn validate_pet_assets(app: &AppHandle, id: &str) -> Result<(), String> {
     if id.contains(':') {
         return get_pet_asset(app.clone(), id.to_string()).map(|_| ());
     }
-    let config = super::preset_pet::get_preset_pet_config(app.clone(), id.to_string())?;
-    let assets = super::preset_pet::get_preset_pet_assets(app.clone(), id.to_string())?;
-    let idle = config["animations"]["idle"]
-        .as_array()
-        .ok_or("PET_PRESET_ASSETS_MISSING: idle animation pool is missing")?;
-    if idle.is_empty()
-        || idle.iter().any(|name| {
-            name.as_str()
-                .is_none_or(|name| !assets.assets.contains_key(name))
-        })
-    {
-        return Err("PET_PRESET_ASSETS_MISSING: idle animations are not installed".to_string());
-    }
-    Ok(())
+    super::preset_pet::read_preset_catalog(app)?
+        .iter()
+        .any(|entry| entry.id == id)
+        .then_some(())
+        .ok_or_else(|| format!("PET_PRESET_NOT_FOUND: {id}"))
 }
 
 fn validate_selected_pet(app: &AppHandle, setting: &config::Setting) -> Result<(), String> {
@@ -268,7 +259,7 @@ fn validate_selected_pet(app: &AppHandle, setting: &config::Setting) -> Result<(
     validate_pet_assets(app, &id)
 }
 
-/// 在预创建窗口后恢复设置，旧默认宠物不会随升级重新启用。
+/// 迁移选择后按需恢复窗口，旧默认宠物不会随升级重新启用。
 pub fn restore_pet(app: &AppHandle) {
     let mut setting = config::get_store_dat_setting(app);
     let previous = (setting.active_pet.clone(), setting.pet_enabled);
@@ -287,45 +278,71 @@ pub fn get_pet_status(app: AppHandle) -> PetStatus {
     status_from_setting(&config::get_store_dat_setting(&app))
 }
 
-/// 启用/停用桌宠；启用同时显示，停用同时隐藏并永久落盘。
+/// 启用/关闭桌宠（持久化）。侧栏入口、设置页与桌宠窗口自身的关闭请求都走这里。
+///
+/// 关闭即销毁窗口实例（不是 hide，见 `desktop::pet::set_pet_window_visible`：隐藏窗口里
+/// 的 `<video>` 仍会播放并持有 Video Wake Lock，issue #469），因此必须走
+/// [`defer_pet_window_op`] 在非主线程执行。
+///
+/// **持久化是刻意的**：`enabled=false` 落盘后重启不再自动拉起桌宠。从前「收起」只改
+/// 进程内瞬态，导致用户明明关了宠物、重启又自己出来。
 #[tauri::command]
 pub fn set_pet_enabled(app: AppHandle, enabled: bool) -> Result<PetStatus, String> {
     if enabled {
         validate_selected_pet(&app, &config::get_store_dat_setting(&app))
             .map_err(|error| fail_pet(&app, error))?;
     }
-    pet_window::set_pet_window_visible(&app, enabled).map_err(|error| fail_pet(&app, error))?;
     let updated = config::update_store_dat_setting(&app, |setting| {
         setting.pet_enabled = enabled;
     });
-    transient_state()
+    render_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner())
-        .begin_render(enabled);
-    // 停用即无消费者：停掉宿主会话流订阅（启用时窗口已可见，直接恢复订阅）。
-    sync_pet_session_stream(&app, enabled);
+        .begin_render();
+    // 等媒体就绪再订阅，避免新窗口尚未监听时丢失 SSE 的初始会话快照。
+    sync_pet_session_stream(&app, false);
+    defer_pet_window_op(&app);
     let status = status_from_setting(&updated);
     emit_pet_status(&app, &status);
     Ok(status)
 }
 
 /// 选择桌宠模型包并持久化 active_pet。
+///
+/// 空串表示清除选择（存 `None`，与全新安装一致）：设置页已选卡片可再次点击取消，
+/// 而不是一旦选中就无法撤销。清空后桌宠窗口无内容可渲染，调用方应同时关闭窗口。
 #[tauri::command]
 pub fn set_active_pet(app: AppHandle, id: String) -> Result<PetStatus, String> {
-    let id = id.trim().to_string();
-    validate_pet_assets(&app, &id)?;
+    let cleared = normalize_set_active_pet_id(&id)?;
+    if let Some(id) = cleared.as_deref() {
+        validate_pet_assets(&app, id)?;
+    }
     let updated = config::update_store_dat_setting(&app, |setting| {
-        setting.active_pet = Some(id);
+        setting.active_pet = cleared;
+        if setting.active_pet.is_none() {
+            setting.pet_enabled = false;
+        }
     });
-    let mut transient = transient_state()
+    render_state()
         .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    let visible = transient.visible && updated.pet_enabled;
-    transient.begin_render(visible);
-    drop(transient);
+        .unwrap_or_else(|error| error.into_inner())
+        .begin_render();
+    sync_pet_session_stream(&app, false);
+    defer_pet_window_op(&app);
     let status = status_from_setting(&updated);
     emit_pet_status(&app, &status);
     Ok(status)
+}
+
+/// 选择 id 归一化：空串（去除首尾空白后）表示清除选择；非空沿用既有合法性校验
+///（预设安全字符集或来源限定 id），非法 id 保持报错而不静默清空。
+fn normalize_set_active_pet_id(id: &str) -> Result<Option<String>, String> {
+    let trimmed = id.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    validate_active_pet_id(trimmed)?;
+    Ok(Some(trimmed.to_string()))
 }
 
 /// 设置宠物大小百分比（设置页滑条，25-200），并实时同步窗口尺寸。
@@ -339,7 +356,7 @@ pub fn set_pet_size(app: AppHandle, size: f64) -> Result<PetStatus, String> {
     let updated = config::update_store_dat_setting(&app, |setting| {
         setting.pet_size = Some(size);
     });
-    transient_state()
+    render_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .revision += 1;
@@ -392,7 +409,9 @@ fn session_event_of(action: &str) -> Option<&'static str> {
 
 /// 直接把「动作 + 展示载荷」推给桌宠窗口（返回是否成功，仅用于 debug 日志）。
 fn emit_pet_session(app: &AppHandle, action: &str, payload: &Value) {
-    let Some(event) = session_event_of(action) else { return; };
+    let Some(event) = session_event_of(action) else {
+        return;
+    };
     let _ = app.emit_to(pet_window::PET_WINDOW_LABEL, event, payload.clone());
 }
 
@@ -431,8 +450,7 @@ async fn consume_pet_session_stream(app: &AppHandle, url: &str) -> Result<(), St
             let trimmed = line.trim();
             if let Some(data) = trimmed.strip_prefix("data:") {
                 pending_data.push(data.trim().to_string());
-            }
-            else if trimmed.is_empty() {
+            } else if trimmed.is_empty() {
                 if !pending_data.is_empty() {
                     let frame: Value = serde_json::from_str(&pending_data.join("\n"))
                         .map_err(|error| error.to_string())?;
@@ -459,21 +477,63 @@ fn pet_stream_handle() -> &'static Mutex<Option<tauri::async_runtime::JoinHandle
     HANDLE.get_or_init(|| Mutex::new(None))
 }
 
-/// 是否需要订阅宿主会话增量流：桌宠已启用且窗口可见。
+/// 是否需要订阅宿主会话增量流：桌宠已启用（窗口存在）。
 ///
-/// 临时隐藏（`hide_pet`）同样视为无消费者——窗口不渲染时转发毫无意义，停掉
-/// 订阅即让宿主的热路径与逐会话累计态一并短路。
+/// 关闭桌宠（`set_pet_enabled(false)`）会销毁窗口，同样视为无消费者——窗口不渲染时
+/// 转发毫无意义，停掉订阅即让宿主的热路径与逐会话累计态一并短路。
 pub fn pet_stream_wanted(app: &AppHandle) -> bool {
     let status = status_from_setting(&config::get_store_dat_setting(app));
-    status.enabled && status.visible
+    status.enabled && status.visible && status.ready
+}
+
+/// 断线重连日志的重记间隔：状态持续不变时最多这么久重记一次。
+///
+/// 宿主未就绪（启动中，或插件操作期间被主动停止）时这条流会每 2s 失败一次，
+/// 逐次输出会在几秒内刷满日志、把真正的错误挤掉。
+const PET_STREAM_RELOG_INTERVAL: Duration = Duration::from_secs(60);
+
+/// 「会话流正常结束」在日志节流里的状态名（宿主重启时属正常，不需要告警）。
+const PET_STREAM_ENDED: &str = "stream ended";
+
+/// 重连日志节流器：只在「状态首次出现 / 状态变化 / 距上次输出已超过
+/// [`PET_STREAM_RELOG_INTERVAL`]」时允许输出，其余相同的重复失败降级为 debug。
+///
+/// 状态用失败原因字符串表示：宿主不可用期间原因通常是稳定的一条（如
+/// `HTTP 502 Bad Gateway`），于是整段不可用期被压成首行 + 每分钟一行；原因变化
+/// （换了一种坏法）则立即重新输出，不会把新问题一起静默掉。
+struct PetStreamLogThrottle {
+    last_state: Option<String>,
+    last_logged: Instant,
+    relog_interval: Duration,
+}
+
+impl PetStreamLogThrottle {
+    fn new() -> Self {
+        Self {
+            last_state: None,
+            last_logged: Instant::now(),
+            relog_interval: PET_STREAM_RELOG_INTERVAL,
+        }
+    }
+
+    /// 记录一次状态，返回这一行是否应当输出。
+    fn should_log(&mut self, state: &str) -> bool {
+        let repeated = self.last_state.as_deref() == Some(state);
+        self.last_state = Some(state.to_string());
+        if repeated && self.last_logged.elapsed() < self.relog_interval {
+            return false;
+        }
+        self.last_logged = Instant::now();
+        true
+    }
 }
 
 /// 按「是否有消费者」启停「宿主会话增量 SSE」消费任务（见
 /// [`consume_pet_session_stream`]），幂等：启用且无活动任务才 spawn；停用时
 /// abort 任务，连接立即关闭。
 ///
-/// 调用点：应用 setup、`set_pet_enabled` / `show_pet` / `hide_pet`。桌宠关闭或
-/// 隐藏后 Rust 不再是宿主流的消费者，宿主侧随即不再为桌宠做任何转发。
+/// 调用点：应用 setup、`set_pet_enabled`。桌宠关闭后 Rust 不再是宿主流的消费者，
+/// 宿主侧随即不再为桌宠做任何转发。
 pub fn sync_pet_session_stream(app: &AppHandle, wanted: bool) {
     let slot = pet_stream_handle();
     let mut handle = slot.lock().unwrap_or_else(|error| error.into_inner());
@@ -492,6 +552,9 @@ pub fn sync_pet_session_stream(app: &AppHandle, wanted: bool) {
     }
     let app = app.clone();
     *handle = Some(tauri::async_runtime::spawn(async move {
+        // 重连是 2s 一次的常态循环，宿主未就绪时会连续失败几十上百次：逐次输出
+        // 会刷满日志并挤掉真正的错误，因此按状态节流（见 [`PetStreamLogThrottle`]）。
+        let mut throttle = PetStreamLogThrottle::new();
         loop {
             if !crate::service::workflow::has_owned_process() {
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -501,10 +564,20 @@ pub fn sync_pet_session_stream(app: &AppHandle, wanted: bool) {
             let url = format!("http://127.0.0.1:{}{}", setting.port, SESSION_STREAM_PATH);
             match consume_pet_session_stream(&app, &url).await {
                 Ok(()) => {
-                    log::info!("[pet-stream] host session stream ended; reconnecting in 2s");
+                    if throttle.should_log(PET_STREAM_ENDED) {
+                        log::info!("[pet-stream] host session stream ended; reconnecting in 2s");
+                    } else {
+                        log::debug!("[pet-stream] host session stream ended (repeated)");
+                    }
                 }
                 Err(error) => {
-                    log::warn!("[pet-stream] host session stream error: {error}; reconnecting in 2s");
+                    if throttle.should_log(&error) {
+                        log::warn!(
+                            "[pet-stream] host session stream error: {error}; reconnecting in 2s"
+                        );
+                    } else {
+                        log::debug!("[pet-stream] host session stream error (suppressed): {error}");
+                    }
                 }
             }
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -521,29 +594,45 @@ pub fn move_pet_window(app: AppHandle, delta_x: i32, delta_y: i32) -> Result<(),
     pet_window::move_pet_window(&app, delta_x, delta_y)
 }
 
-/// 显示桌宠窗口；只允许已永久启用的桌宠恢复显示。
-#[tauri::command]
-pub fn show_pet(app: AppHandle) -> Result<PetStatus, String> {
-    let setting = config::get_store_dat_setting(&app);
-    if !setting.pet_enabled {
-        return Err("PET_DISABLED: pet window is not enabled".to_string());
-    }
-    set_pet_enabled(app, true)
+/// 串行化桌宠窗口的可见性操作，保证「关闭 → 再启用」按调用顺序执行。
+fn pet_window_op_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
 }
 
-/// 临时隐藏桌宠窗口，不改变永久 enabled；重启后已启用宠物重新显示。
-#[tauri::command]
-pub fn hide_pet(app: AppHandle) -> Result<PetStatus, String> {
-    pet_window::set_pet_window_visible(&app, false)?;
-    transient_state()
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .begin_render(false);
-    // 隐藏 = 无人渲染：停掉宿主会话流订阅，宿主侧热路径整条短路。
-    sync_pet_session_stream(&app, false);
-    let status = status_from_setting(&config::get_store_dat_setting(&app));
-    emit_pet_status(&app, &status);
-    Ok(status)
+/// 把窗口可见性操作丢到异步运行时执行（创建窗口与销毁窗口都**不允许**在主线程调用）。
+///
+/// # 为什么必须离开主线程
+///
+/// Tauri 的 command handler 在主线程执行，而 `tauri-runtime-wry` 对主线程上的窗口
+/// 生命周期消息是**直接 panic**：
+///
+/// - `WindowMessage::Destroy`：`panic!("cannot handle \`WindowMessage::Destroy\` on the
+///   main thread")`（tauri-runtime-wry 2.11.4 lib.rs:3494）；调用点在 `send_user_message`
+///   判定「当前线程 == 主线程」后**同步**派发，因此主线程调 `destroy()` 必崩。
+/// - `create_window`：经 channel 等主线程事件循环回包，主线程调用必然死锁
+///   （同文件 lib.rs:2757 注释）。
+///
+/// 之前的 `hide()` 之所以看起来能用，只是因为 `WindowMessage::Hide` 走了不 panic 的分支；
+/// 换成销毁后就踩中了这条主线程断言（实测表现为：关闭宠物后 `get_pet_status` 等
+/// 全部 invoke 超时、主 webview 一起卡住）。
+fn defer_pet_window_op(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        // 在锁内读取最新目标，避免线程调度顺序与用户点击顺序不同而恢复旧状态。
+        let _guard = pet_window_op_lock()
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let requested = status_from_setting(&config::get_store_dat_setting(&app));
+        if let Err(error) = pet_window::set_pet_window_visible(&app, requested.visible) {
+            log::error!("PET_WINDOW_VISIBILITY_FAILED: visible={}: {error}", requested.visible);
+            let mut render = render_state().lock().unwrap_or_else(|error| error.into_inner());
+            if render.render_id == requested.render_id {
+                render.fail(error);
+            }
+        }
+        emit_pet_status(&app, &status_from_setting(&config::get_store_dat_setting(&app)));
+    });
 }
 
 /// 仅接受宠物 WebView 的真实媒体加载结果，拒绝 iframe 伪造激活状态。
@@ -567,19 +656,21 @@ pub fn report_pet_render(
         return Ok(());
     }
     let error = error.map(|error| error.chars().take(2000).collect::<String>());
-    let mut transient = transient_state()
+    let mut render = render_state()
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    if !transient.report(render_id, error.clone()) {
+    if !render.report(render_id, error.clone()) {
         return Ok(());
     }
     if let Some(error) = error {
         log::error!("[pet] {id}: {error}");
-        let _ = pet_window::set_pet_window_visible(&app, false);
     }
-    let status = status_from_state(&setting, &transient);
-    drop(transient);
-    sync_pet_session_stream(&app, status.enabled && status.visible);
+    let status = status_from_state(&setting, &render);
+    drop(render);
+    if !status.visible {
+        defer_pet_window_op(&app);
+    }
+    sync_pet_session_stream(&app, status.enabled && status.visible && status.ready);
     emit_pet_status(&app, &status);
     Ok(())
 }
@@ -847,7 +938,7 @@ fn load_sprite_asset(
 ) -> Result<PetAsset, String> {
     let path = contained_file(directory, &manifest.spritesheet_path)?;
     let bytes = read_bounded_file(&path, PET_SPRITESHEET_MAX_BYTES, "PET_ASSET_READ_FAILED")?;
-    let (mime, _, height) = spritesheet_dimensions(&bytes)?;
+    let (mime, width, height) = spritesheet_dimensions(&bytes)?;
     let (sprite_version_number, rows) = sprite_layout(manifest.sprite_version_number, height)?;
     Ok(PetAsset {
         id: qualified_id(source, &manifest.id),
@@ -855,6 +946,8 @@ fn load_sprite_asset(
         sprite_version_number,
         columns: PET_SPRITE_COLUMNS,
         rows,
+        frame_width: width / u32::from(PET_SPRITE_COLUMNS),
+        frame_height: height / u32::from(rows),
     })
 }
 
@@ -1279,6 +1372,48 @@ mod tests {
 
     struct TestDirectory(PathBuf);
 
+    // ---- 重连日志节流（宿主不可用期间每 2s 一次失败不能刷满日志）----
+
+    fn throttle(relog_interval: Duration) -> PetStreamLogThrottle {
+        PetStreamLogThrottle {
+            last_state: None,
+            last_logged: Instant::now(),
+            relog_interval,
+        }
+    }
+
+    #[test]
+    fn pet_stream_throttle_suppresses_identical_failures() {
+        // 宿主不可用期间同一条 502 每次重连都复现：只留第一行，其余静默
+        let mut throttle = throttle(Duration::from_secs(60));
+        assert!(throttle.should_log("HTTP 502 Bad Gateway"));
+        assert!(!throttle.should_log("HTTP 502 Bad Gateway"));
+        assert!(!throttle.should_log("HTTP 502 Bad Gateway"));
+
+        // 换成另一种坏法 → 立即重新输出，不会被前一种的静默期吞掉
+        assert!(throttle.should_log("error decoding response body"));
+        // 回到前一种原因同样算状态变化
+        assert!(throttle.should_log("HTTP 502 Bad Gateway"));
+    }
+
+    #[test]
+    fn pet_stream_throttle_relogs_after_interval() {
+        // 长时间不可用仍需留痕：到期后重记一次，而不是整段彻底静默
+        let mut throttle = throttle(Duration::ZERO);
+        assert!(throttle.should_log("HTTP 502 Bad Gateway"));
+        assert!(throttle.should_log("HTTP 502 Bad Gateway"));
+    }
+
+    #[test]
+    fn pet_stream_throttle_keeps_ended_and_error_distinct() {
+        // 「正常结束」（宿主重启）与失败是两种状态，不会互相静默掉
+        let mut throttle = throttle(Duration::from_secs(60));
+        assert!(throttle.should_log(PET_STREAM_ENDED));
+        assert!(!throttle.should_log(PET_STREAM_ENDED));
+        assert!(throttle.should_log("HTTP 502 Bad Gateway"));
+        assert!(throttle.should_log(PET_STREAM_ENDED));
+    }
+
     impl TestDirectory {
         fn new(name: &str) -> Self {
             let nonce = SystemTime::now()
@@ -1435,42 +1570,51 @@ mod tests {
 
     #[test]
     fn status_requires_selection_enablement_and_render_confirmation() {
-        let mut transient = PetTransientState::default();
-        transient.begin_render(true);
+        let mut render = PetRenderState::default();
+        render.begin_render();
         let mut setting = config::Setting {
             pet_enabled: true,
             ..Default::default()
         };
-        let status = status_from_state(&setting, &transient);
+        let status = status_from_state(&setting, &render);
         assert!(!status.enabled && !status.visible && !status.ready);
         assert_eq!(status.active_pet, None);
         setting.active_pet = Some("chat:custom".to_string());
-        let status = status_from_state(&setting, &transient);
+        let status = status_from_state(&setting, &render);
         assert!(status.enabled && status.visible);
         assert!(!status.ready, "显示透明窗口不代表媒体已加载");
-        assert!(transient.report(transient.render_id, None));
-        assert!(status_from_state(&setting, &transient).ready);
+        assert!(render.report(render.render_id, None));
+        assert!(status_from_state(&setting, &render).ready);
         setting.pet_enabled = false;
-        let status = status_from_state(&setting, &transient);
+        let status = status_from_state(&setting, &render);
         assert!(!status.enabled && !status.visible && !status.ready);
     }
 
     #[test]
     fn render_failures_hide_the_pet_and_old_reports_cannot_reactivate_it() {
-        let mut transient = PetTransientState::default();
-        transient.begin_render(true);
-        let first_render = transient.render_id;
-        assert!(transient.report(first_render, None));
-        assert!(transient.ready);
-        assert!(transient.report(first_render, Some("PET_MEDIA_DECODE_FAILED".to_string())));
-        assert!(!transient.visible && !transient.ready);
-        assert!(!transient.report(first_render, None));
-        transient.begin_render(true);
-        assert!(!transient.ready && transient.error.is_none());
-        assert!(!transient.report(first_render, Some("late error".to_string())));
-        assert!(transient.report(transient.render_id, None));
-        transient.begin_render(false);
-        assert!(!transient.report(transient.render_id, None));
+        let mut render = PetRenderState::default();
+        let setting = config::Setting {
+            active_pet: Some("chat:custom".to_string()),
+            pet_enabled: true,
+            ..Default::default()
+        };
+        render.begin_render();
+        let first_render = render.render_id;
+        assert!(render.report(first_render, None));
+        assert!(render.ready);
+        assert!(render.report(first_render, Some("PET_MEDIA_DECODE_FAILED".to_string())));
+        assert!(!render.ready);
+        assert!(!status_from_state(&setting, &render).visible);
+        assert!(!render.report(first_render, None));
+        render.begin_render();
+        assert!(!render.ready && render.error.is_none());
+        assert!(!render.report(first_render, Some("late error".to_string())));
+        assert!(render.report(render.render_id, None));
+        let disabled = config::Setting { pet_enabled: false, ..setting };
+        render.begin_render();
+        assert!(!render.report(first_render, None));
+        let status = status_from_state(&disabled, &render);
+        assert!(!status.enabled && !status.visible && !status.ready);
     }
 
     #[test]

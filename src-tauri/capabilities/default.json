@@ -28,10 +28,19 @@
     "core:window:allow-set-size",
     "core:window:allow-cursor-position",
     "core:window:allow-set-ignore-cursor-events",
+    "core:webview:allow-set-webview-zoom",
     "opener:default",
     "opener:allow-open-url",
     "opener:allow-default-urls",
     "opener:allow-reveal-item-in-dir",
-    "store:default"
+    "store:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*.githubusercontent.com/*"
+        }
+      ]
+    }
   ]
 }

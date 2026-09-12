@@ -1,13 +1,12 @@
 import type { PetListItem, PresetPetItem } from '../types'
 
 /**
- * 是否存在可直接使用的宠物：已安装的预设宠物（installed）或应用内宠物。
- * 宠物。未安装的预设（仅可下载）不算可用——启用后没有可播放资产，侧栏切换
- * 入口对用户没有意义；无任何可用宠物时侧栏入口图标隐藏。
+ * 是否存在可直接使用的宠物：可播放的预设条目或应用内已安装宠物。
+ * 市场中尚未下载的条目不在这两份清单中。
  */
 export function hasAvailablePets(
   presets: readonly PresetPetItem[],
   chatPets: readonly PetListItem[],
 ): boolean {
-  return presets.some(item => item.installed) || chatPets.length > 0
+  return presets.length > 0 || chatPets.length > 0
 }

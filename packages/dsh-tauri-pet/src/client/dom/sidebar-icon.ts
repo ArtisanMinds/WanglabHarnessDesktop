@@ -17,7 +17,7 @@
  */
 import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
 import { subscribePetLocale, text } from '../locales'
-import { fetchPetList, fetchPresetPets, hidePet, registerPetStatusSync, setPetEnabled, showPet } from '../service/pet'
+import { fetchPetList, fetchPresetPets, registerPetStatusSync, setPetEnabled } from '../service/pet'
 import { getPetUiSnapshot, setPetsAvailable, setPetStatus, subscribePetUi } from '../store'
 import { hasAvailablePets } from '../utils/availability'
 import { isPetVisible } from '../utils/status'
@@ -39,15 +39,9 @@ function petSelected(): boolean {
  */
 async function togglePetEnabled(button: HTMLButtonElement): Promise<void> {
   const current = getPetUiSnapshot().status
-  const enabled = Boolean(current?.enabled)
-  const visible = Boolean(current?.visible)
+  const enabled = Boolean(current?.enabled && current.visible)
   try {
-    const nextStatus = !enabled
-      ? await setPetEnabled(true)
-      : visible
-        ? await hidePet()
-        : await showPet()
-    setPetStatus(nextStatus)
+    setPetStatus(await setPetEnabled(!enabled))
   }
   catch (error) {
     console.error('[dsh-tauri-pet] sidebar icon toggle failed:', error)
@@ -90,7 +84,7 @@ function createPetIconButton(): HTMLButtonElement {
   return button
 }
 
-/** 按共享状态缓存同步按钮显隐与两态（绿点显隐 + aria-pressed）。 */
+/** 按共享状态缓存同步按钮两态（绿点显隐 + aria-pressed）：绿点 = 宠物已开启。 */
 function syncIconState(button: HTMLButtonElement): void {
   const shared = getPetUiSnapshot()
   const status = shared.status

@@ -1,6 +1,6 @@
 /**
  * route.ts — 工作树 HTTP 路由（/api/dsh-worktree/*）：客户端 UI 经此调用
- * create / status / attach / checkout / discard。
+ * bindings / create / status / attach / checkout / discard。
  *
  * 变更操作全部标注 mutate: true，并统一由 withConnectionAuth 做连接鉴权；
  * status 的 isGit 判定遵守「会话未知时不猜测」的竞态语义（isGit: null）。
@@ -17,7 +17,7 @@ import { gitToplevel } from '../service/git'
 import { checkoutToLocalAndHandback, inheritSessionIntoWorktree } from '../service/handoff'
 import { discardWorktree, ensureWorktree, worktreeKey, worktreePath } from '../service/operation'
 import { findSession, resolveProjectPath } from '../service/session'
-import { loadBinding } from '../storage'
+import { listBindings, loadBinding } from '../storage'
 
 /** 构建路由列表。 */
 interface DiscardJob {
@@ -88,6 +88,40 @@ export function buildRoutes(ctx: HostContext, config: PluginConfig): any[] {
   const routes = [
     {
       kind: 'exact',
+      path: `${WORKTREE_API_PREFIX}/bindings`,
+      handler: routeHandler(async () => {
+        // 批量绑定视图：客户端 hydration 用一次请求就知道「列表里哪些会话在工作树里」，
+        // 不必为列表里每个会话各打一次 /status（实测某 profile 有 400 个会话 → 400 次请求）。
+        // 只返回仍存在于磁盘的绑定（worktree 已被检出的会话按本地处理），以及未收敛的删除任务。
+        const bindings = await listBindings(worktreesRoot)
+        return [200, {
+          bindings: bindings
+            .filter(binding => binding.worktreePath && existsSync(binding.worktreePath))
+            .map(binding => ({
+              sessionId: binding.sessionId,
+              sourceSessionId: binding.sourceSessionId ?? '',
+              hash: binding.hash,
+              dirname: binding.dirname,
+              worktreeKey: worktreeKey(binding.hash, binding.dirname),
+              worktreePath: binding.worktreePath,
+              projectPath: binding.projectPath,
+              log: Array.isArray(binding.log) ? binding.log : [],
+            })),
+          jobs: [...discardJobs.values()]
+            .filter(job => job.state !== 'completed')
+            .map(job => ({
+              sessionId: job.sessionId,
+              jobId: job.jobId,
+              state: job.state,
+              error: job.error,
+              worktreeKey: job.worktreeKey,
+              worktreePath: job.worktreePath,
+            })),
+        }]
+      }),
+    },
+    {
+      kind: 'exact',
       path: `${WORKTREE_API_PREFIX}/status`,
       handler: routeHandler(async (body, req) => {
         const url = new URL(req.url ?? '/', 'http://localhost')
@@ -116,7 +150,9 @@ export function buildRoutes(ctx: HostContext, config: PluginConfig): any[] {
         // 会话工作目录不在 git 仓库内时禁止工作树：isGit 供客户端隐藏模式选择器并强制本地模式。
         // 会话未知（新建/启动竞态，尚无 cwd）时不猜测：isGit 置 null，客户端保持默认并稍后
         // 重试，避免把 git 目录误判成非 git 而隐藏工作树模式选择器。
-        const isGit = projectPath ? Boolean(await gitToplevel(projectPath)) : null
+        // 已绑定工作树的会话必然位于 Git 仓库内（工作树由 git worktree add 创建）：直接置 true，
+        // 省掉每次 status 都 fork 一个 git 子进程——status 会被客户端 hydration 反复复核。
+        const isGit = activeBinding ? true : projectPath ? Boolean(await gitToplevel(projectPath)) : null
         return [200, activeBinding
           ? {
               mode: 'worktree',

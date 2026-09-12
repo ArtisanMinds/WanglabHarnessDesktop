@@ -8,7 +8,8 @@ import { PET_CLIENT_NS as NS } from '../constants'
 export { PET_CLIENT_NS as NS } from '../constants'
 
 const DICT_ZH: Record<LocaleKey, string> = {
-  collapsePet: '收起宠物',
+  clear: '取消选择',
+  closePet: '关闭宠物',
   create: '创建',
   createFailed: '创建宠物会话失败',
   download: '下载',
@@ -17,6 +18,7 @@ const DICT_ZH: Record<LocaleKey, string> = {
   downloading: '下载中',
   emptyPets: '暂无宠物',
   enable: '启用',
+  enablePet: '启用宠物',
   import: '导入',
   importFailed: '导入宠物失败',
   listFailed: '读取宠物列表失败',
@@ -30,18 +32,17 @@ const DICT_ZH: Record<LocaleKey, string> = {
   refresh: '刷新',
   retry: '重试',
   select: '选择',
-  selected: '已选',
+  selected: '已选择',
   setPetFailed: '选择宠物失败',
   setSizeFailed: '设置宠物大小失败',
   sizeLabel: '大小',
   toggleFailed: '切换桌宠窗口失败',
-  update: '更新',
-  updateFailed: '更新预设宠物失败',
   wakePet: '唤醒宠物',
 }
 
 const DICT_EN: Record<LocaleKey, string> = {
-  collapsePet: 'Collapse pet',
+  clear: 'Clear',
+  closePet: 'Close pet',
   create: 'Create',
   createFailed: 'Failed to create a pet session',
   download: 'Download',
@@ -50,6 +51,7 @@ const DICT_EN: Record<LocaleKey, string> = {
   downloading: 'Downloading',
   emptyPets: 'No pets',
   enable: 'Enable',
+  enablePet: 'Enable pet',
   import: 'Import',
   importFailed: 'Failed to import pet',
   listFailed: 'Failed to load pet list',
@@ -68,8 +70,6 @@ const DICT_EN: Record<LocaleKey, string> = {
   setSizeFailed: 'Failed to set pet size',
   sizeLabel: 'Size',
   toggleFailed: 'Failed to toggle the pet window',
-  update: 'Update',
-  updateFailed: 'Failed to update preset pet',
   wakePet: 'Wake pet',
 }
 

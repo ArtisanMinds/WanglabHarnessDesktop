@@ -1,5 +1,5 @@
 import type { MarketPetItem, PetMarketSnapshot, PresetDownloadProgress } from '../types'
-import { createLifecycleController, invokeBridgedTauri } from 'dsh-tauri/client'
+import { createLifecycleController, invoke } from 'dsh-tauri/client'
 import { CMD_DOWNLOAD_MARKET_PET, CMD_GET_MARKET_PET_PROGRESS, CMD_LIST_PET_MARKET, PET_DOWNLOAD_POLL_MS } from '../constants'
 
 export function initialMarketSnapshot(): PetMarketSnapshot {
@@ -29,7 +29,7 @@ export function createPetMarketSession(
 
   async function poll(id: string): Promise<void> {
     try {
-      const next = await invokeBridgedTauri<PresetDownloadProgress>(CMD_GET_MARKET_PET_PROGRESS, { id })
+      const next = await invoke<PresetDownloadProgress>(CMD_GET_MARKET_PET_PROGRESS, { id })
       if (controller.isDisposed())
         return
       progress(id, next)
@@ -67,7 +67,7 @@ export function createPetMarketSession(
     const previousDownloads = state.downloads
     update({ loading: true, error: null })
     try {
-      const pets = await invokeBridgedTauri<MarketPetItem[]>(CMD_LIST_PET_MARKET, { refresh: force })
+      const pets = await invoke<MarketPetItem[]>(CMD_LIST_PET_MARKET, { refresh: force })
       if (controller.isDisposed() || request !== requestId)
         return
       // A catalog reply requested before an install must not undo the completed install.
@@ -99,7 +99,7 @@ export function createPetMarketSession(
       return
     progress(id, { phase: 'downloading', received: 0, total: pet.size })
     try {
-      await invokeBridgedTauri<void>(CMD_DOWNLOAD_MARKET_PET, { id })
+      await invoke<void>(CMD_DOWNLOAD_MARKET_PET, { id })
       resume(id)
     }
     catch (error) {

@@ -1,15 +1,16 @@
 import type { PetStatus } from '../types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PET_STATUS_MESSAGE, PET_STATUS_SOURCE } from '../constants'
+import { PET_STATUS_MESSAGE } from '../constants'
 import { getPetUiSnapshot, setPetStatus } from '../store'
 import { isPetStatus, isPetVisible } from '../utils/status'
 import { activatePet, fetchPetList, importPet, registerPetStatusSync } from './pet'
 
-const { invokeBridgedTauri } = vi.hoisted(() => ({ invokeBridgedTauri: vi.fn() }))
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }))
 vi.mock('dsh-tauri/client', async () => ({
   ...await import('../../../../dsh-tauri/src/client/store'),
   ...await import('../../../../dsh-tauri/src/client/controller'),
-  invokeBridgedTauri,
+  ...await import('../../../../dsh-tauri/src/client/service/listen-parent'),
+  invoke,
 }))
 
 function status(overrides: Partial<PetStatus> = {}): PetStatus {
@@ -26,7 +27,7 @@ function status(overrides: Partial<PetStatus> = {}): PetStatus {
 }
 
 beforeEach(() => {
-  invokeBridgedTauri.mockReset()
+  invoke.mockReset()
   setPetStatus(null)
 })
 afterEach(() => vi.unstubAllGlobals())
@@ -35,26 +36,26 @@ describe('pet selection and render status', () => {
   it('lists and imports pets only in the application pet directory', async () => {
     await fetchPetList()
     await importPet('pet.zip', 'cGV0')
-    expect(invokeBridgedTauri.mock.calls).toEqual([
+    expect(invoke.mock.calls).toEqual([
       ['list_pets', { source: 'chat' }],
       ['import_pet', { name: 'pet.zip', data: 'cGV0', source: 'chat' }],
     ])
   })
 
   it.each([false, true])('wakes a selected custom pet even when enabled=%s', async (enabled) => {
-    invokeBridgedTauri.mockResolvedValueOnce(status({ enabled, visible: false }))
+    invoke.mockResolvedValueOnce(status({ enabled, visible: false }))
       .mockResolvedValueOnce(status({ render_id: 2, revision: 2 }))
     await activatePet('chat:custom')
-    expect(invokeBridgedTauri.mock.calls).toEqual([
+    expect(invoke.mock.calls).toEqual([
       ['set_active_pet', { id: 'chat:custom' }],
       ['set_pet_enabled', { enabled: true }],
     ])
   })
 
   it('does not enable a pet whose selection failed validation', async () => {
-    invokeBridgedTauri.mockRejectedValue(new Error('PET_NOT_FOUND'))
+    invoke.mockRejectedValue(new Error('PET_NOT_FOUND'))
     await expect(activatePet('chat:missing')).rejects.toThrow('PET_NOT_FOUND')
-    expect(invokeBridgedTauri).toHaveBeenCalledTimes(1)
+    expect(invoke).toHaveBeenCalledTimes(1)
   })
 
   it('lights the icon only for a selected, visible, decoded pet', () => {
@@ -83,14 +84,14 @@ describe('pet selection and render status', () => {
       removeEventListener: target.removeEventListener.bind(target),
     })
     let finishFetch: (value: PetStatus) => void = () => {}
-    invokeBridgedTauri.mockReturnValue(new Promise<PetStatus>((resolve) => {
+    invoke.mockReturnValue(new Promise<PetStatus>((resolve) => {
       finishFetch = resolve
     }))
     const dispose = registerPetStatusSync()
     function send(next: PetStatus, source: unknown = parent): void {
       target.dispatchEvent(Object.assign(new Event('message'), {
         source,
-        data: { source: PET_STATUS_SOURCE, type: PET_STATUS_MESSAGE, status: next },
+        data: { type: PET_STATUS_MESSAGE, status: next },
       }))
     }
     send(status({ ready: true, revision: 2 }), {})

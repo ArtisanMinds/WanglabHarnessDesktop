@@ -1,7 +1,6 @@
 //! 自托管宠物市场：仅按需读取目录，下载校验后安装到 Harness 自己的数据目录。
 
 use super::pet::{install_harness_pet, installed_harness_pet_ids};
-use super::preset_pet::PresetDownloadProgress;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -16,6 +15,25 @@ const CATALOG_URL: &str = "https://seuwanglab.com/downloads/wanglab-harness/pets
 const CATALOG_MAX_BYTES: usize = 1024 * 1024;
 const PACKAGE_MAX_BYTES: u64 = 32 * 1024 * 1024;
 const CACHE_TTL: Duration = Duration::from_secs(300);
+
+#[derive(Clone, Debug, Serialize)]
+pub struct PresetDownloadProgress {
+    pub phase: String,
+    pub received: u64,
+    pub total: u64,
+    pub error: Option<String>,
+}
+
+impl Default for PresetDownloadProgress {
+    fn default() -> Self {
+        Self {
+            phase: "idle".to_string(),
+            received: 0,
+            total: 0,
+            error: None,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

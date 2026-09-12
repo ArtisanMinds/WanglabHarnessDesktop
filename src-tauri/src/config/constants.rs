@@ -13,11 +13,11 @@ pub const NODE_MIRROR_BASE_URL: &str = "https://npmmirror.com/mirrors/node/";
 pub const DSH_CORE_URL: &str =
     "https://seuwanglab.com/downloads/wanglab-harness/core/releases/latest/";
 
-pub const WANGLAB_DSH_VERSION: &str = "0.1.2-rc.1";
-pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.2-rc.1-wanglab032";
-pub const WANGLAB_DSH_COMMIT: &str = "90e7887e78256f577b945dc3a22a1926d59cf131";
+pub const WANGLAB_DSH_VERSION: &str = "0.1.5-rc.2";
+pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.5-rc.2-wanglab040";
+pub const WANGLAB_DSH_COMMIT: &str = "459af31e262017542ee8ddfd395499dc0a8484c8";
 pub const WANGLAB_DSH_DIGEST: &str =
-    "sha256:bbcc677fe359b2766fe367d5937e9f1c39024f1a7464b680dc8a6480d6ec2240";
+    "sha256:19eaa222bad07fdb0bd28482b67b77c409dd5530067c48cd068aa80ebd8fa824";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。
@@ -97,6 +97,10 @@ pub const STORE_SETTING_KEY: &str = "setting";
 pub const STORE_WINDOW_STATE_KEY: &str = "window_state";
 /// Store 中记录桌宠（外置透明宠物窗口）几何（位置/大小）的键
 pub const STORE_PET_WINDOW_STATE_KEY: &str = "pet_window_state";
+/// Store 中记录「已下载、等待安装」的桌面端安装包路径的键。
+/// 刻意独立于 `setting` 键：`Setting` 会被前端整对象写回，该运行期标记
+/// 必须由 Rust 精确读写（见 service::update::pending）。
+pub const STORE_PENDING_INSTALLER_KEY: &str = "desktop_pending_installer";
 
 /// 健康检查超时
 pub const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(5);

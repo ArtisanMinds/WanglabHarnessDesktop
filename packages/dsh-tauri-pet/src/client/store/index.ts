@@ -48,7 +48,6 @@ export function setPetStatus(status: PetStatus | null): void {
   petUiStore.set(state => (status && state.status && state.status.revision > status.revision ? state : { ...state, status }))
 }
 
-/** 写入「是否有可用宠物」快照（侧栏入口图标显隐用）。 */
-export function setPetsAvailable(available: boolean): void {
-  petUiStore.set(state => (state.petsAvailable === available ? state : { ...state, petsAvailable: available }))
+export function setPetsAvailable(petsAvailable: boolean): void {
+  petUiStore.set(state => state.petsAvailable === petsAvailable ? state : { ...state, petsAvailable })
 }

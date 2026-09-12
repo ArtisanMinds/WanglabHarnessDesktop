@@ -1,86 +1,68 @@
 # dsh-tauri-pet
 
-DeepSeek Harness 的桌宠插件。它在设置页提供 `Pets` 与 `Market` 两个页签，
-并通过 `dsh-tauri` 的 Tauri invoke 桥控制独立的透明、置顶、无边框桌宠窗口。
+DeepSeek Harness 的桌宠插件，在设置页提供 `Pets` 与 `Market` 两个页签，
+通过 `dsh-tauri/client` 的 `invoke` 桥控制独立透明窗口。
 
 ## UI
 
-- **Pets**：显示预设宠物（`resources/preset-pets.json` 清单，下载到
-  `~/.dsh/pets/<id>` 后启用）以及 Chat 来源的宠物卡片；工具栏提供
-  **Create**、**Import** 和 **Wake pet / Collapse pet**。`Create` 创建标准会话并只预填
-  `/hatch-dsh-pet 根据你对我的了解，养一只宠物`，不会自动提交。
-- **Market**：首次打开时读取自建公网目录，提供预览、作者、下载和启用；
-  下载完成后刷新 Pets 列表。市场页不显示大小滑条，切换页签不打断下载。
-- 不提供初始预设宠物，首次启动保持未选择。升级时清除旧的
-  `maid-deepseek-whale` 初始选择和 `codex:` 选择，不删除磁盘资源；
-  保留应用自己已安装宠物的选择。
-- 自定义宠物和预设宠物的选择都会校验资源并唤醒窗口。未选择时禁用唤醒按钮。
-- 预设宠物媒体（WebM / GIF / config.jsonc）不再随本包内置：用户在设置页
-  「下载」后安装到 `~/.dsh/pets/<id>`，桌宠窗口按 `config.jsonc` 的动画池
-  （动画名 = webm 文件名主名）直接播放下载产物，无运行时回退。
-- 宠物大小滑条仅在 Pets 页显示，范围 25%-200%，步长 5%，默认 100%。侧栏绿色圆点要求 `enabled`、`visible`
-  和媒体解码确认 `ready` 同时成立。加载失败会收起透明窗口并在设置页显示原因；
-  再次唤醒会重新加载。临时收起不改变持久化的 `enabled`。
+- **Pets**：已安装宠物的选择、创建、ZIP 导入、唤醒、关闭与清除选择。
+  `Create` 创建标准会话并预填生成宠物的技能命令，不自动提交。
+- **Market**：按自建目录顺序提供预览、作者、下载和启用；切换页签不打断下载。
+  安装完成后刷新 Pets，市场页不提供大小滑条。
+- 不提供初始宠物，不携带宠物资源。升级时清除旧默认宠物和 `codex:` 选择，
+  保留应用内已安装宠物、选择、尺寸和磁盘文件。
+- 大小仅在 Pets 调整，范围 25%-200%，默认 100%。
+- 关闭会持久化 `enabled=false` 并销毁窗口，重启后保持关闭。
+  窗口创建和销毁在主线程之外串行执行，读取最新设置以处理快速开关。
+- 侧栏高亮要求已选择、启用、可见并完成媒体解码。失败会关闭窗口并显示错误，
+  唤醒可重试；旧渲染代的迟到回调不能重新点亮图标。
 
-## 文件来源与技能
+## Resources
 
-宠物统一安装在 `${DSH_HOME:-$HOME/.dsh}/pets`，通过
-`list_pets({ source: 'chat' })` 读取。桌宠功能不扫描或导入到 `$HOME/.codex/pets`，
-旧调用的 `codex` 来源会被拒绝，未指定导入来源时使用 `chat`。
-市场目录为 `https://seuwanglab.com/downloads/wanglab-harness/pets/catalog.json`，
-安装器只包含界面和目录地址，不携带宠物资源包。支持 v1（8x9）与 v2（8x11）
-精灵图 `.zip` 包，无版本字段时按图集尺寸识别。
-预设宠物清单（`src-tauri/resources/preset-pets.json`）登记远端仓库
-与资源子目录，下载解压后只保留 `assets` 前缀下的条目。`skills/hatch-dsh-pet/SKILL.md`
-由 `cordis.patch.yml` 组合进 `@deepseek-ai/dsh-skill-filesystem`，并使用
-`providerName: dsh-tauri-pet` 与 `includeDefaultRoots: false`，避免覆盖其他
-skill provider 或默认根目录。
+宠物统一安装在 `${DSH_HOME:-$HOME/.dsh}/pets`，只接受 `source: 'chat'`，
+不扫描其他应用的目录。支持 v1（8x9）与 v2（8x11）精灵图 ZIP，
+缺少版本字段时根据图集尺寸识别。每帧比例来自实际图片尺寸。
 
-## Bridge commands
+市场目录为 `https://seuwanglab.com/downloads/wanglab-harness/pets/catalog.json`。
+下载在 Rust 后台完成，并核对 SHA-256、路径和资源格式后安装。
+`src-tauri/resources/preset-pets.json` 保持空清单；保留上游远端预设协议，
+其条目可直接交给 `dsh-pet-component`，无需旧版预设安装命令。
 
-| command | 说明 |
+渲染由 `dsh-pet-component` 完成，媒体成功或失败回调携带当前 `render_id`。
+本地精灵图关闭组件缓存，避免损坏资源重试时读回旧数据。
+`skills/hatch-dsh-pet/SKILL.md` 经 `cordis.patch.yml` 挂载，
+保留独立 provider 与 `includeDefaultRoots: false`。
+
+## Session Events
+
+host 订阅 `session/event`、`agent/status`、`session/disposed`，
+投影为展示状态后经 `/api/dsh-pet/session-stream` 下发。
+Rust 在宠物媒体就绪后开始订阅，确保新窗口能够接收初始快照；
+关闭时停止流。前端清理会话、计时器和气泡，重新唤醒从新快照恢复。
+
+## Bridge Commands
+
+| Command | Behavior |
 | --- | --- |
-| `get_pet_status` | 查询 `enabled`、`visible`、`active_pet`、`pet_size`、`ready`、`error`、`render_id` 与 `revision` |
-| `report_pet_render` | 仅宠物 WebView 可报告当前 `render_id` 的媒体加载结果，iframe 不可调用 |
-| `set_pet_enabled` | 持久化首次启用；启用时显示窗口 |
-| `show_pet` / `hide_pet` | 只改变窗口可见性，不改变持久化 enabled |
-| `set_active_pet` | 校验本机资源后持久化选择的宠物 id |
-| `set_pet_size` | 持久化 25%-200% 的大小 |
-| `list_pets` | 仅接受 `source: 'chat'`，列出应用自己的宠物 |
-| `get_pet_asset` | 获取指定宠物的完整 v1/v2 spritesheet data URL |
-| `list_pet_market` | 按目录原有顺序列出市场宠物及本机安装状态 |
-| `download_market_pet` | 后台下载、校验并安装市场宠物 |
-| `get_market_pet_progress` | 查询市场宠物下载进度 |
-| `list_preset_pets` | 列出预设宠物清单（含安装状态） |
-| `download_preset_pet` | 后台下载并安装预设宠物 |
-| `get_preset_download_progress` | 轮询预设宠物下载/解压进度 |
-| `get_preset_pet_config` | 读取已安装预设的 `config.jsonc`（dsh-pet 协议，校验后返回） |
-| `get_preset_pet_assets` | 列出已安装预设的 WebM URL manifest（dsh-pet 协议按需流式提供） |
-| `import_pet` | 导入 v1/v2 精灵图 `.zip` 资源包到应用自己的宠物目录 |
-| `push_pet_session` | 转发原始会话快照，宠物 WebView 据此显示活动状态 |
+| `get_pet_status` | Selection, enabled, visible, size, readiness, error, render generation and revision |
+| `report_pet_render` | Only the pet WebView may report the current render result |
+| `set_pet_enabled` | Persist enablement and create or destroy the window |
+| `set_active_pet` | Validate selection; an empty ID clears and disables the pet |
+| `set_pet_size` | Persist a size between 25% and 200% |
+| `list_pets` / `get_pet_asset` | Read application pets and validated sprite data |
+| `import_pet` | Import a v1/v2 sprite ZIP into the application directory |
+| `list_pet_market` | Read the self-hosted catalog and local installation state |
+| `download_market_pet` / `get_market_pet_progress` | Install in the background and report progress |
+| `list_preset_pets` | Read the remote preset catalog, empty by default |
 
-完整客户端桥实现见 `src/client/service/pet.ts`；它调用
-`dsh-tauri/client` 的 `invokeBridgedTauri`。设置卡片直接使用预设清单的浏览图
-URL 作为缩略图。
+`pet://status` 同时通知宠物和主窗口；主窗口通过 `dsh://pet:status`
+转发到直接嵌入的 iframe。客户端按 `revision` 忽略迟到应答。
 
-`pet://status` 同时通知宠物和主窗口；主窗口通过 `dsh://pet:status` 向直接
-嵌入的 Harness iframe 推送状态。客户端按 `revision` 忽略迟到应答，后端按
-`render_id` 拒绝上一次唤醒的加载回调，避免旧请求重新点亮图标。
-
-The settings page contains only Pets and Market. Pets lists the application's installed
-pets and provides creation, ZIP import, selection, wake/hide, and a 25%-200% size slider.
-Market loads the self-hosted catalog on demand and has no size slider. Pet assets are
-downloaded separately and are not bundled with Desktop. Both v1 and v2 spritesheets work.
-The app never reads Codex pet directories; upgrades clear old `codex:` selections while
-preserving application pets and leaving files untouched. There is no default pet.
-The sidebar indicator requires successful media decoding. Load failures hide the window
-and appear in settings; waking retries loading.
-
-## Build and checks
+## Checks
 
 ```sh
 pnpm --filter dsh-tauri-pet typecheck
 pnpm --filter dsh-tauri-pet build
 pnpm exec eslint packages/dsh-tauri-pet/src/client --max-warnings=0
-pnpm exec vitest run packages/dsh-tauri-pet/src/host/reducer.test.ts
+pnpm exec vitest run packages/dsh-tauri-pet src/pet test/pet-window-lifecycle.test.ts
 ```

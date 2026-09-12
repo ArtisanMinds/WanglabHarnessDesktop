@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
 import { usePetLocale } from '../locales'
 import { createPetMarketSession, initialMarketSnapshot } from '../service/market'
-import { progressPercent } from '../utils/preset-card'
 import petMarketStyle from './pet-market.cssr'
 
 interface MarketCardProps {
@@ -24,7 +23,9 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
   const downloading = phase === 'downloading' || phase === 'extracting'
   const failed = phase === 'failed'
   const label = active ? 'selected' : pet.installed ? 'enable' : downloading ? 'downloading' : failed ? 'retry' : 'download'
-  const percent = progress ? progressPercent(progress) : null
+  const percent = progress && progress.total > 0
+    ? Math.min(100, Math.round(progress.received / progress.total * 100))
+    : null
 
   return (
     <article className="dshp-pet__market-card" aria-label={pet.name}>
