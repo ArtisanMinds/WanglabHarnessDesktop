@@ -5,7 +5,8 @@
  *   - index.ts（本文件）  public barrel：公开面（name / inject / API_PREFIX / apply / 领域能力）；
  *   - shared/constants.ts 跨 half 协议常量（插件名 / API 前缀）；
  *   - host/               Node half 领域（apply 装配 / hooks(hookable) / routes /
- *                         service：git · workspace · snapshot · ledger · undo · capture）；
+ *                         service：git · workspace · snapshot · ledger · undo · capture ·
+ *                         queue 串行 · lock 跨进程互斥）；
  *   - client/             Browser half（turnTail 变更卡片 + 撤销 + 非 Git 提示弹窗，
  *                         经 /api/turnrewind/* 与本 half 通信）。
  *

@@ -16,6 +16,7 @@ import { createTurnRewindHooks } from './hooks'
 import { buildRoutes } from './routes'
 import { createTurnCapture } from './service/capture'
 import { currentDshHome } from './service/ledger'
+import { createWorkspaceLock } from './service/lock'
 import { createWorkspaceQueue } from './service/queue'
 import { sessionCwdOf } from './service/workspace'
 
@@ -37,7 +38,10 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   const hooks = createTurnRewindHooks()
   // 工作区级串行队列：捕获、结算、实时读数、容量治理与撤销共用同一实例，
   // 私有仓 index 因此不会出现两件 git 操作并发（见 service/queue.ts）。
-  const queue = createWorkspaceQueue()
+  // 队列内再叠一层**跨进程**文件锁：同一个 `$DSH_HOME` 下的第二个宿主进程（桌面端重启
+  // 交叠、用户手动再起的 `dsh web`、维护脚本）也走同一把锁，两个进程才真正不会同动一份
+  // 私有仓 index/refs（见 service/lock.ts）。
+  const queue = createWorkspaceQueue({ lock: createWorkspaceLock({ dshHome }) })
   const capture = createTurnCapture({
     dshHome,
     queue,

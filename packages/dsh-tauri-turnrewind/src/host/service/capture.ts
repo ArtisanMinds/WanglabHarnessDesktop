@@ -18,6 +18,7 @@ import type { LiveSnapshot, SnapshotStore, TurnFileChange, TurnRecord } from '..
 import type { WorkspaceQueue } from './queue'
 import {
   LIVE_POLL_INTERVAL_MS,
+  LOCK_BARRIER_TIMEOUT_MS,
   REASON_SNAPSHOT_FAILED,
   REASON_UNSAFE_WORKSPACE,
 } from '../constants'
@@ -217,17 +218,23 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
       return
     }
     const store = snapshotStoreFor(dshHome, probe.root, probe.commonDir)
+    // 下面两次跨进程加锁都在 `agent/pre-step` 的**执行屏障**上（本函数返回前不会跑模型与工具）：
+    // 只等 LOCK_BARRIER_TIMEOUT_MS 就放弃——拿不到就照常记一条「快照不可用」并继续，绝不因为
+    // 邻居进程占着锁而把用户这一轮对话的开场拖住（后台结算/读数/撤销才用 5 分钟的长等待）。
     // 工作区首次触碰：容量治理（prune 不可达对象 / 超限整仓重建 / 排除清单复检）。
     const exclusions = await queue.run(probe.root, async () => {
       const retention = await ensureWorkspaceRetention(store)
       if (retention?.rebuilt)
         warn(`dsh-tauri-turnrewind: snapshot repository for ${probe.root} exceeded the size cap and was rebuilt; older turns are now expired`)
       return retention?.exclusions ?? await readExclusions(store)
-    }).catch(() => [] as string[])
+    }, LOCK_BARRIER_TIMEOUT_MS).catch(() => [] as string[])
 
     const nestedDirs = scanNestedRepos(probe.root)
-    const result = await queue.run(probe.root, () =>
-      captureSnapshot(store, turnRef(sessionId, turn, 'before'), `turn ${turn} before`, { exclude: exclusions, nestedDirs }))
+    const result = await queue.run(
+      probe.root,
+      () => captureSnapshot(store, turnRef(sessionId, turn, 'before'), `turn ${turn} before`, { exclude: exclusions, nestedDirs }),
+      LOCK_BARRIER_TIMEOUT_MS,
+    )
     if (!result.ok) {
       warn(`dsh-tauri-turnrewind: before snapshot for session ${sessionId} turn ${turn} unavailable: ${result.reason}`)
       await recordWorkspaceState(dshHome, sessionId, {

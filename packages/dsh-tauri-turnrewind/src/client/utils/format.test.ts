@@ -6,6 +6,7 @@ import {
   TURNREWIND_REASON_SNAPSHOT_FAILED,
   TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
+  TURNREWIND_REASON_WORKSPACE_BUSY,
 } from '../../shared/constants'
 import { TURNREWIND_VISIBLE_FILE_ROWS } from '../constants'
 import {
@@ -166,6 +167,8 @@ describe('reasonKey', () => {
     expect(reasonKey(TURNREWIND_REASON_TURN_ACTIVE)).toBe('turnActiveReason')
     expect(reasonKey(TURNREWIND_REASON_SNAPSHOT_FAILED)).toBe('snapshotFailedReason')
     expect(reasonKey(TURNREWIND_REASON_UNSAFE_PATH)).toBe('unsafePathReason')
+    // 工作区被另一个宿主进程占用是可重试的失败，不是终态原因。
+    expect(reasonKey(TURNREWIND_REASON_WORKSPACE_BUSY)).toBe('workspaceBusyReason')
   })
 
   it('未知码/空值返回 null：调用方原样显示，绝不编文案', () => {

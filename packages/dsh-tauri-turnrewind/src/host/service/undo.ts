@@ -8,6 +8,8 @@
  *
  * 并发：整个 git 阶段跑在与捕获/结算/容量治理**同一条工作区队列**里——私有仓的
  * index 是共享可变状态，撤销与结算并发会撞 `index.lock` 或读到半更新的 index。
+ * 队列里的跨进程锁（service/lock.ts）顺带把「另一个宿主进程正在同一个工作区里干活」
+ * 也挡在外面：拿不到锁就回可重试的 409（{@link REASON_WORKSPACE_BUSY}），不是 500。
  * 会话仍有在飞 turn 时直接拒绝：那时 after 快照还没结算，撤销对象本身不成立。
  */
 
@@ -19,8 +21,10 @@ import {
   REASON_EXPIRED,
   REASON_GIT_REQUIRED,
   REASON_TURN_ACTIVE,
+  REASON_WORKSPACE_BUSY,
 } from '../constants'
 import { markTurnExpired, markTurnUndone, readLedger } from './ledger'
+import { WorkspaceLockTimeoutError } from './lock'
 import { conflictDetails, readGenerationFor, readRefCommit, restoreTurnChanges, snapshotStoreFor } from './snapshot'
 import { workspaceKey } from './workspace'
 
@@ -97,6 +101,13 @@ export async function undoTurn(options: UndoTurnOptions): Promise<UndoOutcome> {
 
     const report = await restoreTurnChanges(store, beforeCommit, record.files)
     return { ok: true, restored: report.restored, removed: report.removed, failed: report.failed }
+  }).catch((error: unknown): UndoOutcome => {
+    // 拿不到跨进程锁：工作区正被**另一个宿主进程**占着（它正在同一工作区里捕获/结算/撤销）。
+    // 这不是「这一轮不能撤销」，而是「现在不是时候」——如实回可重试的 409，
+    // 让卡片显示原因，而不是把它当成内部错误报 500（其余异常仍原样上抛）。
+    if (error instanceof WorkspaceLockTimeoutError)
+      return { ok: false, code: 409, error: REASON_WORKSPACE_BUSY }
+    throw error
   })
 
   if (outcome.ok && outcome.failed.length === 0)

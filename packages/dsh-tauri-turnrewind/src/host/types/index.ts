@@ -37,6 +37,47 @@ export interface SnapshotStore {
 /** 一次路径安全校验的结果。 */
 export type PathSafety = { ok: true } | { ok: false, reason: string }
 
+/** 跨进程工作区锁文件里的持有者信息（写进锁文件，供别的进程判断这把锁还算不算数）。 */
+export interface WorkspaceLockHolder {
+  /** 持有者进程 id：决定「持有者是否还活着」。 */
+  pid: number
+  /** 本次获取生成的随机令牌：释放时据此确认「删的是不是自己的锁」。 */
+  token: string
+  /** 获取时间（毫秒时间戳，诊断用）。 */
+  acquiredAt: number
+}
+
+/**
+ * 工作区级**跨进程**互斥锁（实现见 host/service/lock.ts）。
+ *
+ * 与进程内的 {@link WorkspaceQueue} 是两件事：队列只能串行化**本进程**里的任务，
+ * 而同一个 `$DSH_HOME` 下可能有多个宿主进程（桌面端重启交叠、手动再起的 `dsh web`、
+ * 离线维护脚本）——它们各有一份自己的内存队列，却共用同一份私有快照仓。
+ */
+export interface WorkspaceLock {
+  /**
+   * 在跨进程互斥区内执行任务（获取 → 执行 → 释放；失败原样透出）。
+   * @param key - 工作区键。
+   * @param task - 要执行的异步任务。
+   * @param lockTimeoutMs - 本次获取锁的等待上限（毫秒）；缺省用构造时的 `timeoutMs`。
+   *   屏障上的调用会传一个更短的值：等不到的代价只是「这一轮没有快照」，
+   *   不该让它拖住用户的对话（见 host/constants 的 LOCK_BARRIER_TIMEOUT_MS）。
+   */
+  run: <T>(key: string, task: () => Promise<T>, lockTimeoutMs?: number) => Promise<T>
+  /** 某个工作区对应的锁文件路径（诊断与测试用）。 */
+  lockPath: (key: string) => string
+}
+
+/** 跨进程工作区锁的构造选项（缺省值见 host/constants）。 */
+export interface WorkspaceLockOptions {
+  /** 宿主数据根目录（`$DSH_HOME`）。 */
+  dshHome: string
+  /** 等待上限（毫秒）；超时抛 WorkspaceLockTimeoutError。 */
+  timeoutMs?: number
+  /** 竞争时的重试间隔（毫秒）。 */
+  retryMs?: number
+}
+
 /** 单次捕获的用量上限（默认取宿主常量；宿主插件行配置/测试可覆盖）。 */
 export interface CaptureLimits {
   /** 单个文件超过此值即排除并标注。 */

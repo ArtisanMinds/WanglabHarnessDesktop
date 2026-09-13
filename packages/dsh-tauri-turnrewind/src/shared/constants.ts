@@ -41,3 +41,13 @@ export const TURNREWIND_REASON_SNAPSHOT_FAILED = 'TURNREWIND_SNAPSHOT_FAILED'
 
 /** 撤销命中了不允许穿透的目标路径（父级符号链接/junction、非空目录占位）。 */
 export const TURNREWIND_REASON_UNSAFE_PATH = 'TURNREWIND_UNSAFE_PATH'
+
+/**
+ * 工作区正被**另一个宿主进程**占用（跨进程锁等待超时）。
+ *
+ * 同一个 `$DSH_HOME` 下完全可能同时跑着两个宿主进程（桌面端重启交叠、手动再起一个
+ * `dsh web`、离线维护脚本），此时私有快照仓的 index/refs 由跨进程文件锁串行
+ * （见 host/service/lock.ts）。拿不到锁**不是**「这一轮不能撤销」，而是「现在不是时候」：
+ * 客户端要把它呈现为可重试的失败，而不是终态错误。
+ */
+export const TURNREWIND_REASON_WORKSPACE_BUSY = 'TURNREWIND_WORKSPACE_BUSY'

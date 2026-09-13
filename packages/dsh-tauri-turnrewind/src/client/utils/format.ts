@@ -14,6 +14,7 @@ import {
   TURNREWIND_REASON_SNAPSHOT_FAILED,
   TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
+  TURNREWIND_REASON_WORKSPACE_BUSY,
 } from '../../shared/constants'
 
 /**
@@ -29,6 +30,8 @@ const REASON_KEYS: Record<string, LocaleKey> = {
   [TURNREWIND_REASON_TURN_ACTIVE]: 'turnActiveReason',
   [TURNREWIND_REASON_SNAPSHOT_FAILED]: 'snapshotFailedReason',
   [TURNREWIND_REASON_UNSAFE_PATH]: 'unsafePathReason',
+  // 工作区被另一个宿主进程占用：**可重试**，语义与上面几个终态原因不同（见字典文案）。
+  [TURNREWIND_REASON_WORKSPACE_BUSY]: 'workspaceBusyReason',
 }
 
 /**

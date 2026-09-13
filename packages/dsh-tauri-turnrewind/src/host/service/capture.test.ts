@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
+import { LOCK_BARRIER_TIMEOUT_MS } from '../constants'
 import { createTurnCapture } from './capture'
 import { readLedger } from './ledger'
 import { createWorkspaceQueue } from './queue'
@@ -37,6 +38,22 @@ function captureFor(dshHome: string, captured: number[] = [], queue: WorkspaceQu
   })
   captures.push(capture)
   return capture
+}
+
+/** 记录每次 `queue.run` 的跨进程等待上限：用来钉住「屏障用短值、后台用默认值」。 */
+function recordingQueue(): { queue: WorkspaceQueue, timeouts: Array<number | undefined> } {
+  const real = createWorkspaceQueue()
+  const timeouts: Array<number | undefined> = []
+  return {
+    queue: {
+      run: (key, task, lockTimeoutMs) => {
+        timeouts.push(lockTimeoutMs)
+        return real.run(key, task, lockTimeoutMs)
+      },
+      size: () => real.size(),
+    },
+    timeouts,
+  }
 }
 
 /** 可注入失败的队列包装（真实队列放行，`failing` 期间一律拒绝）：复现 git/IO 抛错。 */
@@ -131,6 +148,22 @@ afterEach(async () => {
 })
 
 describe('turn 结算编排', () => {
+  it('屏障上的两次加锁用短上限，后台结算仍用默认长上限', async () => {
+    const { dshHome, worktree } = await fixture()
+    const recorded = recordingQueue()
+    const capture = captureFor(dshHome, [], recorded.queue)
+
+    await capture.beginTurn('s-barrier', 1, worktree)
+    // beginTurn 在 `agent/pre-step` 的屏障上跑两次加锁（容量治理 + before 快照）：两次都必须
+    // 带短上限——否则邻居进程占着锁时，用户这一轮对话的开场要等到默认的 5 分钟。
+    expect(recorded.timeouts).toEqual([LOCK_BARRIER_TIMEOUT_MS, LOCK_BARRIER_TIMEOUT_MS])
+
+    await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
+    await capture.settleTurn('s-barrier', 1)
+    // 结算在后台、不占屏障：不传上限（用默认的 5 分钟），草率放弃会直接丢掉这一轮的卡片。
+    expect(recorded.timeouts.at(-1)).toBeUndefined()
+  })
+
   it('正常一轮：before → 改动 → 结算，账本记录本轮改动（卡片据此渲染）', async () => {
     const { dshHome, worktree } = await fixture()
     const capture = captureFor(dshHome)

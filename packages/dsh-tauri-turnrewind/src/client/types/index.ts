@@ -149,6 +149,7 @@ export type LocaleKey
     | 'turnActiveReason'
     | 'snapshotFailedReason'
     | 'unsafePathReason'
+    | 'workspaceBusyReason'
     | 'skippedOversized'
     | 'skippedNestedRepos'
     | 'openFile'

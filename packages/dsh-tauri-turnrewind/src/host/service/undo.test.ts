@@ -1,4 +1,5 @@
 import type { TurnRecord } from '../types'
+import type { WorkspaceQueue } from './queue'
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -6,8 +7,16 @@ import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, describe, expect, it } from 'vitest'
-import { REASON_ALREADY_UNDONE, REASON_CONFLICT, REASON_EXPIRED, REASON_GIT_REQUIRED, REASON_TURN_ACTIVE } from '../constants'
+import {
+  REASON_ALREADY_UNDONE,
+  REASON_CONFLICT,
+  REASON_EXPIRED,
+  REASON_GIT_REQUIRED,
+  REASON_TURN_ACTIVE,
+  REASON_WORKSPACE_BUSY,
+} from '../constants'
 import { readLedger, recordTurn, recordWorkspaceState } from './ledger'
+import { WorkspaceLockTimeoutError } from './lock'
 import { createWorkspaceQueue } from './queue'
 import { captureSnapshot, diffTurnChanges, readGenerationFor, readRefCommit, snapshotStoreFor, turnRef } from './snapshot'
 import { undoTurn } from './undo'
@@ -214,5 +223,27 @@ describe('undoTurn', () => {
     }
     // 拒绝发生在动文件之前。
     expect(await readFile(join(worktree, 'a.txt'), 'utf8')).toBe('first\nsecond\n')
+  })
+
+  it('工作区被另一个宿主进程占用（跨进程锁超时）：回 409 + WORKSPACE_BUSY，而不是 500', async () => {
+    const { dshHome, worktree, sessionId, turn } = await fixture()
+    // 队列以锁超时拒绝，等价于「另一个 DSH 进程正占着这个工作区，等满了上限也没轮到我们」。
+    const blocked: WorkspaceQueue = {
+      run: () => Promise.reject(new WorkspaceLockTimeoutError('workspace lock not acquired')),
+      size: () => 0,
+    }
+
+    const outcome = await undoTurn({ queue: blocked, dshHome, sessionId, turn, currentWorkspace: worktree })
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) {
+      expect(outcome.code).toBe(409)
+      expect(outcome.error).toBe(REASON_WORKSPACE_BUSY)
+    }
+    // 「现在不是时候」而不是「这一轮不能撤销」：工作区一个字节没动，也没有标成已撤销——
+    // 用户稍后重试仍然有效。
+    expect(await readFile(join(worktree, 'a.txt'), 'utf8')).toBe('first\nsecond\n')
+    expect(existsSync(join(worktree, 'added.txt'))).toBe(true)
+    const ledger = await readLedger(dshHome, sessionId)
+    expect(ledger.turns.find(item => item.turn === turn)?.undoneAt ?? null).toBeNull()
   })
 })

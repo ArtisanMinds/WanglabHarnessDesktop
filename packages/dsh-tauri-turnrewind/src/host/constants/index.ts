@@ -5,7 +5,12 @@
  * 避免「预览说超限、执行却照做」这类双份常量漂移。
  */
 
-import { TURNREWIND_PLUGIN_NAME, TURNREWIND_REASON_GIT_REQUIRED, TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
+import {
+  TURNREWIND_PLUGIN_NAME,
+  TURNREWIND_REASON_GIT_REQUIRED,
+  TURNREWIND_REASON_SNAPSHOT_FAILED,
+  TURNREWIND_REASON_WORKSPACE_BUSY,
+} from '../../shared/constants'
 
 export { TURNREWIND_API_PREFIX, TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
 
@@ -60,6 +65,36 @@ export const GIT_TIMEOUT_MS = 5 * 60 * 1000
  */
 export const GIT_PROBE_TIMEOUT_MS = 30 * 1000
 
+/** 私有快照仓的跨进程锁文件目录（`$DSH_HOME/<feature>/locks`）。 */
+export const LOCK_DIR_NAME = 'locks'
+
+/**
+ * 跨进程锁的等待上限：与 git 重活同预算。
+ *
+ * 拿到锁意味着「轮到我动这个工作区的私有仓」，而一次捕获/结算本身就是 git 重活
+ * （大仓库首次要几十秒），所以等待时长必须覆盖对方**一整次操作**，不能只覆盖一次
+ * `git add`。等不到就给调用方一个明确的结论（撤销照实回 409，捕获照实记不可用），
+ * 绝不让用户对着一个没有上限的等待干等。
+ *
+ * 没有任何 TTL 接管活锁的通道（见 service/lock.ts 的取舍）：持有者挂死时这里就是
+ * 唯一的收口——如实报「占用」，宁可暂时不可用也不去抢一把活着的锁。
+ */
+export const LOCK_WAIT_TIMEOUT_MS = GIT_TIMEOUT_MS
+
+/**
+ * **屏障上**（`agent/pre-step` 的 before 快照）拿不到锁时的等待上限。
+ *
+ * 为什么与 {@link LOCK_WAIT_TIMEOUT_MS} 分开：这个等待挂在**用户可见的 turn 开场屏障**上，
+ * `apply.ts` 要先 `await beginTurn()` 才继续跑本轮。等一等是为了扛过「邻居正在结算」这段
+ * 正常窗口（大仓库首次捕获实测 6–20s），但绝不该让用户的一轮对话开场卡满 5 分钟——
+ * 拿不到就照常记一条「快照不可用」继续跑（这一轮没有卡片，用户的对话不受阻）。
+ * 后台结算、实时读数与撤销不在屏障上，仍用 5 分钟：它们等得起，草率放弃反而会丢掉卡片。
+ */
+export const LOCK_BARRIER_TIMEOUT_MS = 20 * 1000
+
+/** 锁竞争时的重试间隔：轮询粒度，太小会空转 I/O，太大则让短临界区白等。 */
+export const LOCK_RETRY_INTERVAL_MS = 200
+
 /** 工作区解析结果缓存 TTL（冷未命中才同步探测，过期先回缓存值再后台刷新）。 */
 export const WORKSPACE_CACHE_TTL_MS = 60 * 1000
 
@@ -113,6 +148,9 @@ export const REASON_UNSAFE_PATH = 'TURNREWIND_UNSAFE_PATH'
 
 /** 目标路径当前是非空目录：撤销不递归删除目录。 */
 export const REASON_NON_EMPTY_DIR = 'TURNREWIND_NON_EMPTY_DIR'
+
+/** 工作区被另一个宿主进程占用（跨进程锁等待超时）：撤销回 409，用户稍后重试。 */
+export const REASON_WORKSPACE_BUSY = TURNREWIND_REASON_WORKSPACE_BUSY
 
 /** 恢复路径丢失/损坏的 tmp 残骸后缀（崩溃清扫用；我们不写这类文件，仅防御性识别）。 */
 export const RESTORE_DEBRIS_SUFFIX = '.turnrewind-restore.bak'
