@@ -221,8 +221,7 @@ pub async fn install(
         if kind == download::InstallKind::Dsh {
             dsh_updated = true;
             if let Some(info) = &dsh_latest {
-                config::set_dsh_pkg_commit(app_handle, info.commit.clone());
-                config::set_dsh_pkg_tag(app_handle, info.tag.clone());
+                config::set_dsh_pkg_release(app_handle, info.commit.clone(), info.tag.clone());
             }
         }
     }

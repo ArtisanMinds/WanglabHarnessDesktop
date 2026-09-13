@@ -1,4 +1,5 @@
 import type { StoreOptions } from '@tauri-apps/plugin-store'
+import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
 import { defineDriver } from 'unstorage'
 
@@ -16,9 +17,16 @@ export const tauriStorageDriver = defineDriver<TauriStorageDriverOptions | undef
       return promise.then(store => store.has(key))
     },
     async getItem(key) {
+      if (key === 'setting')
+        return invoke('get_app_config')
       return promise.then(store => store.get(key))
     },
     async setItem(key, value) {
+      if (key === 'setting') {
+        const preferences = typeof value === 'string' ? JSON.parse(value) : value
+        await invoke('save_frontend_preferences', { preferences })
+        return
+      }
       return promise.then(store => store.set(key, value))
     },
     async removeItem(key) {

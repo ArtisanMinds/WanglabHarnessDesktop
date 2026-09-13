@@ -34,12 +34,11 @@ pub use version::{download_version, has_installed_version, list, remove_version,
 
 /// 内网安装与 Desktop 的固定发行版本和提交记录必须一致。
 pub(crate) fn paired_core_ready(app_handle: &tauri::AppHandle) -> bool {
+    let setting = crate::config::get_store_dat_setting(app_handle);
     crate::config::get_dsh_version(app_handle).as_deref()
         == Some(crate::config::WANGLAB_DSH_VERSION)
-        && crate::config::get_dsh_pkg_tag(app_handle).as_deref()
-            == Some(crate::config::WANGLAB_DSH_TAG)
-        && crate::config::get_dsh_pkg_commit(app_handle).as_deref()
-            == Some(crate::config::WANGLAB_DSH_COMMIT)
+        && setting.dsh_pkg_tag.as_deref() == Some(crate::config::WANGLAB_DSH_TAG)
+        && setting.dsh_pkg_commit.as_deref() == Some(crate::config::WANGLAB_DSH_COMMIT)
         && crate::config::get_dsh_binary_path(app_handle).is_file()
 }
 
@@ -48,6 +47,14 @@ pub(crate) fn require_paired_core(app_handle: &tauri::AppHandle) -> Result<(), S
     if paired_core_ready(app_handle) {
         Ok(())
     } else {
+        let setting = crate::config::get_store_dat_setting(app_handle);
+        log::error!(
+            "Paired Core mismatch: manifest={:?}, tag={:?}, commit={:?}, entry_exists={}",
+            crate::config::get_dsh_version(app_handle),
+            setting.dsh_pkg_tag,
+            setting.dsh_pkg_commit,
+            crate::config::get_dsh_binary_path(app_handle).is_file()
+        );
         Err(format!(
             "CORE_INSTALL_REQUIRED: install the paired Core {} before starting Harness",
             crate::config::WANGLAB_DSH_VERSION

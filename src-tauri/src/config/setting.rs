@@ -4,7 +4,7 @@ use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Setting {
     pub installed: bool,
@@ -293,15 +293,19 @@ where
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let mut setting = read_store_dat_setting(app_handle);
+        let previous = setting.clone();
         update(&mut setting);
         setting.zoom_factor = normalize_zoom_factor(setting.zoom_factor);
         // 落盘前的第二道闸：调用方（含前端 invoke）写入的不可信取值不以原始形态进 store
         setting.close_action = normalize_close_action(&setting.close_action);
         normalize_backup_fields(&mut setting);
-        let value = write_store_dat_setting(app_handle, &setting);
+        // 前端水合会触发偏好持久化；相同值不能再次广播，避免事件回写循环。
+        let value = (setting != previous).then(|| write_store_dat_setting(app_handle, &setting));
         (setting, value)
     };
-    emit_setting(app_handle, &value);
+    if let Some(value) = value {
+        emit_setting(app_handle, &value);
+    }
     setting
 }
 
@@ -319,23 +323,17 @@ pub fn get_dsh_pkg_commit(app_handle: &AppHandle) -> Option<String> {
     get_store_dat_setting(app_handle).dsh_pkg_commit
 }
 
-/// 记录已安装 Harness 发行版的 GitHub release commit hash
-pub fn set_dsh_pkg_commit(app_handle: &AppHandle, commit: String) {
-    let mut setting = get_store_dat_setting(app_handle);
-    setting.dsh_pkg_commit = Some(commit);
-    set_store_dat_setting(app_handle, setting);
+/// 在同一次写入中保存配套发行记录，避免事件读到新提交与旧 tag 的混合状态。
+pub fn set_dsh_pkg_release(app_handle: &AppHandle, commit: String, tag: String) {
+    update_store_dat_setting(app_handle, |setting| {
+        setting.dsh_pkg_commit = Some(commit);
+        setting.dsh_pkg_tag = Some(tag);
+    });
 }
 
 /// 已安装 Harness 发行版对应的 GitHub release tag
 pub fn get_dsh_pkg_tag(app_handle: &AppHandle) -> Option<String> {
     get_store_dat_setting(app_handle).dsh_pkg_tag
-}
-
-/// 记录已安装 Harness 发行版的 GitHub release tag
-pub fn set_dsh_pkg_tag(app_handle: &AppHandle, tag: String) {
-    let mut setting = get_store_dat_setting(app_handle);
-    setting.dsh_pkg_tag = Some(tag);
-    set_store_dat_setting(app_handle, setting);
 }
 
 #[cfg(test)]

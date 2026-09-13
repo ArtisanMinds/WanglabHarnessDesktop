@@ -7,6 +7,32 @@ use crate::config;
 use crate::service::cli;
 use tauri::AppHandle;
 
+/// 前端自动持久化只负责界面偏好，不能写回旧的内核、档案和安装状态。
+#[derive(serde::Deserialize)]
+pub struct FrontendPreferences {
+    zoom_factor: Option<f64>,
+    language: Option<String>,
+}
+
+impl FrontendPreferences {
+    fn apply(self, setting: &mut config::Setting) {
+        if let Some(zoom_factor) = self.zoom_factor {
+            setting.zoom_factor = zoom_factor;
+        }
+        if let Some(language) = self.language {
+            setting.language = language;
+        }
+    }
+}
+
+#[tauri::command]
+pub fn save_frontend_preferences(
+    app_handle: AppHandle,
+    preferences: FrontendPreferences,
+) -> config::Setting {
+    config::update_store_dat_setting(&app_handle, |setting| preferences.apply(setting))
+}
+
 /// 当前桌面端配置
 #[tauri::command]
 pub async fn get_app_config(app_handle: AppHandle) -> Result<config::Setting, String> {
@@ -95,9 +121,9 @@ pub fn get_cli_link_status(app_handle: AppHandle) -> Result<cli::CliLinkStatus, 
 /// 保存界面语言偏好
 #[tauri::command]
 pub fn set_language(app_handle: AppHandle, lang: String) {
-    let mut setting = config::get_store_dat_setting(&app_handle);
-    setting.language = lang.clone();
-    config::set_store_dat_setting(&app_handle, setting);
+    config::update_store_dat_setting(&app_handle, |setting| {
+        setting.language = lang.clone();
+    });
     config::i18n::set_language(match lang.as_str() {
         "en" | "en-US" => config::i18n::Lang::En,
         _ => config::i18n::Lang::Zh,
@@ -118,4 +144,52 @@ pub async fn toggle_sidebar() -> Result<bool, String> {
 #[tauri::command]
 pub fn get_dsh_theme(app_handle: AppHandle) -> config::DshTheme {
     config::get_dsh_theme(&app_handle)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_frontend_preferences_cannot_overwrite_installed_core_or_profile() {
+        let mut setting = config::Setting {
+            installed: true,
+            active_core: Some("app".into()),
+            dsh_pkg_tag: Some(config::WANGLAB_DSH_TAG.into()),
+            dsh_pkg_commit: Some(config::WANGLAB_DSH_COMMIT.into()),
+            active_profile: "research".into(),
+            pet_enabled: true,
+            active_pet: Some("chat:nimbus".into()),
+            ..Default::default()
+        };
+        let mut expected = setting.clone();
+        expected.zoom_factor = 1.2;
+        expected.language = "en-US".into();
+        let stale: FrontendPreferences = serde_json::from_value(serde_json::json!({
+            "zoom_factor": 1.2,
+            "language": "en-US",
+            "installed": false,
+            "active_core": "local",
+            "dsh_pkg_tag": "dsh-0.1.2-rc.1-wanglab032",
+            "dsh_pkg_commit": "old-core",
+            "active_profile": "web",
+            "pet_enabled": false,
+            "active_pet": null,
+            "port": 3080
+        }))
+        .unwrap();
+
+        stale.apply(&mut setting);
+        assert_eq!(setting, expected);
+    }
+
+    #[test]
+    fn absent_frontend_preferences_leave_existing_settings_unchanged() {
+        let mut setting = config::Setting::default();
+        let expected = setting.clone();
+        let preferences: FrontendPreferences =
+            serde_json::from_value(serde_json::json!({ "language": null })).unwrap();
+        preferences.apply(&mut setting);
+        assert_eq!(setting, expected);
+    }
 }

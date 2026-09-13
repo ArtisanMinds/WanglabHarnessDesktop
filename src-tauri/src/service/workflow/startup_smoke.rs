@@ -9,6 +9,14 @@ use crate::{
     service::{core, download},
 };
 
+#[derive(Default)]
+struct FrontendSmokeState(std::sync::Mutex<Option<serde_json::Value>>);
+
+#[tauri::command]
+fn report_startup_smoke_ui(app_handle: tauri::AppHandle, state: serde_json::Value) {
+    *app_handle.state::<FrontendSmokeState>().0.lock().unwrap() = Some(state);
+}
+
 async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     exercise_pet_render(app).await?;
     smoke_note("begin isolated upgrade");
@@ -120,6 +128,116 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     );
     smoke_note("restart readiness passed");
     exercise_session_upgrade(app, "restart").await?;
+    stop(app.clone()).await?;
+    exercise_frontend_upgrade(app).await?;
+    Ok(())
+}
+
+/// 用真实主页面执行第二轮升级，覆盖前端持久化与后端安装记录之间的竞争。
+async fn exercise_frontend_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
+    let archive_path = std::env::var_os("WANGLAB_UPGRADE_CORE_ZIP")
+        .ok_or("SMOKE_FIXTURE_MISSING: WANGLAB_UPGRADE_CORE_ZIP")?;
+    let archive = fs::read(archive_path).map_err(|e| e.to_string())?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or("SMOKE_WINDOW_MISSING")?;
+    let tracker = download::ProgressTracker::new(&window, 1);
+    download::ensure_extract(
+        &tracker,
+        "old-core.zip".to_string(),
+        archive,
+        config::get_dsh_install_path(app),
+    )
+    .await?;
+    let previous = config::update_store_dat_setting(app, |setting| {
+        setting.installed = true;
+        setting.language = "en-US".to_string();
+        setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab032".to_string());
+        setting.dsh_pkg_commit = Some("90e7887e78256f577b945dc3a22a1926d59cf131".to_string());
+    });
+    bridge::skip_preinstall_plugins(app.clone()).await?;
+    let keeper = WebviewWindowBuilder::new(
+        app,
+        "upgrade-keepalive",
+        WebviewUrl::External("about:blank".parse().unwrap()),
+    )
+    .visible(false)
+    .build()
+    .map_err(|e| e.to_string())?;
+    window.destroy().map_err(|e| e.to_string())?;
+    for _ in 0..50 {
+        if app.get_webview_window("main").is_none() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let window = crate::desktop::builder::build_main_window(app).map_err(|e| e.to_string())?;
+    keeper.destroy().map_err(|e| e.to_string())?;
+    smoke_note("real frontend opened with previous Core records");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(240);
+    let mut ready = false;
+    while tokio::time::Instant::now() < deadline {
+        window
+            .eval(
+                r#"(() => {
+                    const frame = document.querySelector('iframe');
+                    const bounds = frame?.getBoundingClientRect();
+                    window.__TAURI_INTERNALS__.invoke('report_startup_smoke_ui', {
+                        state: {
+                            iframeVisible: !!bounds && bounds.width > 0 && bounds.height > 0,
+                            text: (document.body?.innerText || '').slice(0, 1000)
+                        }
+                    });
+                })()"#,
+            )
+            .map_err(|e| e.to_string())?;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let state = app.state::<FrontendSmokeState>().0.lock().unwrap().clone();
+        if state.as_ref().is_some_and(|value| {
+            value["text"]
+                .as_str()
+                .is_some_and(|text| text.contains("Startup failed"))
+        }) {
+            return Err(format!("SMOKE_FRONTEND_STARTUP_FAILED: {state:?}"));
+        }
+        if state
+            .as_ref()
+            .is_some_and(|value| value["iframeVisible"] == true)
+            && core::paired_core_ready(app)
+            && proxy_health_check(previous.port).await.is_ok()
+        {
+            ready = true;
+            break;
+        }
+    }
+    if !ready {
+        return Err(format!(
+            "SMOKE_FRONTEND_TIMEOUT: {:?}",
+            app.state::<FrontendSmokeState>().0.lock().unwrap()
+        ));
+    }
+
+    let mut stale = serde_json::to_value(&previous).map_err(|e| e.to_string())?;
+    stale["zoom_factor"] = serde_json::json!(1.2);
+    let args = serde_json::json!({ "preferences": stale });
+    window
+        .eval(&format!(
+            "window.__TAURI_INTERNALS__.invoke('save_frontend_preferences', {args})"
+        ))
+        .map_err(|e| e.to_string())?;
+    for _ in 0..50 {
+        if config::get_store_dat_setting(app).zoom_factor == 1.2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let current = config::get_store_dat_setting(app);
+    if current.zoom_factor != 1.2 || current.active_profile != previous.active_profile {
+        return Err("SMOKE_FRONTEND_PREFERENCES_FAILED".to_string());
+    }
+    core::require_paired_core(app)?;
+    exercise_session_upgrade(app, "restart").await?;
+    smoke_note("real frontend upgrade, settings persistence, and session readiness passed");
     Ok(())
 }
 
@@ -377,11 +495,23 @@ fn windows_upgrade_startup() {
     context.config_mut().identifier =
         format!("com.seuwanglab.startup-smoke-{}", std::process::id());
     let (result_tx, result_rx) = std::sync::mpsc::channel();
+    let desktop_handler = crate::desktop::handler();
+    let smoke_handler = tauri::generate_handler![report_startup_smoke_ui];
     let app = tauri::Builder::default()
         .any_thread()
+        .manage(FrontendSmokeState::default())
         .manage(crate::desktop::pet_mouse::PetMouseStreamState::default())
-        .invoke_handler(crate::desktop::handler())
+        .invoke_handler(move |invoke| {
+            if invoke.message.command() == "report_startup_smoke_ui" {
+                smoke_handler(invoke)
+            } else {
+                desktop_handler(invoke)
+            }
+        })
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External("about:blank".parse()?))
                 .visible(false)

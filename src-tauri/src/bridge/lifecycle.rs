@@ -106,10 +106,14 @@ pub async fn install_dependencies(app_handle: AppHandle) -> Result<bool, String>
                 return Err(error);
             }
         };
-        let mut setting = config::get_store_dat_setting(&app_handle);
-        setting.installed = true;
-        setting.active_core = Some("app".to_string());
-        config::set_store_dat_setting(&app_handle, setting);
+        if let Err(error) = core::require_paired_core(&app_handle) {
+            reset_install_status(&app_handle);
+            return Err(error);
+        }
+        config::update_store_dat_setting(&app_handle, |setting| {
+            setting.installed = true;
+            setting.active_core = Some("app".to_string());
+        });
         sync_cli_link(&app_handle);
         reset_install_status(&app_handle);
         return Ok(updated);
@@ -208,8 +212,11 @@ pub async fn install_dependencies(app_handle: AppHandle) -> Result<bool, String>
                             latest.tag,
                             latest.commit
                         );
-                        config::set_dsh_pkg_commit(&app_handle, latest.commit.clone());
-                        config::set_dsh_pkg_tag(&app_handle, latest.tag.clone());
+                        config::set_dsh_pkg_release(
+                            &app_handle,
+                            latest.commit.clone(),
+                            latest.tag.clone(),
+                        );
                     }
                     false
                 }

@@ -18,13 +18,19 @@ export const setting = defineStore({
   persist: {
     key: 'setting',
     storage,
+    paths: ['zoom_factor', 'language'],
   },
 })
 
 setting.use(persist({ hydrate: false }))
 
-const unlisten = listen<typeof setting.$state>('setting_updated', async (event) => {
-  setting.$patch(event.payload)
+const unlisten = listen('setting_updated', async () => {
   await setting.$persist.rehydrate()
-  unlisten.then(unlisten => unlisten())
 })
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(async () => {
+    (await unlisten)()
+    setting.$persist.dehydrate()
+  })
+}
