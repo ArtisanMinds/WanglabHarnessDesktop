@@ -496,7 +496,8 @@ fn windows_upgrade_startup() {
         format!("com.seuwanglab.startup-smoke-{}", std::process::id());
     let (result_tx, result_rx) = std::sync::mpsc::channel();
     let desktop_handler = crate::desktop::handler();
-    let smoke_handler = tauri::generate_handler![report_startup_smoke_ui];
+    let smoke_handler: Box<dyn Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync> =
+        Box::new(tauri::generate_handler![report_startup_smoke_ui]);
     let app = tauri::Builder::default()
         .any_thread()
         .manage(FrontendSmokeState::default())

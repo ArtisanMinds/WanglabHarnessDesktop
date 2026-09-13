@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $buildOutput = & cargo test --manifest-path src-tauri/Cargo.toml --release --features tauri/custom-protocol --locked --lib --no-run --message-format=json-render-diagnostics 2>&1
 $buildExit = $LASTEXITCODE
 $testExecutables = @()
+$compilerErrors = @()
 foreach ($line in $buildOutput) {
     try {
         $record = ConvertFrom-Json -InputObject "$line" -ErrorAction Stop
@@ -14,11 +15,19 @@ foreach ($line in $buildOutput) {
     if ($record.reason -eq 'compiler-artifact' -and $record.profile.test -and $record.executable) {
         $testExecutables += $record.executable
     }
+    if ($record.reason -eq 'compiler-message' -and $record.message.level -eq 'error') {
+        $compilerErrors += $record.message.rendered
+        Write-Output $record.message.rendered
+    }
 }
 if ($buildExit -ne 0) {
-    $detail = ($buildOutput | Select-Object -Last 120) -join "`n"
-    $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
-    Write-Output "::error title=Windows test compilation::$detail"
+    if ($compilerErrors.Count -eq 0) {
+        $compilerErrors += ($buildOutput | Select-Object -Last 5) -join "`n"
+    }
+    foreach ($diagnostic in $compilerErrors) {
+        $detail = $diagnostic.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+        Write-Output "::error title=Windows test compilation::$detail"
+    }
     exit $buildExit
 }
 if ($testExecutables.Count -ne 1) {
