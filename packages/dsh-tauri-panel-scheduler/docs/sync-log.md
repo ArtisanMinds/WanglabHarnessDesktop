@@ -9,6 +9,47 @@
 - 本次对比提交：`f1bc91a`
 - Panel 当前版本：`0.6.7`
 - 记录更新时间：2026-09-07
+- 宿主兼容跟进：上游 `c426c3d`（`v0.1.35`，2026-09-10）适配 DSH `0.1.5-rc.1`；
+  上游最新 tag 为 `v0.1.40`（`88e20ed`）。
+
+## 宿主兼容修复（DSH 0.1.5-rc.1）
+
+### 现象
+
+内核升级到 `0.1.5-rc.1` 后，面板的「立即执行」与「定时触发」全部失败：`$DSH_HOME/crons/runs`
+中的运行记录错误恒为 `cannot get property "agent" without inject`。
+
+### 根因
+
+- `0.1.2-rc.1` 的 `@deepseek-ai/dsh-agent/lib/types/index.js` 注册了 DX accessor
+  `ctx.accessor('agent', { get: () => undefined })`；`0.1.5-rc.1` 移除了该注册。
+- 于是读取 `agentCtx.agent` 不再得到 `undefined`，而是被 Cordis 上下文代理抛出
+  `cannot get property "agent" without inject`（`@deepseek-ai/cordis/lib/index.js:675`）。
+- `@deepseek-ai/dsh-agent-loop/lib/index.js` 同步改为把 Agent 作为 setup 的第二参数传入
+  （`setup?.(prepared.agent.ctx, prepared.agent)`），`agents.enter(agent, parentAgent)` 也不再从 ctx 读 Agent。
+- 旧实现 `const agent = agentCtx.agent` 在 setup 阶段即抛错，`executeTask` 整体失败；
+  立即执行与定时触发共用该路径，故同时失效。
+
+### 修复（对齐上游 `c426c3d` / `v0.1.35`）
+
+- `src/host/service/executor.ts`：新增 `SetupAgentLike` 与 `resolveSetupAgent(agentCtx, createdAgent)`；
+  setup 签名改为 `(agentCtx, createdAgent?)`，取值 `createdAgent ?? agentCtx.agent`——`??` 短路保证
+  新宿主上绝不触碰会抛错的 `agentCtx.agent`，旧宿主仍走上下文入口。
+- `src/types/dsh.d.ts`：移除 `Context.agent` 声明，避免再把 accessor 当作稳定 API。
+- `src/host/service/executor.test.ts`：新增 3 例覆盖「第二参数优先」「旧宿主回落」「两者皆无 → undefined」，
+  其中第一例用会抛错的 getter 模拟 `0.1.5-rc.1` 的 Cordis 代理行为。
+
+### 已核对仍存在（0.1.5-rc.1）的宿主 API
+
+`agents.create` 的 `setup` 首参、`agents.withoutInitiator`、`agentPresets.mount(agentCtx, id)`、
+`installModelSelection`（`@deepseek-ai/dsh-agent`）、`sessions.flush(session)`、
+`ctx.permissionPresets`——除 `ctx.agent` 外执行路径无其它 API 漂移。
+
+### 与上游的其它差异（本插件不适用）
+
+- `cordis.patch.yml` 的 `connection.inject: [webServer, webRuntime]`：上游用它恢复 Web RPC 启动；
+  本插件路由直接注册在自身作用域的 `ctx.webServer`（`inject` 已声明 `webServer`），无需该补丁。
+- `knownSessionIds` 的 `canListStored` 判定与 `{ header }` 兜底：本插件没有会话枚举关联逻辑。
 
 ## 已同步
 
@@ -49,7 +90,18 @@
 
 ## 验证记录
 
-最近一次本地验证：
+### DSH 0.1.5-rc.1 宿主兼容修复（2026-09-13）
+
+```text
+pnpm run test -- --run                          # 43 test files, 338 tests passed
+pnpm run typecheck                              # tsc --noEmit 通过（0 error）
+pnpm --filter dsh-tauri-panel-scheduler build   # tsdown 构建通过，publint 无问题
+pnpm exec eslint packages/dsh-tauri-panel-scheduler/src --fix
+```
+
+Lint 当前只有既有 warning（6 条既有 React 规则提示），无新增 error。
+
+### v0.1.32 同步（2026-09-07）
 
 ```text
 pnpm run test -- --run       # 17 test files, 106 tests passed
@@ -58,9 +110,18 @@ pnpm --filter dsh-tauri-panel-scheduler build
 pnpm exec eslint packages/dsh-tauri-panel-scheduler/src --fix
 ```
 
-Lint 当前只有既有 warning，无新增 error。
-
 PR #412 的 Frontend、macOS、Ubuntu、Windows CI 均已通过。
+
+## 内核侧交叉验证（0.1.5-rc.1）
+
+内核自身消费方已经全部改用 setup 第二参数，可作为新 API 的权威样例：
+
+- `@deepseek-ai/dsh-api-session-controller/lib/index.js:356-366`：
+  `setup: async (agentCtx, agent) => { this.installSelection(agent); await presets.mount(agentCtx, resolvedId) }`。
+- `@deepseek-ai/dsh-acp/lib/index.js:717`：`setup: async (agentCtx, agent) => { …agent.session.requestHeader()… }`。
+- `@deepseek-ai/dsh-agent-loop/lib/index.js:1856`：`setup?.(prepared.agent.ctx, prepared.agent)`。
+
+结论：`agentCtx` 只用于挂载预设/安装模型选择，Agent 一律走第二参数；`ctx.agent` 不再是可依赖入口。
 
 ## 后续同步流程
 
@@ -80,4 +141,11 @@ PR #412 的 Frontend、macOS、Ubuntu、Windows CI 均已通过。
 
 ## 待同步项
 
-当前没有已确认、且适用于桌面端 scheduler panel 的未同步 P0–P3 项。下一次参考仓库更新时，从新的 changelog 重新评估。
+本轮只处理 DSH `0.1.5-rc.1` 宿主兼容（P0 缺陷），参考仓库 `v0.1.36`–`v0.1.40` 的新能力尚未评估：
+
+- `0156a06`（v0.1.36）`fix: preserve automation availability when session enumeration fails`——会话枚举失败时保活；
+  需先确认本插件是否存在同类枚举依赖。
+- `f05c477`（v0.1.37）/ `d60a711`（v0.1.38）DSH `0.1.5-rc.2` 支持与 rc.2 包校验——待内核进入 rc.2 时对齐。
+- `1f38c56`/`207d2cc`/`3a4be24`/`88e20ed`（v0.1.39–v0.1.40）取消全局并发上限、按任务并发、一分钟间隔粒度、
+  RPC 边界并发校验——属能力扩展（P2），需要 UI（任务创建对话框）与协议同步后再实施。
+

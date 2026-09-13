@@ -5,7 +5,9 @@
 
 declare module '@deepseek-ai/cordis' {
   export interface Context {
-    readonly agent?: any
+    // 刻意不声明 `agent`：`ctx.agent` 是 0.1.2 的 DX accessor，0.1.5-rc.1 已移除，
+    // 此时读取会被 Cordis 代理抛出 `cannot get property "agent" without inject`。
+    // Agent 只经 agents.create() 的 setup 第二参数获取（见 host/service/executor.ts）。
     readonly agents: any
     readonly agentDefaultModel: any
     readonly agentPresets: any
