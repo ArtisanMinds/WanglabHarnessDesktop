@@ -56,6 +56,7 @@ Plugins ofrecidos en el asistente del primer arranque; marcá los que necesites 
 
 - [DSH Market](https://github.com/dsh-market/dsh-market) — explorá, buscá e instalá plugins de la comunidad con un clic (Recomendado)
 - [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — barra lateral derecha estilo VSCode, aislada por sesión (Recomendado)
+- [DSH Rewind](https://github.com/SiriLee/dsh-rewind) — retroceso de conversación dentro de la misma ventana, sin crear una sesión nueva, más una copia de seguridad liviana del espacio de trabajo que restaura los archivos junto con el retroceso (Recomendado)
 
 > La lista de preinstalados la mantiene el proyecto desktop. Para pedir un preset nuevo o actualizado, abrí un issue en [deepseek-harness-desktop](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/issues).
 
