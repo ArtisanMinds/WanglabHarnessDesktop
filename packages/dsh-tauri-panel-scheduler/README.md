@@ -6,7 +6,9 @@
 
 ## 功能
 
-- 面板「定时任务」页（`sidebar.panel.action` 槽条目 + `panel.protocol` 内容区替换）：
+- 面板「定时任务」页（经 `panel.protocol.registerPanel` 注册；宿主按核心版本代注册
+  官方 `sidebar.panellist` + `main` 全局面板，或回退 `sidebar.panel.action` 槽 +
+  内容区替换）：
   - 两个 tab：**定时任务**（active）与**执行记录**；
   - 顶部提示「定时任务仅在电脑保持唤醒时运行」；
   - 任务列表卡片：名称、计划描述、下次运行时间、上次运行时间；

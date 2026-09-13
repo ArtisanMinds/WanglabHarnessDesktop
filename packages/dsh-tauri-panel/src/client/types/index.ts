@@ -1,4 +1,43 @@
+import type { ExternalStore } from 'dsh-tauri/client'
 import type { ComponentType, ReactElement, ReactNode } from 'react'
+
+/** 官方全局面板的选中态快照（layout 的 `panelInfo` root hook 投影）。 */
+export interface PanelInfo {
+  /** 当前选中的 `main` key；`null` 表示会话（官方 conversation）。 */
+  activePanelId: string | null
+}
+
+/**
+ * 框架注入的标准 prop `usePanelInfo`（ownerProps/standardProps 之外的那一层）。
+ * 0.1.5-rc.1 起布局经 `ctx.slots.provideRoot({ hooks: { panelInfo } })` 提供，
+ * 由 slot 运行期按 `standardHookPropName('panelInfo')` 合成到所有条目 props 上；
+ * 旧核心没有这个 seat，消费方必须可选探测。
+ */
+export type UsePanelInfo = <S>(selector: (info: PanelInfo) => S) => S
+
+/** `sidebar.panellist` 一趟投影出的行（id / 排序位 / 已解析文案）。 */
+export interface PanelListEntry {
+  /** 条目 id，同时是 `main` 槽里承载该面板的 key。 */
+  id: string
+  /** 升序排序位（官方默认 0）。 */
+  order: number
+  /** 已解析的展示文案（thunk 已求值）。 */
+  label: string
+}
+
+/** 面板清单的外部 store（`useSyncExternalStore` 安全）。 */
+export type PanelListStore = ExternalStore<PanelListEntry[]>
+
+/**
+ * 官方全局面板行的 owner props（对齐上游 `SidebarPanelIconOwnerProps`）。
+ * 图标组件按 `size` 渲染，按 `active` 决定选中态的视觉呈现。
+ */
+export interface PanelIconOwnerProps {
+  /** 请求的方形边长（px）：wide 16 / 折叠 rail 18。 */
+  size: number
+  /** 该面板当前是否在中间列被选中。 */
+  active: boolean
+}
 
 /** 侧栏槽 owner 传入的合成 props 子集。 */
 export interface SidebarRootProps {
@@ -10,6 +49,12 @@ export interface SidebarRootProps {
   startSession: (workspaceId?: string) => void
   /** 折叠/展开切换（inject：ctx.layout.toggleSidebar）。 */
   toggleSidebar: () => void
+  /** 选中全局面板（inject：ctx.layout.selectPanel；旧核心缺席）。 */
+  selectPanel: (id: string | null) => void
+  /** 官方 `sidebar.panellist` 的行投影（inject：宿主 panellist 服务）。 */
+  panels: PanelListStore
+  /** 框架标准 prop；旧核心缺席。 */
+  usePanelInfo?: UsePanelInfo
   /** 本条目 locale 翻译函数（panel NS）。 */
   t: (key: string) => string
 }
@@ -45,6 +90,30 @@ export interface PanelContentSpec {
   side?: 'conversation' | 'details'
 }
 
+/**
+ * 一次性注册一个面板（宿主负责按核心版本择路）。
+ *
+ * 新核心（≥0.1.5-rc.1）：宿主代注册 `sidebar.panellist`（图标行）+ `main`（内容），
+ * 于是该面板成为**官方全局面板**——`ctx.layout.selectPanel(id)` 可选中、选中态经
+ * `usePanelInfo` 统一可读，和官方/第三方按官方协议注册的面板完全同权。
+ *
+ * 旧核心：宿主回退注册 `sidebar.panel.action`（私有槽）+ 会话区替换，行为不变。
+ */
+export interface PanelRegistration {
+  /** 面板唯一标识；同时用作 `main` 的 key，需避开官方保留的 `conversation`。 */
+  id: string
+  /** 展示文案；thunk 读时求值，因此本地化文案无需重新注册。 */
+  label: string | (() => string)
+  /** 面板本体；宿主在选中时渲染。 */
+  render: ComponentType<{ t?: (key: string) => string }>
+  /** 面板本体文案命名空间；声明后框架在 `main` 条目上合成 `t` seat。 */
+  locale?: string
+  /** 条目图标（16px 语义，共享图标或官方 primitives 组件实例）。 */
+  icon?: ReactElement
+  /** 清单排序位，升序。 */
+  order?: number
+}
+
 /** panel.protocol 的稳定服务面。 */
 export interface PanelProtocol {
   /** 面板区条目组件：样式、折叠态与 active 态由宿主承担。 */
@@ -53,6 +122,11 @@ export interface PanelProtocol {
   renderPanelContent: (spec: PanelContentSpec) => void
   /** 显式恢复官方会话区；用于面板内需要跳转到会话的动作。 */
   closePanelContent: () => void
+  /**
+   * 注册一个全局面板（图标 + 内容），返回注销句柄。
+   * （可选：老版本宿主无此字段，消费方探测后再用。）
+   */
+  registerPanel?: (entry: PanelRegistration) => () => void
   /**
    * 程序化设置内容宽度（clamp 到契约范围并持久化）。（可选：老版本协议
    * 对象无此字段，消费方一律 `?.()` 探测调用。）
@@ -66,6 +140,13 @@ export interface PanelProtocol {
   openDetails?: () => void
   /** 透传 ctx.layout.closeDetails：关闭右侧 details 列。（可选，同上。） */
   closeDetails?: () => void
+  /**
+   * ≥0.1.5-rc.1 的右侧栏：报告占用 track / 是否全屏。
+   * 语义与 `openDetails` 不同（报告式而非开关式），故独立命名。
+   */
+  openRightPanel?: (track: boolean, fullscreen: boolean) => void
+  /** ≥0.1.5-rc.1：报告右侧栏隐藏。 */
+  closeRightPanel?: () => void
 }
 
 /** ActionItem 合成 props：id + 图标 + 点击行为 + 文字（子插件只填这些）。 */

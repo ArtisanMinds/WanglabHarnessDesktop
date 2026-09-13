@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <samp><a href="./README.en.md">English</a> · <strong>Español</strong> · <a href="https://dshtauri.mintlifysite.com">Documentación</a> · <a href="./README.md">中文</a></samp>
+  <samp><a href="./README.en.md">English</a> · <strong>Español</strong> · <a href="https://dshtauri.mintlify.site">Documentación</a> · <a href="./README.md">中文</a></samp>
 </p>
 
 <p align="center">
@@ -54,14 +54,10 @@
 
 Plugins ofrecidos en el asistente del primer arranque; marcá los que necesites e instalalos a demanda:
 
-- [DSH Win Terminal Inspector](https://github.com/clearkurt/dsh-win-terminal-inspector) — Corrección solo-Windows para el modo Minimal
 - [DSH Market](https://github.com/dsh-market/dsh-market) — explorá, buscá e instalá plugins de la comunidad con un clic (Recomendado)
 - [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — barra lateral derecha estilo VSCode, aislada por sesión (Recomendado)
-- [DSH Notification](https://github.com/omdsh-dev/dsh-notification) — notificaciones de escritorio al completar un turno
 
 > La lista de preinstalados la mantiene el proyecto desktop. Para pedir un preset nuevo o actualizado, abrí un issue en [deepseek-harness-desktop](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/issues).
->
-> La lista actual también incluye [DSH Session Context Menu](https://github.com/baihejiangnan/dsh-session-context-menu) para acciones contextuales en conversaciones, workspaces, entradas y enlaces.
 
 ## Plugins integrados
 

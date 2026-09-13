@@ -7,18 +7,19 @@
 //! （tauri issue #6164：官方 forward 选项一直未实现）。
 //!
 //! 解决方案（参考 Xinyu-Li-123/tauri-clickthrough-demo 与
-//! codecnmc/tauri2-transparent-through）：用系统级全局钩子在独立线程监听鼠标
-//! 移动，把物理像素光标坐标限频通过 `device-mouse-move` 事件发给前端；前端用
+//! codecnmc/tauri2-transparent-through）：在独立线程监听光标位置，把物理像素
+//! 光标坐标限频通过 `device-mouse-move` 事件发给前端；前端用
 //! 命中区（窗口尺寸固定百分比）判定光标是否落在可交互区域，据此翻转
 //! `setIgnoreCursorEvents`，穿透态下同样能感知光标位置，死锁解除。
 //!
-//! 性能：事件频率取决于鼠标报告率（125Hz–1000Hz），这里做两级收敛——监听线程
-//! 只把最新坐标写入共享槽（覆盖不积压，回调不阻塞钩子）；节流线程每 16ms
-//! 读取一次，坐标有变化才 emit（鼠标静止时零事件）。
+//! 性能：坐标刷新频率取决于各平台的监听方式（Windows 轮询 8ms、macOS 鼠标
+//! 报告率 125Hz–1000Hz），这里做两级收敛——监听线程只把最新坐标写入共享槽
+//! （覆盖不积压，回调不阻塞钩子）；节流线程每 16ms 读取一次，坐标有变化才
+//! emit（鼠标静止时零事件）。
 //!
 //! 生命周期：鼠标流由前端 `start_pet_mouse_stream` 命令幂等启动，线程随进程
-//! 常驻（监听 API 为阻塞式，无停止 API）；桌宠隐藏时前端不再检查命中，线程
-//! 开销可忽略。
+//! 常驻（各平台监听线程都是常驻阻塞循环，无停止 API）；桌宠隐藏时前端不再
+//! 检查命中，线程开销可忽略。
 //!
 //! # 平台差异
 //!
@@ -29,7 +30,22 @@
 //!   `_dispatch_assert_queue_fail` → SIGTRAP。按单独 Cmd / Option / Control 键
 //!   会发出 `FlagsChanged` 事件并经 rdev 转为 `KeyPress`，导致 100% 崩溃（issue
 //!   #397）。只订阅 mouse 事件彻底绕开 TSM 路径。
-//! - **Windows / Linux**：用 `rdev::listen`（这两平台 rdev 不调 TSM，无此 bug）。
+//! - **Windows**：用 `GetCursorPos` 每 8ms 轮询。**不能**用 `rdev::listen`：
+//!   rdev 的 `listen()` 在 Windows 上无条件同时安装 `WH_KEYBOARD_LL` +
+//!   `WH_MOUSE_LL` 两个低级钩子（`set_key_hook` + `set_mouse_hook`，没有按
+//!   事件类型过滤的选项），即使调用方只消费 mouse 事件，系统上每一次按键都会
+//!   同步进入本进程的键盘钩子回调。rdev 对 KeyPress 会调 `Keyboard::get_name`
+//!   取键名，其 `set_global_state()` 对每次按键执行
+//!   `AttachThreadInput(钩子线程, 前台线程, TRUE)` → `GetKeyboardState` →
+//!   detach，再用前台线程的键盘布局调 `ToUnicodeEx`。微软拼音等 IME 激活时
+//!   （即使切在英文模式，IME TIP 仍挂载），TSF/IME 的组合状态是前台线程本地
+//!   的，反复 Attach/Detach + ToUnicodeEx 会打断/污染 IME 对该按键的合成处理，
+//!   状态机错乱后向前台应用重放/注入幽灵按键——全屏游戏（如以撒的结合）里
+//!   表现为「没按的键自己生效」。`GetCursorPos` 轮询不装任何钩子、完全不触碰
+//!   输入管线，穿透恢复只需要光标坐标，足够。
+//! - **Linux**：维持 `rdev::listen`（X11 后端走 XRecord 只捕获不注入；
+//!   `AttachThreadInput` / `ToUnicodeEx` 是 Windows 专有 API，Linux 后端不触碰
+//!   输入状态，无此问题）。
 
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -42,6 +58,10 @@ use tauri::{Emitter, State, WebviewWindow};
 pub const PET_MOUSE_MOVE_EVENT: &str = "device-mouse-move";
 /// 节流间隔（16ms ≈ 60FPS）：光标自身刷新率远超此频率，超出部分无意义。
 const THROTTLE_INTERVAL: Duration = Duration::from_millis(16);
+/// Windows `GetCursorPos` 轮询间隔（8ms ≈ 125Hz，与常见鼠标报告率一致）：
+/// 轮询只写共享槽，最终 emit 仍由节流线程按 16ms 收敛。
+#[cfg(target_os = "windows")]
+const CURSOR_POLL_INTERVAL: Duration = Duration::from_millis(8);
 
 /// macOS CGEventTap 只订阅的鼠标事件类型。**显式排除** KeyDown / KeyUp /
 /// FlagsChanged，彻底切断 rdev 0.5.3 触发 `TSMGetInputSourceProperty`
@@ -147,20 +167,57 @@ fn bind_pet_mouse_emitter(
     revision.fetch_add(1, Ordering::SeqCst);
 }
 
-/// 平台分发：macOS 走 CGEventTap，其它平台走 rdev。
+/// 平台分发：macOS 走 CGEventTap，Windows 走 GetCursorPos 轮询，Linux 走 rdev。
 fn listen_mouse(store: Arc<Mutex<Option<MouseCursorPos>>>) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         listen_mouse_macos(store)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        listen_mouse_windows(store)
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         listen_mouse_rdev(store)
     }
 }
 
-/// rdev 监听（Windows / Linux）。
-#[cfg(not(target_os = "macos"))]
+/// Windows 光标位置轮询（`GetCursorPos`，不装任何全局钩子）。
+///
+/// 穿透恢复只需要光标坐标，不需要事件流：单次 `GetCursorPos` 是一次廉价系统
+/// 调用，8ms 轮询与 rdev 事件流的实际收敛效果相当（最终 emit 都经 16ms 节流），
+/// 却完全避开 rdev 键盘钩子对前台应用 IME 状态的干扰（见模块文档「平台差异」）。
+/// 调用失败（UAC/锁屏切换瞬间）时保留上一次坐标，下一轮重试。
+#[cfg(target_os = "windows")]
+fn listen_mouse_windows(store: Arc<Mutex<Option<MouseCursorPos>>>) -> Result<(), String> {
+    loop {
+        if let Some(pos) = read_cursor_pos() {
+            *store.lock().expect("pet mouse store poisoned") = Some(pos);
+        }
+        thread::sleep(CURSOR_POLL_INTERVAL);
+    }
+}
+
+/// 单次读取物理光标坐标（`GetCursorPos` 失败返回 `None`，如 UAC 桌面切换瞬间）。
+#[cfg(target_os = "windows")]
+fn read_cursor_pos() -> Option<MouseCursorPos> {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    let mut point = POINT { x: 0, y: 0 };
+    if unsafe { GetCursorPos(&mut point) } != 0 {
+        Some(MouseCursorPos {
+            x: point.x as f64,
+            y: point.y as f64,
+        })
+    } else {
+        None
+    }
+}
+
+/// rdev 监听（Linux；X11 XRecord 只捕获不注入，见模块文档「平台差异」）。
+#[cfg(all(unix, not(target_os = "macos")))]
 fn listen_mouse_rdev(store: Arc<Mutex<Option<MouseCursorPos>>>) -> Result<(), String> {
     let callback = move |event: rdev::Event| {
         if let rdev::EventType::MouseMove { x, y } = event.event_type {
@@ -242,5 +299,21 @@ mod tests {
     #[test]
     fn macos_mouse_events_include_mouse_moved() {
         assert!(mask_codes().contains(&(CGEventType::MouseMoved as u32)));
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests {
+    use super::*;
+
+    /// 冒烟测试：交互桌面会话里 `GetCursorPos` 应可用；CI 的 session 0 等受限
+    /// 环境会拿不到坐标，按规范优雅跳过而非断言失败。
+    #[test]
+    fn get_cursor_pos_available_in_interactive_session() {
+        if let Some(pos) = read_cursor_pos() {
+            assert!(pos.x.is_finite() && pos.y.is_finite());
+        } else {
+            eprintln!("GetCursorPos unavailable (headless session); skipping");
+        }
     }
 }

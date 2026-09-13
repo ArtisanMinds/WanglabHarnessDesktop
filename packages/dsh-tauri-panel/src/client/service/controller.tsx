@@ -2,9 +2,15 @@
  * service/controller.tsx — 会话区替换控制器：拥有 inject 句柄、当前规格与
  * capture 层 pointerdown 监听；close() 恢复官方会话界面并释放全部资源。
  *
- * 槽位按核心版本双候选（同时 inject，见 PANEL_VIEW_SEAT_TARGETS）：
- *   - ≤ 0.1.2-rc.1：`conversation` 单槽；
- *   - ≥ 0.1.5-rc.1：`main` keyed 槽的 `conversation` cell。
+ * 两条路径按核心能力择一（见 utils/official-panels.ts）：
+ *   - **官方路径（≥0.1.5-rc.1）**：把替换视图注册为 `main` keyed 槽里 key = spec.id
+ *     的条目，再 `ctx.layout.selectPanel(spec.id)`。于是内容区替换与官方全局面板
+ *     （`sidebar.panellist`）共用同一套选中态：`usePanelInfo().activePanelId` 对
+ *     两者都成立，切走/切回由布局统一派发，不再需要 pointer capture 兜底。
+ *   - **旧核心路径（≤0.1.2-rc.1）**：`conversation` 单槽 / `main` 的 `conversation`
+ *     cell 双候选 + priority -1 shadow（PANEL_VIEW_SEAT_TARGETS），并用 capture 层
+ *     pointerdown 把「侧栏里的导航动作」翻译成关闭面板。
+ *
  * 只注册旧槽时 0.1.5+ 的声明永不出现 → inject 回调永不执行 → 内容区不替换
  * （只剩侧栏条目选中样式）。
  *
@@ -18,10 +24,11 @@ import type { PanelContentSpec, PanelViewSeatTarget } from '../types'
 import type { PanelWidthController } from './width'
 import { createHooks } from 'dsh-tauri/client'
 import { ConversationSeat } from '../components/conversation-seat'
-import { PANEL_VIEW_SEAT_TARGETS } from '../constants'
+import { PANEL_MAIN_SLOT, PANEL_VIEW_SEAT_TARGETS } from '../constants'
 import { setSidebarPanelActive, shouldClosePanelForSidebarTarget } from '../dom/panel'
 import { NS } from '../locales'
 import { panelViewStore } from '../store'
+import { selectMainPanel, supportsOfficialPanels } from '../utils/official-panels'
 import { createPanelWidthController } from './width'
 
 /** 会话区替换控制器的对外形状（panel.protocol 的机制侧）。 */
@@ -63,6 +70,10 @@ export function createPanelConversationController(): PanelConversationController
   let seatDisposers: Array<() => void> = []
   let currentSpec: PanelContentSpec | undefined
   let onPointerDownCapture: ((event: PointerEvent) => void) | undefined
+  /** 本次替换走的是官方 `main` 路径（close 需要据此归还选中态）。 */
+  let viaOfficialPanel = false
+  /** 官方路径的 close() 需要 ctx；open() 与 close() 由同一宿主插件调用，缓存安全。 */
+  let activeCtx: ClientContext | undefined
 
   /**
    * 渲染条目：spec 经渲染期快照传入（close() 置空后条目已注销，组件自然卸载）。
@@ -72,8 +83,8 @@ export function createPanelConversationController(): PanelConversationController
   }
 
   /**
-   * 打开会话区替换：对每个版本候选 inject 其槽位声明，并动态注册 priority -1
-   * 条目。核心只会声明其中一个槽——另一候选静默等待（见 PANEL_VIEW_SEAT_TARGETS）。
+   * 打开面板内容：官方核心走 `main` + selectPanel（与全局面板同一选中态），
+   * 旧核心走 `conversation` 单槽 / `main` 的 `conversation` cell 双候选 shadow。
    */
   function open(ctx: ClientContext, spec: PanelContentSpec): void {
     if (currentSpec && currentSpec.id === spec.id)
@@ -81,26 +92,45 @@ export function createPanelConversationController(): PanelConversationController
     if (seatDisposers.length > 0)
       close()
     currentSpec = spec
+    activeCtx = ctx
     panelViewStore.set({ id: spec.id })
     const locale = spec.locale ?? NS
-    seatDisposers = PANEL_VIEW_SEAT_TARGETS.map(target =>
-      ctx.slots.inject(target.slot as never, () =>
-        ctx.slots.register(seatRegistrationOptions(target, locale) as never, renderSeat)))
-    onPointerDownCapture = (event: PointerEvent): void => {
-      if (shouldClosePanelForSidebarTarget(event.target instanceof Element ? event.target : null))
-        close()
+
+    if (supportsOfficialPanels(ctx)) {
+      viaOfficialPanel = true
+      seatDisposers = [
+        ctx.slots.inject(PANEL_MAIN_SLOT as never, () =>
+          ctx.slots.register({ key: spec.id, locale, name: PANEL_MAIN_SLOT } as never, renderSeat)),
+      ]
+      selectMainPanel(ctx, spec.id)
     }
-    document.addEventListener('pointerdown', onPointerDownCapture, true)
+    else {
+      viaOfficialPanel = false
+      seatDisposers = PANEL_VIEW_SEAT_TARGETS.map(target =>
+        ctx.slots.inject(target.slot as never, () =>
+          ctx.slots.register(seatRegistrationOptions(target, locale) as never, renderSeat)))
+      onPointerDownCapture = (event: PointerEvent): void => {
+        if (shouldClosePanelForSidebarTarget(event.target instanceof Element ? event.target : null))
+          close()
+      }
+      document.addEventListener('pointerdown', onPointerDownCapture, true)
+    }
     setSidebarPanelActive(true)
     void hooks.callHook('view:open', spec)
   }
 
-  /** 关闭会话区替换：dispose 全部 inject 句柄 → 注销条目 → 官方会话恢复。 */
+  /** 关闭面板内容：官方路径归还选中态到会话，旧核心 dispose 条目 → 官方会话恢复。 */
   function close(): void {
+    // 官方路径先归还选中态，再注销条目——否则布局会先因条目消失而重置选中态，
+    // 两步结果相同，但显式归还让「谁改的状态」始终可读。
+    if (viaOfficialPanel && activeCtx !== undefined)
+      activeCtx.layout.selectPanel?.(null)
+    viaOfficialPanel = false
     for (const dispose of seatDisposers)
       dispose()
     seatDisposers = []
     currentSpec = undefined
+    activeCtx = undefined
     panelViewStore.set(null)
     if (onPointerDownCapture) {
       document.removeEventListener('pointerdown', onPointerDownCapture, true)

@@ -22,7 +22,7 @@
 
 相对上游 commit `3412f8d` 的具体逻辑变更：
 
-- 呈现层从设置页 section 改为侧栏“扩展”面板条目：通过 `sidebar.panel.action` 槽与 `panel.protocol`（含新增的 `closePanelContent` 关闭 API）接入，内容渲染在会话内容区替换视图；协议调用按宿主可选能力约定一律 `?.()` 探测（老版本协议对象缺失时自然 no-op），契约见 [`dsh-tauri-panel/PROTOCOL.md`](../dsh-tauri-panel/PROTOCOL.md)。
+- 呈现层从设置页 section 改为侧栏“扩展”面板条目：经 `panel.protocol.registerPanel` 一次性注册（宿主按核心版本代注册官方 `sidebar.panellist` + `main` 全局面板，旧核心回退 `sidebar.panel.action` 槽 + 会话内容区替换视图）；「通过 Chat 创建」等跳转动作沿用 `closePanelContent`（含归还官方全局面板选中态），协议调用按宿主可选能力约定一律 `?.()` 探测（老版本协议对象缺失时自然 no-op），契约见 [`dsh-tauri-panel/PROTOCOL.md`](../dsh-tauri-panel/PROTOCOL.md)。
 - 移除“技能与 MCP”标题与市场（Market）模块，仅保留“技能”“MCP”两个标签页。
 - “新建技能”不再于面板内弹窗创建，改为：关闭扩展面板 → 打开当前工作区的空白会话 → 预填 `/skill-creator `（不自动提交），将创建流程交给 [`skill-creator`](./skills/skill-creator/SKILL.md) 技能承载。
 - 技能仓库 UI 从上游完整的仓库管理区（本地/GitHub roots 添加移除、来源分组展示）收敛为“导入仓库”按钮 + 对话框；导入的仓库技能排序优先，并展示可点击的 GitHub 图标链接（仓库地址由宿主端从注册的 root 派生，客户端不持有）。

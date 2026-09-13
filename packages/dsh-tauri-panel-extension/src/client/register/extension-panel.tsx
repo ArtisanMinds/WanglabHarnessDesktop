@@ -1,30 +1,32 @@
 /**
- * register/extension-panel.ts — 扩展面板的 slot 注册（sidebar.panel.action）。
+ * register/extension-panel.tsx — 扩展面板的 slot 注册。
  *
- * 注册逻辑与组件分离：这里只负责「等 panel.protocol 就绪 → 注册 ActionItem /
- * 内容替换视图」，含 50ms 重试等待。UI 在 components/extension-panel.tsx。
+ * 走 **官方全局面板协议**（0.1.5-rc.1 起）：`panel.protocol.registerPanel` 由宿主
+ * 代注册 `sidebar.panellist`（入口行）+ `main`（内容），选中态由官方
+ * `ctx.layout.selectPanel` 统一派发。旧核心宿主内部回退到私有槽 + 会话区替换。
+ * 完整契约见 dsh-tauri-panel/PROTOCOL.md。
+ *
+ * 注册逻辑与组件分离：这里只负责「等宿主协议就绪 → 一次性注册」，含 50ms 重试等待。
+ * UI 在 components/extension-panel.tsx。
  */
 
-import type { ClientContext } from 'dsh-tauri/client'
 import type { ReactElement } from 'react'
-import type { ExtensionRuntimeContext, PanelProtocol, Translate } from '../types'
+import type { ExtensionClientContext, ExtensionRuntimeContext, PanelProtocol, Translate } from '../types'
 import { Icon, Puzzle } from 'dsh-tauri-ui/client'
 import { compat } from 'dsh-tauri/client'
 import { ExtensionPanel } from '../components/extension-panel'
 import { pendingPrefills } from '../config'
 import {
   LOCALE_NAMESPACE,
-  PANEL_ACTION_ID,
   PANEL_ACTION_ORDER,
-  PANEL_ACTION_PRIORITY,
   PANEL_ID,
   PANEL_PROTOCOL_NAME,
   PANEL_SLOT_NAME,
-  PLUGIN_ID,
+  PROTOCOL_RETRY_MS,
 } from '../constants'
 import { chooseWorkspace } from '../utils/workspace'
 
-export function registerExtensionPanel(ctx: ClientContext, t: Translate): void {
+export function registerExtensionPanel(ctx: ExtensionClientContext, t: Translate): void {
   ctx.slots.inject(PANEL_SLOT_NAME as never, () => {
     let registration: (() => void) | undefined
     let retryTimer: number | undefined
@@ -33,7 +35,7 @@ export function registerExtensionPanel(ctx: ClientContext, t: Translate): void {
       if (registration)
         return
       const protocol = ctx.reflect.get(PANEL_PROTOCOL_NAME) as PanelProtocol | undefined
-      if (!protocol)
+      if (typeof protocol?.registerPanel !== 'function')
         return
       const runtime = compat(ctx) as unknown as ExtensionRuntimeContext
       const createSkill = async (): Promise<void> => {
@@ -53,28 +55,14 @@ export function registerExtensionPanel(ctx: ClientContext, t: Translate): void {
           createSkill={createSkill}
         />
       )
-      const Action = (): ReactElement => (
-        <protocol.ActionItem
-          id={PANEL_ID}
-          icon={<Icon as={Puzzle} />}
-          onClick={() => protocol.renderPanelContent?.({
-            id: PANEL_ID,
-            render: Content,
-            locale: LOCALE_NAMESPACE,
-          })}
-        >
-          {t('extension')}
-        </protocol.ActionItem>
-      )
-      registration = ctx.slots.register({
-        name: PANEL_SLOT_NAME,
-        id: PANEL_ACTION_ID,
-        registrant: PLUGIN_ID,
+      registration = protocol.registerPanel({
+        id: PANEL_ID,
         order: PANEL_ACTION_ORDER,
-        priority: PANEL_ACTION_PRIORITY,
         locale: LOCALE_NAMESPACE,
-        inject: () => ({}),
-      } as never, Action)
+        label: () => t('extension'),
+        icon: <Icon as={Puzzle} />,
+        render: Content,
+      })
       if (retryTimer !== undefined) {
         window.clearInterval(retryTimer)
         retryTimer = undefined
@@ -83,7 +71,7 @@ export function registerExtensionPanel(ctx: ClientContext, t: Translate): void {
 
     attemptRegistration()
     if (!registration)
-      retryTimer = window.setInterval(attemptRegistration, 50)
+      retryTimer = window.setInterval(attemptRegistration, PROTOCOL_RETRY_MS)
     return () => {
       if (retryTimer !== undefined)
         window.clearInterval(retryTimer)

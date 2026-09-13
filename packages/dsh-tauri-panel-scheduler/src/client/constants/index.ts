@@ -7,11 +7,14 @@ export { SCHEDULER_API_PREFIX as API_PREFIX, SCHEDULER_PLUGIN_NAME as PLUGIN_ID 
 export const LOCALE_NAMESPACE = SCHEDULER_PLUGIN_NAME
 
 export const PANEL_PROTOCOL_NAME = 'panel.protocol'
+/**
+ * 宿主私有面板槽：本插件只用它作为「宿主已 apply」的就绪门槛
+ * （实际注册经 panel.protocol.registerPanel，槽名由宿主按核心版本决定）。
+ */
 export const PANEL_SLOT_NAME = 'sidebar.panel.action'
 export const PANEL_ID = 'dsh-tauri-panel-scheduler'
-export const PANEL_ACTION_ID = 'dsh-tauri-panel-scheduler.action'
+/** 面板条目在侧栏清单里的排序位。 */
 export const PANEL_ACTION_ORDER = 30
-export const PANEL_ACTION_PRIORITY = 0
 
 /** 「通过 Chat 创建」草稿预填桥：conversation.input.left 槽（照搬 dsh-automation）。 */
 export const CONVERSATION_INPUT_LEFT_SLOT = 'conversation.input.left'

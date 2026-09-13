@@ -22,17 +22,19 @@ import { PANEL_STYLE_ID } from './constants'
 import { registerPanelLocale } from './locales'
 import { registerPanelService } from './register/panel-service'
 import { registerSidebarRoot } from './register/sidebar'
+import { createPanelList } from './service/panel-list'
 import panelIndexStyle from './styles/index.cssr'
 
 export { PANEL_PROTOCOL_SERVICE } from './constants'
-export type { PanelActionItemProps, PanelContentSpec, SidebarRootProps } from './types'
+export type { PanelActionItemProps, PanelContentSpec, PanelListEntry, PanelRegistration, SidebarRootProps } from './types'
 export type { IconProps } from 'dsh-tauri-ui/client'
 
 /** 插件显示名（诊断元数据）。 */
 export const name = 'dsh-tauri-panel'
 
 /**
- * 需要的客户端服务：slots（注册点位）、layout（折叠/宽度）、locale（双语文案）。
+ * 需要的客户端服务：slots（注册点位）、layout（折叠/宽度/全局面板选中）、
+ * locale（双语文案）。
  *
  * `workspaces` 不能列为强制注入：Alpha 将会话导航放在 `uiWorkspace`，而
  * rc.2 才把 `startSession` 暴露在 `workspaces` 上。运行时差异由 compat(ctx)
@@ -50,7 +52,9 @@ export function apply(ctx: ClientContext): void {
     'dsh-tauri-panel: styles',
   )
   registerPanelLocale(ctx)
-  // 面板协议宿主服务（panel.protocol：ActionItem + renderPanelContent）：
+  // 官方全局面板（sidebar.panellist）的行投影：克隆侧栏的入口清单数据源。
+  const panelList = createPanelList(ctx)
+  // 面板协议宿主服务（panel.protocol：ActionItem + registerPanel + 内容区替换）：
   // 只走 slots runtime，不依赖 renderer 补丁——无补丁时内容区替换仍可用。
   registerPanelService(ctx)
 
@@ -63,5 +67,5 @@ export function apply(ctx: ClientContext): void {
     return
   }
 
-  registerSidebarRoot(ctx)
+  registerSidebarRoot(ctx, panelList)
 }

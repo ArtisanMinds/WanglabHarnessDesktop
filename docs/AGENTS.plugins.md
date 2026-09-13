@@ -264,6 +264,15 @@ ctx.slots.register(
 - 不得依赖生成的 CSS module hash；优先使用稳定 slot、ARIA 属性和插件前缀 class。
 - 跨插件协议的 class、slot、service key 修改时必须同步更新所有消费者和文档。
 - renderer 补丁追加的导出（如 `@deepseek-ai/dsh-client-ui-renderer` 的 `SlotOutlet`）由仓库根 `types/slot-outlet.d.ts` 提供 ambient 类型；消费方必须先 `typeof SlotOutlet === 'function'` 探测再使用。
+- **核心版本相关的槽位差异收敛在宿主，不散落到消费插件**：官方面板入口协议随核心演进
+  （≤`0.1.2-rc.1` 的 `conversation`/`details` 单槽 → `0.1.5-rc.1` 的 `main` keyed 槽 →
+  `0.1.5-rc.1` 的 `sidebar.panellist` + `main` 全局面板）。面板类插件一律经
+  `panel.protocol.registerPanel` 注册，由 `dsh-tauri-panel` 按 `ctx.layout.selectPanel`
+  等能力探测择路；消费插件不得自己写死槽名或断言核心版本。契约见
+  `packages/dsh-tauri-panel/PROTOCOL.md`。
+- **投影官方槽位时比较结构而非引用**：`ctx.slots.entriesOfSlot()` 每次返回新数组，写入
+  `useSyncExternalStore` 的 store 前必须做内容比较（否则快照每帧变化）。参考
+  `packages/dsh-tauri-panel/src/client/service/panel-list.ts`。
 
 ## 宿主侧规则
 

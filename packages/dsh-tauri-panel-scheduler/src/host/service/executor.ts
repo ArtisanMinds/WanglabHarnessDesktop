@@ -150,6 +150,35 @@ export function applyUnattendedPermission(
   setApprovalPolicy(session, 'never')
 }
 
+/**
+ * setup 回调可拿到的目标 Agent 的最小面（本插件只用到 session 来应用权限预设）。
+ *
+ * DSH 0.1.5-rc.1 起，Agent 由宿主作为 setup 的**第二参数**显式传入；0.1.2 及更早版本
+ * 只把 Agent 挂在 setup 拿到的 agentCtx 上。
+ */
+export interface SetupAgentLike {
+  readonly session: unknown
+}
+
+/**
+ * 跨宿主版本解析 setup 回调拿到的目标 Agent。
+ *
+ * 为什么不能直接读 `agentCtx.agent`：`ctx.agent` 是 dsh-agent 在 0.1.2 注册的 DX accessor
+ * （`ctx.accessor('agent', { get: () => undefined })`）；0.1.5-rc.1 移除了该注册，于是读取
+ * `agentCtx.agent` 不再得到 undefined，而是被 Cordis 上下文代理抛出
+ * `cannot get property "agent" without inject`（@deepseek-ai/cordis/lib/index.js），
+ * 使执行在 setup 阶段整体失败——立即执行与定时触发都经这里，所以两者同时失效。
+ *
+ * 优先取宿主显式传入的 createdAgent：`??` 短路保证新宿主上绝不触碰 agentCtx.agent；
+ * 只有旧宿主才回落到上下文入口（对齐 MichengAI/dsh-automation c426c3d 的写法）。
+ */
+export function resolveSetupAgent(
+  agentCtx: unknown,
+  createdAgent?: SetupAgentLike,
+): SetupAgentLike | undefined {
+  return createdAgent ?? (agentCtx as { agent?: SetupAgentLike } | undefined)?.agent
+}
+
 /** 从会话事件中提取 assistant 文本与 turn 结束原因（对齐 MichengAI summarizeRun）。 */
 export function summarizeRun(events: readonly SessionEventLike[], firstSeq: number): {
   readonly text: string
@@ -267,10 +296,11 @@ export async function executeTask(
         sessionId,
         meta: { cwd, agentPreset },
         agentOptions: selection ? { provider: selection.provider, model: selection.model } : {},
-        setup: async (agentCtx: any) => {
+        setup: async (agentCtx: any, createdAgent?: SetupAgentLike) => {
           await (ctx.agentPresets as { mount?: (agentCtx: unknown, presetId: string) => Promise<unknown> } | undefined)?.mount?.(agentCtx, agentPreset)
           runtime.installModelSelection(agentCtx, { current: selection, assembled: undefined })
-          const agent = agentCtx.agent
+          // 0.1.5-rc.1 起 Agent 由宿主作为 setup 第二参数传入；旧宿主才从 agentCtx 读取。
+          const agent = resolveSetupAgent(agentCtx, createdAgent)
           if (!agent)
             throw new Error('scheduler setup has no scoped Agent')
           applyUnattendedPermission(

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadSchedulerRuntimeModules, unattendedToolGuardReason } from './executor'
+import { loadSchedulerRuntimeModules, resolveSetupAgent, unattendedToolGuardReason } from './executor'
 
 describe('loadSchedulerRuntimeModules', () => {
   it('resolves DSH-owned modules through the platform loader', async () => {
@@ -43,6 +43,31 @@ describe('loadSchedulerRuntimeModules', () => {
 
     expect(runtime).toEqual({ installModelSelection, createUserMessage, setApprovalPolicy })
     expect(loader.unwrapExports).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveSetupAgent', () => {
+  it('prefers the Agent the 0.1.5+ host passes as the setup second parameter', () => {
+    const session = { id: 'task-1' }
+    // 0.1.5-rc.1 移除了 `ctx.agent` accessor：读该属性会被 Cordis 上下文代理抛出。
+    const agentCtx = {
+      get agent(): never {
+        throw new Error('cannot get property "agent" without inject')
+      },
+    }
+
+    expect(resolveSetupAgent(agentCtx, { session })).toEqual({ session })
+  })
+
+  it('falls back to the context entry on hosts that predate the explicit Agent parameter', () => {
+    const session = { id: 'task-1' }
+
+    expect(resolveSetupAgent({ agent: { session } })).toEqual({ session })
+  })
+
+  it('returns undefined when neither the parameter nor the context entry carries an Agent', () => {
+    expect(resolveSetupAgent(undefined)).toBeUndefined()
+    expect(resolveSetupAgent({})).toBeUndefined()
   })
 })
 
