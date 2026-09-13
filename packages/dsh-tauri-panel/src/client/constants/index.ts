@@ -5,6 +5,31 @@ export { PANEL_CONTENT_ADAPTIVE_MAX, PANEL_CONTENT_ADAPTIVE_MIN, PANEL_CONTENT_D
 
 export const PANEL_PROTOCOL_SERVICE = 'panel.protocol'
 /**
+ * 私有面板区槽（本插件声明，非官方）：新会话项下方、workspace 浏览器上方。
+ * `list` / `root`，条目用 `panel.protocol.ActionItem` 组装。
+ *
+ * 0.1.5-rc.1 起官方提供了等价且更完整的 `sidebar.panellist`，本槽降级为
+ * **兼容/私有协议**：旧核心主机、以及直接调 `ActionItem` 的存量第三方插件继续可用。
+ */
+export const PANEL_ACTION_SLOT = 'sidebar.panel.action'
+/**
+ * 官方「全局面板」清单槽（≥0.1.5-rc.1）：`list` / `root`。
+ *
+ * 由官方 `ui-sidebar` 条目声明——本插件以 priority -1 shadow 了该条目，但
+ * children 声明仍然有效（与 `sidebar.workspaces` / `sidebar.settings` 同表同语义），
+ * 因此条目可正常注册，需要**本插件的克隆侧栏负责渲染**，否则有注册无入口。
+ * 每个 list id 对应 `main` keyed 槽里同 key 的面板。
+ */
+export const PANEL_LIST_SLOT = 'sidebar.panellist'
+/**
+ * ≥0.1.5-rc.1 的核心承载槽（`keyed` / `root`）：`ctx.layout.selectPanel(id)` 按
+ * key 派发。官方会话占 `conversation` cell，全局面板各占自己的 id key。
+ */
+export const PANEL_MAIN_SLOT = 'main'
+/** 全局面板行图标的边长（wide / 折叠 rail），对齐官方 PanelRow 的取值。 */
+export const PANEL_LIST_ICON_SIZE_WIDE = 16
+export const PANEL_LIST_ICON_SIZE_RAIL = 18
+/**
  * ≤ 0.1.2-rc.1 核心的会话区槽：布局直接 `renderSlot('conversation')`，官方
  * ui-conversation 是唯一注册者，桌面端以 priority -1 动态注册 shadow 它。
  */
@@ -50,6 +75,7 @@ export const PANEL_DATA_ATTRIBUTES = {
   sidebar: 'data-dshp-panel-sidebar',
   active: 'data-dshp-panel-active',
   action: 'data-dshp-panel-action',
+  panelRow: 'data-dshp-panel-row',
   view: 'data-dshp-panel-view',
   widthHandle: 'data-width-handle',
 } as const

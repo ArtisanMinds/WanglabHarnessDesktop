@@ -102,6 +102,18 @@ export default b('panel', {
     paddingLeft: '4px',
     paddingRight: 'calc(var(--dsh-session-list-edge-inset) - var(--dsh-session-list-scrollbar-width) - var(--dsh-session-list-scrollbar-offset))',
   }),
+  // 官方全局面板清单（sidebar.panellist，0.1.5-rc.1）：行本体复用 .dshp-panel__menu-item
+  // （与私有协议条目同一份视觉），这里只负责把清单本身排成与 panel-area 同节奏的列，
+  // 保证「新会话 → 官方全局面板 → 私有功能项」间距一致。
+  e('panel-list', {
+    flex: 'none',
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: '2px',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+  }),
   // 新会话按钮是独立控件，不再挂 .dshp-panel__menu-item（那是面板区第三方功能项
   // 的行样式，51c0195 拆分样式后 action-item.cssr 后挂载，同特异性下会把本块的
   // 白底/圆角/描边全部覆盖成透明菜单行）。这里自给自足地镜像官方 ui-sidebar 的

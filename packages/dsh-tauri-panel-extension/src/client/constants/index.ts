@@ -4,12 +4,17 @@ export { API_PREFIX, PLUGIN_NAME as PLUGIN_ID } from '../../shared/constants'
 
 export const LOCALE_NAMESPACE = PLUGIN_NAME
 export const PANEL_PROTOCOL_NAME = 'panel.protocol'
+/**
+ * 宿主私有面板槽：本插件只用它作为「宿主已 apply」的就绪门槛
+ * （实际注册经 panel.protocol.registerPanel，槽名由宿主按核心版本决定）。
+ */
 export const PANEL_SLOT_NAME = 'sidebar.panel.action'
 export const CONVERSATION_INPUT_LEFT_SLOT = 'conversation.input.left'
 export const PANEL_ID = 'dsh-tauri-panel-extension'
-export const PANEL_ACTION_ID = 'dsh-tauri-panel-extension.action'
+/** 面板条目在侧栏清单里的排序位。 */
 export const PANEL_ACTION_ORDER = 40
-export const PANEL_ACTION_PRIORITY = 0
+/** 宿主协议未就绪时的重试间隔。 */
+export const PROTOCOL_RETRY_MS = 50
 export const INPUT_PREFILL_ID = 'dsh-tauri-panel-extension.skill-prefill'
 export const INPUT_PREFILL_ORDER = 40
 export const INPUT_PREFILL_PRIORITY = 0

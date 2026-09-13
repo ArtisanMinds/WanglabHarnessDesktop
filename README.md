@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <samp><a href="./README.en.md">English</a> · <a href="https://dshtauri.mintlifysite.com">文档</a> · <strong>中文</strong></samp>
+  <samp><a href="./README.en.md">English</a> · <a href="./README.es.md">Español</a> · <a href="https://dshtauri.mintlify.site">文档</a> · <strong>中文</strong></samp>
 </p>
 
 <p align="center">
@@ -32,17 +32,10 @@
 
 
 <p align="center">
-  <img src="./docs/images/hero-zh.png" width="100%" alt="DSH Desktop 中文宣传横幅" />
+  <a href="docs/PREVIEW.md">
+    <img src="./docs/images/hero-zh.png" width="100%" alt="DSH Desktop 中文宣传横幅" />
+  </a>
 </p>
-
-<table>
-  <tr>
-    <td><a href="docs/PREVIEW.md"><img src="./docs/images/previews/preview-1.png" alt="preview 1" /></a></td>
-    <td><a href="docs/PREVIEW.md"><img src="/docs/images/previews/preview-2.png" alt="preview 2" /></a></td>
-    <td><a href="docs/PREVIEW.md"><img src="/docs/images/previews/preview-4.png" alt="preview 4" /></a></td>
-    <td><a href="docs/PREVIEW.md"><img src="/docs/images/previews/preview-5.png" alt="preview 5" /></a></td>
-  </tr>
-</table>
 
 - 🧩 **插件管理** — 插件面板管理已安装插件，出现异常时提供升级 / 卸载入口，错误详情。
 - 🎁 **内置插件** — 随安装包内置插件，以及将来引入更多高质量的内置插件。
@@ -56,14 +49,10 @@
 
 首次启动引导中提供的插件，按需勾选安装：
 
-- [DSH Win Terminal Inspector](https://github.com/clearkurt/dsh-win-terminal-inspector) — Windows 极简模式修复
 - [DSH Market](https://github.com/dsh-market/dsh-market) — 浏览、搜索并一键安装社区插件（推荐）
 - [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — 类 VSCode 右侧栏，按会话隔离（推荐）
-- [DSH Notification](https://github.com/omdsh-dev/dsh-notification) — 回合完成时的桌面通知
 
 > 预设插件清单由桌面端维护。为避免不稳定的预设插件导致软件异常，如需新增或更新预设，请在 [deepseek-harness-desktop/issues](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/issues) 提起请求。
->
-> 当前清单还包含 [DSH Session Context Menu](https://github.com/baihejiangnan/dsh-session-context-menu)，用于会话、工作区、输入框和链接的右键操作。
 
 ## 内置插件
 
@@ -158,7 +147,30 @@ Harness 发行版由 [deepseek-harness-pkg](https://github.com/dsh-tauri-desk/de
 
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) — 上游 `dsh` agent 平台
 - [deepseek-harness-pkg](https://github.com/dsh-tauri-desk/deepseek-harness-pkg) — 预打包 Harness 发行版（本应用下载源）
+- [dsh-tauri-plugins](https://github.com/dsh-tauri-desk/dsh-tauri-plugins) — 部分内置插件包的开发源仓库
 - [n8n-desktop](https://github.com/tangtao646/n8n-desktop) — 参考实现
+
+### 插件数据源
+
+插件在运行时直接引用的远端素材与上游清单：
+
+- [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) — 预设桌宠素材（WebM 动作、预览 GIF、`config.jsonc`），`preset-pets.json` 固定到 `e1ff8c1`
+- [dsh-tauri-desk/dsh-pet-mov](https://github.com/dsh-tauri-desk/dsh-pet-mov) — macOS HEVC-alpha `.mov` 镜像（WKWebView 不认 VP9-alpha），固定到 `be0f3bb`
+- [hairyf/dsh-pet-component](https://github.com/hairyf/dsh-pet-component) — 桌宠渲染组件（npm `dsh-pet-component`）
+- [qinyre/dsh-plugin-capabilities](https://github.com/qinyre/dsh-plugin-capabilities) — Skills / MCP 管理上游，固定到 `3412f8d`
+- [anthropics/skills](https://github.com/anthropics/skills) / [vercel-labs/skills](https://github.com/vercel-labs/skills) — 随插件包内置的 `skill-creator` / `find-skills` 来源
+
+### 插件子仓库
+
+`source/` 下按插件需要克隆的参考仓库，多数不随本仓库提交：
+
+- [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) — 桌宠动作权重、连续播放与气泡样式（子模块）
+- [Skylarking/dsh-plugin-codex-pets](https://github.com/Skylarking/dsh-plugin-codex-pets) — Codex 宠物图集与会话状态映射（子模块）
+- [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat) — Tauri 桌宠窗口、原生拖动、DPI 与鼠标穿透基准（子模块）
+- [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu) — 桌宠气泡文案与状态优先级参考（子模块）
+- [Signalight/codex-to-dsh-pet](https://github.com/Signalight/codex-to-dsh-pet) — Codex v2 图集、动作优先级与会话状态映射
+- [Anionex/dsh-turn-rewind](https://github.com/Anionex/dsh-turn-rewind) / [Willmylife/dsh-rewind](https://github.com/Willmylife/dsh-rewind) — 回合快照、冲突分类与撤销参考
+- [a179-sanae/dsh-auto-collapse](https://github.com/a179-sanae/dsh-auto-collapse) / [Laplace-bit/dsh-smooth-stream](https://github.com/Laplace-bit/dsh-smooth-stream) — 可选能力探测与跨内核兼容参考
 
 ## License
 

@@ -32,3 +32,21 @@ describe('sidebar.cssr new-session（回归：白底 + 圆角的官方按钮形�
     expect(sidebarCss).toMatch(/\.dshp-panel\.dshp-panel--collapsed \.dshp-panel__new-session\s*\{[^}]*width: 36px[^}]*\}/)
   })
 })
+
+describe('sidebar.cssr panel-list（官方全局面板清单容器）', () => {
+  const sidebarCss = sidebarStyle.render()
+
+  it('清单自身排成与 panel-area 同节奏的列，行样式交给 .dshp-panel__menu-item', () => {
+    const rule = /\.dshp-panel \.dshp-panel__panel-list\s*\{[^}]*\}/
+    const body = sidebarCss.match(rule)?.[0] ?? ''
+    expect(body).toContain('display: flex')
+    expect(body).toContain('flex-direction: column')
+    expect(body).toContain('gap: 2px')
+  })
+
+  it('折叠态经后代选择器覆盖清单内的行（与私有协议条目同一份样式）', () => {
+    expect(sidebarCss).toMatch(
+      /\.dshp-panel\.dshp-panel--collapsed \.dshp-panel__menu-item\s*\{[^}]*width: 36px[^}]*\}/,
+    )
+  })
+})

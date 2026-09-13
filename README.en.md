@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <samp><strong>English</strong> · <a href="https://dshtauri.mintlifysite.com">Docs</a> · <a href="./README.md">中文</a></samp>
+  <samp><strong>English</strong> · <a href="./README.es.md">Español</a> · <a href="https://dshtauri.mintlify.site">Docs</a> · <a href="./README.md">中文</a></samp>
 </p>
 
 <p align="center">
@@ -31,17 +31,10 @@
 </p>
 
 <p align="center">
-  <img src="./docs/images/hero-en.png" width="100%" alt="DSH Desktop English promotional banner" />
+  <a href="docs/PREVIEW.md">
+    <img src="./docs/images/hero-en.png" width="100%" alt="DSH Desktop English promotional banner" />
+  </a>
 </p>
-
-<table>
-  <tr>
-    <td><a href="docs/PREVIEW.md"><img src="./docs/images/previews/preview-1.png" alt="preview 1" /></a></td>
-    <td><a href="docs/PREVIEW.md"><img src="/docs/images/previews/preview-2.png" alt="preview 2" /></a></td>
-    <td><a href="docs/PREVIEW.md"><img src="/docs/images/previews/preview-4.png" alt="preview 4" /></a></td>
-    <td><a href="docs/PREVIEW.md"><img src="/docs/images/previews/preview-5.png" alt="preview 5" /></a></td>
-  </tr>
-</table>
 
 ## Features
 
@@ -61,14 +54,10 @@
 
 Plugins offered in the first-run wizard; select what you need and install on demand:
 
-- [DSH Win Terminal Inspector](https://github.com/clearkurt/dsh-win-terminal-inspector) — Windows-only fix for Minimal mode
 - [DSH Market](https://github.com/dsh-market/dsh-market) — browse, search, and one-click install community plugins (Recommended)
 - [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — a VSCode-like right sidebar, isolated per session (Recommended)
-- [DSH Notification](https://github.com/omdsh-dev/dsh-notification) — desktop notifications when a turn completes
 
 > The preset list is maintained by the desktop project. To request a new or updated preset, open an issue in [deepseek-harness-desktop](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/issues).
->
-> The current list also includes [DSH Session Context Menu](https://github.com/baihejiangnan/dsh-session-context-menu) for context actions on conversations, workspaces, inputs, and links.
 
 ## Built-in plugins
 
@@ -161,7 +150,30 @@ The prebuilt Harness bundle is published by [deepseek-harness-pkg](https://githu
 
 - [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) — the upstream `dsh` agent platform
 - [deepseek-harness-pkg](https://github.com/dsh-tauri-desk/deepseek-harness-pkg) — prebuilt Harness bundles consumed by this app
+- [dsh-tauri-plugins](https://github.com/dsh-tauri-desk/dsh-tauri-plugins) — development repository for some bundled plugin packages
 - [n8n-desktop](https://github.com/tangtao646/n8n-desktop) — reference implementation
+
+### Plugin data sources
+
+Remote assets and upstream catalogs that plugins reference at runtime:
+
+- [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) — preset pet media (WebM motions, preview GIFs, `config.jsonc`); `preset-pets.json` pins `e1ff8c1`
+- [dsh-tauri-desk/dsh-pet-mov](https://github.com/dsh-tauri-desk/dsh-pet-mov) — macOS HEVC-alpha `.mov` mirror (WKWebView does not support VP9-alpha), pinned to `be0f3bb`
+- [hairyf/dsh-pet-component](https://github.com/hairyf/dsh-pet-component) — pet rendering component (npm `dsh-pet-component`)
+- [qinyre/dsh-plugin-capabilities](https://github.com/qinyre/dsh-plugin-capabilities) — upstream of the Skills / MCP manager, pinned to `3412f8d`
+- [anthropics/skills](https://github.com/anthropics/skills) / [vercel-labs/skills](https://github.com/vercel-labs/skills) — source of the packaged `skill-creator` / `find-skills`
+
+### Plugin sub-repositories
+
+Reference repositories cloned under `source/` as plugins need them; most are not committed to this repository:
+
+- [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) — pet motion weights, continuous playback and bubble styling (submodule)
+- [Skylarking/dsh-plugin-codex-pets](https://github.com/Skylarking/dsh-plugin-codex-pets) — Codex pet atlases and session state mapping (submodule)
+- [ayangweb/BongoCat](https://github.com/ayangweb/BongoCat) — baseline for Tauri pet window, native dragging, DPI and mouse passthrough (submodule)
+- [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu) — pet bubble copy and status priority reference (submodule)
+- [Signalight/codex-to-dsh-pet](https://github.com/Signalight/codex-to-dsh-pet) — Codex v2 atlases, motion priority and session state mapping
+- [Anionex/dsh-turn-rewind](https://github.com/Anionex/dsh-turn-rewind) / [Willmylife/dsh-rewind](https://github.com/Willmylife/dsh-rewind) — turn snapshots, conflict classification and undo reference
+- [a179-sanae/dsh-auto-collapse](https://github.com/a179-sanae/dsh-auto-collapse) / [Laplace-bit/dsh-smooth-stream](https://github.com/Laplace-bit/dsh-smooth-stream) — optional-capability probing and cross-core compatibility reference
 
 ## License
 
