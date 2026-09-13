@@ -4,6 +4,7 @@ Syncs DeepSeek Harness Desktop **v0.14.1**, including the v0.14.0 changes, and r
 
 - Uses the official global panel protocol for extensions and scheduled tasks, including shared selection state and returning to conversations.
 - Fixes scheduled task setup with the Agent argument supplied by Core 0.1.5.
+- Keeps scheduled-task search and creation controls separate in narrow windows.
 - Fixes duplicate insertion when pasting through the right-click menu.
 - Uses cursor position polling for pets on Windows to avoid the keyboard hook interfering with IME input.
 - Removes the obsolete Session Context Menu preset and includes the upstream Linux AppImage installer handling.
