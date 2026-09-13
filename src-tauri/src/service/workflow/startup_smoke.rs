@@ -130,6 +130,46 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     exercise_session_upgrade(app, "restart").await?;
     stop(app.clone()).await?;
     exercise_frontend_upgrade(app).await?;
+    stop(app.clone()).await?;
+    exercise_mixed_core_record(app).await?;
+    Ok(())
+}
+
+/// 复现 0.4.1 用户的新文件、新提交、旧标签，确认修复无需下载且真实主窗口可启动。
+async fn exercise_mixed_core_record(app: &tauri::AppHandle) -> Result<(), String> {
+    core::require_paired_core(app)?;
+    let marker = config::get_dsh_install_path(app).join("record-repair-preserved.txt");
+    fs::write(&marker, "keep installed Core files").map_err(|e| e.to_string())?;
+    let settings_before = config::get_store_dat_setting(app);
+    config::update_store_dat_setting(app, |setting| {
+        setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab032".to_string());
+    });
+    if core::paired_core_ready(app)
+        || core::active_version(app).as_deref() != Some(config::WANGLAB_DSH_VERSION)
+    {
+        return Err("SMOKE_MIXED_RECORD_NOT_REPRODUCED".to_string());
+    }
+    let mut latest = download::fetch_latest_dsh_pkg_info().await?;
+    latest.asset_url = "http://127.0.0.1:0/must-not-download.zip".to_string();
+    if super::install(app, Some(latest)).await? {
+        return Err("SMOKE_RECORD_REPAIR_REINSTALLED_CORE".to_string());
+    }
+    core::require_paired_core(app)?;
+    if config::get_store_dat_setting(app) != settings_before {
+        return Err("SMOKE_RECORD_REPAIR_CHANGED_SETTINGS".to_string());
+    }
+    smoke_note("mixed Core record repaired without downloading or changing settings");
+
+    let previous = config::update_store_dat_setting(app, |setting| {
+        setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab032".to_string());
+    });
+    exercise_frontend_startup(app, previous).await?;
+    if fs::read_to_string(marker).map_err(|e| e.to_string())? != "keep installed Core files" {
+        return Err("SMOKE_RECORD_REPAIR_REPLACED_FILES".to_string());
+    }
+    smoke_note(
+        "real frontend repaired mixed Core records and preserved installed files and sessions",
+    );
     Ok(())
 }
 
@@ -155,7 +195,17 @@ async fn exercise_frontend_upgrade(app: &tauri::AppHandle) -> Result<(), String>
         setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab032".to_string());
         setting.dsh_pkg_commit = Some("90e7887e78256f577b945dc3a22a1926d59cf131".to_string());
     });
+    exercise_frontend_startup(app, previous).await
+}
+
+async fn exercise_frontend_startup(
+    app: &tauri::AppHandle,
+    previous: config::Setting,
+) -> Result<(), String> {
     bridge::skip_preinstall_plugins(app.clone()).await?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or("SMOKE_WINDOW_MISSING")?;
     let keeper = WebviewWindowBuilder::new(
         app,
         "upgrade-keepalive",
@@ -171,6 +221,7 @@ async fn exercise_frontend_upgrade(app: &tauri::AppHandle) -> Result<(), String>
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+    *app.state::<FrontendSmokeState>().0.lock().unwrap() = None;
     let window = crate::desktop::builder::build_main_window(app).map_err(|e| e.to_string())?;
     keeper.destroy().map_err(|e| e.to_string())?;
     smoke_note("real frontend opened with previous Core records");
@@ -237,7 +288,7 @@ async fn exercise_frontend_upgrade(app: &tauri::AppHandle) -> Result<(), String>
     }
     core::require_paired_core(app)?;
     exercise_session_upgrade(app, "restart").await?;
-    smoke_note("real frontend upgrade, settings persistence, and session readiness passed");
+    smoke_note("real frontend startup, settings persistence, and session readiness passed");
     Ok(())
 }
 

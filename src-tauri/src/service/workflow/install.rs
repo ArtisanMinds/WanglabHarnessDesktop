@@ -2,8 +2,7 @@
 //! 系统 Git 时再自动安装免安装 MinGit）。原 `workflow::install`。
 
 use crate::config;
-use crate::service::download;
-use crate::service::download::Installable;
+use crate::service::{core, download};
 use tauri::Manager;
 
 use super::process::{has_owned_process, stop, terminate_stale_harness_processes};
@@ -57,8 +56,7 @@ pub async fn install(
     // 必须在下载前解析 release 元数据：下载地址和摘要必须属于同一固定 tag。
     // 若先下载 latest、再因 API 限流从 Atom/HTML 解析 tag，latest 在两次请求间
     // 发生切换就会把另一份资产拿来匹配摘要，最终触发 INTEGRITY_CHECK_FAILED。
-    let dsh_missing = !download::Dsh.check_installed(app_handle);
-    if dsh_latest.is_none() && dsh_missing {
+    if dsh_latest.is_none() && !core::paired_core_ready(app_handle) {
         for attempt in 0..3 {
             let metadata = match config::recommended_dsh_version(app_handle) {
                 Some(version) => download::fetch_dsh_pkg_version(&version).await,
@@ -100,32 +98,28 @@ pub async fn install(
     for (index, task) in tasks.iter().enumerate() {
         let kind = task.kind();
         log::debug!("Processing task {}/{}", index + 1, tasks.len());
-        // 已安装但版本/commit 与最新 release 不一致时强制重新下载。
-        // 版本优先（与 resolve_update 的判定完全一致）：dsh 的 rc 发布会复用
-        // 同一 git commit（record_commit 不变），只比 commit 会把 rc.8 之于
-        // rc.7 误判为"已最新"而跳过下载——日志表现为"All installation tasks
-        // completed"但实际什么都没下载，重启后仍是旧版，且前端丢掉更新提示。
-        let outdated = kind == download::InstallKind::Dsh
-            && dsh_latest.as_ref().is_some_and(|info| {
-                let installed_version = config::get_dsh_version(app_handle);
-                let latest_version = download::parse_version_from_tag(&info.tag);
-                // 版本号可解析且不同 → 必须更新；版本不可解析时退回同一发布判定
-                let version_differs =
-                    match (installed_version.as_deref(), latest_version.as_deref()) {
-                        (Some(a), Some(b)) => a != b,
-                        _ => false,
-                    };
-                // 「同一发布」判定与 resolve_update 完全一致：记录 tag 与最新 tag
-                // 相同、或记录 commit 与 release 的任一合法标识（完整 SHA / build-id）
-                // 一致。限流期安装会把 build-id 写进记录，API 恢复后解析出的完整
-                // SHA 与之不等但仍是同一 release，不能据此误判为过期而重下。
-                version_differs
-                    || !download::record_matches_latest_release(
-                        config::get_dsh_pkg_commit(app_handle).as_deref(),
-                        config::get_dsh_pkg_tag(app_handle).as_deref(),
-                        info,
-                    )
-            });
+        let outdated = if kind == download::InstallKind::Dsh {
+            match core::paired_core_state(app_handle) {
+                core::PairedCoreState::Ready => false,
+                core::PairedCoreState::RepairTag => {
+                    // 0.4.0 可能留下新提交与旧标签；在目录锁内一次补正发行记录。
+                    log::info!(
+                        "Repairing stale Core tag: {:?} -> {} (installed version and commit verified)",
+                        config::get_dsh_pkg_tag(app_handle),
+                        config::WANGLAB_DSH_TAG
+                    );
+                    config::set_dsh_pkg_release(
+                        app_handle,
+                        config::WANGLAB_DSH_COMMIT.to_string(),
+                        config::WANGLAB_DSH_TAG.to_string(),
+                    );
+                    false
+                }
+                core::PairedCoreState::InstallRequired => true,
+            }
+        } else {
+            false
+        };
         if task.check_installed(app_handle) && !outdated {
             log::debug!(
                 "Task {} already installed and up to date, skipping",
@@ -226,6 +220,7 @@ pub async fn install(
         }
     }
 
+    core::require_paired_core(app_handle)?;
     log::info!("All installation tasks completed");
     tracker.update(
         100.0,

@@ -32,14 +32,45 @@ pub use source::{active_dsh_binary, active_source, active_version, CoreSource, H
 pub(crate) use version::prune_inactive;
 pub use version::{download_version, has_installed_version, list, remove_version, set_active};
 
-/// 内网安装与 Desktop 的固定发行版本和提交记录必须一致。
-pub(crate) fn paired_core_ready(app_handle: &tauri::AppHandle) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PairedCoreState {
+    Ready,
+    RepairTag,
+    InstallRequired,
+}
+
+/// 只有实际版本、入口和完整提交都吻合时，旧标签才可直接修复。
+fn classify_paired_core(
+    manifest_version: Option<&str>,
+    record_commit: Option<&str>,
+    record_tag: Option<&str>,
+    entry_exists: bool,
+) -> PairedCoreState {
+    if manifest_version != Some(crate::config::WANGLAB_DSH_VERSION)
+        || record_commit != Some(crate::config::WANGLAB_DSH_COMMIT)
+        || !entry_exists
+    {
+        PairedCoreState::InstallRequired
+    } else if record_tag != Some(crate::config::WANGLAB_DSH_TAG) {
+        PairedCoreState::RepairTag
+    } else {
+        PairedCoreState::Ready
+    }
+}
+
+/// 安装与启动共用同一配套判定，避免安装跳过后启动却拒绝放行。
+pub(crate) fn paired_core_state(app_handle: &tauri::AppHandle) -> PairedCoreState {
     let setting = crate::config::get_store_dat_setting(app_handle);
-    crate::config::get_dsh_version(app_handle).as_deref()
-        == Some(crate::config::WANGLAB_DSH_VERSION)
-        && setting.dsh_pkg_tag.as_deref() == Some(crate::config::WANGLAB_DSH_TAG)
-        && setting.dsh_pkg_commit.as_deref() == Some(crate::config::WANGLAB_DSH_COMMIT)
-        && crate::config::get_dsh_binary_path(app_handle).is_file()
+    classify_paired_core(
+        crate::config::get_dsh_version(app_handle).as_deref(),
+        setting.dsh_pkg_commit.as_deref(),
+        setting.dsh_pkg_tag.as_deref(),
+        crate::config::get_dsh_binary_path(app_handle).is_file(),
+    )
+}
+
+pub(crate) fn paired_core_ready(app_handle: &tauri::AppHandle) -> bool {
+    paired_core_state(app_handle) == PairedCoreState::Ready
 }
 
 /// 旧核心不得安装新版内置插件或进入启动流程。
@@ -59,5 +90,96 @@ pub(crate) fn require_paired_core(app_handle: &tauri::AppHandle) -> Result<(), S
             "CORE_INSTALL_REQUIRED: install the paired Core {} before starting Harness",
             crate::config::WANGLAB_DSH_VERSION
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{classify_paired_core, PairedCoreState};
+    use crate::config::{WANGLAB_DSH_COMMIT, WANGLAB_DSH_TAG, WANGLAB_DSH_VERSION};
+
+    #[test]
+    fn exact_pair_is_ready() {
+        assert_eq!(
+            classify_paired_core(
+                Some(WANGLAB_DSH_VERSION),
+                Some(WANGLAB_DSH_COMMIT),
+                Some(WANGLAB_DSH_TAG),
+                true,
+            ),
+            PairedCoreState::Ready
+        );
+    }
+
+    #[test]
+    fn installed_paired_commit_repairs_old_or_missing_tag() {
+        for tag in [Some("dsh-0.1.2-rc.1-wanglab032"), None, Some("")] {
+            assert_eq!(
+                classify_paired_core(
+                    Some(WANGLAB_DSH_VERSION),
+                    Some(WANGLAB_DSH_COMMIT),
+                    tag,
+                    true,
+                ),
+                PairedCoreState::RepairTag,
+                "tag={tag:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn matching_tag_cannot_hide_unknown_or_different_commit() {
+        for commit in [
+            None,
+            Some(""),
+            Some("90e7887e78256f577b945dc3a22a1926d59cf131"),
+            Some("wanglab040"),
+        ] {
+            assert_eq!(
+                classify_paired_core(
+                    Some(WANGLAB_DSH_VERSION),
+                    commit,
+                    Some(WANGLAB_DSH_TAG),
+                    true
+                ),
+                PairedCoreState::InstallRequired,
+                "commit={commit:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn matching_records_cannot_hide_wrong_or_missing_manifest() {
+        for version in [None, Some("0.1.2-rc.1"), Some("invalid")] {
+            assert_eq!(
+                classify_paired_core(
+                    version,
+                    Some(WANGLAB_DSH_COMMIT),
+                    Some(WANGLAB_DSH_TAG),
+                    true
+                ),
+                PairedCoreState::InstallRequired,
+                "manifest={version:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn missing_entry_always_requires_installation() {
+        for tag in [
+            Some(WANGLAB_DSH_TAG),
+            Some("dsh-0.1.2-rc.1-wanglab032"),
+            None,
+        ] {
+            assert_eq!(
+                classify_paired_core(
+                    Some(WANGLAB_DSH_VERSION),
+                    Some(WANGLAB_DSH_COMMIT),
+                    tag,
+                    false
+                ),
+                PairedCoreState::InstallRequired
+            );
+        }
     }
 }

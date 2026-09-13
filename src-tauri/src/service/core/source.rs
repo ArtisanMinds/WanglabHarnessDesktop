@@ -93,10 +93,11 @@ pub fn active_dsh_binary(app_handle: &AppHandle) -> PathBuf {
 pub fn active_version(app_handle: &AppHandle) -> Option<String> {
     match active_source(app_handle) {
         CoreSource::Local => local_core(app_handle).map(|c| c.version),
-        CoreSource::App => config::get_dsh_pkg_tag(app_handle)
-            .as_deref()
-            .and_then(parse_version_from_tag)
-            .or_else(|| config::get_dsh_version(app_handle)),
+        CoreSource::App => config::get_dsh_version(app_handle).or_else(|| {
+            config::get_dsh_pkg_tag(app_handle)
+                .as_deref()
+                .and_then(parse_version_from_tag)
+        }),
     }
 }
 

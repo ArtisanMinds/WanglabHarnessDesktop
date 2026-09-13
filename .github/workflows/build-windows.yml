@@ -85,6 +85,10 @@ jobs:
       - name: Test frontend and internal plugins
         run: pnpm test --run
 
+      - name: Test Core record recovery
+        shell: powershell
+        run: ./scripts/test-repair-core-record.ps1
+
       - name: Verify upgrade and Desktop readiness
         shell: pwsh
         run: |
