@@ -1,6 +1,6 @@
 # 开发
 
-DeepSeek Harness Desktop 是 **Tauri 2 + React 19** 应用：前端位于 `src/`，Rust 后端位于 `src-tauri/`。仓库使用 pnpm 10，桌面端捆绑运行时为 Node.js 22.22.0。
+DeepSeek Harness Desktop 是 **Tauri 2 + React 19** 应用：前端位于 `src/`，Rust 后端位于 `src-tauri/`。仓库使用 pnpm 11，桌面端捆绑运行时为 Node.js 22.22.0。
 
 ## 环境要求
 
@@ -8,7 +8,7 @@ DeepSeek Harness Desktop 是 **Tauri 2 + React 19** 应用：前端位于 `src/`
 | --- | --- |
 | Node.js | 22.19+（CI 与捆绑运行时：22.22.0） |
 | Rust | 1.77.2+ |
-| pnpm | 10.x（`pnpm@10.28.2`） |
+| pnpm | 11.x（`pnpm@11.7.0`） |
 
 以及平台编译工具链：
 
