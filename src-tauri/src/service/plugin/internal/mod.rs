@@ -185,10 +185,7 @@ pub(crate) fn repair_loader_state(app_handle: &AppHandle) -> Result<(), String> 
         }
     }
 
-    for patch_path in [
-        profile.join("cordis.patch.yml"),
-        config::get_dsh_data_path(app_handle).join("cordis.patch.yml"),
-    ] {
+    for patch_path in super::patch_layer_paths(&profile, &config::get_dsh_data_path(app_handle)) {
         let Ok(raw) = std::fs::read_to_string(&patch_path) else {
             continue;
         };

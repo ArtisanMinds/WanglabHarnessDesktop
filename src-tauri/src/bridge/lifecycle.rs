@@ -345,11 +345,39 @@ pub async fn restart_harness(app_handle: AppHandle) -> Result<(), String> {
 /// 自愈与首次引导安装都作用于「当时的活动档案」）；这些插件由启动前的清除流程卸载
 /// （见 `service::plugin::safe::purge_user_plugins_in_safe_profile`），本命令只负责
 /// 切档案——服务仍在运行时删除插件目录不安全，必须等重启后的 spawn 之前再清。
+///
+/// 补丁层是这里唯一的例外：**home 层（`$DSH_HOME/cordis.patch.yml`）作用于所有
+/// 档案**，安全档案也不例外，因此一处手写笔误（典型是 `!!js` 表达式含 `: ` 却没加
+/// 引号）会让安全模式也起不来，把兜底入口一起废掉（issue #525）。这里在切档案前把
+/// 解析不了的补丁文件改名为同名 `.broken-<时间戳>` 备份（只改名、不删除），保证
+/// 「安全模式一定起得来」；记录回传前端提示备份路径，用户修好语法后改回原名即可恢复。
 #[tauri::command]
-pub async fn enter_safe_mode(app_handle: AppHandle) -> Result<(), String> {
+pub async fn enter_safe_mode(
+    app_handle: AppHandle,
+) -> Result<crate::service::plugin::PatchQuarantineReport, String> {
     crate::service::profile::ensure_safe_profile(&app_handle)?;
+    let report = crate::service::plugin::quarantine_patch_layers_in(
+        &crate::service::profile::profile_dir_of(
+            &app_handle,
+            crate::service::profile::SAFE_PROFILE,
+        ),
+        &config::get_dsh_data_path(&app_handle),
+    );
     crate::service::profile::set_active(&app_handle, crate::service::profile::SAFE_PROFILE)?;
-    Ok(())
+    Ok(report)
+}
+
+/// 隔离解析失败的补丁层：当前档案层 + home 层（错误页「隔离损坏的补丁文件」入口）。
+///
+/// 与 [`enter_safe_mode`] 共用同一套隔离逻辑，区别只在作用范围——本命令让用户留在
+/// 自己的档案里恢复，不切档案、不动插件。补丁文件只改名保存，内容原样保留。
+#[tauri::command]
+pub async fn quarantine_broken_patch_layers(
+    app_handle: AppHandle,
+) -> Result<crate::service::plugin::PatchQuarantineReport, String> {
+    Ok(crate::service::plugin::quarantine_active_patch_layers(
+        &app_handle,
+    ))
 }
 
 /// 获取当前 Harness 服务状态

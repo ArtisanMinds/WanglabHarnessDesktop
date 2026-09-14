@@ -1,15 +1,18 @@
 /* eslint-disable no-control-regex */
 import type { ReadinessPollResult, ReadinessProbeResult, StartupPhase } from './readiness'
 import type { InternalPluginsPhasePayload, StartupError } from './types'
+import type { PatchQuarantineReport } from '@/types/plugin'
 import { invoke } from '@tauri-apps/api/core'
 import i18next from 'i18next'
 import { containsInotifyLimitError, pickErrorLines } from '@/components/logs.utils'
+import { toast } from '@/utils/toast'
 import {
   HEALTH_PROBE_INITIAL_INTERVAL,
   HEALTH_PROBE_MAX_INTERVAL,
   LOG_TAIL_MAX_BYTES,
   STARTUP_INACTIVITY_TIMEOUT,
 } from './constants'
+import { containsPatchLayerParseError, patchLayerErrorDetail } from './patch-layer'
 import { pollReadiness } from './readiness'
 
 /**
@@ -166,7 +169,35 @@ export async function attachStartupDiagnostics(err: unknown): Promise<StartupErr
       diagnosed.inotifyLimitHint = i18next.t('errors.inotify_limit')
     }
   }
+  // 补丁层 YAML 语法错误（issue #525）：真实原因是用户手写的 `cordis.patch.yml`
+  // 解析不了，但失败阶段是「Plugin installation」，很容易被当成插件损坏。这里挂上
+  // 「哪个文件、哪一行、怎么改」的提示（错误页据此给出隔离入口）。
+  if (containsPatchLayerParseError(diagnosed.message)) {
+    diagnosed.patchLayerHint = i18next.t('errors.patch_layer_parse_failed', {
+      detail: patchLayerErrorDetail(diagnosed.message),
+    })
+  }
   return diagnosed
+}
+
+/**
+ * 把补丁层隔离结果告知用户：成功项逐个提示「原路径 → 备份路径」（改回原名即可
+ * 恢复），失败项给出原因。隔离是显式恢复动作，用户必须知道文件被移到了哪里；
+ * 没有隔离项时完全不打扰（正常情况下点安全模式不会弹任何提示）。
+ */
+export function notifyPatchQuarantine(report: PatchQuarantineReport): void {
+  for (const layer of report.quarantined) {
+    toast(
+      i18next.t('patch.quarantined_toast', { backup: layer.backup, original: layer.original }),
+      { variant: 'accent', timeout: 10_000 },
+    )
+  }
+  for (const failure of report.failures) {
+    toast(
+      i18next.t('patch.quarantine_failed_toast', { path: failure.path, error: failure.error }),
+      { variant: 'danger', timeout: 0 },
+    )
+  }
 }
 
 export type InternalPluginPhaseTranslate = (
