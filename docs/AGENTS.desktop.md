@@ -349,6 +349,23 @@ export function FooComponent(props: FooProps) {
 
 - pnpm 工作区多文档（issue #526）：`$DSH_HOME/profiles/<档案>/pnpm-workspace.yaml` 被手工/工具拼接成多个 YAML 文档（`---` 分隔）时，pnpm（js-yaml `load`）与 serde_yaml **都只接受单文档流**（`expected a single document in the stream, but found more` / `deserializing from YAML containing more than one document is not supported`）。`service/profile/mod.rs::ensure_profile_pnpm_policy`（issue #222 的 zod release-age 例外）在插件安装前置步骤里解析该文件，于是整个启动卡在「Plugin installation」阶段，且原报错不含任何文件路径。修法：新增 `service/profile/mod.rs::parse_workspace_document(content)`，单文档正常返回；解析失败时逐文档尝试（`serde_yaml::Deserializer::from_str` 的 Iterator），**全部是映射**才按「后者覆盖前者」合并成一个映射并返回 `normalized = true`，否则保留原始解析错误（issue #49 的重复映射键不会被误当成多文档）。`ensure_profile_pnpm_policy` 与 `service/plugin/install/allowlist.rs::apply_allow_build_keys` 共用它，`normalized` 本身即视为需要落盘的改动，把文件自愈成 pnpm 也能读的单文档（日志 `PROFILE_WORKSPACE_MULTI_DOCUMENT`）。解析错误统一带路径便于定位：`PROFILE_WORKSPACE_INVALID_YAML: <路径>: <解析错误>`。
 
+- 旧版 WebKit 缺全局 `Iterator`（issue #539）：dsh 内置插件 `@deepseek-ai/dsh-client-ui-sidebar-documentpreview`
+  内联的 pdf.js 在模块顶层执行 `typeof Iterator.prototype.join !== 'function'`（pdf.js 自己补 `join` 是为了兼容旧引擎），
+  而 `Iterator` 是 ES2025 iterator helpers 才引入的全局对象（Safari 18.4 / WebKit 2163 起）。
+  macOS 14 / 15.3 随附的系统 WebKit 没有它，该表达式直接抛 `Can't find variable: Iterator`，
+  插件 import 失败，桌面端启动即报「Failed to load plugins: failed to import loader entry …」
+  （`service/plugin` 的错误页只给出「插件加载失败」，不含缺失的标识符，需对照上面这句才能定位）。
+  修法：`src-tauri/src/desktop/compat.rs` 的 `ITERATOR_HELPERS_SHIM_JS`（脚本本体为同目录
+  `compat_iterator.js.inc`）随其它垫片一起经 `initialization_script_for_all_frames` 注入非 Windows 平台
+  的**三个窗口**（`builder.rs` 主窗口与附加窗口、`pet.rs` 桌宠窗口），在真实的 %IteratorPrototype%
+  （由 `Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()))` 取得）上补齐
+  join / toArray / forEach / some / every / find / reduce / map / filter / take / drop / flatMap 与
+  `Iterator.from`。两个要点：helper 必须挂在**共享的原型**上（pdf.js 的补丁正是假设 `Iterator.prototype`
+  就是它，挂在自建对象上生成器仍解析不到）；**只做加法**——`Iterator` 已存在（原生，或宿主页面自带
+  polyfill）时整体让位，每个 helper 也先按 `typeof` 判断，`typeof Iterator !== 'undefined'` 因此对第三方
+  插件仍是可信的能力探测。Windows（WebView2，Chromium ≥ 122）原生支持，不注入（同 `AbortSignal.any` 的取舍）。
+  回归测试 `test/compat-iterator.test.ts` 在 VM 里 `delete globalThis.Iterator` 并删掉原型上的原生 helper
+  复现旧 WebKit，再把垫片行为与 Node/V8 原生 iterator helpers 做逐值差分（本机无法跑 macOS 14 的 WebKit）。
 - macOS 麦克风/摄像头权限（issue #214）：内嵌 WKWebView 里的 `getUserMedia` 要同时满足两处，缺任何一处都拿不到流——`src-tauri/Info.plist` 的 `NSMicrophoneUsageDescription` / `NSCameraUsageDescription`（**缺用途说明时 TCC 直接终止进程**，连授权框都不弹，日志里只有 `attempted to access privacy-sensitive data without a usage description`）与 `src-tauri/Entitlements.plist` 的 `com.apple.security.device.audio-input` / `com.apple.security.device.camera`（`bundle.macOS.hardenedRuntime` 默认 true，Hardened Runtime 会把资源访问全部关上，没有对应 entitlement 即使有用途说明也无效）。两处都在 `bundle.macOS` 里显式声明（`infoPlist` / `entitlements`），**相对路径按 bundle 时的 CWD 解析**——`crates/tauri-cli/src/bundle.rs` 会先 `set_current_dir(dirs.tauri)`，所以写 `Info.plist` 而不是 `src-tauri/Info.plist`；CLI 另外还会自动合并 `tauri.conf.json` 同目录下的 `Info.plist`。WKWebView 的 `requestMediaCapturePermissionForOrigin` 不用自己接：wry 0.55.1 的 `WryWebViewUIDelegate` 无条件回 `WKPermissionDecision::Grant`（`src/wkwebview/class/wry_web_view_ui_delegate.rs`）。回归测试见 `src-tauri/src/desktop/builder.rs` 的 `macos_bundle_tests`（macOS 上额外用 `plutil -lint` 校验 plist 语法；`tauri dev` 不产 `.app`，走终端的 TCC 授权，不在覆盖范围内）。
 
 - Linux 托盘点击（issue #386 / #438）：`tauri::tray` 固定依赖的 tray-icon 0.24 在 Linux 上只有 libappindicator/GTK 后端，该后端**不上报任何 `TrayIconEvent`**（上游 tauri-apps/tray-icon#104），单击/双击都无法唤起主窗，只能走托盘菜单。上游 0.25.0 的 KSNI 后端把 SNI 的 `Activate` 映射成 `TrayIconEvent::Click { button: Left }`，但 tauri 2.x 的菜单类型来自 muda 0.19，而 tray-icon 0.25 换成了 muda 0.20（`TrayIconBuilder::menu` 的 `ContextMenu` 不是同一个 trait，编译期即不兼容），tauri 2.11.5 的 `tray-icon = "^0.24"` 既不能 `cargo update` 也不能 `[patch.crates-io]` 顶到 0.25，tauri 3 目前只有 alpha。因此 `src-tauri/Cargo.toml` 仅在 `cfg(target_os = "linux")` 直接依赖 `tray-icon = { version = "0.25", default-features = false, features = ["ksni"] }`（`ksni` 会启用 muda 的 `snapshot`，菜单经 D-Bus 导出；同时不再需要 GTK/libappindicator），Linux 托盘改由 `src-tauri/src/desktop/linux_tray.rs` 自建，`desktop::builder::tray` 在 Linux 分支只调它。要点：`TrayIcon` 必须 `Box::leak` 保活（析构即注销 SNI 项）；`TrayIconEvent::receiver()` / `MenuEvent::receiver()` 是全局通道且由 KSNI 自己的线程投递（tauri 只给**它自己依赖的** 0.19 / 0.24 装全局处理器，与本模块用的 0.20 / 0.25 是各自独立的静态通道），各起一个线程消费再 `run_on_main_thread` 回主线程执行 `show_main_window` / `app.exit`；没有 SNI watcher（未装 AppIndicator 扩展的 GNOME）或会话总线不可用时只记 `LINUX_TRAY_FAILED`，不让启动失败。macOS / Windows 继续走 `tauri::tray`（避免两套 muda ObjC 菜单实现并存）。tauri 2.x 跟进 bump tray-icon 之后，删掉这份依赖与 `linux_tray.rs` 即可。

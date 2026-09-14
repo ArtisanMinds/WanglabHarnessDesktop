@@ -30,6 +30,8 @@ export default defineConfig({
       'test/pet-window-lifecycle.test.ts',
       // issue #525：补丁层 YAML 语法错误的识别与信息提取（纯函数回归）。
       'test/patch-layer.test.ts',
+      // issue #539：旧版 WebKit 缺全局 Iterator 导致插件加载失败，壳层兼容垫片回归。
+      'test/compat-iterator.test.ts',
     ],
     maxWorkers: 4,
     testTimeout: 30_000,
