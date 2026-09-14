@@ -1,4 +1,4 @@
-import type { ClientContext } from '../types'
+import type { AddWorkspaceRuntime, ClientContext } from '../types'
 
 type RuntimeObject = Record<string, unknown>
 export type StartSession = (workspaceId?: string) => unknown
@@ -21,6 +21,30 @@ export function resolveStartSession(ctx: ClientContext): StartSession | undefine
   const owner = uiWorkspace ?? workspaces
   const fn = owner?.startSession
   return typeof fn === 'function' ? (workspaceId?: string) => fn.call(owner, workspaceId) : undefined
+}
+
+/**
+ * 解析「打开文件夹」需要的官方工作区能力（`uiWorkspace` + `workspaces`）。
+ *
+ * 三段能力缺一即视为不可用（返回 undefined，由调用方退级到官方按钮）：
+ * 目录选择在 `uiWorkspace.pickDirectory`（Alpha 与 rc.2 同名同形），
+ * 建工作区在 `workspaces.create`（WorkspaceController 官方公开方法），
+ * 打开新会话复用 `resolveStartSession` 的跨版本适配。
+ */
+export function resolveAddWorkspace(ctx: ClientContext): AddWorkspaceRuntime | undefined {
+  const uiWorkspace = lookup(ctx, 'uiWorkspace') as RuntimeObject | undefined
+  const workspaces = lookup(ctx, 'workspaces') as RuntimeObject | undefined
+  const pickDirectory = uiWorkspace?.pickDirectory
+  const create = workspaces?.create
+  const startSession = resolveStartSession(ctx)
+  if (typeof pickDirectory !== 'function' || typeof create !== 'function' || startSession === undefined)
+    return undefined
+
+  return {
+    pickDirectory: () => pickDirectory.call(uiWorkspace) as Promise<string | null | undefined>,
+    createWorkspace: input => create.call(workspaces, input) as Promise<{ workspaceId: string }>,
+    startSession: workspaceId => startSession(workspaceId),
+  }
 }
 
 /** Adapt alpha's nested list/navigation services to the rc.2 plugin contract. */

@@ -2,7 +2,7 @@
  * dsh-tauri 客户端 barrel（browser half）：插件入口 + 全 workspace 客户端共享工具。
  *
  * 共享工具（供各插件 client 导入 `dsh-tauri/client`）：
- *   - compat / resolveStartSession：Alpha ↔ rc.2 服务布局适配；
+ *   - compat / resolveStartSession / resolveAddWorkspace：Alpha ↔ rc.2 服务布局适配；
  *   - store：框架无关 SnapshotStore（uSES 安全）；
  *   - fetch：ofetch 统一 JSON 客户端（错误解析内置，唯一导出）；
  *   - storage：unstorage createStorage / localStorageDriver；
@@ -41,7 +41,7 @@ export * from './store'
 export type * from './types'
 
 export type { ClientContext } from './types'
-export { compat, resolveStartSession } from './utils/compat'
+export { compat, resolveAddWorkspace, resolveStartSession } from './utils/compat'
 export { CssRender } from 'css-render'
 
 /** 仅构建期 tree-shake 内联所用导出；date-fns 不进入 release production 资源闭包。 */

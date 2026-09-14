@@ -28,19 +28,25 @@ import { toast } from '@/utils/toast'
 /**
  * 壳层窗口顶部导航栏（52px，常驻）：
  *
- *   [侧边栏(展开/收起)] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
+ *   [侧边栏(展开/收起)] [文件][配置][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
  *
  * - 侧边栏：经 postMessage 操控 iframe 内的 dsh 应用
- *   （`dsh://sidebar:toggle`，由 dsh-tauri 插件或桌面端注入的导航桥脚本
- *   dsh-tauri 插件的 `client/register/sidebar.ts`（`ctx.layout.toggleSidebar`）执行）；
- *   折叠图标由 iframe 回报的 `dsh://sidebar:collapsed` 同步。
- *   导航桥（收回报 + 发命令）在 `iframe.tsx`，本组件只接收状态与回调：
+ *   （`dsh://sidebar:toggle`，由 dsh-tauri 插件的 `client/register/sidebar.ts`
+ *   （`ctx.layout.toggleSidebar`）执行）；折叠图标由 iframe 回报的
+ *   `dsh://sidebar:collapsed` 同步。
+ *   导航桥（收回报 + 发命令）在 `iframe.tsx` / `webview.tsx`，本组件只接收状态与回调：
  *   左侧控件只在「dsh-tauri 插件已启用（已安装）」且传入 `onToggleSidebar` 时渲染，
  *   原生桥缺席时控件没有可靠接收方，避免出现点了没反应的死按钮。
+ * - 文件：新建窗口（Tauri 再开一个 webview）/ 新聊天、打开文件夹（经协议调用 dsh 官方
+ *   「新建会话」「添加工作区」，接收方是 dsh-tauri 的 `client/register/navigation.ts`）/
+ *   关闭（隐藏到托盘）/ 退出（完整退出）。两条依赖 iframe 的项在回调缺席时禁用。
+ * - 帮助：运行日志 / 检查更新 / 关于 Desktop / 文档（系统浏览器打开官方文档站）。
  * - 空白拖拽区：Tauri 原生 `data-tauri-drag-region`（顶层文档直接生效），
  *   Windows/Linux 上双击切换最大化，macOS 上交由系统标题栏偏好。
  * - macOS：使用原生交通灯，红键后台化、黄键最小化、绿键进入原生全屏；
  *   普通窗口下导航栏左侧留出交通灯区域，原生全屏时整条导航栏收起。
+ *   「文件」「帮助」在 macOS 上由原生菜单栏承载（见 `desktop/builder.rs` 的
+ *   `install_macos_menu`），本组按钮不渲染。
  *   交通灯的纵向位置由 `src-tauri/src/desktop/builder.rs` 的 `SHELL_NAV_HEIGHT`
  *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-13` 是同一真值；两者的一致性
  *   由 Rust 测试 `shell_nav_height_matches_navbar_height_class` 守住——改这个
@@ -49,7 +55,7 @@ import { toast } from '@/utils/toast'
  *   后台化 = 隐藏到托盘（服务保持运行）。
  *
  * 未传入 onToggleSidebar（安装/错误/预装引导页，无 iframe 可操控）时
- * 只渲染窗口控制，不渲染左侧导航控制。
+ * 只渲染窗口控制与不依赖 iframe 的菜单项。
  */
 
 /**
@@ -58,6 +64,15 @@ import { toast } from '@/utils/toast'
  *  查询缓存，缓存由根布局订阅 `dsh-plugins-updated` 写入）
  */
 const TAURI_PLUGIN_ID = 'dsh-tauri'
+
+/** 官方文档站点（帮助 → 文档）。 */
+const DOCS_URL = 'https://dshtauri.mintlify.site'
+
+/** 「文件」菜单的动作 id（宿主侧统一分发，避免菜单项内散落逻辑）。 */
+type FileAction = 'new-window' | 'new-chat' | 'open-folder' | 'close' | 'quit'
+
+/** 「帮助」菜单的动作 id。 */
+type HelpAction = 'copy-run-logs' | 'check-update' | 'about' | 'documentation'
 
 /** WKWebView 的 macOS UA 稳定包含 Macintosh，用于切换平台原生窗口 chrome。 */
 function detectMacOS() {
@@ -120,9 +135,13 @@ export interface NavbarProps {
   sidebarCollapsed?: boolean
   /** 切换 iframe 内 dsh 侧边栏（向 iframe 发 `dsh://sidebar:toggle`）；传入时启用左侧导航控制 */
   onToggleSidebar?: () => void
+  /** 新聊天：向 iframe 发 `dsh://session:new`（dsh 官方「新建会话」）；传入时该项可用 */
+  onNewChat?: () => void
+  /** 打开文件夹：向 iframe 发 `dsh://workspace:add`（dsh 官方「添加工作区」）；传入时该项可用 */
+  onOpenFolder?: () => void
 }
 
-export function Navbar({ sidebarCollapsed = false, onToggleSidebar }: NavbarProps) {
+export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, onOpenFolder }: NavbarProps) {
   const { t } = useTranslation()
   const isFullscreen = useMacOSFullscreen()
   // 只读取「dsh-tauri 插件是否已安装」；查询键与「插件」面板共用（同一份缓存），
@@ -171,13 +190,66 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar }: NavbarProp
     void getCurrentWindow().startDragging()
   }
 
-  function handleHelpAction(key: string) {
+  function handleHelpAction(key: HelpAction) {
     if (key === 'check-update')
       void handleCheckUpdate()
     else if (key === 'about')
       void openAboutDialog().catch(() => {})
     else if (key === 'copy-run-logs')
       void copyRunLogs()
+    else if (key === 'documentation')
+      void openDocumentation()
+  }
+
+  function handleFileAction(key: FileAction) {
+    switch (key) {
+      case 'new-window':
+        void createWindow()
+        break
+      case 'new-chat':
+        onNewChat?.()
+        break
+      case 'open-folder':
+        onOpenFolder?.()
+        break
+      case 'close':
+        // 关闭 = 隐藏窗口到托盘（与右上角关闭按钮同语义，服务保持运行）
+        handleWindowAction('background')
+        break
+      case 'quit':
+        void quitApp()
+        break
+    }
+  }
+
+  /** 新建窗口：Rust 侧再开一个同源 webview（异步命令，建窗必须在异步运行时） */
+  async function createWindow() {
+    try {
+      await invoke('create_app_window')
+    }
+    catch (error) {
+      console.error('[Navbar] failed to create window:', error)
+    }
+  }
+
+  /** 退出应用：与托盘「退出」同语义（完整退出，触发服务回收与窗口几何保存） */
+  async function quitApp() {
+    try {
+      await invoke('quit_app')
+    }
+    catch (error) {
+      console.error('[Navbar] failed to quit app:', error)
+    }
+  }
+
+  /** 帮助 → 文档：交给系统浏览器打开官方文档站 */
+  async function openDocumentation() {
+    try {
+      await invoke('open_external_url', { url: DOCS_URL })
+    }
+    catch (error) {
+      console.error('[Navbar] failed to open documentation:', error)
+    }
   }
 
   function handleOpenConfig() {
@@ -240,6 +312,18 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar }: NavbarProp
       case 'desktop-restart':
         void store.harness.restart()
         break
+      case 'desktop-documentation':
+        void openDocumentation()
+        break
+      case 'desktop-new-window':
+        void createWindow()
+        break
+      case 'desktop-new-chat':
+        onNewChat?.()
+        break
+      case 'desktop-open-folder':
+        onOpenFolder?.()
+        break
     }
   })
 
@@ -272,6 +356,65 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar }: NavbarProp
       </If>
       <If cond={!IS_MACOS}>
         <div className="ml-1">
+          {/* 文件：新建窗口 / 新聊天 / 打开文件夹 / 关闭 / 退出。
+              「新聊天」「打开文件夹」依赖 iframe 内的 dsh 服务（协议命令没有接收方
+              时禁用而不是留着点了没反应的死按钮，与左侧侧边栏开关同一取舍）。 */}
+          <Dropdown>
+            <Button
+              className="rounded-lg h-6 text-xs px-1.5"
+              size="sm"
+              variant="ghost"
+              aria-label={t('menu.file')}
+            >
+              {t('menu.file')}
+            </Button>
+            <Dropdown.Popover className="rounded-md w-5!">
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  className="rounded-md"
+                  id="new-window"
+                  textValue={t('menu.new_window')}
+                  onAction={() => handleFileAction('new-window')}
+                >
+                  <Label>{t('menu.new_window')}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  className="rounded-md"
+                  id="new-chat"
+                  isDisabled={onNewChat == null}
+                  textValue={t('menu.new_chat')}
+                  onAction={() => handleFileAction('new-chat')}
+                >
+                  <Label>{t('menu.new_chat')}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  className="rounded-md"
+                  id="open-folder"
+                  isDisabled={onOpenFolder == null}
+                  textValue={t('menu.open_folder')}
+                  onAction={() => handleFileAction('open-folder')}
+                >
+                  <Label>{t('menu.open_folder')}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  className="rounded-md"
+                  id="close"
+                  textValue={t('menu.close')}
+                  onAction={() => handleFileAction('close')}
+                >
+                  <Label>{t('menu.close')}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  className="rounded-md"
+                  id="quit"
+                  textValue={t('menu.quit')}
+                  onAction={() => handleFileAction('quit')}
+                >
+                  <Label>{t('menu.quit')}</Label>
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
           <Button
             className="rounded-lg h-6 text-xs px-1.5"
             size="sm"
@@ -319,6 +462,14 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar }: NavbarProp
                   onAction={() => handleHelpAction('about')}
                 >
                   <Label>{t('menu.about')}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  className="rounded-md"
+                  id="documentation"
+                  textValue={t('menu.documentation')}
+                  onAction={() => handleHelpAction('documentation')}
+                >
+                  <Label>{t('menu.documentation')}</Label>
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown.Popover>
