@@ -361,13 +361,10 @@ export function McpTab({ t }: McpTabProps): ReactElement {
                 {row.transport === 'stdio' ? `${row.command ?? ''} ${(row.args ?? []).join(' ')}` : row.url ?? ''}
               </p>
               {row.shadowed === true && <p className="dshp-extension__form-error">{t('shadowedByGlobal')}</p>}
-              \n
               {row.globalError !== undefined && <p className="dshp-extension__form-error">{row.globalError}</p>}
-              \n
               <div className="dshp-extension__card-row">
                 <span className="dshp-extension__spacer" />
                 <Button variant="ghost" size="sm" disabled={busy || checking === row.id} onClick={() => void checkConnectivity(row)}>{checking === row.id ? t('checkRunning') : t('checkLabel')}</Button>
-                \n
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => void doToggle(row)}>{t('toggle')}</Button>
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => openEdit(row)}>{t('edit')}</Button>
                 <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirmId(row.id)}>{t('delete')}</Button>

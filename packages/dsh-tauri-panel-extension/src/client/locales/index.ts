@@ -1,7 +1,7 @@
 import type { ExtensionClientContext } from '../types'
 import { LOCALE_NAMESPACE, PLUGIN_ID } from '../constants'
 
-const zh: Record<string, string> = {
+const zh = {
   extension: '扩展技能',
   skillsTab: '技能',
   mcpTab: 'MCP',
@@ -105,13 +105,18 @@ const zh: Record<string, string> = {
   scopeAll: '全部',
   global: '全局',
   profile: 'Profile',
-  shadowed: '已覆盖',
-  globalError: '全局错误',
   connectivityOk: '连接成功',
   connectivityFailed: '连接失败',
+  scopeGlobal: '全局',
+  scopeProfile: '当前 profile',
+  checkLabel: '检查',
+  checkRunning: '检查中…',
+  shadowedByGlobal: '全局层存在同名 id，此行不生效',
 }
 
-const en: Record<string, string> = {
+type LocaleKey = keyof typeof zh
+
+const en: Record<LocaleKey, string> = {
   extension: 'Extension Skills',
   skillsTab: 'Skills',
   mcpTab: 'MCP',
@@ -211,6 +216,17 @@ const en: Record<string, string> = {
   formatPaste: 'Paste a JSON config (wrapper or bare entry)',
   formatFill: 'Parse and switch to form',
   pasteTransportMismatch: 'The row transport is locked and differs from the pasted config.',
+  scope: 'Scope',
+  scopeAll: 'All',
+  global: 'Global',
+  profile: 'Profile',
+  connectivityOk: 'Connected',
+  connectivityFailed: 'Connection failed',
+  scopeGlobal: 'Global',
+  scopeProfile: 'This profile',
+  checkLabel: 'Check',
+  checkRunning: 'Checking…',
+  shadowedByGlobal: 'a global row with the same id wins — this row has no effect',
 }
 
 export function registerExtensionLocale(ctx: ExtensionClientContext): void {
