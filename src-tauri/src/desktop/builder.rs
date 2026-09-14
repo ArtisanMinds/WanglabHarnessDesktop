@@ -624,7 +624,12 @@ pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::W
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        .traffic_light_position(tauri::LogicalPosition::new(14.0, 24.0))
+        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-13 = 52px），
+        // 交通灯必须落在同一水平线上（写死 24.0 会随 #524 的栏高改动错位 4px）。
+        .traffic_light_position(tauri::LogicalPosition::new(
+            TRAFFIC_LIGHT_INSET_X,
+            f64::from(SHELL_NAV_HEIGHT) / 2.0 + TRAFFIC_LIGHT_VISUAL_OFFSET,
+        ))
         .theme(match crate::config::get_dsh_theme(app) {
             crate::config::DshTheme::System => None,
             crate::config::DshTheme::Light => Some(tauri::Theme::Light),
