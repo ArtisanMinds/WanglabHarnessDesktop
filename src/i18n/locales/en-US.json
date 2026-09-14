@@ -90,6 +90,7 @@
   "errors.plugin_route_conflict": "Detected a plugin route conflict: two plugins registered the same route twice. Uninstall the recently added plugin (e.g. dsh-web-ui-all / dsh-better-sidebar) from the Plugins panel, or run dsh plugin --profile <profile> remove <package> for the active profile and retry.",
   "errors.inotify_limit": "The Harness service crashed on startup: your system reached the limit for file watchers (inotify ENOSPC). Increase the watcher limit and restart — e.g. run `sudo sysctl fs.inotify.max_user_watches=524288` (and add `fs.inotify.max_user_watches=524288` to `/etc/sysctl.conf` to persist), then restart the app.",
   "errors.patch_layer_parse_failed": "A patch layer has a YAML syntax error, so Harness cannot parse it: {{detail}}. The usual cause is an unquoted `!!js` expression that contains `:` or `?` — quote it (`!!js \"…\"`) or use a block scalar (`|-`), then retry. You can also use \"Quarantine broken patch files\" to start anyway; that file is renamed to a `.broken-<timestamp>` backup and restored by renaming it back.",
+  "errors.patch_quarantine_failed": "Could not quarantine the broken patch file (rename failed): {{detail}}. The file is still in place, so restarting will hit the same parse error. Close whatever is holding the file (editor / sync client / antivirus), or rename it to a `.broken-<timestamp>` backup manually, then retry.",
   "ui.service_url": "Service URL",
   "ui.port": "Port",
   "ui.zoom": "Zoom",

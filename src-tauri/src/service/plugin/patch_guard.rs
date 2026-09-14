@@ -54,6 +54,17 @@ pub struct PatchQuarantineReport {
     pub failures: Vec<PatchQuarantineFailure>,
 }
 
+impl PatchQuarantineReport {
+    /// 是否有损坏层仍未移走。
+    ///
+    /// 非空时调用方**绝不能**重启或切档案：不可解析的文件还在原地，上游契约要求
+    /// 启动再次大声失败，于是又回到同一个失败循环（issue #525 的形态）。此时应把
+    /// 失败原因交给用户，由用户手动改名或修复权限后重试。
+    pub fn has_failures(&self) -> bool {
+        !self.failures.is_empty()
+    }
+}
+
 /// 补丁层路径：档案层在前、home 层在后（与 dsh 的层叠顺序一致）。
 ///
 /// 与 [`super::internal::repair_loader_state`] 共用同一份清单，避免两处对
@@ -166,6 +177,19 @@ pub(crate) fn quarantine_active_patch_layers(app_handle: &AppHandle) -> PatchQua
         &profile_dir(app_handle),
         &config::get_dsh_data_path(app_handle),
     )
+}
+
+/// 把隔离失败的层拼成给用户的错误串（含路径与原因）。
+///
+/// 前缀 `PATCH_LAYER_QUARANTINE_FAILED` 与日志一致，便于从日志面板回查。
+pub(crate) fn quarantine_failure_message(report: &PatchQuarantineReport) -> String {
+    let detail = report
+        .failures
+        .iter()
+        .map(|failure| format!("{}: {}", failure.path, failure.error))
+        .collect::<Vec<_>>()
+        .join("; ");
+    format!("PATCH_LAYER_QUARANTINE_FAILED: {detail}")
 }
 
 #[cfg(test)]
@@ -292,5 +316,45 @@ mod tests {
         let paths = patch_layer_paths(Path::new("/profiles/safe"), Path::new("/dsh-home"));
         assert_eq!(paths[0], Path::new("/profiles/safe").join(PATCH_FILENAME));
         assert_eq!(paths[1], Path::new("/dsh-home").join(PATCH_FILENAME));
+    }
+
+    /// 隔离失败时报告必须标记出来，让调用方拒绝重启/切档案（否则回到同一个失败循环）。
+    ///
+    /// 无法稳定制造改名失败（`backup_path` 会避让已存在的备份，权限/占用又依赖环境），
+    /// 这里直接构造失败报告，锁定「报告 → has_failures / 错误串」的契约本身。
+    #[test]
+    fn report_flags_failures_and_renders_message() {
+        let broken = PathBuf::from("/profiles/safe/cordis.patch.yml");
+        let report = PatchQuarantineReport {
+            quarantined: Vec::new(),
+            failures: vec![PatchQuarantineFailure {
+                path: broken.display().to_string(),
+                error: "Access is denied. (os error 5)".to_string(),
+            }],
+        };
+
+        assert!(report.has_failures());
+        let message = quarantine_failure_message(&report);
+        assert!(
+            message.starts_with("PATCH_LAYER_QUARANTINE_FAILED: "),
+            "{message}"
+        );
+        assert!(message.contains(&broken.display().to_string()), "{message}");
+        assert!(message.contains("os error 5"), "{message}");
+    }
+
+    /// 全部隔离成功时 `has_failures` 必须为假，成功路径才能继续重启。
+    #[test]
+    fn successful_quarantine_has_no_failures() {
+        let profile = tmp_dir("success-profile");
+        let home = tmp_dir("success-home");
+        std::fs::write(home.join(PATCH_FILENAME), BROKEN_UNQUOTED_JS).unwrap();
+
+        let report = quarantine_patch_layers_in(&profile, &home);
+
+        assert!(!report.has_failures());
+        assert_eq!(report.quarantined.len(), 1);
+        let _ = std::fs::remove_dir_all(&profile);
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

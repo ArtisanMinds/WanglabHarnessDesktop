@@ -351,6 +351,10 @@ pub async fn restart_harness(app_handle: AppHandle) -> Result<(), String> {
 /// 引号）会让安全模式也起不来，把兜底入口一起废掉（issue #525）。这里在切档案前把
 /// 解析不了的补丁文件改名为同名 `.broken-<时间戳>` 备份（只改名、不删除），保证
 /// 「安全模式一定起得来」；记录回传前端提示备份路径，用户修好语法后改回原名即可恢复。
+///
+/// 改名失败（权限/占用）时**不切换档案层**并返回错误：损坏文件还在原地，重启只会
+/// 再次解析失败，切过去等于把「安全模式」也变成失败循环。此时让用户先处理文件，
+/// 而不是假装已恢复。
 #[tauri::command]
 pub async fn enter_safe_mode(
     app_handle: AppHandle,
@@ -363,6 +367,9 @@ pub async fn enter_safe_mode(
         ),
         &config::get_dsh_data_path(&app_handle),
     );
+    if report.has_failures() {
+        return Err(crate::service::plugin::quarantine_failure_message(&report));
+    }
     crate::service::profile::set_active(&app_handle, crate::service::profile::SAFE_PROFILE)?;
     Ok(report)
 }
@@ -371,13 +378,18 @@ pub async fn enter_safe_mode(
 ///
 /// 与 [`enter_safe_mode`] 共用同一套隔离逻辑，区别只在作用范围——本命令让用户留在
 /// 自己的档案里恢复，不切档案、不动插件。补丁文件只改名保存，内容原样保留。
+///
+/// 与 [`enter_safe_mode`] 同样：只要有损坏层没能移走就返回错误，前端不重启——否则
+/// 会立刻回到同一个解析失败。
 #[tauri::command]
 pub async fn quarantine_broken_patch_layers(
     app_handle: AppHandle,
 ) -> Result<crate::service::plugin::PatchQuarantineReport, String> {
-    Ok(crate::service::plugin::quarantine_active_patch_layers(
-        &app_handle,
-    ))
+    let report = crate::service::plugin::quarantine_active_patch_layers(&app_handle);
+    if report.has_failures() {
+        return Err(crate::service::plugin::quarantine_failure_message(&report));
+    }
+    Ok(report)
 }
 
 /// 获取当前 Harness 服务状态

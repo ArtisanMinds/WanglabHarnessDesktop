@@ -62,8 +62,8 @@ pub(crate) use preset::{
 };
 pub(crate) use safe::purge_user_plugins_in_safe_profile;
 pub(crate) use patch_guard::{
-    patch_layer_paths, quarantine_active_patch_layers, quarantine_patch_layers_in,
-    PatchQuarantineReport,
+    patch_layer_paths, quarantine_active_patch_layers, quarantine_failure_message,
+    quarantine_patch_layers_in, PatchQuarantineReport,
 };
 pub use disable::{disable, enable};
 pub use recovery::{

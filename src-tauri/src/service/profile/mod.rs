@@ -32,8 +32,8 @@
 use crate::config;
 use crate::service::fs_guard;
 use rayon::prelude::*;
-use serde::Serialize;
-use serde_yaml::Value;
+use serde::{Deserialize, Serialize};
+use serde_yaml::{Mapping, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
@@ -107,6 +107,50 @@ pub fn profile_dir_of(app_handle: &AppHandle, id: &str) -> PathBuf {
 /// 仅豁免 lockfile 使用的精确版本，避免关闭整个 supply-chain policy。
 const PROFILE_MINIMUM_RELEASE_AGE_EXCLUDES: [&str; 1] = ["zod@4.4.3"];
 
+/// 解析 `pnpm-workspace.yaml` 文本，并把「多文档」形态归一化成单个映射文档。
+///
+/// pnpm（js-yaml `load`）与 serde_yaml 都只接受**单文档** YAML：pnpm 报
+/// `expected a single document in the stream, but found more`，serde_yaml 报
+/// `deserializing from YAML containing more than one document is not supported`。
+/// 手工编辑或工具拼接留下的 `---` 分隔符会让 `dsh plugin` 与档案策略注入同时失败，
+/// 而失败阶段是「Plugin installation」，报错又不含路径，很难定位到是哪个文件
+/// （issue #526）。
+///
+/// 多文档在这里没有额外语义（也没有可合并的键冲突规则），因此按顺序合并成一个映射
+/// 文档（后者覆盖前者同名键），并标记「需要回写」让调用方把归一化结果落盘——这样
+/// 文件会自愈成 pnpm 也能读的单文档。非映射文档（list/scalar）无法安全合并，保留
+/// 原始解析错误交给调用方诊断。
+pub(crate) fn parse_workspace_document(content: &str) -> Result<(Value, bool), String> {
+    match serde_yaml::from_str::<Value>(content) {
+        Ok(value) => Ok((value, false)),
+        Err(single_err) => {
+            // 单文档解析失败：区分「多文档」（可自愈）与「真语法错误」（保持报错）。
+            let mut documents = Vec::new();
+            for document in serde_yaml::Deserializer::from_str(content) {
+                match Value::deserialize(document) {
+                    Ok(value) => documents.push(value),
+                    // 任一份文档本身不合法 → 原始错误更准确，不带病归一化。
+                    Err(_) => return Err(single_err.to_string()),
+                }
+            }
+            if documents.len() < 2 {
+                return Err(single_err.to_string());
+            }
+            let mut merged = Mapping::new();
+            for document in documents {
+                // 非映射文档无法安全合并：原始解析错误更准确，交调用方诊断。
+                let Some(mapping) = document.as_mapping() else {
+                    return Err(single_err.to_string());
+                };
+                for (key, value) in mapping {
+                    merged.insert(key.clone(), value.clone());
+                }
+            }
+            Ok((Value::Mapping(merged), true))
+        }
+    }
+}
+
 pub(crate) fn ensure_profile_pnpm_policy(app_handle: &AppHandle) -> Result<(), String> {
     let path = profile_dir_of(app_handle, &active_profile(app_handle)).join("pnpm-workspace.yaml");
     let existing = match fs::read_to_string(&path) {
@@ -116,8 +160,15 @@ pub(crate) fn ensure_profile_pnpm_policy(app_handle: &AppHandle) -> Result<(), S
         }
         Err(error) => return Err(format!("PROFILE_WORKSPACE_READ: {error}")),
     };
-    let mut document: Value = serde_yaml::from_str(&existing)
-        .map_err(|e| format!("PROFILE_WORKSPACE_INVALID_YAML: {e}"))?;
+    // 错误里带上文件路径：issue #526 的报错只有解析错误文本，用户无从知道要修哪个文件。
+    let (mut document, normalized) = parse_workspace_document(&existing)
+        .map_err(|e| format!("PROFILE_WORKSPACE_INVALID_YAML: {}: {e}", path.display()))?;
+    if normalized {
+        log::warn!(
+            "PROFILE_WORKSPACE_MULTI_DOCUMENT: normalized {} to a single YAML document",
+            path.display()
+        );
+    }
     let mapping = document.as_mapping_mut().ok_or_else(|| {
         "PROFILE_WORKSPACE_NOT_MAP: pnpm-workspace.yaml must be a mapping".to_string()
     })?;
@@ -128,7 +179,8 @@ pub(crate) fn ensure_profile_pnpm_policy(app_handle: &AppHandle) -> Result<(), S
     let sequence = excludes.as_sequence_mut().ok_or_else(|| {
         "PROFILE_WORKSPACE_POLICY_INVALID: minimumReleaseAgeExclude must be a sequence".to_string()
     })?;
-    let mut changed = false;
+    // 归一化（多文档 → 单文档）本身就是需要落盘的改动：不写回的话 pnpm 依然读不了。
+    let mut changed = normalized;
     for package in PROFILE_MINIMUM_RELEASE_AGE_EXCLUDES {
         let value = Value::String(package.to_string());
         if !sequence.iter().any(|item| item == &value) {
@@ -995,6 +1047,59 @@ mod tests {
         assert_eq!(normalize_profile_id("  dev--stage  "), "dev-stage");
         assert_eq!(normalize_profile_id("中文档案"), "");
         assert_eq!(normalize_profile_id("a_b-c"), "a-b-c");
+    }
+
+    #[test]
+    fn parse_workspace_document_accepts_a_single_document() {
+        let (value, normalized) =
+            parse_workspace_document("packages:\n  - .\nnodeLinker: hoisted\n").unwrap();
+        assert!(!normalized);
+        assert_eq!(
+            value.get("nodeLinker").and_then(Value::as_str),
+            Some("hoisted")
+        );
+    }
+
+    /// issue #526：手工/工具拼接出的 `---` 多文档文件必须被归一化成单文档，
+    /// 否则 pnpm 与 serde_yaml 都读不了，插件安装在启动阶段直接失败。
+    #[test]
+    fn parse_workspace_document_merges_multiple_documents() {
+        let multi = "packages:\n  - .\nnodeLinker: hoisted\n---\nautoInstallPeers: false\n";
+        let (value, normalized) = parse_workspace_document(multi).unwrap();
+
+        assert!(normalized, "多文档必须标记为需要回写，否则 pnpm 仍读不了");
+        let mapping = value.as_mapping().unwrap();
+        assert_eq!(mapping.len(), 3, "{mapping:?}");
+        assert_eq!(
+            value.get("packages").and_then(Value::as_sequence).map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            value.get("autoInstallPeers").and_then(Value::as_bool),
+            Some(false)
+        );
+    }
+
+    /// 后者覆盖前者：多文档合并按 YAML「后写覆盖」直觉。
+    #[test]
+    fn parse_workspace_document_later_document_wins() {
+        let (value, normalized) =
+            parse_workspace_document("nodeLinker: hoisted\n---\nnodeLinker: isolated\n").unwrap();
+        assert!(normalized);
+        assert_eq!(value.get("nodeLinker").and_then(Value::as_str), Some("isolated"));
+    }
+
+    /// 非映射文档（序列/标量）无法安全合并，保留原始解析错误。
+    #[test]
+    fn parse_workspace_document_rejects_non_mapping_documents() {
+        assert!(parse_workspace_document("a: 1\n---\n- not\n- a\n- map\n").is_err());
+    }
+
+    /// 真正的语法错误（issue #49 的重复映射键）不能被当成「多文档」而带病归一化。
+    #[test]
+    fn parse_workspace_document_keeps_real_syntax_errors() {
+        let duplicate = "allowBuilds:\n  node-pty: true\n  node-pty: true\n";
+        assert!(parse_workspace_document(duplicate).is_err());
     }
 
     #[test]

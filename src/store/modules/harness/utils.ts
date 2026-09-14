@@ -12,7 +12,7 @@ import {
   LOG_TAIL_MAX_BYTES,
   STARTUP_INACTIVITY_TIMEOUT,
 } from './constants'
-import { containsPatchLayerParseError, patchLayerErrorDetail } from './patch-layer'
+import { containsPatchLayerParseError, containsQuarantineFailure, patchLayerErrorDetail, quarantineFailureDetail } from './patch-layer'
 import { pollReadiness } from './readiness'
 
 /**
@@ -177,13 +177,24 @@ export async function attachStartupDiagnostics(err: unknown): Promise<StartupErr
       detail: patchLayerErrorDetail(diagnosed.message),
     })
   }
+  // 隔离没能完成（改名失败：文件被占用/权限不足）：此时后端拒绝重启，否则立刻回到
+  // 同一个解析失败。换成「先手动处理文件」的提示，别让用户以为已经恢复。
+  if (containsQuarantineFailure(diagnosed.message)) {
+    diagnosed.patchLayerHint = i18next.t('errors.patch_quarantine_failed', {
+      detail: quarantineFailureDetail(diagnosed.message),
+    })
+  }
   return diagnosed
 }
 
 /**
  * 把补丁层隔离结果告知用户：成功项逐个提示「原路径 → 备份路径」（改回原名即可
- * 恢复），失败项给出原因。隔离是显式恢复动作，用户必须知道文件被移到了哪里；
- * 没有隔离项时完全不打扰（正常情况下点安全模式不会弹任何提示）。
+ * 恢复）。隔离是显式恢复动作，用户必须知道文件被移到了哪里；没有隔离项时完全不
+ * 打扰（正常情况下点安全模式不会弹任何提示）。
+ *
+ * `failures` 兜底：改名失败时后端已改为返回错误（前端走
+ * `errors.patch_quarantine_failed` 提示且不重启，见 `attachStartupDiagnostics`），
+ * 所以成功路径上它总是空的；这里保留提示逻辑，避免契约变化时静默丢信息。
  */
 export function notifyPatchQuarantine(report: PatchQuarantineReport): void {
   for (const layer of report.quarantined) {

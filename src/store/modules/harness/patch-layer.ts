@@ -25,3 +25,25 @@ export function patchLayerErrorDetail(message: string): string {
     return ''
   return message.slice(at + marker.length).trim()
 }
+
+/** Rust 侧补丁层「隔离失败」的错误码。 */
+export const QUARANTINE_FAILED_CODE = 'PATCH_LAYER_QUARANTINE_FAILED'
+
+/**
+ * 隔离动作是否因改名失败而中止。
+ *
+ * 损坏文件仍在原地时后端会拒绝重启（否则立刻回到同一个解析失败），前端据此换成
+ * 「先手动处理文件」的提示，而不是再弹一条备份已完成的 toast。
+ */
+export function containsQuarantineFailure(message: string): boolean {
+  return message.includes(`${QUARANTINE_FAILED_CODE}:`)
+}
+
+/** 提取隔离失败的具体原因（路径 + 改名错误）；无则空串。 */
+export function quarantineFailureDetail(message: string): string {
+  const marker = `${QUARANTINE_FAILED_CODE}:`
+  const at = message.indexOf(marker)
+  if (at < 0)
+    return ''
+  return message.slice(at + marker.length).trim()
+}
