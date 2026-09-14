@@ -551,16 +551,14 @@ pub fn remove(app_handle: &AppHandle, id: &str) -> Result<(), String> {
 
 /// 克隆档案：全量复制源档案目录，自动递增命名（web → web-1 → web-2）。
 ///
+/// 以 `profiles_root` 为根，便于单测注入临时目录；调用方（`bridge::clone_profile`）
+/// 自行从 `AppHandle` 解析 `$DSH_HOME/profiles`，并把密集的目录树复制放进
+/// `spawn_blocking`，避免阻塞 Tauri 异步运行时。
+///
 /// - `source_id` 经 `fs_guard::validate_id` 校验，拒绝路径穿越；
 /// - `name` 为 `None` 时按 source_id 自动递增；`Some` 时规范化并校验冲突；
 /// - 复制后清除搬入的 pnpm 元数据（`.modules.yaml`），并重写 manifest name 为
 ///   `dsh-profile-<new-id>`。
-pub fn clone(app_handle: &AppHandle, source_id: &str, name: Option<&str>) -> Result<Profile, String> {
-    let profiles_root = config::get_dsh_data_path(app_handle).join("profiles");
-    clone_with_root(&profiles_root, source_id, name)
-}
-
-/// 克隆实现（以 `profiles_root` 为根，便于单测注入临时目录）。
 pub fn clone_with_root(profiles_root: &Path, source_id: &str, name: Option<&str>) -> Result<Profile, String> {
     fs_guard::validate_id(source_id)?;
     let src_dir = fs_guard::join_safe(profiles_root, source_id)?;

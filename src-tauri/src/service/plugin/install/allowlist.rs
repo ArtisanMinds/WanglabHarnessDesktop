@@ -218,7 +218,7 @@ fn apply_allow_build_keys(content: &str, keys: &[String]) -> Result<String, Stri
     // 把 `allowBuilds` 内同名键去重（保留最后写入的值）后再解析，自愈损坏状态。
     // 「多文档」（`---` 分隔，issue #526）同样让 serde_yaml 与 pnpm 都拒绝——交给
     // `parse_workspace_document` 归一化成单文档并标记需要回写。
-    let (mut doc, mut repaired): (Value, bool) = match parse_workspace_document(content) {
+    let (mut doc, repaired): (Value, bool) = match parse_workspace_document(content) {
         Ok((value, normalized)) => (value, normalized),
         Err(first_err) => {
             let normalized = collapse_allow_builds_duplicates(content);
