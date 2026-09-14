@@ -24,7 +24,8 @@ interface NavBridgeMessage {
  * 分工：
  * - iframe 元素及 iframe 自身的桥在 `iframe.tsx`（通知 / 插件异常 / 剪贴板图片 / boot / 可见性）；
  * - 导航桥属于导航栏的状态，留在这里：用同一份 `useIframeMessage` / `useIframePost`
- *   接收 `dsh://sidebar:collapsed` 回报、发送 `dsh://sidebar:toggle` 命令。
+ *   接收 `dsh://sidebar:collapsed` 回报、发送 `dsh://sidebar:toggle` 命令，以及
+ *   「文件」菜单的 `dsh://session:new`（新聊天）/ `dsh://workspace:add`（打开文件夹）。
  */
 export function Webview() {
   // iframe 内 dsh 侧边栏是否折叠（由导航桥回报）
@@ -83,6 +84,11 @@ export function Webview() {
       <Navbar
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => post({ type: 'dsh://sidebar:toggle' })}
+        // 「文件」菜单里两条依赖 iframe 内 dsh 服务的命令：新聊天 = 官方「新建会话」，
+        // 打开文件夹 = 官方「添加工作区」（选目录 → 建工作区 → 在新工作区开会话）。
+        // 接收方是 dsh-tauri 插件的 `client/register/navigation.ts`。
+        onNewChat={() => post({ type: 'dsh://session:new' })}
+        onOpenFolder={() => post({ type: 'dsh://workspace:add' })}
       />
       <Iframe iframeRef={iframeRef} />
     </main>

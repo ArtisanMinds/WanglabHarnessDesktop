@@ -25,6 +25,18 @@ export const TYPE_EVENT = 'dsh://tauri:event'
 /** 宿主 → iframe：侧边栏切换命令（`register/sidebar.ts` 消费）。 */
 export const CMD_TOGGLE = 'dsh://sidebar:toggle'
 
+/**
+ * 宿主 → iframe：新建会话命令（`register/navigation.ts` 消费）——官方「新建会话」
+ * 同款入口（`uiWorkspace.startSession`）。
+ */
+export const CMD_NEW_SESSION = 'dsh://session:new'
+
+/**
+ * 宿主 → iframe：打开文件夹命令（`register/navigation.ts` 消费）——官方
+ * 「添加工作区」流程（选目录 → 建工作区 → 在新工作区开会话）。
+ */
+export const CMD_ADD_WORKSPACE = 'dsh://workspace:add'
+
 /** iframe → 宿主：侧边栏折叠状态回报（`register/sidebar.ts` 发送）。 */
 export const EVENT_SIDEBAR_COLLAPSED = 'dsh://sidebar:collapsed'
 
@@ -51,7 +63,10 @@ export const SIDEBAR_TWEAKS_STYLE_ID = 'dsh-tauri:sidebar-tweaks'
 export const SIDEBAR_TWEAKS_EFFECT_ID = 'dsh-tauri: sidebar tweaks (hide collapse toggle, center brand)'
 export const SIDEBAR_TOGGLE_EFFECT_ID = 'dsh-tauri: sidebar (toggle command + collapsed report)'
 export const ZOOM_SHORTCUT_EFFECT_ID = 'dsh-tauri: zoom shortcuts (ctrl/cmd +/-/0)'
+export const NAVIGATION_EFFECT_ID = 'dsh-tauri: navigation (new session, add workspace)'
 
 /** 侧边栏稳定 ARIA 选择器。 */
 export const COLLAPSE_SIDEBAR_SELECTOR = 'button[aria-label="收起侧边栏"],button[aria-label="Collapse sidebar"]'
 export const NEW_SESSION_SELECTOR = 'button[aria-label="新建会话"],button[aria-label="New session"]'
+/** 官方「添加工作区」按钮：工作区服务能力探测失败时的 DOM 退级目标。 */
+export const ADD_WORKSPACE_SELECTOR = 'button[aria-label="添加工作区"],button[aria-label="Add workspace"]'

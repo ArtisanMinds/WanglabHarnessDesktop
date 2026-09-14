@@ -81,3 +81,19 @@ export interface WorkspacesRuntimeLike {
   delete?: (...args: unknown[]) => unknown
   startSession?: (workspaceId: string) => unknown
 }
+
+/**
+ * 「打开文件夹」所需的官方工作区能力（Alpha / rc.2 通用面）。
+ *
+ * 三个动作与官方「添加工作区」流程（ui-workspace `WorkspacePickFlow.adoptDirectory`）
+ * 逐步一致：`pickDirectory()` → `create({ path })` → `startSession(workspaceId)`；
+ * 任一步缺失即视为能力不可用，由消费方走 DOM 退级（点官方按钮）。
+ */
+export interface AddWorkspaceRuntime {
+  /** `uiWorkspace.pickDirectory()`：拉起宿主原生目录选择器；用户取消时为 null。 */
+  pickDirectory: () => Promise<string | null | undefined>
+  /** `workspaces.create({ path })`：登记工作区并返回其 id。 */
+  createWorkspace: (input: { path: string }) => Promise<{ workspaceId: string }>
+  /** `uiWorkspace.startSession(workspaceId)`：在目标工作区开一个新会话并打开。 */
+  startSession: (workspaceId: string) => unknown
+}

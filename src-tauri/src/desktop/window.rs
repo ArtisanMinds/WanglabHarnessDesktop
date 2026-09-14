@@ -7,10 +7,10 @@ use std::sync::Arc;
 use tauri::webview::{PageLoadEvent, PageLoadPayload};
 use tauri::{
     webview::{DownloadEvent, NewWindowFeatures, NewWindowResponse},
-    Emitter, Runtime, Url, Webview,
+    AppHandle, Emitter, Runtime, Url, Webview, Wry,
 };
 #[cfg(windows)]
-use tauri::{WebviewWindow, Wry};
+use tauri::WebviewWindow;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::config;
@@ -89,4 +89,22 @@ pub fn on_page_load(
             log::warn!("[webview] failed to schedule notification permission setup: {e}");
         }
     }
+}
+
+/// 壳层导航栏「文件 → 新建窗口」：以同一 `index.html` 再开一个独立 webview 窗口。
+///
+/// 异步命令（不占用主线程）是唯一安全的调用侧：`WebviewWindowBuilder::build()`
+/// 需要主线程事件循环回包，主线程调用会死锁（与 `pet::ensure_pet_window` 同约束）。
+#[tauri::command]
+pub async fn create_app_window(app_handle: AppHandle<Wry>) -> Result<(), String> {
+    crate::desktop::builder::build_extra_window(&app_handle)
+        .map(|_| ())
+        .map_err(|error| format!("WINDOW_CREATE_FAILED: {error}"))
+}
+
+/// 壳层导航栏「文件 → 退出」：与托盘「退出」同语义，走 `exit(0)` 完整退出
+/// （触发 `RunEvent::ExitRequested` 的主窗口几何保存与 `RunEvent::Exit` 的进程回收）。
+#[tauri::command]
+pub fn quit_app(app_handle: AppHandle<Wry>) {
+    app_handle.exit(0);
 }
