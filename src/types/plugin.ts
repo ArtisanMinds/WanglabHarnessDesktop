@@ -40,3 +40,27 @@ export interface DshPlugin {
   /** 异常信息（安装/升级/卸载失败或页面运行期上报）；undefined = 正常 */
   error?: PluginErrorInfo | null
 }
+
+/** Rust 侧 service::plugin::patch_guard::QuarantinedPatchLayer 的序列化形态 */
+export interface QuarantinedPatchLayer {
+  /** 原始补丁文件路径（`$DSH_HOME/cordis.patch.yml` 或档案层的同名文件） */
+  original: string
+  /** 备份路径（`<原名>.broken-<UTC 时间戳>`）：修好语法后改回原名即可恢复 */
+  backup: string
+  /** 解析错误（serde_yaml 文本，含行列号） */
+  error: string
+}
+
+/** Rust 侧 service::plugin::patch_guard::PatchQuarantineFailure 的序列化形态 */
+export interface PatchQuarantineFailure {
+  path: string
+  error: string
+}
+
+/** Rust 侧 service::plugin::patch_guard::PatchQuarantineReport 的序列化形态 */
+export interface PatchQuarantineReport {
+  /** 已隔离（改名保存）的补丁层 */
+  quarantined: QuarantinedPatchLayer[]
+  /** 隔离失败的补丁层（只提示，不阻断其它层） */
+  failures: PatchQuarantineFailure[]
+}
