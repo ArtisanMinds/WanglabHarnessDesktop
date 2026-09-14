@@ -50,3 +50,35 @@ describe('sidebar.cssr panel-list（官方全局面板清单容器）', () => {
     )
   })
 })
+
+describe('sidebar.cssr footer-actions（回归：footer.action 槽多条目堆叠为列，issue #533）', () => {
+  const sidebarCss = sidebarStyle.render()
+
+  it('基态排成列：sidebar.footer.action（kind:list）的多个条目各占一行，不再并排挤压', () => {
+    const rule = /\.dshp-panel \.dshp-panel__footer-actions\s*\{[^}]*\}/
+    const body = sidebarCss.match(rule)?.[0] ?? ''
+    // 缺 flex-direction 时 flex 容器默认 row —— 正是 #533 的根因。
+    expect(body).toContain('flex-direction: column')
+    expect(body).toContain('display: flex')
+    // stretch 令条目撑满行宽，等价于下方 settings-area 里块级子元素的默认行为
+    // （整行 badge 的 width:100% 不再被同排条目压扁）。
+    expect(body).toContain('align-items: stretch')
+    expect(body).toContain('width: 100%')
+  })
+
+  it('折叠 rail 态把横向居中换到 cross 轴：收缩为内容宽 + alignItems 居中，纵向语义的 justifyContent 不再残留', () => {
+    const rule = /\.dshp-panel\.dshp-panel--collapsed \.dshp-panel__footer-actions\s*\{[^}]*\}/
+    const body = sidebarCss.match(rule)?.[0] ?? ''
+    expect(body).toContain('width: auto')
+    expect(body).toContain('align-items: center')
+    expect(body).not.toContain('justify-content: center')
+  })
+
+  it('折叠态的 settings-area 居中语义保持原样（仍是 row + justifyContent，未被 #533 改动波及）', () => {
+    const rule = /\.dshp-panel\.dshp-panel--collapsed \.dshp-panel__settings-area\s*\{[^}]*\}/
+    const body = sidebarCss.match(rule)?.[0] ?? ''
+    expect(body).toContain('justify-content: center')
+    expect(body).toContain('width: auto')
+    expect(body).not.toContain('align-items')
+  })
+})
