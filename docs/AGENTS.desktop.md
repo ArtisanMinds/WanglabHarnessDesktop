@@ -349,6 +349,24 @@ export function FooComponent(props: FooProps) {
 
 - pnpm 工作区多文档（issue #526）：`$DSH_HOME/profiles/<档案>/pnpm-workspace.yaml` 被手工/工具拼接成多个 YAML 文档（`---` 分隔）时，pnpm（js-yaml `load`）与 serde_yaml **都只接受单文档流**（`expected a single document in the stream, but found more` / `deserializing from YAML containing more than one document is not supported`）。`service/profile/mod.rs::ensure_profile_pnpm_policy`（issue #222 的 zod release-age 例外）在插件安装前置步骤里解析该文件，于是整个启动卡在「Plugin installation」阶段，且原报错不含任何文件路径。修法：新增 `service/profile/mod.rs::parse_workspace_document(content)`，单文档正常返回；解析失败时逐文档尝试（`serde_yaml::Deserializer::from_str` 的 Iterator），**全部是映射**才按「后者覆盖前者」合并成一个映射并返回 `normalized = true`，否则保留原始解析错误（issue #49 的重复映射键不会被误当成多文档）。`ensure_profile_pnpm_policy` 与 `service/plugin/install/allowlist.rs::apply_allow_build_keys` 共用它，`normalized` 本身即视为需要落盘的改动，把文件自愈成 pnpm 也能读的单文档（日志 `PROFILE_WORKSPACE_MULTI_DOCUMENT`）。解析错误统一带路径便于定位：`PROFILE_WORKSPACE_INVALID_YAML: <路径>: <解析错误>`。
 
+- 旧版 WebKit 缺全局 `Iterator`（issue #539）：dsh 内置插件 `@deepseek-ai/dsh-client-ui-sidebar-documentpreview`
+  内联的 pdf.js 在模块顶层执行 `typeof Iterator.prototype.join !== 'function'`（pdf.js 自己补 `join` 是为了兼容旧引擎），
+  而 `Iterator` 是 ES2025 iterator helpers 才引入的全局对象（Safari 18.4 / WebKit 2163 起）。
+  macOS 14 / 15.3 随附的系统 WebKit 没有它，该表达式直接抛 `Can't find variable: Iterator`，
+  插件 import 失败，桌面端启动即报「Failed to load plugins: failed to import loader entry …」
+  （`service/plugin` 的错误页只给出「插件加载失败」，不含缺失的标识符，需对照上面这句才能定位）。
+  修法：`src-tauri/src/desktop/compat.rs` 的 `ITERATOR_HELPERS_SHIM_JS`（脚本本体为同目录
+  `compat_iterator.js.inc`）随其它垫片一起经 `initialization_script_for_all_frames` 注入非 Windows 平台
+  的**三个窗口**（`builder.rs` 主窗口与附加窗口、`pet.rs` 桌宠窗口），在真实的 %IteratorPrototype%
+  （由 `Object.getPrototypeOf(Object.getPrototypeOf([][Symbol.iterator]()))` 取得）上补齐
+  join / toArray / forEach / some / every / find / reduce / map / filter / take / drop / flatMap 与
+  `Iterator.from`。两个要点：helper 必须挂在**共享的原型**上（pdf.js 的补丁正是假设 `Iterator.prototype`
+  就是它，挂在自建对象上生成器仍解析不到）；**只做加法**——`Iterator` 已存在（原生，或宿主页面自带
+  polyfill）时整体让位，每个 helper 也先按 `typeof` 判断，`typeof Iterator !== 'undefined'` 因此对第三方
+  插件仍是可信的能力探测。Windows（WebView2，Chromium ≥ 122）原生支持，不注入（同 `AbortSignal.any` 的取舍）。
+  回归测试 `test/compat-iterator.test.ts` 在 VM 里 `delete globalThis.Iterator` 并删掉原型上的原生 helper
+  复现旧 WebKit，再把垫片行为与 Node/V8 原生 iterator helpers 做逐值差分（本机无法跑 macOS 14 的 WebKit）。
+
 ## Summary
 
 - **API Import**: 直接 `import { invoke } from '@tauri-apps/api/core'`（本仓库没有 `@/apis` 层）；类型就近定义在 hooks/组件文件中

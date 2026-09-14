@@ -543,6 +543,7 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     #[cfg(not(windows))]
     let webview_builder = webview_builder
         .initialization_script_for_all_frames(crate::desktop::compat::ABORT_SIGNAL_ANY_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::compat::ITERATOR_HELPERS_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::notification::NOTIFICATION_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::paste::PASTE_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS);
@@ -615,6 +616,7 @@ pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::W
     #[cfg(not(windows))]
     let webview_builder = webview_builder
         .initialization_script_for_all_frames(crate::desktop::compat::ABORT_SIGNAL_ANY_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::compat::ITERATOR_HELPERS_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::notification::NOTIFICATION_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::paste::PASTE_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS);
