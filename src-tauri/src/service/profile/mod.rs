@@ -6,9 +6,14 @@
 //! 默认 `web`），服务启动、插件安装/升级/卸载全部以它为准——不再写死 web。
 //!
 //! 首装防御：桌面端首次安装（本进程启动前 store 文件不存在）时，在任何 dsh
-//! 启动/插件操作之前自动新建独立的 Desktop 档案并切换过去（见
-//! `ensure_first_run_desktop_profile`）。此前装过 dsh CLI 并装了大量插件/补丁的
+//! 启动/插件操作之前自动新建独立的引导档案并切换过去（见
+//! `migrate_desktop_profile_name`）。此前装过 dsh CLI 并装了大量插件/补丁的
 //! 用户启用桌面端时，旧数据不再涌入桌面端所用档案，防御性规避加载异常。
+//!
+//! 档案改名（官方核心 0.1.5）：引导档案原名 `desktop`，该名自 0.1.5 起被官方
+//! 核心保留给 Electron 应用（`--profile desktop` 直接报错），因此启动迁移把
+//! 老用户的 `profiles/desktop` 目录与清单名改到 `tauri` 并改指 `active_profile`
+//! （见 [`migrate_desktop_profile_name`]），否则升级后服务再也起不来。
 //!
 //! 新建档案时按官方 `dsh-app-boot` 的 `initProfile` 形态初始化目录：
 //! `package.json`（含 web 模板 bundles）+ `cordis.patch.yml` + `pnpm-workspace.yaml`，
@@ -36,9 +41,17 @@ use tauri::AppHandle;
 /// 桌面端默认档案（内置，不可删除）
 pub const DEFAULT_PROFILE: &str = "web";
 
-/// 首装引导档案：桌面端首次安装时自动新建并切换为当前档案（与 CLI 用户既有
-/// 档案隔离；用户新建同 id 档案被 `PROFILE_EXISTS` 拦截，此名仅由本引导占用）。
-pub const DESKTOP_PROFILE: &str = "desktop";
+/// 桌面端引导档案 id：桌面端首次安装时自动新建并切换为当前档案（与 CLI 用户
+/// 既有档案隔离；用户新建同 id 档案被 `PROFILE_EXISTS` 拦截，此名仅由本引导
+/// 占用）。选 `tauri` 而非 `desktop`：官方核心 0.1.5 起把 `desktop` 档案名
+/// 保留给 Electron 应用（`rejectElectronProfile` 对 `--profile desktop`
+/// 直接报错，大小写不敏感），桌面端若继续用它，服务启动与 `dsh plugin
+/// --profile desktop …` 全部失败。老用户的 `profiles/desktop` 由启动迁移
+/// （[`migrate_desktop_profile_name`]）改名到本 id。
+pub const DESKTOP_PROFILE: &str = "tauri";
+
+/// 迁移前的引导档案 id（官方核心把它保留给 Electron 应用，见 [`DESKTOP_PROFILE`]）。
+const LEGACY_DESKTOP_PROFILE: &str = "desktop";
 
 /// 安全模式档案：仅加载 web 模板核心 bundles、不带任何用户插件/补丁层。
 /// 错误界面「安全模式」按钮切到此档案重启（`--profile safe`），隔离问题插件
@@ -287,7 +300,7 @@ pub fn set_active(app_handle: &AppHandle, id: &str) -> Result<Profile, String> {
         .ok_or_else(|| "PROFILE_NOT_FOUND: profile disappeared after switch".to_string())
 }
 
-/// 确保首装引导档案目录存在且含核心 web bundle 层（以 `profiles_root` 注入，便于单测）。
+/// 确保引导档案目录存在且含核心 web bundle 层（以 `profiles_root` 注入，便于单测）。
 ///
 /// 幂等且绝不覆盖：目录已存在（含 CLI 侧手动创建的同名档案）时复用其依赖、
 /// 插件与补丁层，只补齐缺失的档案文件与核心 bundle 条目。**不能只判断目录是否
@@ -298,34 +311,130 @@ fn ensure_desktop_profile_with_root(profiles_root: &Path) -> Result<(), String> 
     init_profile_dir(&profiles_root.join(DESKTOP_PROFILE), DESKTOP_PROFILE)
 }
 
-/// 首装档案引导：桌面端首次安装时新建独立的 Desktop 档案并切换为当前档案。
+/// 启动迁移 + 首装档案引导：把引导档案归一到 `tauri` 并使其成为当前档案。
 ///
-/// 为什么：此前装过 dsh CLI 并装了大量插件/补丁的用户，启用桌面端时这些旧
-/// 数据会涌入桌面端所用档案导致加载异常；首装即隔离到干净档案可防御性规避。
-/// 老用户（store 已存在）绝不动其档案选择。幂等 + 最佳努力：已引导过
-/// （`desktop_profile_ready`）或任何一步失败时跳过并告警，回落 web 档案的
-/// 老行为，绝不阻断启动。调用时机：desktop::setup（前端可操作之前，让安装
-/// 向导/预装插件/内置插件全部落进 Desktop 档案）与 launch（spawn dsh 前重试）。
-pub fn ensure_first_run_desktop_profile(app_handle: &AppHandle) {
-    if !config::is_first_install() {
-        return;
-    }
-    if config::get_store_dat_setting(app_handle).desktop_profile_ready {
-        return;
-    }
+/// **为什么必须改名**：官方核心 0.1.5 起对 `--profile desktop` 直接报错
+/// （`rejectElectronProfile`，大小写不敏感），沿用旧名的用户升级后每次启动
+/// 都会失败（服务 spawn 与 `dsh plugin --profile desktop …` 全挂）。
+///
+/// **为什么不能只改常量**：老用户的档案目录叫 `profiles/desktop`、清单
+/// `name` 是 `dsh-profile-desktop`、store 里 `active_profile` 是 `desktop`，
+/// 三处都要跟着改名，否则服务找不到档案（或 `active_profile` 落回 `web`，
+/// 用户的插件/补丁层就此「消失」）。
+///
+/// 改名路径都在此收口（调用方：desktop::setup 与 workflow::launch spawn 前），
+/// 具体步骤见 [`adopt_tauri_profile_dir`] 与 [`migrate_desktop_profile_in_root`]：
+/// 1. 改名：`profiles/desktop` 存在而 `profiles/tauri` 不存在时整体 `rename`
+///    （同卷原子，profile 内的 node_modules 链接无损随树移动；跨卷失败则留给
+///    下次启动重试，绝不半途合并）；
+/// 2. 清单名：档案清单 `name` 仍是 `dsh-profile-desktop` 时改写为
+///    `dsh-profile-<id>`（幂等，仅在确实为旧名时写盘）；
+/// 3. 档案就绪：`ensure_desktop_profile_with_root` 新建/补齐 `tauri` 档案
+///    （含 issue #452 的半初始化补齐），保证改名失败时启动仍有可用档案；
+/// 4. 当前档案：store 里 `active_profile` 还指着旧名时改写为新名。
+///
+/// 之后做首装引导：首次安装（store 尚不存在）时把 `tauri` 设为当前档案。
+///
+/// 老用户（store 已存在）绝不在未迁移时被切档案：仅在首装或 `active_profile`
+/// 本来指着旧名时才切到 `tauri`。
+///
+/// 幂等 + 最佳努力：首次安装走 `desktop_profile_ready` 标记，改名路径靠
+/// 「旧目录/旧名是否还在」判定；任何一步失败只告警，绝不阻断启动。
+pub fn migrate_desktop_profile_name(app_handle: &AppHandle) {
     let profiles_root = config::get_dsh_data_path(app_handle).join("profiles");
-    if let Err(e) = ensure_desktop_profile_with_root(&profiles_root) {
-        log::warn!("first-run Desktop profile init failed: {e}");
-        return;
+    migrate_desktop_profile_in_root(app_handle, &profiles_root);
+
+    // 首装引导：在窗口/服务可用之前把新档案设为当前档案（老用户不动其选择）
+    if config::is_first_install()
+        && !config::get_store_dat_setting(app_handle).desktop_profile_ready
+    {
+        if let Err(e) = set_active(app_handle, DESKTOP_PROFILE) {
+            log::warn!("first-run Desktop profile switch failed: {e}");
+            return;
+        }
+        config::update_store_dat_setting(app_handle, |setting| {
+            setting.desktop_profile_ready = true;
+        });
+        log::info!(
+            "First-run bootstrap: Desktop profile created and activated ({DESKTOP_PROFILE})"
+        );
     }
-    if let Err(e) = set_active(app_handle, DESKTOP_PROFILE) {
-        log::warn!("first-run Desktop profile switch failed: {e}");
-        return;
+}
+
+/// 迁移实现（以 `profiles_root` 注入，便于单测）：改名目录、清单名与 store 里的
+/// 当前档案名。任何一步失败只告警，绝不阻断启动（下次启动重试）。
+fn migrate_desktop_profile_in_root(app_handle: &AppHandle, profiles_root: &Path) {
+    // 1) 目录名 + 2) 清单名（纯文件系统部分，见 [`adopt_tauri_profile_dir`]）
+    adopt_tauri_profile_dir(profiles_root);
+
+    // 3) 档案就绪：新建/补齐 `tauri` 档案（含核心 web bundle 层）。必须在第 4 步
+    // 之前：`set_active` 要求档案目录存在，改名失败时这里也能兜底建出可用档案。
+    if let Err(e) = ensure_desktop_profile_with_root(profiles_root) {
+        log::warn!("Desktop profile init failed: {e}");
     }
-    config::update_store_dat_setting(app_handle, |setting| {
-        setting.desktop_profile_ready = true;
-    });
-    log::info!("First-run bootstrap: Desktop profile created and activated ({DESKTOP_PROFILE})");
+
+    // 4) 当前档案：store 里还指着旧名 → 改指新名（用户插件/补丁层随之延续）
+    let stored = config::get_store_dat_setting(app_handle).active_profile;
+    if stored == LEGACY_DESKTOP_PROFILE {
+        config::update_store_dat_setting(app_handle, |setting| {
+            setting.active_profile = DESKTOP_PROFILE.to_string();
+        });
+        log::info!("Active profile switched: {LEGACY_DESKTOP_PROFILE} -> {DESKTOP_PROFILE}");
+    }
+}
+
+/// 档案目录与清单的改名（纯路径，便于单测）：
+/// - `profiles/desktop` 存在而 `profiles/tauri` 不存在 → 整体 `rename`（同卷原子，
+///   档案内的 node_modules 链接无损随树移动；失败留给下次启动重试，绝不半途合并）；
+/// - 目标已存在 → 绝不覆盖/合并，旧目录原样留在磁盘上等人工处理；
+/// - 档案清单 `name` 还写着 `dsh-profile-desktop` → 改写为 `dsh-profile-<新 id>`
+///   （幂等，仅在确实为旧名时写盘）。
+fn adopt_tauri_profile_dir(profiles_root: &Path) {
+    let old_dir = profiles_root.join(LEGACY_DESKTOP_PROFILE);
+    let new_dir = profiles_root.join(DESKTOP_PROFILE);
+
+    if old_dir.is_dir() {
+        if new_dir.exists() {
+            log::warn!(
+                "Both {} and {} exist; leaving the legacy profile untouched",
+                old_dir.display(),
+                new_dir.display()
+            );
+        } else {
+            match fs::rename(&old_dir, &new_dir) {
+                Ok(()) => log::info!(
+                    "Desktop profile renamed: {} -> {}",
+                    old_dir.display(),
+                    new_dir.display()
+                ),
+                Err(e) => log::warn!(
+                    "Desktop profile rename failed ({} -> {}): {e}; keeping the legacy profile for the next start",
+                    old_dir.display(),
+                    new_dir.display()
+                ),
+            }
+        }
+    }
+
+    // 清单名：档案目录已在新位置但清单名还写着旧 id → 改写（幂等）
+    let manifest = new_dir.join("package.json");
+    if let Ok(content) = fs::read_to_string(&manifest) {
+        let stale_name = serde_json::from_str::<serde_json::Value>(&content)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("name")
+                    .and_then(|name| name.as_str())
+                    .map(str::to_owned)
+            })
+            .is_some_and(|name| name == format!("dsh-profile-{LEGACY_DESKTOP_PROFILE}"));
+        if stale_name {
+            match rewrite_manifest_name(&new_dir, DESKTOP_PROFILE) {
+                Ok(()) => log::info!("Desktop profile manifest renamed to {DESKTOP_PROFILE}"),
+                Err(e) => log::warn!("Desktop profile manifest rename failed: {e}"),
+            }
+        }
+    }
 }
 
 /// 确保安全模式档案目录存在且含核心 web bundle 层（幂等，绝不覆盖用户改动）。
@@ -893,7 +1002,8 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// 首装引导档案：初始化产物与官方 initProfile 形态一致，且已存在时绝不覆盖。
+    /// 引导档案：初始化产物与官方 initProfile 形态一致，且已存在时绝不覆盖。
+    /// 档案 id 必须是 `tauri`——官方核心 0.1.5 起把 `desktop` 保留给 Electron 应用。
     #[test]
     fn desktop_bootstrap_creates_official_shape_once() {
         let tmp = std::env::temp_dir().join(format!("dsh-profile-desktop-{}", std::process::id()));
@@ -901,11 +1011,12 @@ mod tests {
         let root = tmp.join("profiles");
 
         ensure_desktop_profile_with_root(&root).unwrap();
+        assert_eq!(DESKTOP_PROFILE, "tauri");
         let dir = root.join(DESKTOP_PROFILE);
         let manifest: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap())
                 .unwrap();
-        assert_eq!(manifest["name"], "dsh-profile-desktop");
+        assert_eq!(manifest["name"], "dsh-profile-tauri");
         assert_eq!(
             manifest["dsh"]["profile"]["bundles"],
             serde_json::json!(["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"])
@@ -926,6 +1037,135 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
+    /// 一次性的临时 `profiles` 根目录（测试内自行清理）。
+    fn temp_profiles_root(tag: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!("dsh-profile-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        root
+    }
+
+    /// 在临时根上跑一遍改名迁移的纯文件系统部分（目录改名 + 清单名改写），并补出
+    /// `tauri` 档案就绪态：老用户升级后 store 里的 `active_profile` 由
+    /// `migrate_desktop_profile_in_root` 改指新名（需真实 AppHandle，见启动路径）。
+    fn run_migration(root: &Path) {
+        adopt_tauri_profile_dir(root);
+        ensure_desktop_profile_with_root(root).unwrap();
+    }
+
+    /// 官方核心 0.1.5 起 `--profile desktop` 直接报错（保留给 Electron 应用）：
+    /// 老用户的 `profiles/desktop` 必须在启动时改名为 `profiles/tauri`。
+    #[test]
+    fn legacy_desktop_profile_dir_renamed_to_tauri() {
+        let tmp = temp_profiles_root("rename");
+        let root = tmp.join("profiles");
+        let legacy = root.join(LEGACY_DESKTOP_PROFILE);
+        std::fs::create_dir_all(&legacy).unwrap();
+        // 用户数据（插件依赖与补丁层）必须随目录改名原样保留
+        std::fs::write(
+            legacy.join("package.json"),
+            r#"{"name":"dsh-profile-desktop","private":true,"dependencies":{"dsh-tauri":"link:/a"},"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"]}}}"#,
+        )
+        .unwrap();
+        std::fs::write(legacy.join("cordis.patch.yml"), "# user edit\n[]\n").unwrap();
+
+        run_migration(&root);
+
+        assert!(!legacy.exists(), "legacy desktop dir must be gone");
+        let renamed = root.join(DESKTOP_PROFILE);
+        assert!(
+            renamed.is_dir(),
+            "profile dir must move to {DESKTOP_PROFILE}"
+        );
+        let manifest: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(renamed.join("package.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest["name"], "dsh-profile-tauri");
+        assert_eq!(manifest["dependencies"]["dsh-tauri"], "link:/a");
+        assert_eq!(
+            std::fs::read_to_string(renamed.join("cordis.patch.yml")).unwrap(),
+            "# user edit\n[]\n"
+        );
+
+        // 幂等：再跑一次（旧目录已不存在、清单名已是新名）无副作用
+        run_migration(&root);
+        let again: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(renamed.join("package.json")).unwrap())
+                .unwrap();
+        assert_eq!(again["name"], "dsh-profile-tauri");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// 改名中断（目录已在新位置、清单名还是旧 id）的重入路径：清单名必须补齐，
+    /// 档案文件照旧建出。临时目录 tag 必须与既有用例（`...-partial-<pid>`）区分。
+    #[test]
+    fn interrupted_desktop_profile_rename_finishes_on_next_start() {
+        let tmp = temp_profiles_root("rename-resume");
+        let root = tmp.join("profiles");
+        let renamed = root.join(DESKTOP_PROFILE);
+        std::fs::create_dir_all(&renamed).unwrap();
+        std::fs::write(
+            renamed.join("package.json"),
+            r#"{"name":"dsh-profile-desktop","private":true,"dependencies":{},"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base"]}}}"#,
+        )
+        .unwrap();
+
+        run_migration(&root);
+
+        let manifest: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(renamed.join("package.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest["name"], "dsh-profile-tauri");
+        // 缺 web 层的老档案同时被补齐（issue #452 形态）
+        assert_eq!(
+            manifest["dsh"]["profile"]["bundles"],
+            serde_json::json!(["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"])
+        );
+        assert!(renamed.join("cordis.patch.yml").is_file());
+        assert!(renamed.join("pnpm-workspace.yaml").is_file());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// `profiles/desktop` 与 `profiles/tauri` 同时存在时绝不合并/覆盖：两边都原样
+    /// 留在磁盘上（旧目录等人工处理，新目录优先使用）。
+    #[test]
+    fn legacy_desktop_profile_never_overwrites_existing_tauri_profile() {
+        let tmp = temp_profiles_root("conflict");
+        let root = tmp.join("profiles");
+        let legacy = root.join(LEGACY_DESKTOP_PROFILE);
+        let target = root.join(DESKTOP_PROFILE);
+        for dir in [&legacy, &target] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        std::fs::write(
+            legacy.join("package.json"),
+            r#"{"name":"legacy","private":true}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            target.join("package.json"),
+            r#"{"name":"current","private":true,"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"]}}}"#,
+        )
+        .unwrap();
+
+        // 只跑改名（不跑就绪补齐），确保目标清单逐字节未被触碰
+        adopt_tauri_profile_dir(&root);
+
+        assert!(legacy.join("package.json").is_file(), "old dir must stay");
+        assert_eq!(
+            std::fs::read_to_string(target.join("package.json")).unwrap(),
+            r#"{"name":"current","private":true,"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","@deepseek-ai/dsh-web-app"]}}}"#,
+            "existing target must stay untouched"
+        );
+        assert_eq!(
+            std::fs::read_to_string(legacy.join("package.json")).unwrap(),
+            r#"{"name":"legacy","private":true}"#
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
     /// issue #452 回归：`dsh plugin add` 会把缺 `package.json` 的目录按
     /// `DEFAULT_PROFILE_BUNDLES`（只有 dsh-base）初始化，留下「缺 web 层」的档案；
     /// 引导必须把核心层补回列表最前，且不动用户/内置插件条目与其它字段。
@@ -935,7 +1175,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let manifest = serde_json::json!({
-            "name": "dsh-profile-desktop",
+            "name": "dsh-profile-tauri",
             "private": true,
             "dependencies": { "dsh-tauri-pet": "link:C:/app/resources/node_modules/dsh-tauri-pet" },
             "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "dsh-tauri-pet", "dsh-better-sidebar"] } }
@@ -946,7 +1186,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(ensure_profile_core_bundles(&dir, "desktop").unwrap());
+        assert!(ensure_profile_core_bundles(&dir, "tauri").unwrap());
 
         let repaired: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap())
@@ -962,7 +1202,7 @@ mod tests {
             ])
         );
         // 依赖声明、名称等其它字段原样保留
-        assert_eq!(repaired["name"], "dsh-profile-desktop");
+        assert_eq!(repaired["name"], "dsh-profile-tauri");
         assert_eq!(
             repaired["dependencies"]["dsh-tauri-pet"],
             "link:C:/app/resources/node_modules/dsh-tauri-pet"
@@ -970,7 +1210,7 @@ mod tests {
 
         // 幂等：已含核心层的档案不再写盘（内容逐字节不变）
         let before = std::fs::read_to_string(dir.join("package.json")).unwrap();
-        assert!(!ensure_profile_core_bundles(&dir, "desktop").unwrap());
+        assert!(!ensure_profile_core_bundles(&dir, "tauri").unwrap());
         assert_eq!(
             std::fs::read_to_string(dir.join("package.json")).unwrap(),
             before
@@ -1007,12 +1247,12 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         assert!(!dir.join("package.json").exists());
 
-        assert!(ensure_profile_core_bundles(&dir, "desktop").unwrap());
+        assert!(ensure_profile_core_bundles(&dir, "tauri").unwrap());
 
         let manifest: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap())
                 .unwrap();
-        assert_eq!(manifest["name"], "dsh-profile-desktop");
+        assert_eq!(manifest["name"], "dsh-profile-tauri");
         assert_eq!(manifest["private"], true);
         assert_eq!(manifest["dependencies"], serde_json::json!({}));
         assert_eq!(
@@ -1037,7 +1277,7 @@ mod tests {
         ] {
             std::fs::write(dir.join("package.json"), raw).unwrap();
             assert!(
-                ensure_profile_core_bundles(&dir, "desktop").is_err(),
+                ensure_profile_core_bundles(&dir, "tauri").is_err(),
                 "corrupt manifest {raw:?} must be reported, not rewritten"
             );
             assert_eq!(
@@ -1061,7 +1301,7 @@ mod tests {
         // `dsh plugin add` 的初始化产物：只有 dsh-base + 插件，没有任何 web 层
         std::fs::write(
             dir.join("package.json"),
-            r#"{"name":"dsh-profile-desktop","private":true,"dependencies":{"dsh-tauri":"link:C:/app/resources/node_modules/dsh-tauri"},"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","dsh-tauri"]}}}"#,
+            r#"{"name":"dsh-profile-tauri","private":true,"dependencies":{"dsh-tauri":"link:C:/app/resources/node_modules/dsh-tauri"},"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base","dsh-tauri"]}}}"#,
         )
         .unwrap();
 
