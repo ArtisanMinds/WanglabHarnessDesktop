@@ -357,18 +357,19 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     crate::service::perm::ensure_dir_writable(&dsh_home, "DSH_HOME_MKDIR_FAILED")?;
     // 当前档案目录同样必须在 spawn 前可写：`$DSH_HOME` 可写不代表档案可写——属主
     // 错位可能只落在 `profiles` 或 `profiles/<id>` 上（安全模式要新建 `profiles/safe`，
-    // 因此 `profiles` 不可写同样是致命状态）。预检不创建目录，避免抢先建出半初始化
-    // 档案（issue #452）。
+    // 因此 `profiles` 不可写同样是致命状态）。
+    //
+    // 先跑一次档案迁移 + 首装引导（幂等）：desktop::setup 的引导若失败（磁盘/权限
+    // 抖动）或本进程没进过 setup，这里兜底；改名必须早于可写性预检，否则预检拿到的
+    // 还是改名前的档案目录。最佳努力：失败只告警，不阻断启动。
+    crate::service::profile::migrate_desktop_profile_name(&app_handle);
+
+    // 预检不创建目录，避免抢先建出半初始化档案（issue #452）。
     crate::service::perm::ensure_writable_path(
         &crate::service::plugin::profile_dir(&app_handle),
         &dsh_home,
         "PROFILE_NOT_WRITABLE",
     )?;
-
-    // 首装档案引导重试：desktop::setup 的引导若失败（磁盘/权限抖动），在真正
-    // spawn dsh 前再补一次；幂等，已就绪时直接跳过。最佳努力：失败只告警，
-    // 不阻断启动（回落 web 档案的老行为）。
-    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
 
     // 核心 bundle 层自愈（issue #452）：当前档案的 `dsh.profile.bundles` 必须带
     // 桌面端内嵌 web UI 依赖的 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`

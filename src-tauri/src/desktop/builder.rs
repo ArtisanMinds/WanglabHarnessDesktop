@@ -67,10 +67,13 @@ pub fn setup(app_handle: tauri::AppHandle) {
         log::warn!("pnpm modules metadata self-heal skipped: {e}");
     }
 
-    // 首装档案引导：桌面端首次安装时，在任何 dsh 启动/插件操作之前新建独立的
-    // Desktop 档案并切换（与 CLI 用户既有插件/补丁隔离，见 service::profile）。
-    // 必须先于 scheduler/auto_start：引导失败时它们回落 web 档案的老行为。
-    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
+    // 档案迁移 + 首装引导：官方核心 0.1.5 起 `desktop` 档案名被保留给 Electron
+    // 应用（`--profile desktop` 直接报错），先把老用户的 `profiles/desktop` 改名到
+    // `tauri` 并改指 `active_profile`，再在桌面端首次安装时新建独立档案并切换
+    // （与 CLI 用户既有插件/补丁隔离，见 service::profile）。必须先于 scheduler/
+    // auto_start：它们启动服务/装插件时会带上 active_profile，迁移完成前 dsh
+    // spawn 必然失败。
+    crate::service::profile::migrate_desktop_profile_name(&app_handle);
 
     // 启动进程监控（tick 检测 dsh 服务状态）
     crate::service::scheduler::start(&app_handle);
