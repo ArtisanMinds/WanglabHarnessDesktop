@@ -93,6 +93,20 @@ core-foundation = "0.9"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Linux 托盘直接使用上游 tray-icon 0.25 的 KSNI 后端（实现见 src/desktop/linux_tray.rs，
+# 背景见 issue #386 / #438）：
+# - tauri 2.11.5 仍固定 `tray-icon = "^0.24"`，而 0.24 在 Linux 上只有 libappindicator/GTK
+#   后端，该后端不上报任何托盘事件，单击/双击都无法唤起主窗口；
+# - tray-icon 0.25.0 新增的 KSNI 后端会把 SNI 的 Activate 转成
+#   `TrayIconEvent::Click { button: Left }`；
+# - 但 tauri 2.x 的菜单类型来自 muda 0.19，与 tray-icon 0.25 的 muda 0.20 不是同一套类型
+#   （`TrayIconBuilder::menu` 的 `ContextMenu` trait 不同），既无法 `cargo update` 也无法
+#   `[patch.crates-io]` 把 tauri 的 tray-icon 顶到 0.25，tauri 3 目前只有 alpha。
+# 因此 Linux 上绕过 `tauri::tray` 自建托盘；tauri 2.x 跟进 bump 后可删除本依赖与
+# src/desktop/linux_tray.rs。`ksni` 特性同时避免再引入 GTK/libappindicator 后端。
+[target.'cfg(target_os = "linux")'.dependencies]
+tray-icon = { version = "0.25", default-features = false, features = [ "ksni" ] }
+
 [target.'cfg(windows)'.dependencies]
 rfd = "0.16"
 webview2-com = "0.38"
