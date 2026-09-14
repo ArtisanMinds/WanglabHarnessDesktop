@@ -149,6 +149,7 @@ exec "$NODE" "$DSH_BIN" "$@"
 /// 实现要点：
 /// - 不用 `findstr` 匹配路径（`\` 会被当正则转义导致过滤失效）；
 /// - 块内变量判断用 for 变量（`%%~xp`）而非 `%VAR%`（块解析时机陷阱）。
+#[cfg_attr(all(not(windows), not(test)), allow(dead_code))] // 仅 Windows 的 shim 落盘与单测使用
 pub fn build_pnpm_cmd_shim(app_dir: &Path) -> String {
     let pnpm_bin = app_dir.join("dependencies/pnpm/bin/pnpm.cjs");
 
@@ -229,6 +230,7 @@ exit /b 1
 /// Windows `pnpm.ps1` 内容：优先转发用户 pnpm（`Get-Command pnpm -All`，
 /// 排除本 shim 目录），否则用 node 运行捆绑 pnpm.cjs。
 /// `DSH_PREFER_BUNDLED_PNPM=1` 时捆绑版优先（见模块头注）。
+#[cfg_attr(all(not(windows), not(test)), allow(dead_code))] // 仅 Windows 的 shim 落盘与单测使用
 pub fn build_pnpm_ps1_shim(app_dir: &Path) -> String {
     let pnpm_bin = app_dir.join("dependencies/pnpm/bin/pnpm.cjs");
 

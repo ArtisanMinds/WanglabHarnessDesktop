@@ -47,6 +47,9 @@ pub async fn install(
         .get_webview_window("main")
         .ok_or("Failed to get main window")?;
     log::debug!("Main window obtained");
+    // 仅 Windows 会继续 push MinGit 任务（见下方 `#[cfg(windows)]`），
+    // 异平台的 `mut` 因此多余，按平台放行。
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut tasks: Vec<Box<dyn download::Installable>> = vec![
         Box::new(download::Nodejs),
         Box::new(download::Dsh),
