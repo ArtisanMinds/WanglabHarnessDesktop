@@ -25,6 +25,26 @@ use crate::desktop::window::on_page_load;
 use crate::desktop::window::{on_download, on_new_window};
 use crate::utils::show_main_window;
 
+/// 壳层（`Navbar`）导航栏高度，单位 CSS px。
+///
+/// 这是「前端高度类 ↔ 后端交通灯纵向位置」的唯一真值入口：前端
+/// `src/layout/components/navbar.tsx` 根元素的 `h-13` 是它的体现（Tailwind 4
+/// 间距刻度 13 × 4px = 52px），macOS 交通灯的纵向位置也由它推导。issue #524
+/// 之前两处各写一份数值（`h-11` 与 `24.0`）互不知情，改一处就会错位；现在由
+/// `shell_nav_height_matches_navbar_height_class` 测试把这份耦合显式化——
+/// 改栏高忘了同步另一边，CI 直接失败。
+pub const SHELL_NAV_HEIGHT: u32 = 52;
+
+/// 交通灯距窗口左边缘的内边距（逻辑像素）。
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_INSET_X: f64 = 14.0;
+
+/// Wry 保留了 AppKit 原生按钮的纵向 frame 偏移：实测视觉圆心 = 传入 y − 2
+/// （44px 栏高配 y = 24 时圆心为 22px，而非直觉上的 24px）。因此「视觉圆心 =
+/// 栏高 / 2」对应 y = 栏高 / 2 + 2（52px 栏高 → 28）。
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_VISUAL_OFFSET: f64 = 2.0;
+
 /// WebView2 原生拖拽区域所需的参数。
 ///
 /// `data-tauri-drag-region` 的兼容脚本只处理鼠标事件；WebView2 的原生
@@ -90,10 +110,13 @@ pub fn setup(app_handle: tauri::AppHandle) {
         log::warn!("pnpm modules metadata self-heal skipped: {e}");
     }
 
-    // 首装档案引导：桌面端首次安装时，在任何 dsh 启动/插件操作之前新建独立的
-    // Desktop 档案并切换（与 CLI 用户既有插件/补丁隔离，见 service::profile）。
-    // 必须先于 scheduler/auto_start：引导失败时它们回落 web 档案的老行为。
-    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
+    // 档案迁移 + 首装引导：官方核心 0.1.5 起 `desktop` 档案名被保留给 Electron
+    // 应用（`--profile desktop` 直接报错），先把老用户的 `profiles/desktop` 改名到
+    // `tauri` 并改指 `active_profile`，再在桌面端首次安装时新建独立档案并切换
+    // （与 CLI 用户既有插件/补丁隔离，见 service::profile）。必须先于 scheduler/
+    // auto_start：它们启动服务/装插件时会带上 active_profile，迁移完成前 dsh
+    // spawn 必然失败。
+    crate::service::profile::migrate_desktop_profile_name(&app_handle);
 
     // 启动进程监控（tick 检测 dsh 服务状态）
     crate::service::scheduler::start(&app_handle);
@@ -459,16 +482,22 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         .icon(app.default_window_icon().unwrap().clone())?;
 
     // macOS 保留原生交通灯：绿色按钮由 AppKit 进入独立 Space 的原生全屏，
-    // 同时用 Overlay 让 44px 壳层导航栏继续与窗口 chrome 融合。其他平台
+    // 同时用 Overlay 让壳层导航栏继续与窗口 chrome 融合。其他平台
     // 仍由 ShellNavBar 的右侧按钮提供窗口控制。
     #[cfg(target_os = "macos")]
     let webview_builder = webview_builder
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // Wry 保留了 AppKit 原生按钮的纵向 frame 偏移；24px 在 44px
-        // 壳层导航栏内的实测视觉圆心为 22px，而非 API 直觉上的 24px。
-        .traffic_light_position(tauri::LogicalPosition::new(14.0, 24.0))
+        // 交通灯纵向位置由 SHELL_NAV_HEIGHT 推导（见常量注释），使视觉圆心落在
+        // 栏高一半，与随栏高 flex 居中的折叠/展开按钮同一水平线（issue #524）。
+        // 位置只在窗口创建时生效：Tauri 2.11.5 没有运行期交通灯 API，而 wry
+        // 0.55.1 会在自身重绘时按创建时的值回放（`WryWebViewParent::drawRect:`），
+        // 所以运行期改 NSWindow 会被随时覆盖——改栏高必须同步上面的常量。
+        .traffic_light_position(tauri::LogicalPosition::new(
+            TRAFFIC_LIGHT_INSET_X,
+            f64::from(SHELL_NAV_HEIGHT) / 2.0 + TRAFFIC_LIGHT_VISUAL_OFFSET,
+        ))
         // 在创建时就把原生标题栏外观设为 dsh 主题偏好，避免启动瞬间出现
         // 「内容已亮、顶栏仍暗」的闪变（issue #93）。system → None 即跟随系统。
         // 后续偏好变化由 `config::check_and_emit_theme` 调用 `apply_window_theme` 同步。
@@ -649,6 +678,46 @@ mod tests {
         assert!(args.contains("msWebOOUI,msPdfOOUI"));
         let smart_screen = ["ms", "SmartScreen", "Protection"].concat();
         assert!(!args.contains(smart_screen.as_str()));
+    }
+}
+
+/// 壳层导航栏高度是「前端高度类 ↔ 后端交通灯位置」的隐式耦合点（issue #524）。
+/// 这里把它变成显式契约：改一边忘了另一边，三个平台的 CI 都会直接失败。
+#[cfg(test)]
+mod shell_nav_tests {
+    use super::SHELL_NAV_HEIGHT;
+    use std::path::PathBuf;
+
+    /// Tailwind 4 的间距刻度步长：`h-N` = N × 0.25rem = N × 4px
+    /// （本仓库未覆盖 `--spacing`，见 `src/styles/main.css`）。
+    const TAILWIND_SPACING_PX: u32 = 4;
+
+    #[test]
+    fn shell_nav_height_matches_navbar_height_class() {
+        let path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/layout/components/navbar.tsx");
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {} failed: {error}", path.display()));
+
+        // 只匹配导航栏根元素那串 class（`relative flex h-N w-full flex-none …`），
+        // 免得命中窗口按钮的 `h-6` 等其他高度类。
+        let pattern = regex::Regex::new(r"relative flex h-(\d+) w-full flex-none").unwrap();
+        let captures = pattern.captures(&source).unwrap_or_else(|| {
+            panic!(
+                "{} 里找不到导航栏根元素的 `relative flex h-N w-full flex-none` class；\
+                 若换了高度类的写法，请同步本测试",
+                path.display()
+            )
+        });
+        let steps: u32 = captures[1].parse().expect("h-N 的 N 必须是整数");
+
+        assert_eq!(
+            steps * TAILWIND_SPACING_PX,
+            SHELL_NAV_HEIGHT,
+            "navbar.tsx 的 h-{steps}（{}px）与 SHELL_NAV_HEIGHT（{SHELL_NAV_HEIGHT}px）不一致：\
+             macOS 交通灯纵向位置由 SHELL_NAV_HEIGHT 推导，改栏高必须两处同步（issue #524）",
+            steps * TAILWIND_SPACING_PX,
+        );
     }
 }
 
