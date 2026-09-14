@@ -785,6 +785,60 @@ mod security_tests {
     }
 }
 
+#[cfg(test)]
+mod macos_bundle_tests {
+    use serde_json::Value;
+
+    /// issue #214：macOS 的麦克风授权完全落在打包配置上——iframe `allow`
+    /// 与 WebView2 侧权限已由 PR #216 修复，macOS 还缺「用途说明 + 签名授权」，
+    /// 两者缺任何一个，内嵌 WKWebView 里的 `getUserMedia` 都拿不到流
+    /// （缺用途说明时 TCC 直接终止进程，连授权框都不弹）。
+    #[test]
+    fn macos_media_capture_permissions_are_declared() {
+        let config: Value = serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let macos = &config["bundle"]["macOS"];
+        assert_eq!(
+            macos["hardenedRuntime"].as_bool(),
+            Some(true),
+            "entitlements 只在开启 Hardened Runtime 的签名上生效"
+        );
+        // 相对路径按 bundle 时的 CWD（src-tauri）解析。
+        assert_eq!(macos["infoPlist"].as_str(), Some("Info.plist"));
+        assert_eq!(macos["entitlements"].as_str(), Some("Entitlements.plist"));
+
+        // 用带 <key> 的完整标签匹配，避免注释里出现的键名让断言蒙混过关。
+        let info_plist = include_str!("../../Info.plist");
+        assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
+        assert!(info_plist.contains("<key>NSCameraUsageDescription</key>"));
+
+        let entitlements = include_str!("../../Entitlements.plist");
+        assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+        assert!(entitlements.contains("<key>com.apple.security.device.camera</key>"));
+    }
+
+    /// plist 语法只有 macOS 的 `plutil` 能权威校验（Rust 侧没有 plist 依赖），
+    /// 放在现有 macOS CI 上跑，免得打包/公证阶段才发现坏文件。
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_bundle_plists_are_valid() {
+        for file in ["Info.plist", "Entitlements.plist"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+            let output = std::process::Command::new("plutil")
+                .arg("-lint")
+                .arg(&path)
+                .output()
+                .expect("plutil must be available on macOS");
+            assert!(
+                output.status.success(),
+                "plutil -lint {} failed: {}{}",
+                path.display(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
+
 // configure invoke handler
 pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
