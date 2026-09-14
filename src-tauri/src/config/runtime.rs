@@ -316,6 +316,7 @@ pub fn get_pnpm_download_url() -> String {
 }
 
 /// Windows 免安装 Git 的安装目录。
+#[cfg_attr(not(windows), allow(dead_code))] // 仅 Windows 的 Git 运行时探测使用
 pub fn get_mingit_install_path<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf {
     get_base_dir(app_handle)
         .join("dependencies")
@@ -323,11 +324,13 @@ pub fn get_mingit_install_path<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf
 }
 
 /// Windows 免安装 Git 的 CLI 入口。
+#[cfg_attr(not(windows), allow(dead_code))] // 仅 Windows 的 Git 运行时探测使用
 pub fn get_mingit_binary_path<R: Runtime>(app_handle: &AppHandle<R>) -> PathBuf {
     get_mingit_install_path(app_handle).join(MINGIT_ENTRY_RELATIVE)
 }
 
 /// Windows MinGit 官方发行包文件名。
+#[cfg_attr(all(not(windows), not(test)), allow(dead_code))] // 仅 Windows 的 MinGit 任务与单测使用
 fn mingit_pkg_filename(arch: &str) -> Result<String, String> {
     match arch {
         "x86_64" => Ok(format!("MinGit-{MINGIT_VERSION}-64-bit.zip")),
@@ -337,6 +340,7 @@ fn mingit_pkg_filename(arch: &str) -> Result<String, String> {
 }
 
 /// Windows MinGit 官方发行包下载地址。
+#[cfg_attr(not(windows), allow(dead_code))] // 仅 Windows 的 MinGit 任务使用
 pub fn get_mingit_download_url() -> Result<String, String> {
     Ok(format!(
         "{MINGIT_BASE_URL}{}",
@@ -345,6 +349,7 @@ pub fn get_mingit_download_url() -> Result<String, String> {
 }
 
 /// Windows MinGit 官方发行包固定 SHA-256。
+#[cfg_attr(not(windows), allow(dead_code))] // 仅 Windows 的 MinGit 任务使用
 pub fn get_mingit_sha256() -> Result<&'static str, String> {
     match env::consts::ARCH {
         "x86_64" => Ok(MINGIT_X64_SHA256),

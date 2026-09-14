@@ -8,10 +8,15 @@ use std::sync::{Mutex, OnceLock};
 
 use tauri::{
     ipc::Invoke,
-    menu::{Menu, MenuEvent, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder, Wry,
 };
+
+// 托盘相关的 tauri 类型只在非 Linux 路径使用：Linux 走 desktop::linux_tray 的
+// KSNI 托盘（见该文件的背景说明），届时这些导入会变成未使用。
+#[cfg(not(target_os = "linux"))]
+use tauri::menu::{Menu, MenuEvent, MenuItem};
+#[cfg(not(target_os = "linux"))]
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 
 #[cfg(target_os = "macos")]
 use tauri::menu::{PredefinedMenuItem, Submenu};
@@ -23,6 +28,9 @@ static MACOS_FULLSCREEN_MENU_ITEM: OnceLock<Mutex<Option<PredefinedMenuItem<Wry>
 #[cfg(windows)]
 use crate::desktop::window::on_page_load;
 use crate::desktop::window::{on_download, on_new_window};
+// 只在 tauri::tray 路径（Windows / macOS）里按短名使用；Linux 的 KSNI 托盘在
+// desktop::linux_tray 内自行引用，且下面单例回调用的是完整路径。
+#[cfg(not(target_os = "linux"))]
 use crate::utils::show_main_window;
 
 /// 壳层（`Navbar`）导航栏高度，单位 CSS px。
@@ -147,7 +155,19 @@ pub fn setup(app_handle: tauri::AppHandle) {
     });
 }
 
-/// setup tray
+/// 构建系统托盘。
+///
+/// Linux 用上游 tray-icon 的 KSNI 后端自建（`tauri::tray` 固定依赖的 tray-icon 0.24
+/// 在 Linux 上不上报任何托盘事件，见 `desktop::linux_tray` 的平台说明与 issue #386）；
+/// Windows / macOS 沿用 `tauri::tray`。
+#[cfg(target_os = "linux")]
+pub fn tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    crate::desktop::linux_tray::build(app);
+    Ok(())
+}
+
+/// 构建系统托盘（Windows / macOS：`tauri::tray`）。
+#[cfg(not(target_os = "linux"))]
 pub fn tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     // 平台差异的托盘图标策略：
     // - macOS：使用 scoped template 透明图标（NSImage template），由系统按菜单栏
@@ -784,6 +804,60 @@ mod security_tests {
         let source = include_str!("builder.rs");
         let smart_screen = ["ms", "SmartScreen", "Protection"].concat();
         assert!(!source.contains(smart_screen.as_str()));
+    }
+}
+
+#[cfg(test)]
+mod macos_bundle_tests {
+    use serde_json::Value;
+
+    /// issue #214：macOS 的麦克风授权完全落在打包配置上——iframe `allow`
+    /// 与 WebView2 侧权限已由 PR #216 修复，macOS 还缺「用途说明 + 签名授权」，
+    /// 两者缺任何一个，内嵌 WKWebView 里的 `getUserMedia` 都拿不到流
+    /// （缺用途说明时 TCC 直接终止进程，连授权框都不弹）。
+    #[test]
+    fn macos_media_capture_permissions_are_declared() {
+        let config: Value = serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let macos = &config["bundle"]["macOS"];
+        assert_eq!(
+            macos["hardenedRuntime"].as_bool(),
+            Some(true),
+            "entitlements 只在开启 Hardened Runtime 的签名上生效"
+        );
+        // 相对路径按 bundle 时的 CWD（src-tauri）解析。
+        assert_eq!(macos["infoPlist"].as_str(), Some("Info.plist"));
+        assert_eq!(macos["entitlements"].as_str(), Some("Entitlements.plist"));
+
+        // 用带 <key> 的完整标签匹配，避免注释里出现的键名让断言蒙混过关。
+        let info_plist = include_str!("../../Info.plist");
+        assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
+        assert!(info_plist.contains("<key>NSCameraUsageDescription</key>"));
+
+        let entitlements = include_str!("../../Entitlements.plist");
+        assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+        assert!(entitlements.contains("<key>com.apple.security.device.camera</key>"));
+    }
+
+    /// plist 语法只有 macOS 的 `plutil` 能权威校验（Rust 侧没有 plist 依赖），
+    /// 放在现有 macOS CI 上跑，免得打包/公证阶段才发现坏文件。
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_bundle_plists_are_valid() {
+        for file in ["Info.plist", "Entitlements.plist"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+            let output = std::process::Command::new("plutil")
+                .arg("-lint")
+                .arg(&path)
+                .output()
+                .expect("plutil must be available on macOS");
+            assert!(
+                output.status.success(),
+                "plutil -lint {} failed: {}{}",
+                path.display(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
     }
 }
 

@@ -295,3 +295,22 @@ ctx.layout.selectPanel('my-entry') // null = 回到会话
   `useSessions` 取当前会话。
 - 选中面板时会话整体卸载（布局按 `entryKey` 只渲染一个 `main` cell）；`selectPanel(null)`
   回到会话且不切换 Session。
+
+## 7. 克隆侧栏的官方槽布局：`sidebar.footer.action` 逐条成行（#533）
+
+官方侧栏壳把 `sidebar.footer.action`（`list` / `root`，版本门槛见第 4 节）渲染进
+`footArea > footerActions`，而官方 CSS 对 `footerActions` 只声明 `display:flex`
+（方向取默认 `row`）：多个插件同时向该槽注册条目时会被并排塞进同一行互相挤压，
+整行内容（如 `width:100%` 的用量/余额 badge）被同排条目压扁。
+
+克隆侧栏（`src/client/components/sidebar.cssr.ts` 的 `e('footer-actions')`）显式
+排成 `flex-direction: column` + `align-items: stretch`：
+
+- 每个注册条目**各占一行**、自上而下堆叠并撑满侧栏内容宽，与下方
+  `sidebar.settings`（`settings-area` 的块级堆叠）一致；
+- 折叠 rail 态收缩为内容宽（`width:auto`）并横向居中。轮换到列方向后，rail 的
+  居中语义由 cross 轴的 `align-items:center` 承担——官方镜像里的
+  `justify-content:center` 在列方向只剩纵向语义、无高度可居中，已随之替换。
+
+第三方条目请按「整行条目」设计：需要占满行宽的控件直接用 `width:100%`；
+不要依赖与相邻条目并排——那是官方 CSS 默认 `row` 的产物，克隆侧栏不再提供。

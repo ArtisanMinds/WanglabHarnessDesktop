@@ -165,10 +165,17 @@ export default b('panel', {
     flex: 'none',
     display: 'flex',
   }),
+  // 官方 footerActions 只声明了 display:flex（方向取默认 row），而它承载的
+  // sidebar.footer.action 是 kind:list —— 同时装了多个注册条目的插件时，条目会被
+  // 并排塞进同一行互相挤压（整行 badge 的 width:100% 被压扁，见 issue #533）。
+  // 这里显式排成列：每个条目各占一行、自上而下堆叠，与下方 settings-area 的块级
+  // 堆叠保持一致（stretch 让条目撑满行宽，等价于块级子元素的默认行为）。
   e('footer-actions', {
     flex: 'none',
     width: '100%',
     minWidth: 0,
+    flexDirection: 'column',
+    alignItems: 'stretch',
     display: 'flex',
   }),
   e('settings-area', {
@@ -207,7 +214,11 @@ export default b('panel', {
     }),
     c('& .dshp-panel__region-area', { marginLeft: 0, marginRight: 0, padding: 0 }),
     c('& .dshp-panel__foot-area', { alignItems: 'center' }),
-    c('& .dshp-panel__settings-area, & .dshp-panel__footer-actions', { justifyContent: 'center', width: 'auto', display: 'flex' }),
+    c('& .dshp-panel__settings-area', { justifyContent: 'center', width: 'auto', display: 'flex' }),
+    // footer-actions 基态已是列（见上），官方镜像里的 justifyContent:center 在列
+    // 方向只剩纵向语义且无高度可居中 → 等效失效。rail 态的「居中」因此必须换到
+    // cross 轴用 alignItems：条目收缩为内容宽并横向居中，不再被 stretch 撑开。
+    c('& .dshp-panel__footer-actions', { alignItems: 'center', width: 'auto', display: 'flex' }),
   ]),
   m('wide', [
     c('&', { width: 'var(--dshp-width)' }),
