@@ -17,7 +17,7 @@ import type { AddressInfo } from 'node:net'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { routes } from '.'
-import { OPEN_PATH_ROUTE, OPEN_URL_ROUTE } from '../../constants'
+import { OPEN_PATH_ROUTE, OPEN_URL_ROUTE } from '../../shared/constants'
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 

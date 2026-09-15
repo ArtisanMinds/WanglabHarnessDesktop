@@ -60,9 +60,11 @@
   },
   "dependencies": {
     "dsh-tauri": "workspace:*",
-    "dsh-tauri-ui": "workspace:*"
+    "dsh-tauri-ui": "workspace:*",
+    "lodash-es": "catalog:utils"
   },
   "devDependencies": {
+    "@types/lodash-es": "catalog:types",
     "dsh-tauri-tsdown": "workspace:*",
     "tsdown": "catalog:cli"
   }
