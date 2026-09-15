@@ -53,7 +53,7 @@ export interface PanelExtensionHost {
  * profile patch 目录与 provider 重挂载函数在装配期解析、不作为宿主服务暴露，处理器
  * 无法从事件取回，因此随注册传入、由处理器经 `dshRouteDepsOf(event)` 取回（宿主 ctx
  * 本身仍由 `dshContextOf(event)` 取回，不走 deps）。deps 由本次注册的闭包捕获，同一
- * 插件挂载两次各读各的依赖。
+ * 份声明在两组 deps 下注册时各读各的依赖。
  */
 export interface ExtensionRouteDeps {
   /** profile 的 patch 目录（`<DSH_HOME>/profiles/<profile>`）。 */

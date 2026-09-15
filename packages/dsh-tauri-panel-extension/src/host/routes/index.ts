@@ -37,7 +37,7 @@
  *
  * 处理器需要的 apply 期依赖（profile patch 目录 / 数据根 / provider 重挂载）无法从事件
  * 里的宿主 ctx 取回，因此经注册期第二参数传入、请求期由处理器用 `dshRouteDepsOf(event)`
- * 取回；deps 由本次注册的闭包捕获，同一插件挂载两次各读各的，没有模块级可变状态。
+ * 取回；deps 由本次注册的闭包捕获，同一份声明在两组 deps 下注册时各读各的，没有模块级可变状态。
  */
 
 import type { ExtensionRouteDeps } from '../types'

@@ -37,7 +37,8 @@
  * // handler 内：
  * const { config, root } = dshRouteDepsOf<DemoDeps>(event)!
  * ```
- * 依赖不落模块级全局，因此同一插件挂载两次不会串台。
+ * 依赖不落模块级全局：同一份声明在两组 deps 下各注册一次时各读各的（单测在同一进程里建多个
+ * harness 即命中），先注册的不会被后注册的覆盖。
  */
 
 import type { EventHandler, H3Event } from 'h3'
@@ -90,7 +91,7 @@ interface RouteGroup {
  * })
  * ctx.effect(() => routes(ctx, deps), 'demo: routes')
  * ```
- * deps 由本次注册的闭包捕获（不落模块级全局），因此同一插件挂载两次各读各的依赖。
+ * deps 由本次注册的闭包捕获（不落模块级全局）：同一份声明被两组 deps 各注册一次时各读各的依赖。
  *
  * @param setup - 路由声明回调；在此用 `disposer.get(...)` / `disposer.post(...)` 登记路由。
  * @returns `registerRoutes(ctx, deps?)`：注册全部路由并返回卸载函数（配合 `ctx.effect` 使用）。
@@ -185,7 +186,7 @@ export function dshRouteDepsOf<Deps>(event: H3Event): Deps | undefined {
  * 逐条包裹而不是挂中间件：这样 `dsh` / `dshDeps` 必定在业务 handler 之前就位，也不受 h3
  * 中间件注册顺序影响。返回值必须原样透传，否则会把 handler 的响应体吞成 undefined。
  *
- * deps 只存在于本次注册的闭包里，不落模块级全局：同一插件挂载两次各持有各自的依赖。
+ * deps 只存在于本次注册的闭包里，不落模块级全局：两次注册各持有各自的依赖。
  */
 function withDshContext<Deps>(handler: EventHandler, ctx: RoutesContext, deps: Deps): EventHandler {
   return (event) => {

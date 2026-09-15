@@ -8,7 +8,7 @@
  *   4. **apply 期依赖随注册传入处理器**：`routes(ctx, deps)` 的 deps 经
  *      `event.context.dshDeps` 到达处理器（`dshRouteDepsOf<WorktreeRouteDeps>(event)` 取回），
  *      并用唯一标记证明处理器读到的就是本次注册那一个对象；
- *   5. **同一路由声明挂载两次各读各的依赖**（模块级可变状态已清零的回归：
+ *   5. **同一份路由声明两次注册各读各的依赖**（模块级可变状态已清零的回归：
  *      两个注册各自的数据根 / 删除任务登记表互不串台）。
  *
  * 走真实 node:http 服务（h3 的 toNodeHandler 依赖真实 req/res 流），并在测试内复刻宿主
@@ -265,7 +265,7 @@ describe('工作树路由声明', () => {
     dispose()
   })
 
-  it('同一路由声明挂载两次各读各的 apply 期依赖（无模块级串台）', async () => {
+  it('同一份路由声明两次注册各读各的 apply 期依赖（无模块级串台）', async () => {
     // binding ledger 是全局的（固定落 DSH_HOME），两次注册读同一份绑定；随注册传入的
     // deps.discardJobs 则必须各读各的：若依赖还落在模块级全局，后注册的 B 会覆盖 A。
     const binding: Binding = {

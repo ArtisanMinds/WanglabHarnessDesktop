@@ -25,7 +25,7 @@
  *
  * 处理器需要的 apply 期依赖（插件配置 / 数据根 / 删除任务登记表）无法从事件取回，因此经注册期
  * 第二参数传入、请求期由处理器用 `dshRouteDepsOf<WorktreeRouteDeps>(event)` 取回；deps 由本次
- * 注册的闭包捕获，同一插件挂载两次各读各的，没有模块级可变状态。宿主 ctx 本身仍由处理器经
+ * 注册的闭包捕获，同一份声明在两组 deps 下注册时各读各的，没有模块级可变状态。宿主 ctx 本身仍由处理器经
  * `dshContextOf(event)` 取回。
  *
  * 运行期注册：`ctx.effect(() => routes(ctx, deps), 'dsh-tauri-worktree: routes')`。
