@@ -11,12 +11,11 @@
  * 会话与工作区的官方操作全部转交官方组件（officialSelect）；插件只补充
  * 宿主能力（资源管理器、剪贴板、默认浏览器、刷新）。
  */
-import type { ClientContext } from 'dsh-tauri/client'
+import type { LifecycleController } from 'dsh-tauri/client'
 import type {
   SessionsRuntimeLike,
   WorkspacesRuntimeLike,
 } from '../types'
-import { compat, createLifecycleController } from 'dsh-tauri/client'
 import {
   CONTEXT_MENU_EVENT,
 } from '../constants'
@@ -40,15 +39,17 @@ import {
 import { holdRegistryLease, registry } from './registry'
 
 /**
- * 安装右键菜单。返回卸载函数（关闭菜单并 dispose 生命周期控制器）。
- * @param ctx - 客户端根上下文（须已注入 sessions/workspaces）。
+ * 安装右键菜单，把全部资源登记进调用方的生命周期控制器。
+ * @param controller - `defineRegister` 托管的生命周期控制器（listener / 计时器 / disposer 归口）。
+ * @param sessions - 适配后的会话运行时面（跨内核布局差异由 adapter 承担）。
+ * @param workspaces - 适配后的工作区运行时面（同上）。
  */
-export function registerContextMenu(ctx: ClientContext): () => void {
-  const cx = compat(ctx)
-  const sessions = cx.sessions as unknown as SessionsRuntimeLike
-  const workspaces = cx.workspaces as unknown as WorkspacesRuntimeLike
+export function registerContextMenu(
+  controller: LifecycleController,
+  sessions: SessionsRuntimeLike,
+  workspaces: WorkspacesRuntimeLike,
+): void {
   const extensionsRegistry = registry()
-  const controller = createLifecycleController()
   // 注册表租约：apply 时持有、dispose 时释放（哪怕 listeners 先失效）。
   controller.add(holdRegistryLease())
 
@@ -156,6 +157,8 @@ export function registerContextMenu(ctx: ClientContext): () => void {
     }
     else if (workspaceTarget) {
       const workspace = workspaceTarget.workspace
+      // 官方 workspaceId 是 branded 类型，而工作区投影与 sessions/workspaces 服务来自
+      // 两份内核代各自的包实例：这里是既有的运行时交界断言（非类型绕过）。
       add(root, text('newSession'), () => workspaces.startSession?.(workspace.workspaceId as unknown as Parameters<NonNullable<typeof workspaces.startSession>>[0]))
       add(root, text('openInExplorer'), () => openInExplorer(workspace.path))
       split(root)
@@ -249,6 +252,5 @@ export function registerContextMenu(ctx: ClientContext): () => void {
   controller.listen('contextmenu', onContextMenu, { capture: true })
   controller.listen('pointerdown', outside, { capture: true })
   controller.listen('keydown', keyboard, { capture: true })
-
-  return () => controller.dispose()
+  // 不返回 disposer：controller 由 defineRegister 托管，卸载时统一 dispose（含 close）。
 }

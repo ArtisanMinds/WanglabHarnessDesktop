@@ -149,14 +149,20 @@ let activeLocale = 'en'
 /**
  * 在 apply 里安装：注册双语字典，并桥接 locale 变更到 module 级缓存。
  * @param ctx - 客户端根上下文（须已注入 locale 服务）。
+ * @returns 卸载函数：注销订阅与两份字典注册句柄（由 controller 托管）。
  */
-export function registerLocale(ctx: ClientContext): void {
+export function registerLocale(ctx: ClientContext): () => void {
   activeLocale = ctx.locale.getLocale().active
-  ctx.locale.register(NS, 'zh', DICT_ZH)
-  ctx.locale.register(NS, 'en', DICT_EN)
-  ctx.locale.subscribe(() => {
+  const unregisterZh = ctx.locale.register(NS, 'zh', DICT_ZH)
+  const unregisterEn = ctx.locale.register(NS, 'en', DICT_EN)
+  const unsubscribe = ctx.locale.subscribe(() => {
     activeLocale = ctx.locale.getLocale().active
   })
+  return () => {
+    unsubscribe()
+    unregisterEn()
+    unregisterZh()
+  }
 }
 
 /**

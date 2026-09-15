@@ -7,134 +7,29 @@
  *   - POST /api/dsh-rightclick-menu/open-path 在系统文件管理器中打开本地目录
  *     （不依赖核心 Remote 服务，新旧核心均可用）。
  *
- * 路由只接受同源 JSON POST（isSameOriginJsonRequest 校验）。
+ * 目录分层：
+ *   - index.ts（本文件）  public barrel（公开面不变）；
+ *   - constants.ts        跨 half 协议常量（插件名 / API 前缀 / 两条路由路径）；
+ *   - host/routes/        路由声明（index.ts）+ 每个 feature 一个目录、HTTP 方法名做文件名；
+ *   - host/service/       领域服务（宿主变更串行队列）；
+ *   - host/apply.ts       插件装配：`ctx.effect(() => routes(ctx), '<plugin>: routes')`；
+ *   - client/             Browser half（右键菜单控制器 + 文案 + 样式）。
+ *
+ * 路由只接受同源 JSON POST：方法限制 / OPTIONS / 连接鉴权 / 变更方法的回环与跨源校验 /
+ * 1 MiB 请求体上限由 `defineRoutes` 统一承担，处理器内只保留请求级逻辑
+ * （读体、校验、置状态码、组织响应）。
  */
 
-import type { HostContext, HostRoute } from './types'
-import { isSameOriginJsonRequest, openDirectory, openUrl, readJsonBody, respond, safeWebUrl, withConnectionAuth } from 'dsh-tauri'
-import {
-  OPEN_PATH_ROUTE,
-  OPEN_URL_ROUTE,
-  RIGHTCLICK_API_PREFIX,
-  RIGHTCLICK_PLUGIN_NAME,
-} from './constants'
+import { RIGHTCLICK_API_PREFIX, RIGHTCLICK_PLUGIN_NAME } from './constants'
 
 /** 插件名（诊断元数据，与导出的 name 一致）。 */
 export const name = RIGHTCLICK_PLUGIN_NAME
 
-/**
- * 需要的宿主服务：webServer（HTTP 路由）、sessionPersistence（定位会话文件）、
- *  workspaceRegistry（归档过渡/记账）、agents（停止运行中会话）、
- *  sessions（live session 脱离）、storageDomain（投影/工作区账本）。
- */
+/** 需要的宿主服务：webServer（HTTP 路由）、connection（DSH 连接信任边界）。 */
 export const inject = ['webServer', 'connection']
 
 /** API 路由前缀（客户端同源 fetch）。 */
 export const API_PREFIX = RIGHTCLICK_API_PREFIX
 
-/** 构建路由列表。 */
-export function buildRoutes(ctx: HostContext): HostRoute[] {
-  // 串行化变更操作：每个宿主变更依次排队执行。
-  let mutationTail: Promise<unknown> = Promise.resolve()
-  const withMutationLock = <T>(operation: () => Promise<T>): Promise<T> => {
-    const result = mutationTail.then(operation, operation)
-    mutationTail = result.then(() => undefined, () => undefined)
-    return result
-  }
-
-  const routes: HostRoute[] = [
-    {
-      kind: 'exact',
-      path: OPEN_URL_ROUTE,
-      handler: async (request, response) => {
-        if (request.method !== 'POST')
-          return respond(response, 405, { ok: false, error: 'method-not-allowed' })
-        const validation = isSameOriginJsonRequest(request)
-        if (!validation.ok)
-          return respond(response, validation.status, { ok: false, error: validation.error })
-        let body
-        try {
-          body = await readJsonBody(request)
-        }
-        catch {
-          return respond(response, 400, { ok: false, error: 'bad-request' })
-        }
-        const url = safeWebUrl(body?.url)
-        if (!url)
-          return respond(response, 400, { ok: false, error: 'invalid-url' })
-        return withMutationLock(async () => {
-          try {
-            await openUrl(url)
-            respond(response, 200, { ok: true })
-          }
-          catch (error) {
-            ctx.logger?.warn?.(`[${RIGHTCLICK_PLUGIN_NAME}] failed to open URL ${url}:`, error)
-            respond(response, 500, { ok: false, error: 'open-url-failed' })
-          }
-        })
-      },
-    },
-    {
-      kind: 'exact',
-      path: OPEN_PATH_ROUTE,
-      handler: async (request, response) => {
-        if (request.method !== 'POST')
-          return respond(response, 405, { ok: false, error: 'method-not-allowed' })
-        const validation = isSameOriginJsonRequest(request)
-        if (!validation.ok)
-          return respond(response, validation.status, { ok: false, error: validation.error })
-        let body
-        try {
-          body = await readJsonBody(request)
-        }
-        catch {
-          return respond(response, 400, { ok: false, error: 'bad-request' })
-        }
-        const path = safeOpenPath(body?.path)
-        if (!path)
-          return respond(response, 400, { ok: false, error: 'invalid-path' })
-        return withMutationLock(async () => {
-          try {
-            if (!openDirectory(path)) {
-              respond(response, 400, { ok: false, error: 'not-a-directory' })
-              return
-            }
-            respond(response, 200, { ok: true })
-          }
-          catch (error) {
-            ctx.logger?.warn?.(`[${RIGHTCLICK_PLUGIN_NAME}] failed to open directory ${path}:`, error)
-            respond(response, 500, { ok: false, error: 'open-path-failed' })
-          }
-        })
-      },
-    },
-  ]
-  return routes.map(route => ({
-    ...route,
-    handler: withConnectionAuth(ctx.connection, route.handler, 'dsh-tauri-rightclick'),
-  }))
-}
-
-/** 校验“在资源管理器中打开”的目录参数：必须是非空本地路径，且不能是 URL。 */
-function safeOpenPath(value: unknown): string | null {
-  if (typeof value !== 'string' || !value.trim())
-    return null
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(value))
-    return null
-  return value
-}
-
-/**
- * 插件体：注册 HTTP 路由。
- * @param ctx - 宿主根上下文（注入 webServer/sessionPersistence/workspaceRegistry/
- *   agents/sessions/storageDomain）。
- */
-export function apply(ctx: HostContext): void {
-  ctx.effect(() => {
-    const disposers = buildRoutes(ctx).map(route => ctx.webServer.register(route))
-    return () => {
-      for (const dispose of disposers)
-        dispose()
-    }
-  }, `${RIGHTCLICK_PLUGIN_NAME}: routes`)
-}
+export { apply } from './host/apply'
+export { routes } from './host/routes'

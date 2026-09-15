@@ -11,18 +11,22 @@
  *   - 所有菜单：刷新。
  *
  * 与 node half（src/index.ts）经 /api/dsh-rightclick-menu/* 通信（open-url）。
+ *
+ * 两处装配：
+ *   1. 样式表：`mountStyle` 引用计数挂载，经 `defineRegister` 统一释放；
+ *   2. 文案 + 右键菜单：收敛在 {@link feature}（`defineRegister`）里，跨内核的
+ *      `sessions` / `workspaces` 服务布局差异由它的 `adapter` 承担（取代迁移前的 `compat(ctx)`）。
  */
 import type { ClientContext } from 'dsh-tauri/client'
 import { mountStyle } from 'dsh-tauri-ui/client'
-import { compat } from 'dsh-tauri/client'
+import { defineRegister } from 'dsh-tauri/client'
 import {
   RIGHTCLICK_CLIENT_PLUGIN,
   RIGHTCLICK_MENU_EFFECT,
   RIGHTCLICK_MENU_STYLE_ID,
   RIGHTCLICK_STYLES_EFFECT,
 } from './constants'
-import { registerLocale } from './locales'
-import { registerContextMenu } from './service/menu'
+import { feature } from './register/features'
 import rightClickStyle from './styles/index.cssr'
 
 /** 插件显示名（诊断元数据）。 */
@@ -32,14 +36,17 @@ export const name = RIGHTCLICK_CLIENT_PLUGIN
 export const inject = ['locale', 'sessions', 'workspaces']
 
 /**
- * 插件体：安装文案与样式，并挂载右键菜单监听。
+ * 插件体：安装样式与文案，并挂载右键菜单监听。
  * @param ctx - 客户端根上下文。
  */
 export function apply(ctx: ClientContext): void {
-  const cx = compat(ctx)
-  registerLocale(cx)
+  // 1) 样式表挂载（mountStyle 引用计数幂等，卸载由 defineRegister 统一释放）。
+  ctx.effect(
+    defineRegister<ClientContext>(ctx, () => mountStyle(rightClickStyle, RIGHTCLICK_MENU_STYLE_ID)),
+    RIGHTCLICK_STYLES_EFFECT,
+  )
 
-  ctx.effect(() => mountStyle(rightClickStyle, RIGHTCLICK_MENU_STYLE_ID), RIGHTCLICK_STYLES_EFFECT)
-
-  ctx.effect(() => registerContextMenu(cx), RIGHTCLICK_MENU_EFFECT)
+  // 2) 双语文案 + 右键菜单控制器（同一 feature：locale 与菜单控制器共用适配后的上下文，
+  //    卸载时一并释放，不再有迁移前「registerLocale 裸调、注销句柄无人持有」的泄漏）。
+  ctx.effect(feature, RIGHTCLICK_MENU_EFFECT)
 }
