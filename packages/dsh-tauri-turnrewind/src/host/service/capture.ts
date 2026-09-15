@@ -94,8 +94,6 @@ export interface TurnCapture {
 }
 
 export interface TurnCaptureOptions {
-  /** 宿主数据根目录。 */
-  dshHome: string
   /** 工作区级串行队列（与路由层共用，撤销因此与捕获互斥）。 */
   queue: WorkspaceQueue
   logger?: CaptureLogger | undefined
@@ -109,11 +107,11 @@ function activeKey(sessionId: string, turn: number): string {
 
 /**
  * 创建 turn 捕获编排器。
- * @param options - 数据根目录、共享队列、日志与回调。
+ * @param options - 共享队列、日志与回调。
  * @returns 捕获编排器句柄。
  */
 export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
-  const { dshHome, queue } = options
+  const { queue } = options
   const logger = options.logger
   const onCaptured = options.onCaptured
   const active = new Map<string, ActiveTurn>()
@@ -174,7 +172,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
         warn(`dsh-tauri-turnrewind: before snapshot for session ${sessionId} turn ${turn} failed: ${String(error)}`)
         // 意外异常（git/IO 抛错，而不是 captureSnapshot 收敛过的结果对象）同样要留一笔账：
         // 与 skippedEntry 一致，客户端才知道「这一轮存在过」。没有基线 → 卡片保持沉默。
-        await recordUnavailable(dshHome, sessionId, turn, REASON_SNAPSHOT_FAILED).catch(() => undefined)
+        await recordUnavailable(sessionId, turn, REASON_SNAPSHOT_FAILED).catch(() => undefined)
       },
     )
     beginning.set(key, { sessionId, turn, task })
@@ -208,7 +206,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
       // 非 Git / 系统目录 / git 缺失：不建快照。资格结论写进账本供客户端呈现。
       // 「确实是 Git 仓库但被守卫拒绝」的目录保持 isGit=true，只带不可用原因，
       // 避免客户端误报「需要 Git 仓库」。
-      await recordWorkspaceState(dshHome, sessionId, {
+      await recordWorkspaceState(sessionId, {
         workspaceRoot: null,
         isGit: probe.reason === REASON_UNSAFE_WORKSPACE,
         unavailableReason: probe.reason,
@@ -216,7 +214,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
       register(skippedEntry(sessionId, turn, null, probe.reason))
       return
     }
-    const store = snapshotStoreFor(dshHome, probe.root, probe.commonDir)
+    const store = snapshotStoreFor(probe.root, probe.commonDir)
     // 工作区首次触碰：容量治理（prune 不可达对象 / 超限整仓重建 / 排除清单复检）。
     const exclusions = await queue.run(probe.root, async () => {
       const retention = await ensureWorkspaceRetention(store)
@@ -230,7 +228,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
       captureSnapshot(store, turnRef(sessionId, turn, 'before'), `turn ${turn} before`, { exclude: exclusions, nestedDirs }))
     if (!result.ok) {
       warn(`dsh-tauri-turnrewind: before snapshot for session ${sessionId} turn ${turn} unavailable: ${result.reason}`)
-      await recordWorkspaceState(dshHome, sessionId, {
+      await recordWorkspaceState(sessionId, {
         workspaceRoot: probe.root,
         isGit: true,
         unavailableReason: null,
@@ -238,7 +236,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
       register(skippedEntry(sessionId, turn, { store, workspaceRoot: probe.root }, result.reason))
       return
     }
-    await recordWorkspaceState(dshHome, sessionId, {
+    await recordWorkspaceState(sessionId, {
       workspaceRoot: probe.root,
       isGit: true,
       unavailableReason: null,
@@ -437,7 +435,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
       }
       if (entry.beforeCommit === null) {
         // 连基线都没建立：这一轮从来没有过可撤销的承诺，账本行不带 ref（客户端据此沉默）。
-        await recordUnavailable(dshHome, sessionId, entry.turn, entry.skippedReason ?? REASON_SNAPSHOT_FAILED)
+        await recordUnavailable(sessionId, entry.turn, entry.skippedReason ?? REASON_SNAPSHOT_FAILED)
         terminal = true
         return
       }
@@ -452,13 +450,13 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
         if (!after.ok) {
           // 基线在、after 失败：这是「承诺过的撤销落空了」，账本行保留 before ref，
           // 客户端据此仍然给出告警（与上面「从没建立基线」的沉默区分开）。
-          await recordUnavailable(dshHome, sessionId, turn, after.reason, turnRef(sessionId, turn, 'before'))
+          await recordUnavailable(sessionId, turn, after.reason, turnRef(sessionId, turn, 'before'))
           terminal = true
           return
         }
         const diff = await diffTurnChanges(store, beforeCommit, after.commit)
         if (!diff.ok) {
-          await recordUnavailable(dshHome, sessionId, turn, REASON_SNAPSHOT_FAILED, turnRef(sessionId, turn, 'before'))
+          await recordUnavailable(sessionId, turn, REASON_SNAPSHOT_FAILED, turnRef(sessionId, turn, 'before'))
           terminal = true
           return
         }
@@ -467,7 +465,7 @@ export function createTurnCapture(options: TurnCaptureOptions): TurnCapture {
           skippedOversized: after.skippedOversized,
           skippedNestedRepos: after.skippedNestedRepos,
         })
-        const mutation = await recordTurn(dshHome, sessionId, record)
+        const mutation = await recordTurn(sessionId, record)
         // 账本已经落定 → 立即进入终态：后面几步（删 refs / prune / 回调）即使抛错也不能重试，
         // 否则会重复捕 after、重复触发 onCaptured，还可能把之后才发生的改动算进这一轮。
         terminal = true
@@ -563,8 +561,8 @@ function buildRecord(
  * 「基线在、after 结算失败」必须如实告警（承诺过的撤销落空了）。
  * 同时它也让保留窗口淘汰时能把这根孤儿 ref 一起回收。
  */
-async function recordUnavailable(dshHome: string, sessionId: string, turn: number, reason: string, beforeRef = ''): Promise<void> {
-  await recordTurn(dshHome, sessionId, {
+async function recordUnavailable(sessionId: string, turn: number, reason: string, beforeRef = ''): Promise<void> {
+  await recordTurn(sessionId, {
     turn,
     beforeRef,
     afterRef: '',

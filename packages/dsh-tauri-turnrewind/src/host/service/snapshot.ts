@@ -18,6 +18,7 @@ import type { CaptureLimits, CaptureOptions, CaptureResult, SnapshotStore, TurnF
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readdirSync, unlinkSync } from 'node:fs'
 import { mkdir, readFile, rmdir, writeFile } from 'node:fs/promises'
+import { DSH_HOME } from 'dsh-tauri'
 import { dirname, isAbsolute, join, resolve } from 'pathe'
 import {
   GIT_TIMEOUT_MS,
@@ -65,16 +66,16 @@ const NESTED_SCAN_MAX_DEPTH = 2
 const NESTED_SCAN_MAX_DIRS = 2000
 const NESTED_SCAN_SKIP = new Set(['.git', 'node_modules', '.turnrewind'])
 
-/** 快照仓根目录（DSH_HOME 下）。 */
-export function snapshotWorkspacesDir(dshHome: string): string {
-  return join(dshHome, SNAPSHOT_FEATURE_DIR, 'workspaces')
+/** 快照仓根目录（固定落在 `DSH_HOME` 下）。 */
+export function snapshotWorkspacesDir(): string {
+  return join(DSH_HOME, SNAPSHOT_FEATURE_DIR, 'workspaces')
 }
 
 /** 某工作区对应的私有快照仓定位。 */
-export function snapshotStoreFor(dshHome: string, worktree: string, commonDir?: string | null): SnapshotStore {
+export function snapshotStoreFor(worktree: string, commonDir?: string | null): SnapshotStore {
   return {
     worktree,
-    gitDir: join(snapshotWorkspacesDir(dshHome), `${workspaceHash(worktree)}.git`),
+    gitDir: join(snapshotWorkspacesDir(), `${workspaceHash(worktree)}.git`),
     commonDir: commonDir ?? null,
   }
 }
@@ -166,8 +167,8 @@ export async function rotateGeneration(store: SnapshotStore, reason?: string): P
 }
 
 /** 读取某工作区当前代数（撤销路径用；不存在返回 null）。 */
-export async function readGenerationFor(dshHome: string, worktree: string): Promise<string | null> {
-  const marker = await readMarker(workspaceMarkerPath(snapshotStoreFor(dshHome, worktree)))
+export async function readGenerationFor(worktree: string): Promise<string | null> {
+  const marker = await readMarker(workspaceMarkerPath(snapshotStoreFor(worktree)))
   return marker?.generation ?? null
 }
 

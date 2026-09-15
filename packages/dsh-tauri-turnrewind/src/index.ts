@@ -39,7 +39,6 @@ export const inject = ['webServer', 'sessions', 'agents']
 export const API_PREFIX = TURNREWIND_API_PREFIX
 
 export { apply } from './host/apply'
-export type { PluginConfig } from './host/apply'
 export { createTurnRewindHooks } from './host/hooks'
 export type { TurnRewindHooks } from './host/hooks'
 export { routes } from './host/routes'

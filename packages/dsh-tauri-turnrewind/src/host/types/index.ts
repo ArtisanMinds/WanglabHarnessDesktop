@@ -214,17 +214,12 @@ export type TurnPendingReader = (sessionId: string, turn: number) => boolean
 /**
  * 路由的 apply 期依赖面（`routes(ctx, deps)` 的 deps 形状）。
  *
- * 队列、实时读数、未落定判定与数据根都由 `apply` 在装配期创建、不作为宿主服务发布，
+ * 队列、实时读数与未落定判定都由 `apply` 在装配期创建、不作为宿主服务发布，
  * 处理器无法从事件取回，因此随注册传入、由 `defineRoutes` 挂到 `event.context.dshDeps`，
  * 处理器经 `dshRouteDepsOf<TurnrewindRouteDeps>(event)` 取回（宿主 ctx 本身仍由
- * `dshContextOf(event)` 取回，不走 deps）。
- *
- * `dshHome` 是**已落定**的值：默认值（`$DSH_HOME` / 插件行配置覆盖）在 `apply` 组装 deps
- * 时解析，路由层不再重复判定。
+ * `dshContextOf(event)` 取回，不走 deps）。数据根不在这里：各领域模块直接读 `DSH_HOME`。
  */
 export interface TurnrewindRouteDeps {
-  /** 数据根目录（`$DSH_HOME` 或插件行配置覆盖）；由 apply 解析默认值后传入。 */
-  dshHome: string
   /** 运行中读数读取面；缺席时退化为 inactive 占位。 */
   live?: LiveStateReader
   /** 未落定判定；缺席时退化为「会话有活动读数」这一宽容判定（仅测试/降级路径）。 */

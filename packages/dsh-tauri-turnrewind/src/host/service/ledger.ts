@@ -18,7 +18,7 @@
 import type { SessionLedger, TurnRecord } from '../types'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { writeAtomic } from 'dsh-tauri'
+import { DSH_HOME, writeAtomic } from 'dsh-tauri'
 import { join } from 'pathe'
 import {
   LEDGER_VERSION,
@@ -28,16 +28,16 @@ import {
   SNAPSHOT_FEATURE_DIR,
 } from '../constants'
 
-/** 账本目录（DSH_HOME 可被环境变量覆盖，与 dsh-tauri 的存储口径一致）。 */
-export function ledgerDir(dshHome: string): string {
-  return join(dshHome, SNAPSHOT_FEATURE_DIR, 'sessions')
+/** 账本目录（固定落在 `DSH_HOME` 下；测试用 `vi.mock('dsh-tauri')` 注入临时根）。 */
+export function ledgerDir(): string {
+  return join(DSH_HOME, SNAPSHOT_FEATURE_DIR, 'sessions')
 }
 
 /** 会话账本文件路径；会话 id 做文件名安全化并附短哈希防撞。 */
-export function ledgerPath(dshHome: string, sessionId: string): string {
+export function ledgerPath(sessionId: string): string {
   const sanitized = sessionId.replace(/[^\w.-]/g, '_').slice(0, 96) || 'session'
   const digest = createHash('sha256').update(sessionId).digest('hex').slice(0, 8)
-  return join(ledgerDir(dshHome), `${sanitized}-${digest}.json`)
+  return join(ledgerDir(), `${sanitized}-${digest}.json`)
 }
 
 /** 空账本。 */
@@ -53,9 +53,9 @@ export function blankLedger(sessionId: string): SessionLedger {
 }
 
 /** 读取账本；文件缺失/损坏/版本不符时返回空账本（损坏显式告警，不静默修数据）。 */
-export async function readLedger(dshHome: string, sessionId: string): Promise<SessionLedger> {
+export async function readLedger(sessionId: string): Promise<SessionLedger> {
   try {
-    const raw = await readFile(ledgerPath(dshHome, sessionId), 'utf8')
+    const raw = await readFile(ledgerPath(sessionId), 'utf8')
     const parsed = JSON.parse(raw) as SessionLedger
     if (parsed === null || typeof parsed !== 'object' || parsed.sessionId !== sessionId)
       return blankLedger(sessionId)
@@ -78,8 +78,8 @@ export async function readLedger(dshHome: string, sessionId: string): Promise<Se
 }
 
 /** 写入账本（原子）。 */
-export async function writeLedger(dshHome: string, ledger: SessionLedger): Promise<void> {
-  await writeAtomic(ledgerPath(dshHome, ledger.sessionId), `${JSON.stringify(ledger, null, 2)}\n`)
+export async function writeLedger(ledger: SessionLedger): Promise<void> {
+  await writeAtomic(ledgerPath(ledger.sessionId), `${JSON.stringify(ledger, null, 2)}\n`)
 }
 
 /** 每会话串行队列：返回当前队尾的 promise 并接上本次任务。 */
@@ -136,24 +136,22 @@ export function applyRetention(ledger: SessionLedger, now: number): { ledger: Se
 
 /**
  * 在会话级串行区内执行 load-modify-save。
- * @param dshHome - 宿主数据根目录。
  * @param sessionId - 会话 id（队列键）。
  * @param task - 收到当前账本，返回要落盘的账本（null 表示无需写入）。
  * @returns 需要删除的 refs（保留窗口淘汰 / 硬上限丢弃）。
  */
 export async function mutateLedger(
-  dshHome: string,
   sessionId: string,
   task: (ledger: SessionLedger) => SessionLedger | null,
 ): Promise<LedgerMutation> {
   const previous = sessionQueues.get(sessionId) ?? Promise.resolve()
   const run = previous.then(async (): Promise<LedgerMutation> => {
-    const ledger = await readLedger(dshHome, sessionId)
+    const ledger = await readLedger(sessionId)
     const next = task(ledger)
     if (next === null)
       return { refsToDelete: [] }
     const retained = applyRetention(next, Date.now())
-    await writeLedger(dshHome, retained.ledger)
+    await writeLedger(retained.ledger)
     return { refsToDelete: retained.refsToDelete }
   })
   // 队尾只保留「已结算」的守卫，并在结算后出队：否则每见过一个会话就常驻一条 Promise。
@@ -168,11 +166,10 @@ export async function mutateLedger(
 
 /** 记录工作区资格结论（非 Git / 拒绝目录也要留痕，供客户端呈现不可用态）。 */
 export async function recordWorkspaceState(
-  dshHome: string,
   sessionId: string,
   state: { workspaceRoot: string | null, isGit: boolean, unavailableReason: string | null },
 ): Promise<void> {
-  await mutateLedger(dshHome, sessionId, (ledger) => {
+  await mutateLedger(sessionId, (ledger) => {
     if (ledger.workspaceRoot === state.workspaceRoot
       && ledger.isGit === state.isGit
       && ledger.unavailableReason === state.unavailableReason) {
@@ -183,8 +180,8 @@ export async function recordWorkspaceState(
 }
 
 /** 追加/覆盖某 turn 的记录；返回需要删除的 refs（保留窗口淘汰时非空）。 */
-export async function recordTurn(dshHome: string, sessionId: string, record: TurnRecord): Promise<LedgerMutation> {
-  return mutateLedger(dshHome, sessionId, (ledger) => {
+export async function recordTurn(sessionId: string, record: TurnRecord): Promise<LedgerMutation> {
+  return mutateLedger(sessionId, (ledger) => {
     const turns = ledger.turns.filter(item => item.turn !== record.turn)
     turns.push(record)
     turns.sort((left, right) => left.turn - right.turn)
@@ -193,9 +190,9 @@ export async function recordTurn(dshHome: string, sessionId: string, record: Tur
 }
 
 /** 标记某 turn 已撤销；返回是否命中记录。 */
-export async function markTurnUndone(dshHome: string, sessionId: string, turn: number, at: number): Promise<boolean> {
+export async function markTurnUndone(sessionId: string, turn: number, at: number): Promise<boolean> {
   let hit = false
-  await mutateLedger(dshHome, sessionId, (ledger) => {
+  await mutateLedger(sessionId, (ledger) => {
     const target = ledger.turns.find(item => item.turn === turn)
     if (target === undefined)
       return null
@@ -213,9 +210,9 @@ export async function markTurnUndone(dshHome: string, sessionId: string, turn: n
  * 这样卡片能给出确定结论，而不是每次点击都重复撞同一个「快照不可用」错误。
  * @returns 是否命中记录。
  */
-export async function markTurnExpired(dshHome: string, sessionId: string, turn: number, reason: string, at = Date.now()): Promise<boolean> {
+export async function markTurnExpired(sessionId: string, turn: number, reason: string, at = Date.now()): Promise<boolean> {
   let hit = false
-  await mutateLedger(dshHome, sessionId, (ledger) => {
+  await mutateLedger(sessionId, (ledger) => {
     const target = ledger.turns.find(item => item.turn === turn)
     if (target === undefined || (target.expiredAt !== null && target.expiredAt !== undefined))
       return null

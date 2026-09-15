@@ -26,8 +26,6 @@ import { workspaceKey } from './workspace'
 
 /** 撤销入参。 */
 export interface UndoTurnOptions {
-  /** 宿主数据根目录（`$DSH_HOME`）。 */
-  dshHome: string
   sessionId: string
   turn: number
   /** 会话当前解析出的 worktree 根；用于会话归属校验（null 表示当前无法解析）。 */
@@ -44,12 +42,12 @@ export interface UndoTurnOptions {
  * @returns 成功时给出已恢复/已删除/失败明细；失败时给出 HTTP 状态码与原因。
  */
 export async function undoTurn(options: UndoTurnOptions): Promise<UndoOutcome> {
-  const { dshHome, sessionId, turn, currentWorkspace, queue } = options
+  const { sessionId, turn, currentWorkspace, queue } = options
   // 该轮还在跑：after 快照未结算，撤销对象不成立（预览文件集也还没定）。
   if (options.turnActive === true)
     return { ok: false, code: 409, error: REASON_TURN_ACTIVE }
 
-  const ledger = await readLedger(dshHome, sessionId)
+  const ledger = await readLedger(sessionId)
   const record = ledger.turns.find(item => item.turn === turn)
   if (record === undefined)
     return { ok: false, code: 404, error: '未找到该轮的文件变更记录' }
@@ -64,14 +62,14 @@ export async function undoTurn(options: UndoTurnOptions): Promise<UndoOutcome> {
     return { ok: false, code: 403, error: '会话当前工作区与该轮记录不一致，拒绝撤销' }
 
   const workspaceRoot = ledger.workspaceRoot
-  const store = snapshotStoreFor(dshHome, workspaceRoot)
+  const store = snapshotStoreFor(workspaceRoot)
 
   // 快照仓代数：整仓被容量治理重建或被手工删除后，账本里引用旧代数的记录必然失效。
   // 这类记录直接落「过期」终态，避免用户每次点击都撞同一个不可用错误。
-  const currentGeneration = await readGenerationFor(dshHome, workspaceRoot)
+  const currentGeneration = await readGenerationFor(workspaceRoot)
   if (record.generation !== null && record.generation !== undefined
     && currentGeneration !== null && record.generation !== currentGeneration) {
-    await markTurnExpired(dshHome, sessionId, turn, REASON_EXPIRED)
+    await markTurnExpired(sessionId, turn, REASON_EXPIRED)
     return { ok: false, code: 409, error: REASON_EXPIRED }
   }
 
@@ -80,7 +78,7 @@ export async function undoTurn(options: UndoTurnOptions): Promise<UndoOutcome> {
     const afterCommit = await readRefCommit(store, record.afterRef)
     if (beforeCommit === null || afterCommit === null) {
       // refs 不在了（仓库被清空/记录来自旧版本）：同样落过期终态。
-      await markTurnExpired(dshHome, sessionId, turn, REASON_EXPIRED)
+      await markTurnExpired(sessionId, turn, REASON_EXPIRED)
       return { ok: false, code: 409, error: REASON_EXPIRED }
     }
 
@@ -100,6 +98,6 @@ export async function undoTurn(options: UndoTurnOptions): Promise<UndoOutcome> {
   })
 
   if (outcome.ok && outcome.failed.length === 0)
-    await markTurnUndone(dshHome, sessionId, turn, Date.now())
+    await markTurnUndone(sessionId, turn, Date.now())
   return outcome
 }

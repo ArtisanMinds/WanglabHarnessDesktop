@@ -5,7 +5,8 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetTestDshHome } from '../../../../.test/test-utils'
 import { MAX_FILE_BYTES } from '../constants'
 import { gitInRepo, gitInSnapshot } from './git'
 import {
@@ -19,26 +20,34 @@ import {
 } from './retention'
 import { captureSnapshot, ensureSnapshotRepo, snapshotStoreFor, turnRef } from './snapshot'
 
+vi.mock('dsh-tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dsh-tauri')>()
+  const { testDshHome: home } = await import('../../../../.test/test-utils')
+  return { ...actual, DSH_HOME: home }
+})
+
 const run = promisify(execFile)
 
 const temporaryDirectories: string[] = []
 
 type Store = ReturnType<typeof snapshotStoreFor>
 
-async function fixture(): Promise<{ dshHome: string, worktree: string, store: Store }> {
+async function fixture(): Promise<{ worktree: string, store: Store }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-turnrewind-retention-'))
   temporaryDirectories.push(root)
-  const dshHome = join(root, 'home')
   const worktree = join(root, 'project')
-  await mkdir(dshHome, { recursive: true })
   await mkdir(worktree, { recursive: true })
   await run('git', ['-c', 'init.defaultBranch=main', 'init', '--quiet', worktree], { windowsHide: true })
   await writeFile(join(worktree, 'a.txt'), 'tracked\n', 'utf8')
-  const store = snapshotStoreFor(dshHome, worktree)
+  const store = snapshotStoreFor(worktree)
   const ensured = await ensureSnapshotRepo(store)
   expect(ensured.ok).toBe(true)
-  return { dshHome, worktree, store }
+  return { worktree, store }
 }
+
+beforeEach(() => {
+  resetTestDshHome()
+})
 
 afterEach(async () => {
   resetRetentionState()

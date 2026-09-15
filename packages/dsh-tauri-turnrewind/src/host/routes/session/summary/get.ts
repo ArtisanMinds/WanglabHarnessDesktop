@@ -8,8 +8,8 @@
  * 安全边界（方法限制 / 连接信任 / 回环 / 跨源）由 `defineRoutes` 统一承担。
  */
 
-import type { SummaryPayload, TurnrewindRouteDeps } from '../../../types'
-import { defineEventHandler, dshContextOf, dshRouteDepsOf, getQuery } from 'dsh-tauri'
+import type { SummaryPayload } from '../../../types'
+import { defineEventHandler, dshContextOf, getQuery } from 'dsh-tauri'
 import { MAX_SUMMARY_FILES, REASON_GIT_REQUIRED } from '../../../constants'
 import { readLedger } from '../../../service/ledger'
 import { findSession, probeWorkspace, sessionCwdOf } from '../../../service/workspace'
@@ -18,7 +18,6 @@ import { findSession, probeWorkspace, sessionCwdOf } from '../../../service/work
 const MAX_SKIPPED_PATHS = 20
 
 export default defineEventHandler(async (event): Promise<SummaryPayload | { error: string }> => {
-  const deps = dshRouteDepsOf<TurnrewindRouteDeps>(event)!
   const ctx = dshContextOf(event)
   const query = getQuery(event) as { sessionId?: unknown }
   const sessionId = typeof query.sessionId === 'string' ? query.sessionId : ''
@@ -31,7 +30,7 @@ export default defineEventHandler(async (event): Promise<SummaryPayload | { erro
     event.res.status = 404
     return { error: '会话不存在或尚未就绪' }
   }
-  const ledger = await readLedger(deps.dshHome, sessionId)
+  const ledger = await readLedger(sessionId)
   const probe = await probeWorkspace(sessionCwdOf(session))
   // 非 Git → false（客户端点撤销弹「需要 Git 仓库」）；「确实是 Git 仓库但被守卫拒绝」
   // （家目录/盘根等）保留 true，只呈现不可用原因，不误报缺少仓库。

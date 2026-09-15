@@ -11,7 +11,6 @@
  */
 
 import type { HostContext, TurnrewindRouteDeps } from './types'
-import { DSH_HOME } from 'dsh-tauri'
 import { TURNREWIND_PLUGIN_NAME } from '../shared/constants'
 import { createTurnRewindHooks } from './hooks'
 import { routes } from './routes'
@@ -19,27 +18,16 @@ import { createTurnCapture } from './service/capture'
 import { createWorkspaceQueue } from './service/queue'
 import { sessionCwdOf } from './service/workspace'
 
-/** 插件行配置（当前只有测试/调试用的数据目录覆盖）。 */
-export interface PluginConfig {
-  /** 覆盖宿主数据根目录（`$DSH_HOME`）；缺省走环境变量或 `~/.dsh`。 */
-  dshHome?: string
-}
-
 /**
  * 插件体：注册 turn 生命周期钩子与 HTTP 路由。
  * @param ctx - 宿主根上下文（注入 webServer / sessions / agents）。
- * @param config - 插件行配置。
  */
-export function apply(ctx: HostContext, config: PluginConfig = {}): void {
-  const dshHome = typeof config?.dshHome === 'string' && config.dshHome.length > 0
-    ? config.dshHome
-    : DSH_HOME
+export function apply(ctx: HostContext): void {
   const hooks = createTurnRewindHooks()
   // 工作区级串行队列：捕获、结算、实时读数、容量治理与撤销共用同一实例，
   // 私有仓 index 因此不会出现两件 git 操作并发（见 service/queue.ts）。
   const queue = createWorkspaceQueue()
   const capture = createTurnCapture({
-    dshHome,
     queue,
     logger: ctx.logger,
     onCaptured: (sessionId, turn, fileCount) => {
@@ -100,10 +88,9 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
 
   // 5) HTTP 路由（客户端 UI 经此读摘要 / 运行中读数 / 执行撤销）。
   //    安全边界（方法/连接/回环/跨源/体积）由 defineRoutes 承担，这里只做注册与卸载。
-  //    apply 期依赖（数据根、读数、未落定判定、队列）随注册传入、由处理器经
+  //    apply 期依赖（读数、未落定判定、队列）随注册传入、由处理器经
   //    dshRouteDepsOf(event) 取回；宿主 ctx 由 defineRoutes 在调用处理器前挂到 event.context.dsh。
   const deps: TurnrewindRouteDeps = {
-    dshHome,
     live: capture.liveState,
     isTurnPending: capture.isTurnPending,
     queue,

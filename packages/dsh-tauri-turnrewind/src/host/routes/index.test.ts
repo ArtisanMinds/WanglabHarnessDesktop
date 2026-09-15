@@ -19,9 +19,16 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { LiveSnapshot, TurnrewindRouteDeps } from '../types'
 import { createServer } from 'node:http'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
+import { resetTestDshHome } from '../../../../.test/test-utils'
 import { TURNREWIND_API_PREFIX as P } from '../../shared/constants'
+
+vi.mock('dsh-tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dsh-tauri')>()
+  const { testDshHome: home } = await import('../../../../.test/test-utils')
+  return { ...actual, DSH_HOME: home }
+})
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
@@ -83,7 +90,6 @@ function createHarness(): Harness {
  */
 function createDeps(marker: number): TurnrewindRouteDeps {
   return {
-    dshHome: `turnrewind-test-home-${marker}`,
     queue: { run: async (_key, task) => task(), size: () => 0 },
     live: (sessionId: string): LiveSnapshot => ({
       active: true,
@@ -132,6 +138,10 @@ function postJson(base: string, path: string, body: string): Promise<Response> {
 function mount(harness: Harness, deps: TurnrewindRouteDeps): () => void {
   return routes(harness.ctx, deps)
 }
+
+beforeEach(() => {
+  resetTestDshHome()
+})
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => server.close(() => resolve()))))

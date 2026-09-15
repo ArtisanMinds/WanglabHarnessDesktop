@@ -4,34 +4,42 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetTestDshHome } from '../../../../.test/test-utils'
 import { TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
 import { createTurnCapture } from './capture'
 import { readLedger } from './ledger'
 import { createWorkspaceQueue } from './queue'
 
+vi.mock('dsh-tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dsh-tauri')>()
+  const { testDshHome: home } = await import('../../../../.test/test-utils')
+  return { ...actual, DSH_HOME: home }
+})
+
 const run = promisify(execFile)
 
 const temporaryDirectories: string[] = []
 
-async function fixture(): Promise<{ dshHome: string, worktree: string }> {
+async function fixture(): Promise<{ worktree: string }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-turnrewind-capture-'))
   temporaryDirectories.push(root)
-  const dshHome = join(root, 'home')
   const worktree = join(root, 'project')
-  await mkdir(dshHome, { recursive: true })
   await mkdir(worktree, { recursive: true })
   await run('git', ['-c', 'init.defaultBranch=main', 'init', '--quiet', worktree], { windowsHide: true })
   await writeFile(join(worktree, 'a.txt'), 'one\ntwo\n', 'utf8')
-  return { dshHome, worktree }
+  return { worktree }
 }
+
+beforeEach(() => {
+  resetTestDshHome()
+})
 
 /** 本次用例建过的捕获编排器（收尾要卸载，否则实时轮询会一直持有临时目录）。 */
 const captures: Array<ReturnType<typeof createTurnCapture>> = []
 
-function captureFor(dshHome: string, captured: number[] = [], queue: WorkspaceQueue = createWorkspaceQueue()) {
+function captureFor(captured: number[] = [], queue: WorkspaceQueue = createWorkspaceQueue()) {
   const capture = createTurnCapture({
-    dshHome,
     queue,
     onCaptured: (_sessionId, _turn, fileCount) => captured.push(fileCount),
   })
@@ -132,22 +140,22 @@ afterEach(async () => {
 
 describe('turn 结算编排', () => {
   it('正常一轮：before → 改动 → 结算，账本记录本轮改动（卡片据此渲染）', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     await capture.beginTurn('s5', 1, worktree)
     await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
     await capture.settleTurn('s5', 1)
 
-    const ledger = await readLedger(dshHome, 's5')
+    const ledger = await readLedger('s5')
     expect(ledger.turns).toHaveLength(1)
     expect(ledger.turns[0]?.unavailable ?? null).toBeNull()
     expect(ledger.turns[0]?.files.map(file => file.path)).toEqual(['a.txt'])
   })
 
   it('turn/end 落在 before 快照还在飞的时候，这一轮仍然会被结算', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     // 用户手动停止就发生在这个窗口里：`agent/pre-step` 的屏障还没回来（before 快照在跑
     // `git add`），而 `turn/end` 已经到达。变更前这种 turn 会**整个消失**——账本里没有行，
@@ -156,7 +164,7 @@ describe('turn 结算编排', () => {
     await capture.settleTurn('s1', 1)
     await beginning
 
-    const ledger = await readLedger(dshHome, 's1')
+    const ledger = await readLedger('s1')
     expect(ledger.turns.map(turn => turn.turn)).toEqual([1])
     // 基线留下了（refs 非空）：后续任何地方都能据此判定撤销是否可用。
     expect(ledger.turns[0]?.beforeRef.length).toBeGreaterThan(0)
@@ -164,20 +172,20 @@ describe('turn 结算编排', () => {
   })
 
   it('agent/status → idle 早于 before 快照落地时同样不丢（手动中断的常路）', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     const beginning = capture.beginTurn('s2', 1, worktree)
     await capture.settleIdle('s2')
     await beginning
 
-    expect((await readLedger(dshHome, 's2')).turns.map(turn => turn.turn)).toEqual([1])
+    expect((await readLedger('s2')).turns.map(turn => turn.turn)).toEqual([1])
   })
 
   it('turn/end 与 idle 同时到达也只结算一次', async () => {
-    const { dshHome, worktree } = await fixture()
+    const { worktree } = await fixture()
     const captured: number[] = []
-    const capture = captureFor(dshHome, captured)
+    const capture = captureFor(captured)
 
     const beginning = capture.beginTurn('s3', 1, worktree)
     await Promise.all([capture.settleTurn('s3', 1), capture.settleIdle('s3')])
@@ -185,12 +193,12 @@ describe('turn 结算编排', () => {
 
     // 重复结算会重复捕 after、重复触发 onCaptured 钩子，账本行也会被后写的那次覆盖。
     expect(captured).toEqual([0])
-    expect((await readLedger(dshHome, 's3')).turns).toHaveLength(1)
+    expect((await readLedger('s3')).turns).toHaveLength(1)
   })
 
   it('idle 兜底只结算「idle 那一刻已在跑」的 turn，不碰随后新开始的一轮', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     const first = capture.beginTurn('s6', 1, worktree)
     const idle = capture.settleIdle('s6')
@@ -199,21 +207,21 @@ describe('turn 结算编排', () => {
     const second = capture.beginTurn('s6', 2, worktree)
     await Promise.all([first, second, idle])
 
-    expect((await readLedger(dshHome, 's6')).turns.map(turn => turn.turn)).toEqual([1])
+    expect((await readLedger('s6')).turns.map(turn => turn.turn)).toEqual([1])
   })
 
   it('根本没有 before 快照的 turn 不会被凭空记一笔', async () => {
-    const { dshHome } = await fixture()
-    const capture = captureFor(dshHome)
+    await fixture()
+    const capture = captureFor()
     await capture.settleTurn('s4', 9)
     await capture.settleIdle('s4')
-    expect((await readLedger(dshHome, 's4')).turns).toEqual([])
+    expect((await readLedger('s4')).turns).toEqual([])
   })
 
   it('before 快照抛异常（而非收敛成结果对象）时也留一笔账，客户端不会永久缺这一轮', async () => {
-    const { dshHome, worktree } = await fixture()
+    const { worktree } = await fixture()
     const { queue, setFailing } = faultyQueue()
-    const capture = captureFor(dshHome, [], queue)
+    const capture = captureFor([], queue)
 
     // 复现 git/IO 抛错：runBeginTurn 里的 queue.run 直接拒绝，before 快照连结果对象都没有。
     setFailing(true)
@@ -222,16 +230,16 @@ describe('turn 结算编排', () => {
     // 结算没有条目可结算，但不能因此把这一轮从账本里抹掉（客户端靠账本行停止重试）。
     await capture.settleIdle('s7')
 
-    const ledger = await readLedger(dshHome, 's7')
+    const ledger = await readLedger('s7')
     expect(ledger.turns.map(turn => turn.turn)).toEqual([1])
     expect(ledger.turns[0]?.unavailable).toBe(TURNREWIND_REASON_SNAPSHOT_FAILED)
     expect(ledger.turns[0]?.beforeRef).toBe('')
   })
 
   it('结算中途抛错时保留条目，下一次 idle 兜底把这一轮补上（而不是永远没有记录）', async () => {
-    const { dshHome, worktree } = await fixture()
+    const { worktree } = await fixture()
     const { queue, setFailing } = faultyQueue()
-    const capture = captureFor(dshHome, [], queue)
+    const capture = captureFor([], queue)
 
     await capture.beginTurn('s8', 1, worktree)
     await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
@@ -239,12 +247,12 @@ describe('turn 结算编排', () => {
     // after 快照这一步抛错：账本还没有这一轮。
     setFailing(true)
     await expect(capture.settleTurn('s8', 1)).rejects.toThrow('injected failure')
-    expect((await readLedger(dshHome, 's8')).turns).toEqual([])
+    expect((await readLedger('s8')).turns).toEqual([])
 
     // 条目留在活动表里 → 下一次 idle 兜底重试成功（真实运行时任何一次 idle 都会重新扫）。
     setFailing(false)
     await capture.settleIdle('s8')
-    const ledger = await readLedger(dshHome, 's8')
+    const ledger = await readLedger('s8')
     expect(ledger.turns.map(turn => turn.turn)).toEqual([1])
     expect(ledger.turns[0]?.files.map(file => file.path)).toEqual(['a.txt'])
   })
@@ -252,8 +260,8 @@ describe('turn 结算编排', () => {
 
 describe('运行中提示条的读数生命周期', () => {
   it('新一轮开始时上一轮的读数立刻作废：提示条只反映当前这一轮', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     await capture.beginTurn('s9', 1, worktree)
     expect(capture.liveState('s9')).toMatchObject({ active: true, turn: 1 })
@@ -265,8 +273,8 @@ describe('运行中提示条的读数生命周期', () => {
   })
 
   it('会话结束重置读数后，该轮的结算与卡片照常（重置只作用于过程态）', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     await capture.beginTurn('s10', 1, worktree)
     await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
@@ -276,14 +284,14 @@ describe('运行中提示条的读数生命周期', () => {
 
     // 条目没有被丢：turn 尾部的变更卡片仍然照常落账。
     await capture.settleTurn('s10', 1)
-    const ledger = await readLedger(dshHome, 's10')
+    const ledger = await readLedger('s10')
     expect(ledger.turns.map(turn => turn.turn)).toEqual([1])
     expect(ledger.turns[0]?.files.map(file => file.path)).toEqual(['a.txt'])
   })
 
   it('resetLive 按会话与轮次精确作废，不误伤其他会话', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     await capture.beginTurn('s11', 1, worktree)
     await capture.beginTurn('s12', 1, worktree)
@@ -298,9 +306,9 @@ describe('运行中提示条的读数生命周期', () => {
   })
 
   it('重置与在飞的实时刷新赛跑时，晚到的读数不会把提示条复活', async () => {
-    const { dshHome, worktree } = await fixture()
+    const { worktree } = await fixture()
     const gate = gatedQueue()
-    const capture = captureFor(dshHome, [], gate.queue)
+    const capture = captureFor([], gate.queue)
 
     await capture.beginTurn('s13', 1, worktree)
     expect(capture.liveState('s13')).toMatchObject({ active: true, turn: 1 })
@@ -322,8 +330,8 @@ describe('运行中提示条的读数生命周期', () => {
   })
 
   it('读数归零不等于这一轮已落定：撤销判定仍然看结算状态', async () => {
-    const { dshHome, worktree } = await fixture()
-    const capture = captureFor(dshHome)
+    const { worktree } = await fixture()
+    const capture = captureFor()
 
     expect(capture.isTurnPending('s14', 1)).toBe(false)
 
@@ -348,7 +356,7 @@ describe('运行中提示条的读数生命周期', () => {
     // 实时读数的 `git add --all` 会把嵌套仓库当 gitlink 写进私有 index，而 before
     // 快照里没有它们，读数于是报出「2 个文件已更改 +2 -0」这种工作区根本没发生过的
     // 改动（用户实际反馈）。这里钉的是这条**接线**：本轮的改动只有 a.txt 一行。
-    const { dshHome, worktree } = await fixture()
+    const { worktree } = await fixture()
     const nested = join(worktree, 'source', 'react-use')
     await mkdir(nested, { recursive: true })
     await run('git', ['-c', 'init.defaultBranch=main', 'init', '--quiet', nested], { windowsHide: true })
@@ -359,7 +367,7 @@ describe('运行中提示条的读数生命周期', () => {
     // 源仓库登记成 gitlink（被跟踪的嵌套仓库，不是被忽略的参考克隆）。
     await run('git', ['-C', worktree, ...identity, 'add', 'source/react-use'], { windowsHide: true })
 
-    const capture = captureFor(dshHome)
+    const capture = captureFor()
     await capture.beginTurn('s16', 1, worktree)
     await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
 

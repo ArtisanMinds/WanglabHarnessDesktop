@@ -40,9 +40,8 @@ export default defineEventHandler(async (event): Promise<UndoResponse> => {
   const probe = await probeWorkspace(sessionCwdOf(session))
   // 归属校验用当前 worktree 根；探测失败时传 null，由 service 层按账本判定。
   // 撤销与捕获共用同一队列，且该会话仍在跑时直接拒绝（after 快照尚未结算）。
-  const { isTurnPending, live, queue, dshHome } = deps
+  const { isTurnPending, live, queue } = deps
   const outcome = await undoTurn({
-    dshHome,
     sessionId,
     turn,
     currentWorkspace: probe.ok ? probe.root : null,
