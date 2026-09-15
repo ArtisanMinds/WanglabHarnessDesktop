@@ -1,21 +1,5 @@
 /** Shared types across the capabilities manager modules. */
 
-import type { IncomingMessage, ServerResponse } from 'node:http'
-
-/** The webServer service subset this plugin consumes (structural). */
-export interface WebServerService {
-  register: (route: {
-    kind: 'exact' | 'prefix'
-    path: string
-    handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
-  }) => () => void
-}
-
-/** DSH Connection's browser trust and authentication boundary. */
-export interface ConnectionGate {
-  requestRejection: (request: IncomingMessage) => 401 | 403 | undefined
-}
-
 /** One skill as the host registry reports it (SkillSummary subset). */
 export interface HostSkill {
   readonly name: string
@@ -53,16 +37,32 @@ export interface SkillRepositoryMetadata {
   githubUrl?: string
 }
 
-/** Host context carrying both services this plugin injects. */
+/**
+ * 宿主 ctx 里本插件路由消费的能力子集（结构兼容，不需要适配）。
+ *
+ * 方法限制 / OPTIONS / 连接鉴权 / 回环与跨源由 `dsh-tauri` 的 `defineRoutes` 统一承担，
+ * 因此这里不再声明 webServer / connection。
+ */
 export interface PanelExtensionHost {
-  webServer: WebServerService
   skills: SkillsService
-  connection: ConnectionGate
 }
 
-/** Auth-wrapping route registrar handed to the per-domain route modules. */
-export type RouteRegistrar = (route: {
-  kind: 'exact' | 'prefix'
-  path: string
-  handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>
-}) => () => void
+/**
+ * 路由的 apply 期依赖面（`routes(ctx, deps)` 的 deps 形状）。
+ *
+ * profile patch 目录与 provider 重挂载函数在装配期解析、不作为宿主服务暴露，处理器
+ * 无法从事件取回，因此随注册传入、由处理器经 `dshRouteDepsOf(event)` 取回（宿主 ctx
+ * 本身仍由 `dshContextOf(event)` 取回，不走 deps）。deps 由本次注册的闭包捕获，同一
+ * 插件挂载两次各读各的依赖。
+ */
+export interface ExtensionRouteDeps {
+  /** profile 的 patch 目录（`<DSH_HOME>/profiles/<profile>`）。 */
+  profileDirPath: string
+  /**
+   * 重挂宿主 filesystem skill provider（根集变更后重新扫描全部技能根）。
+   * 技能「刷新」与仓库增删都要先走它，避免删被 watch 的树（Windows EPERM）。
+   */
+  remountProvider: () => Promise<void>
+  /** 数据根；装配期由 `apply` 解析（默认 `DSH_HOME`）。 */
+  dshHome: string
+}

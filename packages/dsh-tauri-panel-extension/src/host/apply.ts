@@ -12,13 +12,14 @@
  */
 
 import type { HostContext } from 'dsh-tauri'
-import type { PanelExtensionHost } from './types'
+import type { ExtensionRouteDeps } from './types'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { DSH_HOME } from 'dsh-tauri'
 import { dirname, join } from 'pathe'
 import { PLUGIN_NAME } from '../shared/constants'
 import { providerHooks } from './hooks'
-import { mountPanelExtensionRoutes } from './routes'
+import { routes } from './routes'
 import { agentSkillRoots } from './service/agents'
 import { argvProfile, profileDir } from './service/profile'
 import { getSkillRoots } from './service/skill-root'
@@ -142,13 +143,12 @@ export function apply(ctx: HostContext, config?: Config): void {
       }
       void remountProvider()
 
-      ctx.effect(
-        () => mountPanelExtensionRoutes(hostCtx as unknown as PanelExtensionHost, {
-          profileDirPath: profileDir(profile),
-          remountProvider,
-        }),
-        'dsh-tauri-panel-extension: http routes',
-      )
+      const deps: ExtensionRouteDeps = {
+        profileDirPath: profileDir(profile),
+        remountProvider,
+        dshHome: DSH_HOME,
+      }
+      ctx.effect(() => routes(hostCtx, deps), 'dsh-tauri-panel-extension: routes')
       return disposer
     }, 'dsh-tauri-panel-extension: skill provider')
   })

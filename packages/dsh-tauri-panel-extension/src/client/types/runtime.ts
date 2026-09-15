@@ -35,14 +35,3 @@ declare global {
     dshDesktop?: DesktopBridge
   }
 }
-
-export interface ExtensionRuntimeContext {
-  sessions: {
-    list: { getSnapshot: () => SessionListSnapshot }
-    open: (sessionId: string) => void
-  }
-  workspaces: {
-    list: { getSnapshot: () => WorkspaceListSnapshot }
-    connectWorkspace: (workspaceId: string) => Promise<string>
-  }
-}

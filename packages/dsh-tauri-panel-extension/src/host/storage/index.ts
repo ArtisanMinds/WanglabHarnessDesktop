@@ -5,7 +5,8 @@
  * 实现，不在此写包装。
  */
 
-import { createAtomicFsStorage } from 'dsh-tauri'
+import { fsAtomicDriver } from 'dsh-tauri'
+import { createStorage } from 'unstorage'
 
 /** skills 功能目录存储（`$DSH_HOME/skills`；key 如 `state.json`）。 */
-export const storage = createAtomicFsStorage('skills')
+export const storage = createStorage({ driver: fsAtomicDriver({ base: 'skills' }) })

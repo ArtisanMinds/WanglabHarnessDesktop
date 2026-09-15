@@ -1,5 +1,5 @@
 import type { ExtensionClientContext } from '../types'
-import { LOCALE_NAMESPACE, PLUGIN_ID } from '../constants'
+import { LOCALE_NAMESPACE } from '../constants'
 
 const zh = {
   extension: '扩展技能',
@@ -229,9 +229,19 @@ const en: Record<LocaleKey, string> = {
   shadowedByGlobal: 'a global row with the same id wins — this row has no effect',
 }
 
-export function registerExtensionLocale(ctx: ExtensionClientContext): void {
-  ctx.effect(() => [
+/**
+ * 注册 zh/en 双语字典；返回注销句柄（卸载时同时注销两个语言）。
+ *
+ * 安装器只做注册，不再自己 `ctx.effect`：调用方（`register/locale` feature）用
+ * `controller.add(...)` 把返回值收敛进统一清理队列。
+ */
+export function registerExtensionLocale(ctx: ExtensionClientContext): () => void {
+  const disposers = [
     ctx.locale.register(LOCALE_NAMESPACE, 'zh', zh),
     ctx.locale.register(LOCALE_NAMESPACE, 'en', en),
-  ], `${PLUGIN_ID}: locale`)
+  ]
+  return () => {
+    for (const dispose of disposers)
+      dispose()
+  }
 }

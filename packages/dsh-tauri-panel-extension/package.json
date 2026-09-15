@@ -67,6 +67,7 @@
     "hookable": "catalog:utils",
     "ofetch": "catalog:utils",
     "pathe": "catalog:utils",
+    "unstorage": "catalog:utils",
     "yaml": "catalog:testing"
   },
   "devDependencies": {

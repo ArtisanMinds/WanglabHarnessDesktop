@@ -14,7 +14,6 @@
  * node→node spawns are the most battle-tested pattern there is.
  */
 
-import type { IncomingMessage } from 'node:http'
 import { spawn } from 'node:child_process'
 import { openSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -68,33 +67,8 @@ export function scheduleRestart(launch: ReturnType<typeof dshLaunch>): {
 }
 
 /**
- * A restart request is process control: only a direct same-origin loopback
- * request qualifies. Any forwarding trace means the loopback peer is a
- * proxy, not the user's browser.
+ * Restart ownership: the desktop shell supervises the sidecar and restarts it.
  */
-export function trustedRestartRequest(request: IncomingMessage, socketAddress?: string): boolean {
-  const address = socketAddress ?? (request.socket.remoteAddress ?? '')
-  if (address !== '127.0.0.1' && address !== '::1' && address !== '::ffff:127.0.0.1')
-    return false
-  if (request.headers.forwarded !== undefined
-    || request.headers['x-forwarded-for'] !== undefined
-    || request.headers['x-real-ip'] !== undefined) {
-    return false
-  }
-  const origin = request.headers.origin
-  const host = request.headers.host
-  if (origin === undefined || host === undefined)
-    return false
-  try {
-    const parsed = new URL(origin)
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.host === host
-  }
-  catch {
-    return false
-  }
-}
-
-/** Restart ownership: the desktop shell supervises the sidecar and restarts it. */
 export function restartOwnedByShell(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.DSH_DESKTOP === '1'
 }

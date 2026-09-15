@@ -23,3 +23,5 @@ export { apply, loadFilesystemSkillPlugin, packagedSkillsDir } from './host/appl
 export type { Config } from './host/apply'
 export { providerHooks } from './host/hooks'
 export type { ProviderLifecycleHooks } from './host/hooks'
+export { routes } from './host/routes'
+export type { ExtensionRouteDeps } from './host/types'

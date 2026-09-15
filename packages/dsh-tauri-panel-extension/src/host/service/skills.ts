@@ -6,8 +6,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import process from 'node:process'
+import { DSH_HOME } from 'dsh-tauri'
 import { join } from 'pathe'
 
 /** Host skill name grammar (dsh-skill's SKILL_NAME). */
@@ -24,8 +23,8 @@ export interface SkillInput {
 }
 
 /** The user-owned skill root this plugin writes into (provider rank 400). */
-export function userSkillsDir(dshHome: string | undefined = process.env.DSH_HOME): string {
-  return join(dshHome ?? join(homedir(), '.dsh'), 'skills')
+export function userSkillsDir(dshHome: string = DSH_HOME): string {
+  return join(dshHome, 'skills')
 }
 
 /** YAML double-quoted scalar (JSON string syntax is valid YAML 1.2). */

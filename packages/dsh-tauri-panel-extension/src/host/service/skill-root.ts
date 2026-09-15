@@ -6,8 +6,7 @@
  */
 
 import { randomBytes } from 'node:crypto'
-import { homedir } from 'node:os'
-import process from 'node:process'
+import { DSH_HOME } from 'dsh-tauri'
 import { join } from 'pathe'
 import { storage } from '../storage'
 
@@ -41,7 +40,15 @@ const STATE_KEY = 'state.json'
 
 /** skills 功能目录的绝对路径（material 落盘与只读判定用，与 storage base 一致）。 */
 export function skillsRootDir(): string {
-  return join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'skills')
+  return join(DSH_HOME, 'skills')
+}
+
+/** 校验磁盘状态里的一条 entry（历史文档可能被手改成任意形状）。 */
+function isSkillRootEntry(entry: unknown): entry is SkillRootEntry {
+  if (typeof entry !== 'object' || entry === null)
+    return false
+  const candidate = entry as Record<string, unknown>
+  return typeof candidate.id === 'string' && Array.isArray(candidate.roots)
 }
 
 /** 读取全部注册的自定义技能仓库。 */
@@ -49,8 +56,7 @@ export async function getSkillRoots(): Promise<SkillRootEntry[]> {
   const parsed = await storage.getItem<Partial<PluginState>>(STATE_KEY)
   if (!Array.isArray(parsed?.skillRoots))
     return []
-  return parsed.skillRoots.filter((entry): entry is SkillRootEntry =>
-    typeof entry === 'object' && entry !== null && typeof entry.id === 'string' && Array.isArray(entry.roots))
+  return parsed.skillRoots.filter(isSkillRootEntry)
 }
 
 /** 按 GitHub 源 URL 查找已注册仓库（含 legacy labels）。 */

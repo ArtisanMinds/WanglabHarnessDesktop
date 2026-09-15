@@ -1,7 +1,7 @@
 /** Profile discovery (pure reads; same contract as dsh-plugin-install). */
 
-import { homedir } from 'node:os'
 import process from 'node:process'
+import { DSH_HOME } from 'dsh-tauri'
 import { join } from 'pathe'
 
 /** Profile that boots this UI: `--profile <name>` on the CLI invocation. */
@@ -12,8 +12,7 @@ export function argvProfile(argv: readonly string[] = process.argv): string | un
   return undefined
 }
 
-/** Directory of a profile under DSH_HOME (default `~/.dsh`). */
-export function profileDir(profile: string, dshHome: string | undefined = process.env.DSH_HOME): string {
-  const home = dshHome ?? join(homedir(), '.dsh')
-  return join(home, 'profiles', profile)
+/** Directory of a profile under DSH_HOME（数据根一律引用核心的 DSH_HOME）。 */
+export function profileDir(profile: string, dshHome: string = DSH_HOME): string {
+  return join(dshHome, 'profiles', profile)
 }

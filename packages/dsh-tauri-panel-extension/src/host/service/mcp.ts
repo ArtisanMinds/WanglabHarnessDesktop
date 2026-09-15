@@ -262,6 +262,16 @@ export function mcpScopeDir(scope: McpScope, profileDirPath: string, dshHomePath
   return scope === 'global' ? dshHomePath : profileDirPath
 }
 
+/**
+ * 归一化请求里的 `scope` 字段：只有显式 `'global'` 才落到机器级 patch 层。
+ *
+ * 纯函数（无状态码、无响应组织），供各 MCP 路由处理器共用；非法值按 profile 处理，
+ * 与迁移前一致。
+ */
+export function normalizeMcpScope(value: unknown): McpScope {
+  return value === 'global' ? 'global' : 'profile'
+}
+
 /** Validate one write request; returns the rejection reason or null. */
 export function validateMcpInput(input: McpInput): string | null {
   if (!SERVER_NAME_RE.test(input.serverName))
