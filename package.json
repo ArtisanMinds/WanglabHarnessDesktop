@@ -12,6 +12,7 @@
     "prebuild": "pnpm build:plugins",
     "build": "tsc && vite build",
     "build:plugins": "tsx scripts/build-plugins.ts",
+    "genapi": "genapi",
     "preview": "vite preview",
     "tauri": "tauri",
     "release": "bumpp --pr",
@@ -23,6 +24,7 @@
     "icons": "tauri icon public/favicon.svg && tsx scripts/rebuild-macos-icon.ts"
   },
   "dependencies": {
+    "@genapi/pipeline": "catalog:",
     "@gravity-ui/icons": "catalog:runtime",
     "@hairy/utils": "catalog:utils",
     "@heroui/react": "catalog:runtime",
@@ -72,6 +74,10 @@
     "@deepseek-ai/dsh-user-approval": "catalog:dsh",
     "@deepseek-ai/dsh-workspace": "catalog:dsh",
     "@eslint-react/eslint-plugin": "catalog:lint",
+    "@genapi/core": "catalog:",
+    "@genapi/parser": "catalog:",
+    "@genapi/presets": "catalog:",
+    "@genapi/shared": "catalog:",
     "@tailwindcss/postcss": "catalog:build",
     "@tailwindcss/vite": "catalog:build",
     "@tauri-apps/cli": "catalog:tauri",

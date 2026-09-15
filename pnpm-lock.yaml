@@ -38,6 +38,21 @@ catalogs:
       specifier: ~5.8.3
       version: 5.8.3
   default:
+    '@genapi/core':
+      specifier: ^4.1.4
+      version: 4.1.4
+    '@genapi/parser':
+      specifier: ^4.1.4
+      version: 4.1.4
+    '@genapi/pipeline':
+      specifier: ^4.1.4
+      version: 4.1.4
+    '@genapi/presets':
+      specifier: ^4.1.4
+      version: 4.1.4
+    '@genapi/shared':
+      specifier: ^4.1.4
+      version: 4.1.4
     '@tauri-apps/plugin-os':
       specifier: ^2.3.2
       version: 2.3.2
@@ -210,6 +225,9 @@ catalogs:
       specifier: ^2.9.0
       version: 2.9.0
   types:
+    '@types/lodash-es':
+      specifier: ^4.17.12
+      version: 4.17.12
     '@types/node':
       specifier: ^22.10.0
       version: 22.20.1
@@ -257,6 +275,9 @@ catalogs:
     hookable:
       specifier: ^6.1.1
       version: 6.1.1
+    lodash-es:
+      specifier: ^4.18.1
+      version: 4.18.1
     ofetch:
       specifier: ^1.5.1
       version: 1.5.1
@@ -283,6 +304,9 @@ importers:
 
   .:
     dependencies:
+      '@genapi/pipeline':
+        specifier: 'catalog:'
+        version: 4.1.4
       '@gravity-ui/icons':
         specifier: catalog:runtime
         version: 2.21.0(react@19.2.8)
@@ -425,6 +449,18 @@ importers:
       '@eslint-react/eslint-plugin':
         specifier: catalog:lint
         version: 5.18.6(eslint@10.8.1(jiti@2.7.0))(typescript@5.8.3)
+      '@genapi/core':
+        specifier: 'catalog:'
+        version: 4.1.4
+      '@genapi/parser':
+        specifier: 'catalog:'
+        version: 4.1.4
+      '@genapi/presets':
+        specifier: 'catalog:'
+        version: 4.1.4
+      '@genapi/shared':
+        specifier: 'catalog:'
+        version: 4.1.4
       '@tailwindcss/postcss':
         specifier: catalog:build
         version: 4.1.11
@@ -531,6 +567,9 @@ importers:
       '@reause/core':
         specifier: catalog:runtime
         version: 0.1.7(react@19.2.8)
+      '@types/lodash-es':
+        specifier: catalog:types
+        version: 4.17.12
       css-render:
         specifier: catalog:ui
         version: 0.15.14
@@ -540,6 +579,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      lodash-es:
+        specifier: catalog:utils
+        version: 4.18.1
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
@@ -555,9 +597,6 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
-      dsh-tauri-panel:
-        specifier: workspace:*
-        version: link:../dsh-tauri-panel
       dsh-tauri-panel-extension:
         specifier: workspace:*
         version: link:../dsh-tauri-panel-extension
@@ -583,25 +622,6 @@ importers:
         specifier: workspace:*
         version: link:../dsh-tauri-worktree
 
-  packages/dsh-tauri-panel:
-    dependencies:
-      dsh-tauri:
-        specifier: workspace:*
-        version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
-    devDependencies:
-      dsh-tauri-tsdown:
-        specifier: workspace:*
-        version: link:../dsh-tauri-tsdown
-      tsdown:
-        specifier: catalog:cli
-        version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
-      vitest:
-        specifier: catalog:testing
-        version: 4.1.11(@types/node@22.20.1)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.30.1)(tsx@4.23.12)(yaml@2.9.0))
-
   packages/dsh-tauri-panel-extension:
     dependencies:
       dsh-tauri:
@@ -613,6 +633,9 @@ importers:
       hookable:
         specifier: catalog:utils
         version: 6.1.1
+      lodash-es:
+        specifier: catalog:utils
+        version: 4.18.1
       ofetch:
         specifier: catalog:utils
         version: 1.5.1
@@ -632,6 +655,9 @@ importers:
       '@deepseek-ai/dsh-skill-filesystem':
         specifier: catalog:dsh
         version: 0.1.5-rc.2(430c88df262671695bb7566d44a5d6dd)
+      '@types/lodash-es':
+        specifier: catalog:types
+        version: 4.17.12
       dompurify:
         specifier: catalog:ui
         version: 3.4.14
@@ -648,22 +674,6 @@ importers:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
 
-  packages/dsh-tauri-panel-placeholder:
-    dependencies:
-      dsh-tauri:
-        specifier: workspace:*
-        version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
-    devDependencies:
-      dsh-tauri-tsdown:
-        specifier: workspace:*
-        version: link:../dsh-tauri-tsdown
-      tsdown:
-        specifier: catalog:cli
-        version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
-
   packages/dsh-tauri-panel-scheduler:
     dependencies:
       cron-schedule:
@@ -675,9 +685,9 @@ importers:
       dsh-tauri-ui:
         specifier: workspace:*
         version: link:../dsh-tauri-ui
-      hookable:
+      lodash-es:
         specifier: catalog:utils
-        version: 6.1.1
+        version: 4.18.1
       pathe:
         specifier: catalog:utils
         version: 2.0.3
@@ -700,6 +710,9 @@ importers:
       '@deepseek-ai/dsh-workspace':
         specifier: catalog:dsh
         version: 0.1.5-rc.2(0009722eb651b29fd6637e39b1813495)
+      '@types/lodash-es':
+        specifier: catalog:types
+        version: 4.17.12
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -755,7 +768,13 @@ importers:
       dsh-tauri-ui:
         specifier: workspace:*
         version: link:../dsh-tauri-ui
+      lodash-es:
+        specifier: catalog:utils
+        version: 4.18.1
     devDependencies:
+      '@types/lodash-es':
+        specifier: catalog:types
+        version: 4.17.12
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -774,13 +793,16 @@ importers:
       hookable:
         specifier: catalog:utils
         version: 6.1.1
+      lodash-es:
+        specifier: catalog:utils
+        version: 4.18.1
       pathe:
         specifier: catalog:utils
         version: 2.0.3
-      unstorage:
-        specifier: catalog:utils
-        version: 1.17.5(idb-keyval@6.3.0)
     devDependencies:
+      '@types/lodash-es':
+        specifier: catalog:types
+        version: 4.17.12
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -811,6 +833,9 @@ importers:
       pathe:
         specifier: catalog:utils
         version: 2.0.3
+      unstorage:
+        specifier: catalog:utils
+        version: 1.17.5(idb-keyval@6.3.0)
     devDependencies:
       dsh-tauri-tsdown:
         specifier: workspace:*
@@ -858,6 +883,9 @@ importers:
       hookable:
         specifier: catalog:utils
         version: 6.1.1
+      lodash-es:
+        specifier: catalog:utils
+        version: 4.18.1
       pathe:
         specifier: catalog:utils
         version: 2.0.3
@@ -868,6 +896,9 @@ importers:
         specifier: catalog:utils
         version: 1.17.5(idb-keyval@6.3.0)
     devDependencies:
+      '@types/lodash-es':
+        specifier: catalog:types
+        version: 4.17.12
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
@@ -1932,6 +1963,25 @@ packages:
 
   '@formatjs/intl-localematcher@0.6.2':
     resolution: {integrity: sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA==}
+
+  '@genapi/core@4.1.4':
+    resolution: {integrity: sha512-8Ka8z7geQtWU8oRLCyjYvvyyJlz5hTGXt4z1ZKHaUHuWItshdf8fYY1G+axXYeLvWZRNbG471gbAOUbNZFN2VQ==}
+    hasBin: true
+
+  '@genapi/parser@4.1.4':
+    resolution: {integrity: sha512-1U9BkHF4I0CW4ditGSHzpQNCw9joTACyCrO67C9YpyGI5xAssIlRivH4eykKW9cBm7nKvPRGqHGmQLcCYyysTQ==}
+
+  '@genapi/pipeline@4.1.4':
+    resolution: {integrity: sha512-k/wttAj1G0iuP9f2mZo8tWM6H5qOgoeloky+OtcsiHATny1TJd7RIE60bKLaznDz5rLo5I6WZrC6mWtFxFn8kg==}
+
+  '@genapi/presets@4.1.4':
+    resolution: {integrity: sha512-g8Ies+aU230xkGTDc088K3BPUxUzJe/Ocpk2pDJOFZ+5O5MrmCoCGptF6x2aEt0wNpYWv6EBBJleRPrVnYrzbw==}
+
+  '@genapi/shared@4.1.4':
+    resolution: {integrity: sha512-Onc5EL9KAlje6mmi/CIP5K33P24IQ3JoTCddwfORVyrOpJJCoTZPC+0x7GF5AWVJpVNDnaoQD32mLdMzKpRanQ==}
+
+  '@genapi/transform@4.1.4':
+    resolution: {integrity: sha512-a/hoUVGW6ubmd84gYrcHexytsndS7DG5jrNlNRG8NaylSu3lrCSjBKF4SHzWiWglaDmfp6a+u5y6ZRgHI6EQtw==}
 
   '@gravity-ui/icons@2.21.0':
     resolution: {integrity: sha512-KWghsvXDq+5AapT3bh2a/p1Iv923PDFln/U51fqaK9AMOftiOlkWfJHSJEFSxpgvbCJ/MOHjCSbhCT7Jx9mJAg==}
@@ -3373,6 +3423,10 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
+  chalk@5.6.2:
+    resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
+
   change-case@5.4.4:
     resolution: {integrity: sha512-HRQyTk2/YPEkt9TnUPbOpr64Uw3KOicFWPVBb+xiHvd6eBx/qPr9xqfBFDT8P2vWsvvz4jbEkfDe71W3VyNu2w==}
 
@@ -3944,6 +3998,10 @@ packages:
     engines: {node: '>=18.3.0'}
     hasBin: true
 
+  fs-extra@11.4.0:
+    resolution: {integrity: sha512-EQsFzMUJkCKGr1ePqlYADkIUmHW1s3ZXr5Yqy6wbGrfUCphpl2maM/kyOIRA2HpP3AaFQTZXD4ldjek+nccddA==}
+    engines: {node: '>=14.14'}
+
   fs-minipass@2.1.0:
     resolution: {integrity: sha512-V/JgOLFCS+R6Vcq0slCuaeWEdNC3ouDlJMNIsacH2VtALiu9mV4LPrHc5cDl8k5aw6J8jwgWWpiTo5RYhmIzvg==}
     engines: {node: '>= 8'}
@@ -4169,6 +4227,9 @@ packages:
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
+  jsonfile@6.2.1:
+    resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
+
   katex@0.16.47:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
     hasBin: true
@@ -4180,6 +4241,9 @@ packages:
     resolution: {integrity: sha512-WXTXbmocrw7gqm1A1TQvFN0OgJ7hUSU6E1g6SPRIzzHFogUBhXByc7cYeOFVtJ2uODg7DP4VbESYBYnfbtBYsg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
+
+  knitwork-x@0.3.1:
+    resolution: {integrity: sha512-2ZSpGOZclbgJ6wnyWaPJFeYVD+oJ6A7fbcFImBmk7bOQ4Bk39/Yy7cALCnswjT5W/nnz39b2czkQkG/XRKPqWw==}
 
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
@@ -4260,6 +4324,9 @@ packages:
   locate-path@6.0.0:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
+
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
 
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
@@ -4512,6 +4579,11 @@ packages:
     engines: {node: ^14.16.0 || >=16.10.0}
     hasBin: true
 
+  nypm@0.6.10:
+    resolution: {integrity: sha512-W72Hrj1petq+b3Hk2aAC+9zswetlIFTnDW4s5djseZh2nYqBbyQLOtj472HwcbcWykPBUW1WpWpjOd4nK6gMRw==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
@@ -4535,6 +4607,9 @@ packages:
   open@10.2.0:
     resolution: {integrity: sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA==}
     engines: {node: '>=18'}
+
+  openapi-specification-types@0.3.0:
+    resolution: {integrity: sha512-+ZOP3z4WTTSxtIOxgrlARp7tpAvf+7V0qZINj8htfREg24UaBwnoFnw8Ku3cMMChzzVN2WSNhsoiHupZIvmYmQ==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -4638,6 +4713,11 @@ packages:
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
+
+  prettier@3.9.6:
+    resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   prop-types@15.8.1:
     resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
@@ -4939,6 +5019,10 @@ packages:
     resolution: {integrity: sha512-QKAl9m8gWWGHV8jZcPeym6j+XULi6tOf1mT83WYJ4Lk2ytW/uwAWkrP0uFsdoYMdueVJ0qs26wZ+23xeB4ibNQ==}
     engines: {node: '>=18'}
 
+  tinyexec@1.3.1:
+    resolution: {integrity: sha512-GCvB3aoys96IuDFBMcTB46JOR6mdMtAToqwiW8JlWhsoh1mhHi/xn9ss/Dg7N555GiJyEt2qzoG/NHCwM6h1EA==}
+    engines: {node: '>=18'}
+
   tinyglobby@0.2.17:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
@@ -4958,6 +5042,11 @@ packages:
   toml-eslint-parser@1.0.3:
     resolution: {integrity: sha512-A5F0cM6+mDleacLIEUkmfpkBbnHJFV1d2rprHU2MXNk7mlxHq2zGojA+SRvQD1RoMo9gqjZPWEaKG4v1BQ48lw==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  transliteration@2.6.1:
+    resolution: {integrity: sha512-hJ9BhrQAOnNTbpOr1MxsNjZISkn7ppvF5TKUeFmTE1mG4ZPD/XVxF0L0LUoIUCWmQyxH0gJpVtfYLAWf298U9w==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
 
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
@@ -5055,6 +5144,10 @@ packages:
 
   unist-util-visit@5.1.0:
     resolution: {integrity: sha512-m+vIdyeCOpdr/QeQCu2EzxX/ohgS8KbnPDgFni4dQsfSCtpz8UqDyY5GjRru8PDKuYn7Fq19j1CQ+nJSsGKOzg==}
+
+  universalify@2.0.1:
+    resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
+    engines: {node: '>= 10.0.0'}
 
   unrun@0.2.39:
     resolution: {integrity: sha512-h9FxYVpztY/wwq+bauLOh6Y3CWu2IVeRLq5lxzneBiIU9Tn86OGp9xiQrGhnYspAmg5dzdY0Cc8+Y70kuTARCg==}
@@ -6374,6 +6467,54 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@genapi/core@4.1.4':
+    dependencies:
+      '@clack/prompts': 1.7.0
+      '@genapi/shared': 4.1.4
+      '@hairy/utils': 1.52.0
+      c12: 3.3.4
+      chalk: 5.6.2
+      citty: 0.2.2
+      fs-extra: 11.4.0
+      jiti: 2.7.0
+      knitwork-x: 0.3.1
+      nypm: 0.6.10
+    transitivePeerDependencies:
+      - magicast
+
+  '@genapi/parser@4.1.4':
+    dependencies:
+      '@genapi/shared': 4.1.4
+      '@genapi/transform': 4.1.4
+      '@hairy/utils': 1.52.0
+      scule: 1.3.0
+      transliteration: 2.6.1
+
+  '@genapi/pipeline@4.1.4':
+    dependencies:
+      '@genapi/shared': 4.1.4
+      '@genapi/transform': 4.1.4
+      confbox: 0.2.4
+      fs-extra: 11.4.0
+      knitwork-x: 0.3.1
+      ofetch: 1.5.1
+      p-pipe: 4.0.0
+      prettier: 3.9.6
+
+  '@genapi/presets@4.1.4':
+    dependencies:
+      '@genapi/parser': 4.1.4
+      '@genapi/pipeline': 4.1.4
+      '@genapi/shared': 4.1.4
+      knitwork-x: 0.3.1
+      openapi-specification-types: 0.3.0
+
+  '@genapi/shared@4.1.4':
+    dependencies:
+      ofetch: 1.5.1
+
+  '@genapi/transform@4.1.4': {}
+
   '@gravity-ui/icons@2.21.0(react@19.2.8)':
     dependencies:
       tslib: 2.8.1
@@ -7562,6 +7703,8 @@ snapshots:
 
   chai@6.2.2: {}
 
+  chalk@5.6.2: {}
+
   change-case@5.4.4: {}
 
   changelogen@0.5.7:
@@ -8254,6 +8397,12 @@ snapshots:
     dependencies:
       fd-package-json: 2.0.0
 
+  fs-extra@11.4.0:
+    dependencies:
+      graceful-fs: 4.2.11
+      jsonfile: 6.2.1
+      universalify: 2.0.1
+
   fs-minipass@2.1.0:
     dependencies:
       minipass: 3.3.6
@@ -8433,6 +8582,12 @@ snapshots:
 
   jsonc-parser@3.3.1: {}
 
+  jsonfile@6.2.1:
+    dependencies:
+      universalify: 2.0.1
+    optionalDependencies:
+      graceful-fs: 4.2.11
+
   katex@0.16.47:
     dependencies:
       commander: 8.3.0
@@ -8456,6 +8611,8 @@ snapshots:
       unbash: 4.0.10
       yaml: 2.9.0
       zod: 4.4.3
+
+  knitwork-x@0.3.1: {}
 
   levn@0.4.1:
     dependencies:
@@ -8516,6 +8673,8 @@ snapshots:
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
+
+  lodash-es@4.18.1: {}
 
   longest-streak@3.1.0: {}
 
@@ -8956,6 +9115,12 @@ snapshots:
       tinyexec: 0.3.2
       ufo: 1.6.4
 
+  nypm@0.6.10:
+    dependencies:
+      citty: 0.2.2
+      pathe: 2.0.3
+      tinyexec: 1.3.1
+
   object-assign@4.1.1: {}
 
   object-deep-merge@2.0.1: {}
@@ -8978,6 +9143,8 @@ snapshots:
       define-lazy-prop: 3.0.0
       is-inside-container: 1.0.0
       wsl-utils: 0.1.0
+
+  openapi-specification-types@0.3.0: {}
 
   optionator@0.9.4:
     dependencies:
@@ -9113,6 +9280,8 @@ snapshots:
       source-map-js: 1.2.1
 
   prelude-ls@1.2.1: {}
+
+  prettier@3.9.6: {}
 
   prop-types@15.8.1:
     dependencies:
@@ -9454,6 +9623,8 @@ snapshots:
 
   tinyexec@1.3.0: {}
 
+  tinyexec@1.3.1: {}
+
   tinyglobby@0.2.17:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.5)
@@ -9473,6 +9644,8 @@ snapshots:
   toml-eslint-parser@1.0.3:
     dependencies:
       eslint-visitor-keys: 5.0.1
+
+  transliteration@2.6.1: {}
 
   tree-kill@1.2.2: {}
 
@@ -9573,6 +9746,8 @@ snapshots:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
       unist-util-visit-parents: 6.0.2
+
+  universalify@2.0.1: {}
 
   unrun@0.2.39(synckit@0.11.13):
     dependencies:
