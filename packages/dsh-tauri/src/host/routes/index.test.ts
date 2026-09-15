@@ -126,7 +126,6 @@ function fakeResponse(): { response: ServerResponse, state: { status: number, he
   return { response: response as unknown as ServerResponse, state }
 }
 
-/** 取某一行宿主的 handler；缺失即测试数据错误。 */
 function routeOf(harness: Harness, kind: string, path: string): HostRoute {
   const route = harness.routes.get(`${kind}\u0000${path}`)
   if (!route)
@@ -134,14 +133,6 @@ function routeOf(harness: Harness, kind: string, path: string): HostRoute {
   return route
 }
 
-/**
- * 声明 + 立即注册的语法糖：等价于 `defineRoutes(setup)(ctx)`，返回卸载函数。
- * 协议本体（`defineRoutes` 与 `registerRoutes(ctx)` 分成两步调用）见「运行期注册」用例。
- *
- * deps 透传给注册期第二参数；省略即零依赖注册（与迁移前的 `routes(ctx)` 等价）。
- * `Deps` 是未解析泛型时 TS 无法收窄 `RoutesRegistration<Deps>` 这个条件类型，故此处断言一次；
- * 真实调用点（如 `routes(ctx, deps)`）的 deps 是具体类型，静态保护照常生效。
- */
 function mountRoutes<Deps = undefined>(ctx: RoutesContext, setup: RoutesSetup, deps?: Deps): () => void {
   const register = defineRoutes<Deps>(setup) as (ctx: RoutesContext, deps?: Deps) => () => void
   return register(ctx, deps)

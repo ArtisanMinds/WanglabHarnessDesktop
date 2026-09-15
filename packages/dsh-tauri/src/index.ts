@@ -1,8 +1,8 @@
 export * from './host/config/constants'
+export * from './host/config/runtime'
 
 export * from './host/modules/h3'
 export * from './host/routes'
-
 export type {
   HttpMethod,
   RouteDefinition,
@@ -14,6 +14,8 @@ export type {
   RoutesRegistration,
   RoutesSetup,
 } from './host/routes/index.type'
+
+export * from './host/service'
 
 export * from './host/types'
 export * from './host/utils/atomic'

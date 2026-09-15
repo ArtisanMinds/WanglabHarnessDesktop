@@ -1,3 +1,5 @@
+> 该文档已固定，禁止修改。
+
 # 插件宿主端架构规范 (Plugin Host Architecture Protocol)
 
 > 本规范为 [DEVELOPMENT.spec.md](./DEVELOPMENT.spec.md) 在 **DeepSeek Harness 插件宿主端（Node Runtime）** 的落地协议。插件 `src/host` 实现必须严格遵守本规范。
@@ -25,7 +27,7 @@ $$\text{apply.ts (装配)} \longrightarrow \begin{bmatrix} \text{routes/} \\ \te
 | 目录/文件 | 职责说明 | 关键约束 |
 | --- | --- | --- |
 | **`apply.ts`** | 装配入口 | 仅做声明式组装（工具/事件/提示词/路由），控制在 30~50 行以内，不含业务逻辑。 |
-| **`config/`** | 配置与单例 | `runtime.ts`: 导出内存单例及 `bindHost`/`useHost` 宿主绑定。<br>
+| **`config/`** | 配置与单例 | `runtime.ts`: 导出内存单例及 `setCurrentHostInstance`/`getCurrentHostInstance` 宿主绑定。<br>
 
 <br>`constants.ts`: 静态常量与配置，严禁硬编码 Magic Number/String。 |
 | **`types/`** | 类型定义 | 导出领域模型、DTO、输入输出接口（纯类型定义）。 |
@@ -71,7 +73,7 @@ packages/dsh-tauri-worktree/src/host/
 
 ```typescript
 export function apply(ctx: HostContext): void {
-  bindHost(ctx) // 1. 绑定宿主能力（仅 service 层可通过 useHost() 读取）
+  setCurrentHostInstance(ctx) // 1. 绑定宿主能力（仅 service 层可通过 getCurrentHostInstance() 读取）
 
   ctx.tools.register(createWorktreeTool())
   ctx.tools.register(checkoutWorktreeTool())
@@ -87,7 +89,7 @@ export function apply(ctx: HostContext): void {
 
 **2. 配置与状态层 (`config/`)**
 
-* `runtime.ts` 导出内存单例与宿主绑定函数 (`bindHost` / `useHost`)。宿主进程按 `--profile` 启动，单进程内插件仅挂载一次，模块级单例安全。必须包含清除/销毁机制以防内存泄漏。
+* `runtime.ts` 导出内存单例与宿主绑定函数 (`setCurrentHostInstance` / `getCurrentHostInstance`)。宿主进程按 `--profile` 启动，单进程内插件仅挂载一次，模块级单例安全。必须包含清除/销毁机制以防内存泄漏。
 
 **3. 持久化层 (`storage/`)**
 
@@ -106,7 +108,7 @@ export function apply(ctx: HostContext): void {
 * [ ] **装配精简**：`apply.ts` 是否仅包含声明式注册（无逻辑内联/过度嵌套）？
 * [ ] **状态收口**：内存 Map/Set 是否收拢于 `config/runtime.ts`？是否存在参数击穿透传？
 * [ ] **服务约束**：是否全员使用 `defineService`？文件名与导出标识符是否一致？动词是否符合白名单？
-* [ ] **签名收口**：服务方法参数是否按需声明且不含 `ctx`/`host`？是否仅 `service/` 内部使用 `useHost()`？
+* [ ] **签名收口**：服务方法参数是否按需声明且不含 `ctx`/`host`？是否仅 `service/` 内部使用 `getCurrentHostInstance()`？
 * [ ] **路由纯度**：`routes/` 是否仅负责协议解析与 DTO 校验？无直接操作 `storage`/宿主对象/系统命令行为？
 * [ ] **存储抽象**：`storage/index.ts` 是否仅导出驱动实例？
 * [ ] **工具解耦**：`utils/` 是否无状态、脱离业务上下文且未引入契约宏？

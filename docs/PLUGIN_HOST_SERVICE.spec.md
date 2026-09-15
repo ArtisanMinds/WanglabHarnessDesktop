@@ -1,3 +1,5 @@
+> 该文档已固定，禁止修改。
+
 # 插件宿主端领域服务协议 (Plugin Host Service Protocol)
 
 > 本规范为 [PLUGIN_HOST.spec.md](./PLUGIN_HOST.spec.md) 的**子协议**，整体受 [DEVELOPMENT.spec.md](./DEVELOPMENT.spec.md) 约束[cite: 1]。
@@ -40,8 +42,8 @@ import { defineService } from 'dsh-tauri'
 ### 3. 签名与宿主隔离 (Signatures & Host Isolation)
 
 * **参数扁平**：按业务需求直接传参，不做无意义的单对象包装[cite: 1]。
-* **无 `ctx`/`host` 参**：服务方法不得接收 `ctx` 或 `host` 参数[cite: 1]。宿主能力由 `apply.ts` 调用 `bindHost(ctx)` 绑定后，通过 `useHost()` 按需获取[cite: 1]。
-* **隔离访问**：**只有 `service/` 允许调用 `useHost()**`；`routes/`、`tools/` 等必须经由服务层间接访问宿主能力[cite: 1]。
+* **无 `ctx`/`host` 参**：服务方法不得接收 `ctx` 或 `host` 参数[cite: 1]。宿主能力由 `apply.ts` 调用 `setCurrentHostInstance(ctx)` 绑定后，通过 `getCurrentHostInstance()` 按需获取[cite: 1]。
+* **隔离访问**：**只有 `service/` 允许调用 `getCurrentHostInstance()**`；`routes/`、`tools/` 等必须经由服务层间接访问宿主能力[cite: 1]。
 
 ---
 
@@ -126,7 +128,7 @@ export const workspace = defineService({
 
 ```typescript
 // service/session-context.ts
-import { defineService, useHost } from 'dsh-tauri'
+import { defineService, getCurrentHostInstance } from 'dsh-tauri'
 
 export const sessionContext = defineService({
   resolve(sessionId: string): string | null {
@@ -157,6 +159,6 @@ export const sessionContext = defineService({
 * [ ] 服务对象是否全部由函数组成（无散装状态/常量）[cite: 1]？
 * [ ] 所有方法名是否**完全符合所属角色的动词白名单**[cite: 1]？
 * [ ] 方法参数是否扁平，且未包含 `ctx`/`host` 形参[cite: 1]？
-* [ ] 是否仅在 `service/` 内部使用 `useHost()`，其它层绝不接触宿主对象[cite: 1]？
+* [ ] 是否仅在 `service/` 内部使用 `getCurrentHostInstance()`，其它层绝不接触宿主对象[cite: 1]？
 * [ ] 私有函数与常量是否收纳于 `// --- internal ---` 且未导出[cite: 1]？
 * [ ] 类型与常量是否已剥离至 `types/` 与 `config/constants.ts`[cite: 1]？
