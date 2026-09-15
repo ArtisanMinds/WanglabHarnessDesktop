@@ -28,6 +28,8 @@ export const dialogFeature = defineRegister<ClientContext>((controller, ctx, ada
           sessionsRuntime: adapter.sessions as unknown as WorktreeDialogProps['sessionsRuntime'],
         }),
       },
-      WorktreeDialog,
+      // WorktreeDialog 需要官方 session UI 提供的标准 prop `useSessions`；该包不在本
+      // workspace 的 d.ts 集合里，故注册面按已注册条目形状断言。
+      WorktreeDialog as never,
     )))
 })

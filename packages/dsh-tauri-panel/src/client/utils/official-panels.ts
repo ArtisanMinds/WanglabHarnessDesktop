@@ -7,7 +7,7 @@
  * 而我们的调用点常在注册/渲染流程中，所以调用前自查 `main` 的 key 集合。
  */
 
-import type { ClientContext } from 'dsh-tauri/client'
+import type { ClientContext, MainPanelId } from 'dsh-tauri/client'
 import { PANEL_MAIN_SLOT } from '../constants'
 
 /** 核心是否提供官方全局面板切换（selectPanel 存在 ⇔ 布局是 ≥0.1.5-rc.1）。 */
@@ -31,5 +31,5 @@ export function selectMainPanel(ctx: ClientContext, id: string): void {
     console.error(`[dsh-tauri-panel] panel "${id}" is not registered in the "${PANEL_MAIN_SLOT}" slot`)
     return
   }
-  ctx.layout.selectPanel?.(id)
+  ctx.layout.selectPanel?.(id as MainPanelId)
 }

@@ -142,14 +142,10 @@ export function registerPanelService(ctx: ClientContext): void {
     resetPanelWidth: () => controller.width.resetWidth(),
     getPanelWidth: () => controller.width.getWidth(),
   }
-  if (typeof ctx.layout.openDetails === 'function')
-    api.openDetails = () => ctx.layout.openDetails()
-  if (typeof ctx.layout.closeDetails === 'function')
-    api.closeDetails = () => ctx.layout.closeDetails()
   if (typeof ctx.layout.openRightbar === 'function')
-    api.openRightPanel = (track, fullscreen) => ctx.layout.openRightbar?.(track, fullscreen)
+    api.openRightPanel = (track, fullscreen) => ctx.layout.openRightbar(track, fullscreen)
   if (typeof ctx.layout.closeRightbar === 'function')
-    api.closeRightPanel = () => ctx.layout.closeRightbar?.()
+    api.closeRightPanel = () => ctx.layout.closeRightbar()
   // Publish synchronously during apply: alpha slot injections can run before
   // sibling effects, so publishing from inside ctx.effect makes consumers see
   // an absent protocol and permanently skip their action registration.

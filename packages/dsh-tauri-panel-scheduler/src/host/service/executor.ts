@@ -17,6 +17,7 @@
 import type { ModelSelection } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
+import type { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { HostContext, RunTrigger, SchedulerTask } from '../types'
 import type { PermissionPresetService } from './permission-presets'
 import { randomUUID } from 'node:crypto'
@@ -277,7 +278,7 @@ export async function executeTask(
 
     // 3. 解析模型选择
     const selection: ModelSelection | undefined = task.provider && task.model
-      ? { provider: task.provider, model: task.model, ...(task.reasoningEffort ? { reasoningEffort: task.reasoningEffort } : {}) }
+      ? { provider: task.provider, model: task.model, ...(task.reasoningEffort ? { reasoningEffort: task.reasoningEffort as ReasoningEffortId } : {}) }
       : ((): ModelSelection | undefined => {
           try {
             return (ctx.get?.('agentDefaultModel') as { currentSelection?: () => ModelSelection })?.currentSelection?.()

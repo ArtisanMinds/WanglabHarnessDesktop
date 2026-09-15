@@ -43,7 +43,7 @@ function resolveLabel(label: string | (() => string) | undefined): string | unde
 function projectPanels(ctx: ClientContext): PanelListEntry[] | undefined {
   let entries: readonly SlotEntryLike[] | undefined
   try {
-    entries = ctx.slots.entriesOfSlot?.(PANEL_LIST_SLOT)
+    entries = ctx.slots.entriesOfSlot?.(PANEL_LIST_SLOT as never)
   }
   catch {
     // 未知 key / 版本不符的 slots 服务不应让侧栏整体崩掉：按「无注册」处理。
@@ -102,7 +102,7 @@ export function createPanelList(ctx: ClientContext): PanelListService {
       panelList.setRows([])
       sync()
       if (available) {
-        controller.add(ctx.slots.subscribe?.(PANEL_LIST_SLOT, sync) ?? (() => {}))
+        controller.add(ctx.slots.subscribe?.(PANEL_LIST_SLOT as never, sync) ?? (() => {}))
         controller.add(ctx.locale.subscribe(sync))
       }
     }),

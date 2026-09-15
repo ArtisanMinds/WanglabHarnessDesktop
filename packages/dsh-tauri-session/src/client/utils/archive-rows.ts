@@ -50,7 +50,7 @@ export function buildRows(
       continue
     if (summary?.blank === true)
       continue
-    let workspace = workspaces.items.find(ws => ws.sessionIds.includes(sessionId))
+    let workspace = workspaces.items.find(ws => (ws.sessionIds as readonly string[]).includes(sessionId))
     const cwd = summary?.cwd ?? entry?.cwd
     if (!workspace && cwd)
       workspace = byPath.get(cwd)

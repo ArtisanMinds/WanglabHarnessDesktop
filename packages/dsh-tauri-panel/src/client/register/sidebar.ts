@@ -1,4 +1,4 @@
-import type { ClientContext, WorkspaceId } from 'dsh-tauri/client'
+import type { ClientContext, MainPanelId, WorkspaceId } from 'dsh-tauri/client'
 import type { PanelListService } from '../service/panel-list'
 import { defineRegister } from 'dsh-tauri/client'
 import { SidebarRootClone } from '../components/sidebar'
@@ -52,7 +52,7 @@ export function registerSidebarRoot(ctx: ClientContext, panelList: PanelListServ
               toggleSidebar: () => clientCtx.layout.toggleSidebar(),
               selectPanel: (panelId: string | null) => {
                 // 旧核心没有全局面板：静默忽略，绝不向 ctx.layout 断言方法存在。
-                clientCtx.layout.selectPanel?.(panelId)
+                clientCtx.layout.selectPanel?.(panelId as MainPanelId | null)
               },
               panels: panelList.store,
             }),

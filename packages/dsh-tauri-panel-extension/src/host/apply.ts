@@ -68,7 +68,7 @@ interface PluginFiber {
 
 export function apply(ctx: HostContext, config?: Config): void {
   const profile = config?.profile ?? argvProfile() ?? 'web'
-  ctx.inject(['webServer', 'skills', 'connection'], (hostCtx: HostContext) => {
+  ctx.inject(['webServer', 'skills', 'connection'], (hostCtx) => {
     // The web bundle disables the host-plane `skill-filesystem` row on
     // purpose (presets own per-session discovery). The Settings manager
     // mounts its own host-plane provider as a CHILD of this plugin: it dies
@@ -146,7 +146,7 @@ export function apply(ctx: HostContext, config?: Config): void {
         profileDirPath: profileDir(profile),
         remountProvider,
       }
-      ctx.effect(() => routes(hostCtx, deps), 'dsh-tauri-panel-extension: routes')
+      ctx.effect(() => routes(hostCtx as unknown as HostContext, deps), 'dsh-tauri-panel-extension: routes')
       return disposer
     }, 'dsh-tauri-panel-extension: skill provider')
   })
