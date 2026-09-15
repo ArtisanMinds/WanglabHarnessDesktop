@@ -1,9 +1,10 @@
-import type { ScheduleForm, TaskView, Translate } from '../types'
+import type { LocaleKey, Translate } from '../locales/index.types'
+import type { ScheduleForm, TaskView } from '../types'
 
 export interface RecommendationMatch {
   id: string
-  nameKey: string
-  promptKey: string
+  nameKey: LocaleKey
+  promptKey: LocaleKey
   schedule: ScheduleForm
 }
 
@@ -19,7 +20,6 @@ function sameSchedule(left: TaskView['schedule'], right: ScheduleForm): boolean 
   return false
 }
 
-/** 判断任务是否由该推荐创建，兼容 recommendationId 引入前的旧任务。 */
 export function recommendationMatchesTask(rec: RecommendationMatch, task: TaskView, t: Translate): boolean {
   return task.recommendationId === rec.id
     || (task.recommendationId === undefined

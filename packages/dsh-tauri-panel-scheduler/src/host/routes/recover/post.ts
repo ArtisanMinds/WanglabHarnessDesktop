@@ -1,13 +1,7 @@
-/**
- * routes/recover/post.ts — POST /api/dsh-scheduler/recover：启动自愈（中断的 running → interrupted）。
- *
- * 无请求参数；响应固定 `{ ok: true }`（客户端 `hydrateScheduler` 只关心成败）。
- */
-
 import { defineEventHandler } from 'dsh-tauri'
-import { recoverInterruptedRuns } from '../../service/run'
+import { recovery } from '../../service/recovery'
 
 export default defineEventHandler(async () => {
-  await recoverInterruptedRuns()
+  await recovery.recover()
   return { ok: true }
 })

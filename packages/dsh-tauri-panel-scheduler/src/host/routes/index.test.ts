@@ -15,7 +15,6 @@
 import type { HostRoute, RoutesContext } from 'dsh-tauri'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { SchedulerRouteDeps } from '../types'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { routes } from '.'
@@ -83,11 +82,6 @@ function createHarness(): Harness {
   }
 }
 
-/** 手动触发用的引擎替身：只实现路由真正消费的 runNow（SchedulerRouteDeps 的依赖面）。 */
-function createEngineStub(): SchedulerRouteDeps['engine'] {
-  return { runNow: async () => ({ ok: true }) }
-}
-
 const servers: Server[] = []
 
 /** 复刻宿主 webserver 的 exact 匹配契约，起一个真实 HTTP 服务并返回 base URL。 */
@@ -121,9 +115,9 @@ function postJson(base: string, path: string, body: string): Promise<Response> {
   })
 }
 
-/** `routes(ctx, deps)` 注册全部路由并返回本次注册的卸载函数；deps 随注册传入，无需全局状态。 */
+/** 注册全部路由并返回本次注册的卸载函数。 */
 function mount(harness: Harness): () => void {
-  return routes(harness.ctx, { engine: createEngineStub() })
+  return routes(harness.ctx)
 }
 
 afterEach(async () => {

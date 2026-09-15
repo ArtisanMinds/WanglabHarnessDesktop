@@ -1,5 +1,7 @@
 import type { SchedulerSchedule, Weekday } from '../types'
 import { parseCronExpression } from 'cron-schedule'
+import { inRange, isArray, isEmpty, isFinite, isInteger, isNil, isNumber, isObject, isString, sortBy, uniq } from 'lodash-es'
+import { WEEKDAYS } from '../../shared/constants'
 
 const MINUTE_MS = 60 * 1000
 const DAY_MS = 24 * 60 * MINUTE_MS
@@ -12,11 +14,17 @@ export function parseTimeToMinutes(time: string): number | undefined {
     return undefined
   const hours = Number(match[1])
   const minutes = Number(match[2])
-  return hours <= 23 && minutes <= 59 ? hours * 60 + minutes : undefined
+  return inRange(hours, 0, 24) && inRange(minutes, 0, 60) ? hours * 60 + minutes : undefined
 }
 
 const WEEKDAY_TO_CRON_DAY: Record<Weekday, number> = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 0 }
 type TimeSchedule = Extract<SchedulerSchedule, { kind: 'daily' | 'workdays' | 'weekly' | 'monthly' }>
+
+const isInstant = (value: unknown): boolean => isString(value) && isFinite(new Date(value).getTime())
+const isTimeValue = (value: unknown): boolean => isString(value) && parseTimeToMinutes(value) !== undefined
+const isMinuteValue = (value: unknown): boolean => isNumber(value) && isInteger(value) && inRange(value, 0, 60)
+const isFiniteInRange = (value: unknown, end: number): boolean => isNumber(value) && isFinite(value) && inRange(value, 1, end)
+const isIntegerInRange = (value: unknown, end: number): boolean => isNumber(value) && isInteger(value) && inRange(value, 1, end)
 
 function toCronExpression(schedule: TimeSchedule): string | undefined {
   const minutes = parseTimeToMinutes(schedule.time)
@@ -30,13 +38,13 @@ function toCronExpression(schedule: TimeSchedule): string | undefined {
     return `${minute} ${hour} * * 1-5`
   if (schedule.kind === 'monthly')
     return `${minute} ${hour} ${schedule.day} * *`
-  const days = schedule.weekdays.map(day => WEEKDAY_TO_CRON_DAY[day])
-  return days.length > 0 ? `${minute} ${hour} * * ${[...new Set(days)].sort((a, b) => a - b).join(',')}` : undefined
+  const days = sortBy(uniq(schedule.weekdays.map(day => WEEKDAY_TO_CRON_DAY[day])))
+  return isEmpty(days) ? undefined : `${minute} ${hour} * * ${days.join(',')}`
 }
 
 function anchoredOccurrence(anchor: string, step: number, from: number): number | undefined {
   const base = new Date(anchor).getTime()
-  if (!Number.isFinite(base) || step <= 0)
+  if (!isFinite(base) || step <= 0)
     return undefined
   const index = Math.max(0, Math.floor((from - base) / step) + 1)
   return base + index * step
@@ -46,10 +54,10 @@ export function nextOccurrence(schedule: SchedulerSchedule, from: number): numbe
   switch (schedule.kind) {
     case 'once': {
       const at = new Date(schedule.at).getTime()
-      return Number.isFinite(at) && at > from ? at : undefined
+      return isFinite(at) && at > from ? at : undefined
     }
     case 'hourly': {
-      if (!Number.isInteger(schedule.minute) || schedule.minute < 0 || schedule.minute > 59)
+      if (!isMinuteValue(schedule.minute))
         return undefined
       const next = new Date(from + MINUTE_MS)
       next.setMinutes(schedule.minute, 0, 0)
@@ -58,39 +66,42 @@ export function nextOccurrence(schedule: SchedulerSchedule, from: number): numbe
       return next.getTime()
     }
     case 'interval':
-      if (!Number.isFinite(schedule.everyMinutes) || schedule.everyMinutes < 1 || schedule.everyMinutes > MAX_EVERY_MINUTES)
+      if (!isFiniteInRange(schedule.everyMinutes, MAX_EVERY_MINUTES + 1))
         return undefined
       return schedule.anchor ? anchoredOccurrence(schedule.anchor, schedule.everyMinutes * MINUTE_MS, from) : from + schedule.everyMinutes * MINUTE_MS
     case 'custom':
-      if (!Number.isInteger(schedule.everyDays) || schedule.everyDays < 1 || schedule.everyDays > MAX_EVERY_DAYS || parseTimeToMinutes(schedule.time) === undefined)
+      if (!isIntegerInRange(schedule.everyDays, MAX_EVERY_DAYS + 1) || !isTimeValue(schedule.time))
         return undefined
       return anchoredOccurrence(schedule.anchor, schedule.everyDays * DAY_MS, from)
     case 'daily': case 'workdays': case 'weekly': case 'monthly': {
       const expression = toCronExpression(schedule)
-      return expression ? parseCronExpression(expression).getNextDate(new Date(from)).getTime() : undefined
+      return expression === undefined ? undefined : parseCronExpression(expression).getNextDate(new Date(from)).getTime()
     }
   }
 }
 
 export function validateSchedule(schedule: unknown): schedule is SchedulerSchedule {
-  if (!schedule || typeof schedule !== 'object')
+  if (!isObject(schedule))
     return false
   const value = schedule as Partial<SchedulerSchedule>
-  if (value.kind === 'once')
-    return typeof value.at === 'string' && Number.isFinite(new Date(value.at).getTime())
-  if (value.kind === 'hourly')
-    return Number.isInteger(value.minute) && (value.minute as number) >= 0 && (value.minute as number) <= 59
-  if (value.kind === 'interval')
-    return Number.isFinite(value.everyMinutes) && (value.everyMinutes as number) >= 1 && (value.everyMinutes as number) <= MAX_EVERY_MINUTES && (value.anchor === undefined || (typeof value.anchor === 'string' && Number.isFinite(new Date(value.anchor).getTime())))
-  if (value.kind === 'custom')
-    return Number.isInteger(value.everyDays) && (value.everyDays as number) >= 1 && (value.everyDays as number) <= MAX_EVERY_DAYS && typeof value.anchor === 'string' && Number.isFinite(new Date(value.anchor).getTime()) && typeof value.time === 'string' && parseTimeToMinutes(value.time) !== undefined
-  if (value.kind === 'daily' || value.kind === 'workdays')
-    return typeof value.time === 'string' && parseTimeToMinutes(value.time) !== undefined
-  if (value.kind === 'monthly')
-    return Number.isInteger(value.day) && (value.day as number) >= 1 && (value.day as number) <= 31 && typeof value.time === 'string' && parseTimeToMinutes(value.time) !== undefined
-  if (value.kind === 'weekly')
-    return typeof value.time === 'string' && parseTimeToMinutes(value.time) !== undefined && Array.isArray(value.weekdays) && value.weekdays.length > 0 && value.weekdays.every(day => Object.hasOwn(WEEKDAY_TO_CRON_DAY, day as Weekday))
-  return false
+  switch (value.kind) {
+    case 'once':
+      return isInstant(value.at)
+    case 'hourly':
+      return isMinuteValue(value.minute)
+    case 'interval':
+      return isFiniteInRange(value.everyMinutes, MAX_EVERY_MINUTES + 1) && (isNil(value.anchor) || isInstant(value.anchor))
+    case 'custom':
+      return isIntegerInRange(value.everyDays, MAX_EVERY_DAYS + 1) && isInstant(value.anchor) && isTimeValue(value.time)
+    case 'daily': case 'workdays':
+      return isTimeValue(value.time)
+    case 'monthly':
+      return isIntegerInRange(value.day, 32) && isTimeValue(value.time)
+    case 'weekly':
+      return isTimeValue(value.time) && isArray(value.weekdays) && !isEmpty(value.weekdays) && value.weekdays.every(day => WEEKDAYS.includes(day))
+    default:
+      return false
+  }
 }
 
 export function localTimeZone(): string {

@@ -1,11 +1,5 @@
-/**
- * routes/history/delete/post.ts — POST /api/dsh-scheduler/history/delete：删除执行记录。
- *
- * 请求级逻辑（读体、取 id、置状态码、组织响应）都在处理器体内；领域服务只收 id。
- */
-
 import { defineEventHandler, readBody } from 'dsh-tauri'
-import { deleteRun } from '../../../service/run'
+import { runs } from '../../../service/runs'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ id?: unknown }>(event)
@@ -14,10 +8,9 @@ export default defineEventHandler(async (event) => {
     event.res.status = 400
     return { error: '缺少执行记录 id' }
   }
-  const result = await deleteRun(id)
-  if (!result.ok) {
+  if (!await runs.remove(id)) {
     event.res.status = 400
-    return { error: result.error }
+    return { error: '执行记录不存在' }
   }
   return { ok: true }
 })

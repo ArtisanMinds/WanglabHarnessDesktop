@@ -1,4 +1,3 @@
-import type { SchedulerRouteDeps } from '../types'
 import { defineRoutes } from 'dsh-tauri'
 import { SCHEDULER_API_PREFIX } from '../../shared/constants'
 import historyDelete from './history/delete/post'
@@ -12,7 +11,7 @@ import tasksRun from './tasks/run/post'
 import tasksToggle from './tasks/toggle/post'
 import tasksUpdate from './tasks/update/post'
 
-export const routes = defineRoutes<SchedulerRouteDeps>((disposer) => {
+export const routes = defineRoutes((disposer) => {
   disposer.get({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks` }, tasks)
   disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/create` }, tasksCreate)
   disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/update` }, tasksUpdate)

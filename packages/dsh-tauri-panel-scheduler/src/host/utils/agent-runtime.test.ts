@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadSchedulerRuntimeModules, resolveSetupAgent, unattendedToolGuardReason } from './executor'
+import { loadSchedulerRuntimeModules, resolveSetupAgent } from './agent-runtime'
 
 describe('loadSchedulerRuntimeModules', () => {
   it('resolves DSH-owned modules through the platform loader', async () => {
@@ -49,7 +49,6 @@ describe('loadSchedulerRuntimeModules', () => {
 describe('resolveSetupAgent', () => {
   it('prefers the Agent the 0.1.5+ host passes as the setup second parameter', () => {
     const session = { id: 'task-1' }
-    // 0.1.5-rc.1 移除了 `ctx.agent` accessor：读该属性会被 Cordis 上下文代理抛出。
     const agentCtx = {
       get agent(): never {
         throw new Error('cannot get property "agent" without inject')
@@ -68,41 +67,5 @@ describe('resolveSetupAgent', () => {
   it('returns undefined when neither the parameter nor the context entry carries an Agent', () => {
     expect(resolveSetupAgent(undefined)).toBeUndefined()
     expect(resolveSetupAgent({})).toBeUndefined()
-  })
-})
-
-describe('unattendedToolGuardReason', () => {
-  it('allows bookkeeping, goal, job, delegation, and orchestration tools', () => {
-    // standard 预设目录里的安全类别：会话内簿记 / 目标延续 / agent 级 job / 委派编排。
-    const allowed = [
-      'todo_write',
-      'get_goal',
-      'create_goal',
-      'update_goal',
-      'job_list',
-      'job_output',
-      'job_kill',
-      'list_subagent_models',
-      'subagent',
-      'subagent_fork',
-      'send_message',
-      'list_agents',
-      'interrupt_agent',
-      'workflow',
-      'ralph',
-      'cordis_define',
-      'cordis_run',
-      'cordis_stop',
-      'cordis_undefine',
-    ]
-    for (const name of allowed)
-      expect(unattendedToolGuardReason(name, {})).toBeUndefined()
-  })
-
-  it('allows tools and background shell calls because the host owns permissions', () => {
-    expect(unattendedToolGuardReason('ask_user_question', {})).toBeUndefined()
-    expect(unattendedToolGuardReason('scheduler_create', {})).toBeUndefined()
-    expect(unattendedToolGuardReason('bash', { command: 'ls', run_in_background: true })).toBeUndefined()
-    expect(unattendedToolGuardReason('pwsh', { command: 'ls', run_in_background: true })).toBeUndefined()
   })
 })

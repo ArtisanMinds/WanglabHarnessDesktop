@@ -1,5 +1,5 @@
-import type { SchedulerRouteDeps } from '../../../types'
-import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
+import { defineEventHandler, readBody } from 'dsh-tauri'
+import { scheduler } from '../../../service/scheduler'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{ id?: unknown }>(event)
@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     event.res.status = 400
     return { error: '缺少任务 id' }
   }
-  const result = await dshRouteDepsOf<SchedulerRouteDeps>(event)!.engine.runNow(id)
+  const result = await scheduler.trigger(id)
   if (!result.ok) {
     event.res.status = 400
     return { error: result.error }
