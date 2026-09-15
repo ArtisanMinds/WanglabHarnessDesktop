@@ -24,8 +24,6 @@ export interface PluginConfig {
 export interface WorktreeRouteDeps {
   /** 插件行配置（依赖链接目录等）。 */
   config: PluginConfig
-  /** 工作树数据根（恒为 `DSH_HOME`，见 apply.ts）。 */
-  worktreesRoot: string
   /** 「放弃工作树」后台删除任务登记表（apply 期一份）。 */
   discardJobs: DiscardJobs
 }

@@ -68,12 +68,12 @@ checkout_worktree({ worktree_hash_dirname: '[hash]/[dirname]', branch_name: 'dsh
    `stopSessionProcesses`；未注册即跳过（公共 DSH API 暂无按会话停止进程的能力）。
    注意宿主 ctx 是 cordis 代理，未注入的属性直接读取会抛
    `cannot get property ... without inject`，因此探测失败或控制器异常都不会中断删除。
-2. 目录重命名到同卷 `<worktreesRoot>/.trash/[hash]/[dirname]` 后用
+2. 目录重命名到同卷 `<DSH_HOME>/.trash/[hash]/[dirname]` 后用
    `fs.rm({ recursive, force, maxRetries: 10, retryDelay: 100 })` 删除；重命名失败
    （跨卷/句柄占用）时退回直接 `fs.rm`，外层再重试 3 次（间隔 2s）。
 3. 目录删除后顺带移除因此变空的 `worktrees/[hash]` 与 `.trash/[hash]` 容器目录
    （`rmdir` 仅对空目录生效，非空/不存在时静默跳过），避免每次放弃/检出都在
-   `<worktreesRoot>` 下残留一个空 `<hash>` 文件夹；收尾为尽力而为，失败不影响删除结果。
+   `<DSH_HOME>` 下残留一个空 `<hash>` 文件夹；收尾为尽力而为，失败不影响删除结果。
 4. `git worktree prune --expire now` 只清理 Git 管理记录；之后才删除本插件拥有的
    `dsh/*` 分支。任一步失败都会保留绑定（ledger），可通过再次放弃/重试收敛。
 5. 残留状态收敛：目录-only（中断遗留）在 `ensureWorktree` 重建前被 fs 删除；管理记录-only

@@ -15,8 +15,8 @@ import { worktreeKey } from '../../service/operation'
 import { listBindings } from '../../storage'
 
 export default defineEventHandler(async (event) => {
-  const { worktreesRoot, discardJobs } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
-  const bindings = await listBindings(worktreesRoot)
+  const { discardJobs } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
+  const bindings = listBindings()
   return {
     bindings: bindings
       .filter(binding => binding.worktreePath && existsSync(binding.worktreePath))

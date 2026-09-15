@@ -17,7 +17,7 @@ import { findSession, resolveProjectPath } from '../../service/session'
 import { loadBinding } from '../../storage'
 
 export default defineEventHandler(async (event) => {
-  const { worktreesRoot, discardJobs } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
+  const { discardJobs } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
   const ctx = dshContextOf(event) as unknown as HostContext
   const query = getQuery(event)
   const sessionId = typeof query.sessionId === 'string' ? query.sessionId : ''
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
   if (job?.state === 'completed')
     return { mode: 'local', jobId: job.jobId }
 
-  const binding = await loadBinding(worktreesRoot, sessionId)
+  const binding = loadBinding(sessionId)
   const activeBinding = binding && existsSync(binding.worktreePath) ? binding : null
   const session = findSession(ctx, sessionId)
   const projectPath = binding?.projectPath ?? (await resolveProjectPath(ctx, session))

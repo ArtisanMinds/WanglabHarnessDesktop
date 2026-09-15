@@ -21,16 +21,20 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { DiscardJob, DiscardJobs } from '../service/discard-jobs'
 import type { Binding, WorktreeRouteDeps } from '../types'
-import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { tmpdir } from 'node:os'
-import { join } from 'pathe'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
+import { resetTestDshHome } from '../../../../.test/test-utils'
 import { WORKTREE_API_PREFIX as P } from '../../shared/constants'
 import { worktreePath } from '../service/operation'
 import { saveBinding } from '../storage'
+
+vi.mock('dsh-tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dsh-tauri')>()
+  const { testDshHome: home } = await import('../../../../.test/test-utils')
+  return { ...actual, DSH_HOME: home }
+})
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
@@ -85,13 +89,6 @@ function createHarness(): Harness {
   }
 }
 
-/** 新建一个独立的数据根目录（每次调用都不同，用作「本次注册」的唯一标记）。 */
-function tempRoot(tag: string): string {
-  const root = join(tmpdir(), `dsh-worktree-routes-${tag}-${randomUUID()}`)
-  mkdirSync(root, { recursive: true })
-  return root
-}
-
 /**
  * 删除任务登记表替身：不跑真实删除，只用带 `tag` 的返回值证明「处理器读到的正是本次注册
  * 传入的那一个对象」。`unsettled` / `start` / `lookup` 的返回都带该标记。
@@ -117,12 +114,15 @@ function createJobsStub(tag: string): DiscardJobs {
 function createDeps(tag: string): WorktreeRouteDeps {
   return {
     config: { linkDependencyDirectories: [`node_modules-${tag}`] },
-    worktreesRoot: tempRoot(tag),
     discardJobs: createJobsStub(tag),
   }
 }
 
 const servers: Server[] = []
+
+beforeEach(() => {
+  resetTestDshHome()
+})
 
 /** 复刻宿主 webserver 的 exact 匹配契约，起一个真实 HTTP 服务并返回 base URL。 */
 async function listen(registered: Map<string, HostRoute>): Promise<string> {
@@ -228,7 +228,7 @@ describe('工作树路由声明', () => {
     const dispose = mount(harness, deps)
     const base = await listen(harness.registered)
 
-    // GET /bindings 读 deps.worktreesRoot（空目录 → 无绑定）与 deps.discardJobs.unsettled()。
+    // GET /bindings 读全局 ledger（空目录 → 无绑定）与本次注册的 deps.discardJobs.unsettled()。
     const bindings = await fetch(`${base}${P}/bindings`)
     expect(bindings.status).toBe(200)
     expect(await bindings.json()).toEqual({
@@ -257,7 +257,7 @@ describe('工作树路由声明', () => {
     // DELETE 集合根读 deps.discardJobs.start()（reuse 返回 undefined → 新建任务）。
     // 先把确定性工作树目录建出来：否则「无绑定 + 路径已消失」会命中幂等短路（直接返回
     // { ok: true } 而不造任务），就验证不到 start() 收到的依赖了。
-    mkdirSync(worktreePath(deps.worktreesRoot, 'hash-a', 'repo'), { recursive: true })
+    mkdirSync(worktreePath('hash-a', 'repo'), { recursive: true })
     const discarded = await sendJson(base, P, 'DELETE', JSON.stringify({ sessionId: 'session-a', worktreeHashDirname: 'hash-a/repo' }))
     expect(discarded.status).toBe(200)
     expect(await discarded.json()).toEqual({ ok: true, jobId: 'started-identity' })
@@ -265,17 +265,15 @@ describe('工作树路由声明', () => {
     dispose()
   })
 
-  it('同一路由声明挂载两次各读各的依赖（无模块级串台）', async () => {
-    // 两个注册各自的数据根：A 里有一个真实绑定，B 里是空的。若依赖还落在模块级全局，
-    // 后注册的 B 会覆盖前者，A 就会读到 B 的空目录。
-    const depsA = createDeps('a')
-    const depsB = createDeps('b')
+  it('同一路由声明挂载两次各读各的 apply 期依赖（无模块级串台）', async () => {
+    // binding ledger 是全局的（固定落 DSH_HOME），两次注册读同一份绑定；随注册传入的
+    // deps.discardJobs 则必须各读各的：若依赖还落在模块级全局，后注册的 B 会覆盖 A。
     const binding: Binding = {
       sessionId: 'session-a',
       sourceSessionId: 'source-a',
       hash: 'hash-a',
       dirname: 'repo',
-      worktreePath: join(depsA.worktreesRoot, 'wt'),
+      worktreePath: worktreePath('hash-a', 'repo'),
       projectPath: '/tmp/repo',
       branchName: 'dsh/x',
       ownsBranch: true,
@@ -283,12 +281,12 @@ describe('工作树路由声明', () => {
       log: [],
     }
     mkdirSync(binding.worktreePath, { recursive: true })
-    await saveBinding(depsA.worktreesRoot, 'session-a', binding)
+    await saveBinding('session-a', binding)
 
     const harnessA = createHarness()
     const harnessB = createHarness()
-    const disposeA = mount(harnessA, depsA)
-    const disposeB = mount(harnessB, depsB)
+    const disposeA = mount(harnessA, createDeps('a'))
+    const disposeB = mount(harnessB, createDeps('b'))
     const baseA = await listen(harnessA.registered)
     const baseB = await listen(harnessB.registered)
 
@@ -297,7 +295,7 @@ describe('工作树路由声明', () => {
     expect(fromA.jobs.map(job => job.jobId)).toEqual(['unsettled-a'])
 
     const fromB = await (await fetch(`${baseB}${P}/bindings`)).json() as { bindings: Binding[], jobs: DiscardJob[] }
-    expect(fromB.bindings).toEqual([])
+    expect(fromB.bindings.map(item => item.sessionId)).toEqual(['session-a'])
     expect(fromB.jobs.map(job => job.jobId)).toEqual(['unsettled-b'])
 
     disposeA()

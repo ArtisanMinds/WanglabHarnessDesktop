@@ -7,10 +7,9 @@
 
 import type { HostContext, PendingHandoff, PluginConfig } from '../types'
 import { randomUUID } from 'node:crypto'
-import { DSH_HOME } from 'dsh-tauri'
 import { checkoutToLocal, ensureWorktree } from '../service/operation'
 import { resolveProjectPath } from '../service/session'
-import { loadBindingSync } from '../storage'
+import { loadBinding } from '../storage'
 
 /** 文本渲染助手：渲染成模型可见文本。 */
 function textBlock(text: string): Array<{ type: 'text', text: string }> {
@@ -23,8 +22,6 @@ export function createToolSet(
   config: PluginConfig,
   pendingHandoffs: Map<string, PendingHandoff> = new Map(),
 ): any[] {
-  const worktreesRoot = DSH_HOME
-
   return [
     {
       name: 'create_worktree',
@@ -72,14 +69,14 @@ export function createToolSet(
         const sourceSession = sourceAgent?.session
         if (!sourceAgent || !sourceSession)
           return { ok: false, error: 'create_worktree requires a current agent session' }
-        if (loadBindingSync(worktreesRoot, sourceSession.id))
+        if (loadBinding(sourceSession.id))
           return { ok: false, error: 'The current session is already in a worktree' }
 
         const targetSessionId = `session-${randomUUID()}`
         const projectPath = await resolveProjectPath(ctx, sourceSession)
         if (!projectPath)
           return { ok: false, error: '无法解析当前会话的工作目录：会话尚未就绪，请稍后重试' }
-        const created = await ensureWorktree(ctx, worktreesRoot, projectPath, targetSessionId, {
+        const created = await ensureWorktree(ctx, projectPath, targetSessionId, {
           sourceSessionId: sourceSession.id,
           branchName: String(args.branch_name ?? ''),
           carryStaged: args.carry_staged === true,
@@ -152,7 +149,7 @@ export function createToolSet(
         },
       },
       async execute(args: any, exec: any) {
-        const r = await checkoutToLocal(ctx, worktreesRoot, {
+        const r = await checkoutToLocal(ctx, {
           worktree_hash_dirname: String(args.worktree_hash_dirname ?? ''),
           sessionId: exec?.agent?.session?.id,
           branch_name: String(args.branch_name ?? ''),

@@ -18,10 +18,10 @@ interface CheckoutBody {
 }
 
 export default defineEventHandler(async (event) => {
-  const { config, worktreesRoot } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
+  const { config } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
   const host = dshContextOf(event) as unknown as HostContext
   const body = (await readBody<CheckoutBody>(event)) ?? {}
-  const r = await checkoutToLocalAndHandback(host, worktreesRoot, {
+  const r = await checkoutToLocalAndHandback(host, {
     sessionId: String(body.sessionId ?? ''),
     worktree_hash_dirname: String(body.worktreeHashDirname ?? ''),
     branch_name: String(body.branchName ?? ''),

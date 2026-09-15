@@ -22,7 +22,7 @@ interface DiscardBody {
 }
 
 export default defineEventHandler(async (event) => {
-  const { worktreesRoot, discardJobs } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
+  const { discardJobs } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
   const body = (await readBody<DiscardBody>(event, { type: 'json' })) ?? {}
   const sessionId = String(body.sessionId ?? '')
   const worktreeHashDirname = String(body.worktreeHashDirname ?? '')
@@ -31,12 +31,12 @@ export default defineEventHandler(async (event) => {
   if (reused)
     return { ok: true, jobId: reused.jobId }
 
-  const binding = await loadBinding(worktreesRoot, sessionId)
+  const binding = loadBinding(sessionId)
   // Idempotent re-discard: a binding-less session whose deterministic
   // worktree path is already gone was fully cleaned earlier (possibly in
   // a previous plugin lifetime). Report success instead of a phantom job.
   const [hash, dirname] = worktreeHashDirname.split('/')
-  if (!binding && hash && dirname && !existsSync(worktreePath(worktreesRoot, hash, dirname)))
+  if (!binding && hash && dirname && !existsSync(worktreePath(hash, dirname)))
     return { ok: true }
 
   const job = discardJobs.start(sessionId, worktreeHashDirname, binding?.worktreePath)

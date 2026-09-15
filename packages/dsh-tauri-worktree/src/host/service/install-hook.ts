@@ -11,7 +11,7 @@
  */
 
 import type { HostContext } from '../types'
-import { loadBindingSync } from '../storage'
+import { loadBinding } from '../storage'
 import { isDependencyInstallCommand, normalizeLinkDirectories, unlinkWorktreeDependencies } from './dependencies'
 
 /**
@@ -43,7 +43,6 @@ export function shellCommandFrom(exec: unknown): string {
  */
 export async function materializeLinkedDependencies(
   ctx: HostContext,
-  worktreesRoot: string,
   configuredDirectories: readonly string[] | undefined,
   exec: unknown,
 ): Promise<string[]> {
@@ -53,7 +52,7 @@ export async function materializeLinkedDependencies(
   const sessionId = (exec as { agent?: { session?: { id?: unknown } } } | undefined)?.agent?.session?.id
   if (typeof sessionId !== 'string' || !sessionId)
     return []
-  const binding = loadBindingSync(worktreesRoot, sessionId)
+  const binding = loadBinding(sessionId)
   if (!binding?.worktreePath)
     return []
   const directories = normalizeLinkDirectories([

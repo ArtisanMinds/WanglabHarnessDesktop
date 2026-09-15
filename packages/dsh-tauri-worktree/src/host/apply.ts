@@ -1,16 +1,18 @@
 /**
- * host/apply.ts — 工作树插件装配（tools 注册 / session:turn-end 钩子 / 系统提示注入 /
+ * host/apply.ts — 工作树插件装配（tools 注册 / session/event turn-end 处理 / 系统提示注入 /
  * 旧版本遗留自愈 / HTTP 路由）。
  *
  * 装配顺序与 reasons：
  *   1. 工具注册先于事件监听——turn/end 到达时 handoff 表已就绪；
- *   2. session/event 只作转发，行为经 hookable 钩子接线（见 hooks.ts）；
+ *   2. session/event 只作转发，交接在 turn/end 时消费；
  *   3. 系统提示只在相关会话组装时按 binding 实时计算；
  *   4. HTTP 路由注册在 effect 内，卸载统一释放。
+ *
+ * 数据根固定为 `DSH_HOME`（`~/.dsh`）：插件行配置不提供覆盖项，工作树、ledger 与
+ * checkout 上下文都落在同一处，避免同一份状态被拆到两个根下。
  */
 
 import type { HostContext, PendingHandoff, PluginConfig, WorktreeRouteDeps } from './types'
-import { DSH_HOME } from 'dsh-tauri'
 import { WORKTREE_SECTION_ORDER } from '../shared/constants'
 import { routes } from './routes'
 import { createDiscardJobs } from './service/discard-jobs'
@@ -19,18 +21,14 @@ import { materializeLinkedDependencies } from './service/install-hook'
 import { unregisterWorktreeWorkspace, worktreeKey } from './service/operation'
 import {
   clearPendingCheckoutContext,
-  listBindingsSync,
-  loadBindingSync,
-  loadCheckoutContextSync,
-  migrateLegacyLedger,
+  listBindings,
+  loadBinding,
+  loadCheckoutContext,
 } from './storage'
 import { createToolSet } from './tools'
 
 export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   const cfg = config ?? {}
-  // 数据根固定为 DSH_HOME（`~/.dsh`）：插件行配置不提供覆盖项，工作树、ledger 与
-  // checkout 上下文都落在同一处，避免同一份状态被拆到两个根下。
-  const worktreesRoot = DSH_HOME
   // 1) 工具注册。create_worktree 的交接延迟到源 turn/end，确保 seed 是完整日志。
   const pendingHandoffs = new Map<string, PendingHandoff>()
   // 只有 provider 确实参与过模型组装的会话，才允许在 turn/end 消费一次性上下文。
@@ -47,12 +45,12 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
     const handoff = pendingHandoffs.get(session.id)
     if (handoff) {
       pendingHandoffs.delete(session.id)
-      void completeWorktreeHandoff(ctx, worktreesRoot, handoff)
+      void completeWorktreeHandoff(ctx, handoff)
     }
     // 仅当 systemPrompt.context provider 已实际返回过检出信息，才在该轮结束后消费。
     // 否则新会话发布时出现的既有/空转 turn/end 会在用户首条消息前误删上下文。
     if (injectedCheckoutContexts.delete(session.id))
-      void clearPendingCheckoutContext(worktreesRoot, session.id)
+      void clearPendingCheckoutContext(session.id)
   })
 
   // 1.5) 安装依赖前断开工作树内的共享链接：链接让工作树开箱可用，但包管理器直接写入会
@@ -61,7 +59,7 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   //      工作树内物化成独立依赖目录。钩子失败只记录日志，绝不阻断工具调用。
   ctx.on('tools/execute', async (exec: any, next: any) => {
     try {
-      await materializeLinkedDependencies(ctx, worktreesRoot, cfg.linkDependencyDirectories, exec)
+      await materializeLinkedDependencies(ctx, cfg.linkDependencyDirectories, exec)
     }
     catch (error) {
       ctx.logger?.warn?.(`dsh-tauri-worktree: dependency link materialization failed: ${String(error)}`)
@@ -69,14 +67,10 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
     return next()
   })
 
-  // 2) 旧版本遗留自愈：拆除整表 ledger.json（一次性迁移到按会话文件），并只注销
-  //    普通 Workspace 记录，不删工作树或会话。
+  // 2) 旧版本遗留自愈：只注销普通 Workspace 记录，不删工作树或会话。
   ctx.effect(() => {
-    void Promise.all([
-      migrateLegacyLedger(worktreesRoot),
-      Promise.all(listBindingsSync(worktreesRoot).map(binding => unregisterWorktreeWorkspace(ctx, binding.worktreePath))),
-    ])
-  }, 'dsh-tauri-worktree: unregister legacy worktree workspaces + migrate ledger')
+    void Promise.all(listBindings().map(binding => unregisterWorktreeWorkspace(ctx, binding.worktreePath)))
+  }, 'dsh-tauri-worktree: unregister legacy worktree workspaces')
 
   // 3) 检出后的第一条用户消息：作为 DSH dynamic runtime context 注入，而不是
   // 主动 followup 启动额外 turn。目标会话的 header.cwd 已绑定 projectPath。
@@ -87,7 +81,7 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
       const sessionId = context?.scope?.session?.id
       if (!sessionId)
         return ''
-      const checkout = loadCheckoutContextSync(worktreesRoot, sessionId)
+      const checkout = loadCheckoutContext(sessionId)
       if (!checkout)
         return ''
       injectedCheckoutContexts.add(sessionId)
@@ -112,7 +106,7 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
       const sessionId = session?.id
       if (!sessionId)
         return ''
-      const binding = loadBindingSync(worktreesRoot, sessionId)
+      const binding = loadBinding(sessionId)
       if (!binding)
         return ''
       return (
@@ -138,10 +132,8 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   //    卸载统一释放。
   const deps: WorktreeRouteDeps = {
     config: cfg,
-    worktreesRoot,
     discardJobs: createDiscardJobs({
       ctx,
-      worktreesRoot,
       linkDependencyDirectories: cfg.linkDependencyDirectories,
     }),
   }

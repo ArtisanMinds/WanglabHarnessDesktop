@@ -42,7 +42,6 @@ export interface DiscardJobs {
 /** 建立登记表所需的 apply 期依赖。 */
 export interface DiscardJobsOptions {
   ctx: HostContext
-  worktreesRoot: string
   linkDependencyDirectories?: string[]
 }
 
@@ -55,11 +54,11 @@ const JOB_RETENTION = 64
 /**
  * 建立一份删除任务登记表（apply 期一份；卸载即随插件丢弃）。
  *
- * @param options - 宿主 ctx、工作树数据根与依赖链接目录配置。
+ * @param options - 宿主 ctx 与依赖链接目录配置。
  * @returns 任务登记表：登记、查询与后台执行。
  */
 export function createDiscardJobs(options: DiscardJobsOptions): DiscardJobs {
-  const { ctx, worktreesRoot, linkDependencyDirectories } = options
+  const { ctx, linkDependencyDirectories } = options
   const jobs = new Map<string, DiscardJob>()
   const inFlight = new Map<string, Promise<DiscardJob>>()
 
@@ -89,7 +88,7 @@ export function createDiscardJobs(options: DiscardJobsOptions): DiscardJobs {
     const promise = (async (): Promise<DiscardJob> => {
       let lastError = ''
       for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt += 1) {
-        const result = await discardWorktree(ctx, worktreesRoot, {
+        const result = await discardWorktree(ctx, {
           sessionId: job.sessionId,
           worktree_hash_dirname: worktreeHashDirname,
         }, { linkDependencyDirectories })

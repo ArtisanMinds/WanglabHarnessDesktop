@@ -24,7 +24,7 @@ interface CreateBody {
 }
 
 export default defineEventHandler(async (event) => {
-  const { config, worktreesRoot } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
+  const { config } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
   const host = dshContextOf(event) as unknown as HostContext
   const body = (await readBody<CreateBody>(event)) ?? {}
   const sessionId = String(body.sessionId ?? '')
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
     event.res.status = 400
     return { error: '无法解析会话工作目录：会话尚未就绪，请稍后重试' }
   }
-  const r = await ensureWorktree(host, worktreesRoot, projectPath, sessionId, {
+  const r = await ensureWorktree(host, projectPath, sessionId, {
     sourceSessionId,
     carryStaged: body.carryStaged === true,
     linkDependencies: config.linkDependencies,
@@ -56,7 +56,6 @@ export default defineEventHandler(async (event) => {
   if (body.inherit === true) {
     const inheritedSession = await inheritSessionIntoWorktree(
       host,
-      worktreesRoot,
       sourceSessionId,
       sessionId,
       r.binding.worktreePath,
