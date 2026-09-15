@@ -60,7 +60,8 @@
     "dsh-tauri": "workspace:*",
     "dsh-tauri-ui": "workspace:*",
     "hookable": "catalog:utils",
-    "pathe": "catalog:utils"
+    "pathe": "catalog:utils",
+    "unstorage": "catalog:utils"
   },
   "devDependencies": {
     "dsh-tauri-tsdown": "workspace:*",

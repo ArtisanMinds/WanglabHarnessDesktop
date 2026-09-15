@@ -6,13 +6,13 @@
 
 import type { HostContext, PluginConfig } from './types'
 import { SESSION_PLUGIN_NAME } from '../shared/constants'
-import { buildRoutes } from './routes'
+import { routes } from './routes'
 import { migrateLegacyArchive } from './service/archive'
 
 /**
  * 插件体：迁移旧版归档 + 注册 HTTP 路由。
  * @param ctx - 宿主根上下文（注入 webServer/sessions/workspaceRegistry）。
- * @param config - 插件行配置（保留；存储路径由 storage 单例按 DSH_HOME 解析）。
+ * @param _config - 插件行配置（保留；存储路径由 storage 单例按 DSH_HOME 解析）。
  */
 export function apply(ctx: HostContext, _config: PluginConfig = {}): void {
   // 旧版自持归档一次性迁入宿主集合（幂等：文件不存在或为空则直接跳过）。
@@ -20,12 +20,7 @@ export function apply(ctx: HostContext, _config: PluginConfig = {}): void {
     void migrateLegacyArchive(ctx)
   }, `${SESSION_PLUGIN_NAME}: migrate legacy archive`)
 
-  // HTTP 路由注册（客户端经此调用 archived/archive/unarchive/delete/clear）。
-  ctx.effect(() => {
-    const disposers = buildRoutes(ctx).map(route => ctx.webServer.register(route))
-    return () => {
-      for (const dispose of disposers)
-        dispose()
-    }
-  }, `${SESSION_PLUGIN_NAME}: routes`)
+  // HTTP 路由注册（客户端经此调用 archived/archive/unarchive/delete/clear）：
+  // routes(ctx) 返回本次注册的卸载函数，方法/鉴权边界由 defineRoutes 统一承担。
+  ctx.effect(() => routes(ctx), `${SESSION_PLUGIN_NAME}: routes`)
 }

@@ -4,9 +4,9 @@
  */
 import type { ClientContext } from 'dsh-tauri/client'
 import type { LocaleKey } from '../types'
-import { createExternalStore } from 'dsh-tauri/client'
-import { useSyncExternalStore } from 'react'
+import { useStore } from 'dsh-tauri/client'
 import { SESSION_CLIENT_NS as NS } from '../constants'
+import { store } from '../store'
 
 export { SESSION_CLIENT_NS as NS } from '../constants'
 
@@ -106,21 +106,24 @@ export function isEnglishLocale(): boolean {
   return activeLocale === 'en'
 }
 
-/** locale 变更推进器：revision 前进 -> uSES 订阅方重渲染。 */
-export const localeRev = createExternalStore({ rev: 0 })
-
 /**
- * 在 apply 里安装：注册双语字典，并桥接 locale 变更到 rev。
+ * 在 apply 里安装：注册双语字典，并把 locale 变更桥接到 store.locale 的 revision。
  * @param ctx - 客户端根上下文（须已注入 locale 服务）。
+ * @returns 卸载函数：注销订阅与两份字典注册句柄（由 controller / effect 托管）。
  */
-export function registerLocale(ctx: ClientContext): void {
+export function registerLocale(ctx: ClientContext): () => void {
   activeLocale = ctx.locale.getLocale().active
-  ctx.locale.register(NS, 'zh', DICT_ZH)
-  ctx.locale.register(NS, 'en', DICT_EN)
-  ctx.locale.subscribe(() => {
+  const unregisterZh = ctx.locale.register(NS, 'zh', DICT_ZH)
+  const unregisterEn = ctx.locale.register(NS, 'en', DICT_EN)
+  const unsubscribe = ctx.locale.subscribe(() => {
     activeLocale = ctx.locale.getLocale().active
-    localeRev.set(state => ({ ...state, rev: state.rev + 1 }))
+    store.locale.bump()
   })
+  return () => {
+    unsubscribe()
+    unregisterEn()
+    unregisterZh()
+  }
 }
 
 /** 按当前活跃语言取一条文案。 */
@@ -131,5 +134,5 @@ export function text(key: LocaleKey, values: Record<string, string | number> = {
 
 /** 组件内订阅 locale 变更（revision 前进即重渲染）。 */
 export function useLocale(): void {
-  useSyncExternalStore(localeRev.subscribe, () => localeRev.getSnapshot().rev)
+  useStore(store.locale)
 }

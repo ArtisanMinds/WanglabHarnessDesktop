@@ -53,21 +53,20 @@ export function buildArchivedPayload(ctx: HostContext): ArchivedListPayload {
   return { archivedSessionIds, meta }
 }
 
-/** 归档一个会话（宿主归档集合，幂等：已归档则无操作）。 */
-export async function archiveSession(ctx: HostContext, body: Record<string, unknown>): Promise<ArchivedListPayload> {
-  const sessionId = String(body.sessionId ?? '')
-  if (!sessionId)
-    throw new Error('缺少 sessionId')
+/**
+ * 归档一个会话（宿主归档集合，幂等：已归档则无操作）。
+ *
+ * 只收具体参数：请求级校验（sessionId 必须是非空字符串）由处理器体完成，
+ * 这里只做领域动作。
+ */
+export async function archiveSession(ctx: HostContext, sessionId: string): Promise<ArchivedListPayload> {
   await requireArchiveSession(ctx)(sessionId)
   void archiveHooks.callHook('archive:added', sessionId)
   return buildArchivedPayload(ctx)
 }
 
-/** 归档一组会话（「归档工作区」：一次调用归档该组全部会话）。 */
-export async function archiveWorkspace(ctx: HostContext, body: Record<string, unknown>): Promise<ArchivedListPayload> {
-  const sessionIds = Array.isArray(body.sessionIds) ? body.sessionIds.map(String) : []
-  if (sessionIds.length === 0)
-    throw new Error('缺少 sessionIds')
+/** 归档一组会话（「归档工作区」：一次调用归档该组全部会话；sessionIds 由处理器校验非空）。 */
+export async function archiveWorkspace(ctx: HostContext, sessionIds: string[]): Promise<ArchivedListPayload> {
   const archiveSession = requireArchiveSession(ctx)
   for (const sessionId of sessionIds) {
     await archiveSession(sessionId)
@@ -77,10 +76,7 @@ export async function archiveWorkspace(ctx: HostContext, body: Record<string, un
 }
 
 /** 取消归档：移除归档标记，并修复历史数据缺失的工作区归属槽位。 */
-export async function unarchiveSession(ctx: HostContext, body: Record<string, unknown>): Promise<{ ok: true }> {
-  const sessionId = String(body.sessionId ?? '')
-  if (!sessionId)
-    throw new Error('缺少 sessionId')
+export async function unarchiveSession(ctx: HostContext, sessionId: string): Promise<{ ok: true }> {
   const registry = registryArchiveSurface(ctx) as Required<Pick<RegistryArchiveSurface, 'enqueueOperation' | 'requireState' | 'setState'>>
   await registry.enqueueOperation(async () => {
     await restoreSessionWorkspaceAccounting(ctx, sessionId)
@@ -196,20 +192,14 @@ async function permanentlyDeleteSessions(ctx: HostContext, rawIds: readonly stri
   return { ok: true as const }
 }
 
-/** 彻底删除一个归档会话（成员校验 + 物理删除 + 记账更新）。 */
-export async function permanentlyDeleteSession(ctx: HostContext, body: Record<string, unknown>): Promise<{ ok: true }> {
-  const sessionId = String(body.sessionId ?? '')
-  if (!sessionId)
-    throw new Error('缺少 sessionId')
+/** 彻底删除一个归档会话（成员校验 + 物理删除 + 记账更新；sessionId 由处理器校验非空）。 */
+export async function permanentlyDeleteSession(ctx: HostContext, sessionId: string): Promise<{ ok: true }> {
   return permanentlyDeleteSessions(ctx, [sessionId])
 }
 
-/** 彻底删除指定归档会话（先物理删除全部，再批量更新记账）。 */
-export async function permanentlyDeleteSelected(ctx: HostContext, body: Record<string, unknown>): Promise<{ ok: true }> {
-  const rawIds = body.sessionIds
-  if (!Array.isArray(rawIds) || rawIds.length === 0)
-    throw new Error('缺少 sessionIds')
-  return permanentlyDeleteSessions(ctx, rawIds as string[])
+/** 彻底删除指定归档会话（先物理删除全部，再批量更新记账；sessionIds 由处理器校验非空）。 */
+export async function permanentlyDeleteSelected(ctx: HostContext, sessionIds: string[]): Promise<{ ok: true }> {
+  return permanentlyDeleteSessions(ctx, sessionIds)
 }
 
 /** 彻底删除全部已归档会话（先物理删除全部，再批量更新记账）。 */

@@ -16,7 +16,7 @@ import {
   postUnarchive,
 } from '../apis'
 import { text } from '../locales'
-import { archiveStore } from '../store'
+import { store } from '../store'
 
 /** 从 unknown 错误里取可展示文本（Error 取 message，其余字符串化）。 */
 function errMessage(error: unknown): string {
@@ -45,17 +45,21 @@ let refreshGeneration = 0
  */
 export async function refreshArchived(): Promise<void> {
   const generation = ++refreshGeneration
-  archiveStore.set(state => ({ ...state, loading: true, error: '' }))
+  store.archive.loading = true
+  store.archive.error = ''
   try {
     const archived = await getArchived()
     if (generation !== refreshGeneration)
       return
-    archiveStore.set(state => ({ ...state, archived, loading: false, suppressedSessionIds: [] }))
+    store.archive.archived = archived
+    store.archive.loading = false
+    store.archive.suppressedSessionIds = []
   }
   catch (error) {
     if (generation !== refreshGeneration)
       return
-    archiveStore.set(state => ({ ...state, loading: false, error: errMessage(error) }))
+    store.archive.loading = false
+    store.archive.error = errMessage(error)
   }
 }
 
@@ -64,14 +68,16 @@ export async function refreshArchived(): Promise<void> {
  * 刷新归档载荷与工作区归档镜像，失败写入 error。返回是否成功。
  */
 async function runMutation(mutate: () => Promise<unknown>, resync?: () => Promise<void>, sessionIds: readonly string[] = []): Promise<boolean> {
-  archiveStore.set(state => ({ ...state, pending: true, error: '' }))
+  store.archive.pending = true
+  store.archive.error = ''
   try {
     await mutate()
     if (sessionIds.length > 0) {
-      archiveStore.set(state => ({
-        ...state,
-        suppressedSessionIds: [...state.suppressedSessionIds, ...sessionIds.filter(sessionId => !state.suppressedSessionIds.includes(sessionId))],
-      }))
+      const suppressed = store.archive.suppressedSessionIds
+      store.archive.suppressedSessionIds = [
+        ...suppressed,
+        ...sessionIds.filter(sessionId => !suppressed.includes(sessionId)),
+      ]
     }
     await Promise.all([
       refreshArchived(),
@@ -80,20 +86,17 @@ async function runMutation(mutate: () => Promise<unknown>, resync?: () => Promis
     return true
   }
   catch (error) {
-    archiveStore.set(state => ({ ...state, error: errMessage(error) }))
+    store.archive.error = errMessage(error)
     return false
   }
   finally {
-    archiveStore.set(state => ({ ...state, pending: false }))
+    store.archive.pending = false
   }
 }
 
 /** 归档一个会话并刷新。 */
 export async function archiveSession(sessionId: string, workspaceId?: string, beforeSessionId?: string): Promise<void> {
-  archiveStore.set(state => ({
-    ...state,
-    suppressedSessionIds: state.suppressedSessionIds.filter(id => id !== sessionId),
-  }))
+  store.archive.suppressedSessionIds = store.archive.suppressedSessionIds.filter(id => id !== sessionId)
   await runMutation(() => postArchive({ sessionId, workspaceId, beforeSessionId }))
 }
 
@@ -114,7 +117,7 @@ export function deleteSession(sessionId: string, resync?: () => Promise<void>): 
 
 /** 彻底删除全部归档会话并刷新。返回是否成功。 */
 export function clearArchive(resync?: () => Promise<void>): Promise<boolean> {
-  const sessionIds = [...archiveStore.getSnapshot().archived.archivedSessionIds]
+  const sessionIds = [...store.archive.archived.archivedSessionIds]
   return runMutation(() => postClear(), resync, sessionIds)
 }
 

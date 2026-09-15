@@ -42,7 +42,7 @@ export interface SessionLike {
   displayTitle?: string
 }
 
-/** Wire payload for `GET /api/dsh-session/archived`. */
+/** Wire payload for `GET /api/dsh-session/session/archive`. */
 export interface ArchivedListPayload {
   archivedSessionIds: string[]
   /** Per archived session, creation metadata read from the host session header. */

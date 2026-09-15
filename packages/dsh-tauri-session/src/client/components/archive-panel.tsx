@@ -22,7 +22,8 @@ import type { ReactElement } from 'react'
 import type { ArchivePanelProps, ArchiveSort } from '../types'
 import { Button, Input, Menu, Modal, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { Ellipsis, FolderOpen, Icon, Magnifier, MenuSelect, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useWatchImmediate } from 'dsh-tauri/client'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import { SESSION_STYLE_ID } from '../constants'
 import { text, useLocale } from '../locales'
 import {
@@ -34,10 +35,10 @@ import {
   unarchiveSession,
 } from '../service/archive'
 import {
-  archiveStore,
   setQuery,
   setSort,
   setWorkspaceFilter,
+  store,
   useArchiveUi,
 } from '../store'
 import { buildRows, formatTime, projectOptions, unionIds } from '../utils/archive-rows'
@@ -68,26 +69,24 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
   }, [props.sessionsRuntime])
 
   // 进入分区或宿主归档集合规模变化时刷新归档载荷（meta：createdAt/cwd）。
+  // useWatchImmediate ≡ useEffect(cb, [dep]) + 首次挂载即执行（@reause/core 的 watch 端口）。
   const archivedCount = (workspaces.archivedSessionIds ?? []).length
-  useEffect(() => {
+  useWatchImmediate(archivedCount, () => {
     void refreshArchived()
-  }, [archivedCount])
+  })
 
   const archivedIds = unionIds(ui.archived.archivedSessionIds, workspaces.archivedSessionIds ?? [])
     .filter(id => !ui.suppressedSessionIds.includes(id))
   const rows = buildRows(archivedIds, ui.archived.meta, sessions, workspaces, ui.titleById)
-  useEffect(() => {
+  // `rows` 每次渲染都是新数组：包成单元素 source 让 watch 按引用比较（等价于 [rows] 依赖）。
+  useWatchImmediate([rows], () => {
     const titles: Record<string, string> = {}
     for (const row of rows)
       titles[row.sessionId] = row.title
-    const current = archiveStore.getSnapshot().titleById
-    if (Object.entries(titles).some(([id, title]) => current[id] !== title)) {
-      archiveStore.set(state => ({
-        ...state,
-        titleById: { ...state.titleById, ...titles },
-      }))
-    }
-  }, [rows])
+    const current = store.archive.titleById
+    if (Object.entries(titles).some(([id, title]) => current[id] !== title))
+      store.archive.titleById = { ...current, ...titles }
+  })
 
   const query = ui.query.trim().toLowerCase()
   const filtered = query

@@ -39,6 +39,6 @@ export const API_PREFIX = SESSION_API_PREFIX
 export { apply } from './host/apply'
 export { archiveHooks } from './host/hooks'
 export type { ArchiveLifecycleHooks } from './host/hooks'
-export { buildRoutes } from './host/routes'
+export { routes } from './host/routes'
 export { updateRegistryArchiveSet } from './host/service/registry'
 export { encodeSessionId, isWithinSessionsRoot } from './host/service/session-files'

@@ -6,7 +6,9 @@
  * 读改写逻辑在 host/service/archive.ts（直接 storage.getItem / storage.setItem）。
  */
 
-import { createAtomicFsStorage } from 'dsh-tauri'
+import { fsAtomicDriver } from 'dsh-tauri'
+// 宿主侧允许直接依赖 unstorage（tmp+rename 原子写由 fsAtomicDriver 承担）。
+import { createStorage } from 'unstorage'
 
-/** archive 功能目录存储（key 如 `archive.json`）。 */
-export const storage = createAtomicFsStorage('archive')
+/** archive 功能目录存储（`$DSH_HOME/archive`；key 如 `archive.json`）。 */
+export const storage = createStorage({ driver: fsAtomicDriver({ base: 'archive' }) })

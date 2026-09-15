@@ -14,6 +14,7 @@ export const SESSION_STYLE_ID = 'dsh-tauri-session-styles'
 
 /** Effects / lifecycle ids (诊断元数据). */
 export const SESSION_STYLES_EFFECT = `${SESSION_PLUGIN_NAME}: styles`
+export const SESSION_LOCALE_EFFECT = `${SESSION_PLUGIN_NAME}: locale`
 export const SESSION_ARCHIVE_PATCH_EFFECT = `${SESSION_PLUGIN_NAME}: workspace archive patch`
 export const SESSION_ARCHIVE_SECTION_EFFECT = `${SESSION_PLUGIN_NAME}: archive section`
 

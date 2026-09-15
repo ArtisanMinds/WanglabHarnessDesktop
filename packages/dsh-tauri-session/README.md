@@ -69,7 +69,7 @@ portal 渲染到 `document.body`）里的 `button[role=menuitem]` 条目，不�
    运行时快照唯一匹配记录其工作区 id；
 2. 扫描 portal 菜单：**保留**官方「删除工作区」条目（官方 Modal 确认、非破坏性：
    文件夹与会话记录保留，会话归入未分组），在其后**追加**「归档工作区」条目，
-   点击 → 客户端样式确认框 → 归档该组全部会话（`/api/dsh-session/archive-workspace`）。
+   点击 → 客户端样式确认框 → 归档该组全部会话（`/api/dsh-session/session/workspace/archive`）。
 
 归档目标与会话清单全部来自运行时快照（`workspace.sessionIds`），不依赖
 「组容器里装得下会话行」的 DOM 启发式——官方浏览器在组折叠时不渲染会话行，
