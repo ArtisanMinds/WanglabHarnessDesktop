@@ -1,19 +1,12 @@
-/**
- * host/apply.ts — 归档插件装配：HTTP 路由注册。
- * 路由挂 effect（插件卸载即清理）；归档状态钩子（archive:added 等）
- * 由 archive.ts 在业务操作内触发，见 host/hooks.ts。
- */
-
-import type { HostContext } from './types'
+import type { HostContext } from 'dsh-tauri'
+import type { SessionHost } from './config/runtime.types'
 import { SESSION_PLUGIN_NAME } from '../shared/constants'
+import { clearHostRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'
 
-/**
- * 插件体：注册 HTTP 路由。
- * @param ctx - 宿主根上下文（注入 webServer/sessions/workspaceRegistry）。
- */
 export function apply(ctx: HostContext): void {
-  // HTTP 路由注册（客户端经此调用 archived/archive/unarchive/delete/clear）：
-  // routes(ctx) 返回本次注册的卸载函数，方法/鉴权边界由 defineRoutes 统一承担。
+  setCurrentHostInstance(ctx as unknown as SessionHost)
+
   ctx.effect(() => routes(ctx), `${SESSION_PLUGIN_NAME}: routes`)
+  ctx.effect(() => () => clearHostRuntime(), `${SESSION_PLUGIN_NAME}: host runtime`)
 }

@@ -9,6 +9,7 @@
  * 走真实 node:http 服务（h3 的 toNodeHandler 依赖真实 req/res 流），并在测试内复刻
  * 宿主 webserver 的 exact 匹配契约；连接鉴权 / 回环 / 跨源边界由 dsh-tauri 的
  * `defineRoutes` 统一承担（其自身已有覆盖），这里只锁本插件的路径、方法与响应形状。
+ * 领域服务经 `getCurrentHostInstance()` 取宿主，故挂载前先绑定同一份假 ctx。
  */
 
 import type { HostRoute, RoutesContext } from 'dsh-tauri'
@@ -18,6 +19,7 @@ import { createServer } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { routes } from '.'
 import { SESSION_API_PREFIX as P } from '../../shared/constants'
+import { setCurrentHostInstance } from '../config/runtime'
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
@@ -89,8 +91,9 @@ function createHarness(): Harness {
   }
 }
 
-/** 按协议注册：`routes(ctx)` 返回本次注册的卸载函数。 */
+/** 按协议注册：绑定宿主实例（领域服务经 getCurrentHostInstance 读取）后注册路由。 */
 function mount(harness: Harness): () => void {
+  setCurrentHostInstance(harness.ctx as never)
   return routes(harness.ctx as RoutesContext)
 }
 
