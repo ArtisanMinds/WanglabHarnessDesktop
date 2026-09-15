@@ -428,6 +428,12 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::service::patch::session::apply(&app_handle) {
         log::warn!("SessionStore.remove patch failed: {e}");
     }
+    // OpenCode Go 需要稳定的会话 ID 头，否则返回 400 MissingSessionID；上游 pi-ai
+    // 适配器把 sessionId 只透传给 SDK、不落成请求头，这里补上原生会话头。最佳努力且
+    // 幂等：旧核心无锚点时 patch_dsh 安全跳过，不改变其它 provider 的请求头。
+    if let Err(e) = crate::service::patch::llm_session::apply(&app_handle) {
+        log::warn!("pi-ai session header patch failed: {e}");
+    }
     // worktree 会话以隔离 cwd 执行，但产品归属仍是源 Workspace；放宽上游显式
     // attach 的 cwd 相等约束，其他 cwd 有效性校验保持不变。最佳努力且幂等。
     if let Err(e) = crate::service::patch::workspace::apply(&app_handle) {
