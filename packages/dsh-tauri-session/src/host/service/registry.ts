@@ -41,7 +41,7 @@ export function registryArchiveSurface(ctx: HostContext): RegistryArchiveSurface
   return registry
 }
 
-/** 归档所需方法缺失时报错，绝不静默跳过（否则迁移会误删旧记录）。 */
+/** 归档所需方法缺失时报错，绝不静默跳过（否则归档动作会静默失效）。 */
 export function requireArchiveSession(ctx: HostContext): (sessionId: string) => Promise<void> {
   const archiveSession = ctx.workspaceRegistry?.archiveSession
   if (typeof archiveSession !== 'function')

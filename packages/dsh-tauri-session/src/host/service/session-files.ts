@@ -13,9 +13,9 @@ import { readdirSync, rmSync } from 'node:fs'
 import { DSH_HOME } from 'dsh-tauri'
 import { dirname, join, resolve, sep } from 'pathe'
 
-/** 会话数据根目录（默认 `$DSH_HOME/sessions`；测试可注入临时根）。 */
-function sessionsRoot(dshHome: string | undefined): string {
-  return join(dshHome ?? DSH_HOME, 'sessions')
+/** 会话数据根目录（固定 `${DSH_HOME}/sessions`；测试用 `vi.mock('dsh-tauri')` 注入临时根）。 */
+function sessionsRoot(): string {
+  return join(DSH_HOME, 'sessions')
 }
 
 /** 查找会话对象（host ctx.sessions）。 */
@@ -84,8 +84,8 @@ export function encodeSessionId(id: string): string {
  * 会从持久化重建会话索引，该会话从工作区/归档中彻底消失。
  * @returns 是否实际删除了目录。
  */
-export function removeSessionDataDir(sessionId: string, dshHome?: string): boolean {
-  const sessionsRootDir = sessionsRoot(dshHome)
+export function removeSessionDataDir(sessionId: string): boolean {
+  const sessionsRootDir = sessionsRoot()
   const dir = findSessionDataDir(sessionsRootDir, sessionId)
   if (!dir)
     return false
@@ -110,8 +110,8 @@ function pruneEmptyParents(sessionsRoot: string, parent: string): void {
  * 供「打开会话目录」解析目标路径使用。
  * @returns 会话数据目录绝对路径；未找到返回 undefined。
  */
-export function locateSessionDataDir(sessionId: string, dshHome?: string): string | undefined {
-  return findSessionDataDir(sessionsRoot(dshHome), sessionId)
+export function locateSessionDataDir(sessionId: string): string | undefined {
+  return findSessionDataDir(sessionsRoot(), sessionId)
 }
 
 /** 有界扫描（深度 2）查找会话数据目录，返回首个命中（含一级/二级布局）。 */

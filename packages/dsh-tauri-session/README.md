@@ -44,8 +44,6 @@ v2 起插件不再自持 `archive.json`，而是直接使用**宿主 `WorkspaceR
 - 宿主公开 API 只有 `archiveSession`（没有 unarchive），因此「取消归档」/「全部
   删除」经由注册表内部状态机（`enqueueOperation` + `requireState` + `setState`）
   改写归档集合；若宿主升级改变内部结构，接口会明确报错而不是静默降级。
-- 插件初始化时会把 v1 自持的 `~/.dsh/dsh-tauri-session/archive.json` 记录一次性
-  迁入宿主归档集合并删除旧文件（会话已不存在的僵尸记录随旧文件丢弃）。
 
 ## 宿主路由（/api/dsh-session/*）
 
@@ -77,8 +75,10 @@ portal 渲染到 `document.body`）里的 `button[role=menuitem]` 条目，不�
 
 ## 目录约定
 
-- 旧版（v1）自有状态目录 `$DSH_HOME/dsh-tauri-session/`（默认
-  `~/.dsh/dsh-tauri-session/`）仅在迁移旧记录时读取；v2 不再写入。
+- 会话数据目录固定为 `$DSH_HOME/sessions/`（默认 `~/.dsh/sessions/`），只在
+  「打开会话目录」与「彻底删除会话」两处被读取/删除。
+- v1 自持的 `$DSH_HOME/dsh-tauri-session/archive.json` 及其启动迁移已删除：
+  宿主归档集合已上线多时，不再读取旧文件。
 
 ## 开发
 

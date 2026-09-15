@@ -1,5 +1,5 @@
 /**
- * archive.ts — 归档业务域：读取归档列表、归档/取消归档、旧版 v1 归档迁移，
+ * archive.ts — 归档业务域：读取归档列表、归档/取消归档，
  * 以及「彻底删除归档会话」的删除事务。
  *
  * 删除事务一致性（重点修复）：
@@ -10,14 +10,12 @@
  *   也不允许并发删除在记账与归档集合之间交错。
  */
 
-import type { ArchivedListPayload, ArchiveDocument, HostContext } from '../types'
+import type { ArchivedListPayload, HostContext } from '../types'
 import type {
   RegistryArchiveSurface,
 } from './registry'
 import { SESSION_PLUGIN_NAME } from '../../shared/constants'
-import { SESSION_ARCHIVE_FILE } from '../constants'
 import { archiveHooks } from '../hooks'
-import { storage } from '../storage'
 import {
   registryArchiveSurface,
   removeArchivedSessionsFromRegistry,
@@ -88,68 +86,6 @@ export async function unarchiveSession(ctx: HostContext, sessionId: string): Pro
   })
   void archiveHooks.callHook('archive:restored', sessionId)
   return { ok: true as const }
-}
-
-/**
- * 一次性迁移旧版插件自持归档（`$DSH_HOME/dsh-tauri-session/archive.json`）到宿主
- * 归档集合。迁移成功的记录从旧文件中移除；仍失败的（如会话已不存在）保留在旧
- * 文件中，下次启动幂等重试 —— 绝不因单次失败丢弃用户数据。
- */
-export async function migrateLegacyArchive(ctx: HostContext): Promise<void> {
-  let legacy: ArchiveDocument = {}
-  try {
-    const parsed = await storage.getItem<ArchiveDocument>(SESSION_ARCHIVE_FILE)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const out: ArchiveDocument = {}
-      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        const record = value as Partial<{ sessionId: string, archivedAt: number }>
-        if (typeof key === 'string' && typeof record?.sessionId === 'string' && key === record.sessionId)
-          out[key] = record as ArchiveDocument[string]
-      }
-      legacy = out
-    }
-  }
-  catch { /* 文件缺失/损坏按空归档处理。 */ }
-  const sessionIds = Object.keys(legacy)
-  if (sessionIds.length === 0)
-    return
-  let migrated = 0
-  const failed: string[] = []
-  let archiveSession: ((sessionId: string) => Promise<void>) | undefined
-  try {
-    archiveSession = requireArchiveSession(ctx)
-  }
-  catch {
-    // 宿主不提供 archiveSession 时保留全部旧记录，下次启动重试，绝不误删。
-    failed.push(...sessionIds)
-  }
-  if (archiveSession) {
-    for (const sessionId of sessionIds) {
-      try {
-        await archiveSession(sessionId)
-        migrated += 1
-      }
-      catch {
-        failed.push(sessionId)
-      }
-    }
-  }
-  try {
-    if (failed.length === 0) {
-      await storage.removeItem(SESSION_ARCHIVE_FILE)
-    }
-    else {
-      // 只保留未迁移成功的记录，避免下次启动重复迁移已成功的会话。
-      const remaining: ArchiveDocument = {}
-      for (const sessionId of failed)
-        remaining[sessionId] = legacy[sessionId]
-      await storage.setItem(SESSION_ARCHIVE_FILE, `${JSON.stringify(remaining, null, 2)}\n`)
-    }
-  }
-  catch {
-    // 旧文件整理失败不影响新机制（下次启动会再尝试迁移）。
-  }
-  ctx.logger?.info?.(`[${SESSION_PLUGIN_NAME}] migrated ${migrated}/${sessionIds.length} legacy archived session(s) into the host registry`)
 }
 
 /**
