@@ -44,6 +44,7 @@
 import type { EventHandler, H3Event } from 'h3'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type {
+  ConnectionGate,
   HostRoute,
   HttpMethod,
   RouteDefinition,
@@ -111,6 +112,9 @@ export function defineRoutes<Deps = undefined>(setup: RoutesSetup): RoutesRegist
       throw new TypeError('defineRoutes: registerRoutes(ctx) 需要传入带 webServer 服务的宿主 ctx')
 
     const webServer = ctx.webServer
+    // 连接信任边界服务必须在注册期取到：cordis 对未进 inject 的服务在属性访问时抛错，
+    // 留到请求期只会被宿主兜底成裸 400（无日志无 content-type），这里让它当启动期报错。
+    const connection = ctx.connection
     const app = new H3({
       // h3 自己把 handler 异常转成 500 响应，宿主 webserver 的兜底 catch 不会再触发，这里才是唯一日志出口。
       // 回调必须是语句体（返回 void）：h3 会把 onError 的非空返回值当成**替换响应**，
@@ -132,7 +136,7 @@ export function defineRoutes<Deps = undefined>(setup: RoutesSetup): RoutesRegist
         const route: HostRoute = {
           kind: group.definition.kind,
           path: group.definition.path,
-          handler: createHostHandler(ctx, node, group),
+          handler: createHostHandler(connection, node, group),
         }
         disposers.push(webServer.register(route))
       }
@@ -246,7 +250,7 @@ function toH3Pattern(definition: RouteDefinition): string {
 }
 
 /** 一个路径行的宿主 handler：先做连接/方法/来源约束，再整包交给 h3。 */
-function createHostHandler(ctx: RoutesContext, node: HostNodeHandler, group: RouteGroup): RouteHandler {
+function createHostHandler(connection: ConnectionGate | undefined, node: HostNodeHandler, group: RouteGroup): RouteHandler {
   const declared = group.methods
   const allowed = SUPPORTED_METHODS.filter(method =>
     method === 'OPTIONS'
@@ -256,7 +260,7 @@ function createHostHandler(ctx: RoutesContext, node: HostNodeHandler, group: Rou
   const allow = allowed.join(', ')
 
   return async (request, response) => {
-    const rejection = ctx.connection?.requestRejection?.(request)
+    const rejection = connection?.requestRejection?.(request)
     if (rejection !== undefined) {
       respondJson(response, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
       return
@@ -283,6 +287,13 @@ function createHostHandler(ctx: RoutesContext, node: HostNodeHandler, group: Rou
       respondJson(response, 403, { error: 'cross-origin-request' })
       return
     }
+    // 宿主 webserver 的 gzip 中间件（compression 1.8.1）与 srvx 的 node 适配器不兼容：srvx 用
+    // `res.end(resolve)` 收尾，compression 的 res.end 垫片把函数当 chunk 交给 Buffer.from 抛
+    // ERR_INVALID_ARG_TYPE，随后 destroy 连接——浏览器只看到 Failed to fetch。触发条件是响应体
+    // ≥ 压缩阈值（1024B）且客户端接受 gzip。声明 no-transform 让压缩中间件不建流，回落到 Node
+    // 原生 res.end(callback)：小于阈值的响应本就不压缩，故不损失任何实际启用过的压缩。只箍在
+    // h3 这条路上——上面的守卫分支是自己写字符串的纯 Node 响应，没有函数收尾的问题。
+    response.setHeader('cache-control', 'no-transform')
     await node(request, response)
   }
 }

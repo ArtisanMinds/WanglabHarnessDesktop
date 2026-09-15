@@ -18,9 +18,10 @@
  * ctx.effect(feature, 'demo: feature')
  * ```
  *
- * `ctx` 的来源：cordis 的 `ctx.effect(callback)` 内部是 `callback.call(ctx)`，所以 effect 的
- * `this` 就是客户端上下文；本工具把它作为第二个参数透传给 setup。若调用方不使用
- * `ctx.effect`（或运行时未绑定 `this`），可用双参形式显式传入：`defineRegister(ctx, setup)`。
+ * `ctx` 的来源：cordis 4 的 `ctx.effect(callback)` 内部是 `callback.call(fiber)`，effect 的
+ * `this` 是 Fiber（`fiber.ctx` 才是客户端上下文）；本工具经 `effectContext` 归一化后作为
+ * 第二个参数透传给 setup。若调用方不使用 `ctx.effect`，可用双参形式显式传入：
+ * `defineRegister(ctx, setup)`。
  *
  * 第三个参数 `adapter` 由 `defineAdapter(ctx)` 按需创建（见 `./index.adapter`）：
  * 官方服务布局随核心版本漂移的那部分能力（会话列表投影、工作区导航、目录选择）全部收敛在它
@@ -31,6 +32,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { LifecycleController } from '../controller'
 import type { ClientAdapter } from '../types/adapter'
 import { createLifecycleController } from '../controller'
+import { effectContext } from '../utils/context'
 import { defineAdapter } from './index.adapter'
 
 export * from './index.adapter'
@@ -57,7 +59,8 @@ export type RegisterSetup<Ctx = Context> = (
 
 /**
  * 可直接交给 `ctx.effect(...)` 的 effect 函数。
- * 用 function（而非箭头函数）声明，是为了让 cordis 的 `execute.call(ctx)` 能把上下文绑进 `this`；
+ * 用 function（而非箭头函数）声明，是为了让 cordis 把运行时对象绑进 `this`
+ * （cordis 4 绑的是 Fiber，插件上下文要从 `fiber.ctx` 取，见 `effectContext`）；
  * `this` 声明为 unknown 以便同时支持直接调用与 `.call(ctx)` 两种用法。
  */
 export type RegisterEffect = (this: unknown) => RegisterCleanup
@@ -82,9 +85,10 @@ export function defineRegister<Ctx = Context>(
     throw new TypeError('defineRegister: 缺少注册回调，签名是 defineRegister([ctx,] setup)')
 
   return function registerEffect(this: unknown): RegisterCleanup {
-    // this 声明为 unknown：既允许 `ctx.effect(feature)`（cordis 以 call(ctx) 注入上下文），
-    // 也允许 `feature()` / `feature.call(ctx)` 直接调用，由显式 boundCtx 兜底。
-    const ctx = (boundCtx ?? this) as Ctx
+    // this 声明为 unknown：`ctx.effect(feature)` 时它是 cordis 的 Fiber（上下文经
+    // `effectContext` 取回），也允许 `feature()` / `feature.call(ctx)` 直接调用，
+    // 由显式 boundCtx 兜底。
+    const ctx = (boundCtx ?? effectContext<Ctx>(this) ?? this) as Ctx
     const controller = createLifecycleController()
 
     try {

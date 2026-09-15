@@ -17,6 +17,7 @@
 
 import type { LocaleDict, LocaleService, Translate } from '../types/harness'
 import { defineStore, useStore } from '../modules/valtio-define'
+import { effectContext } from '../utils/context'
 
 /** 双语词典声明：键集合以 `zh` 为权威，`en` 必须等键集（缺键/多键都是编译错误）。 */
 export interface LocaleDicts<D extends LocaleDict = LocaleDict> {
@@ -43,8 +44,8 @@ export interface LocaleDefinition<NS extends string = string, K extends string =
   useLocale: () => string
   /**
    * 安装：注册双语词典并把快照变更桥接进共享 store。返回幂等 disposer。
-   * 可作 effect 交给 `ctx.effect(registerLocale, LABEL)`（运行时从 `this` 取 ctx），
-   * 也可 `controller.add(registerLocale(ctx))` 显式传 ctx。
+   * 可作 effect 交给 `ctx.effect(registerLocale, LABEL)`（运行时经 `effectContext`
+   * 从 effect 的 `this` 取回 ctx），也可 `controller.add(registerLocale(ctx))` 显式传 ctx。
    */
   registerLocale: (this: unknown, ctx?: LocaleHost) => () => void
 }
@@ -112,7 +113,7 @@ export function defineLocale<const NS extends string, const D extends LocaleDict
   }
 
   function registerLocale(this: unknown, ctx?: LocaleHost): () => void {
-    const locale = (ctx ?? (this as LocaleHost | undefined))?.locale
+    const locale = (ctx ?? effectContext<LocaleHost>(this))?.locale
     if (locale === undefined)
       throw new TypeError('defineLocale: 缺少客户端上下文（用 ctx.effect(registerLocale, LABEL) 或 registerLocale(ctx)）')
 

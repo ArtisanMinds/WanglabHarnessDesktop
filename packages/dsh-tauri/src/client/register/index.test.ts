@@ -122,6 +122,21 @@ describe('defineRegister', () => {
     cleanup()
   })
 
+  it('this 是 cordis Fiber 时取 fiber.ctx（effect 回调的真实形态）', () => {
+    stubDom()
+    const seen: unknown[] = []
+    const ctx = { name: 'fiber-ctx' }
+
+    const feature = defineRegister<typeof ctx>((_controller, received) => {
+      seen.push(received)
+    })
+
+    // cordis 4 的 ctx.effect(callback) 用 callback.call(fiber)：this 是 Fiber
+    const cleanup = feature.call({ uid: 1, ctx })
+    expect(seen).toEqual([ctx])
+    cleanup()
+  })
+
   it('双参形式显式传 ctx，并支持直接调用（不依赖 this）', () => {
     stubDom()
     const seen: unknown[] = []

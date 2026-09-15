@@ -179,6 +179,15 @@ describe('defineLocale', () => {
     dispose()
   })
 
+  it('this 是 cordis Fiber 时取 fiber.ctx（effect 回调的真实形态）', async () => {
+    const { locale, fake, ctx } = await setup()
+    // cordis 4 的 ctx.effect(callback) 用 callback.call(fiber)，服务面只在 fiber.ctx 上
+    const dispose = locale.registerLocale.call({ uid: 1, ctx })
+    expect(fake.dicts.get('probe')?.get('en')).toBeDefined()
+    expect(locale.text('greeting')).toBe('Hello')
+    dispose()
+  })
+
   it('缺 ctx 时抛 TypeError', async () => {
     const { locale } = await setup()
     expect(() => locale.registerLocale()).toThrow(TypeError)
