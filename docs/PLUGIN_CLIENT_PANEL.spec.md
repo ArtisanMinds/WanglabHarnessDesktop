@@ -89,28 +89,7 @@ export function definePanel(ctx: ClientContext, entry: PanelEntry): PanelHandle
 
 ---
 
-## 三、 架构清理：删除 `dsh-tauri-panel` 包
-
-全局面板宿主收拢至底座，**完全删除 `packages/dsh-tauri-panel` 包（含协议文档）**：
-
-1. **废弃模块清理**：
-* 彻底移除 `panel.protocol` 反射服务（`registerPanel` / `ActionItem` / `renderPanelContent` / 宽度三方法）[cite: 2]。
-* 移除私有槽 `sidebar.panel.action` 及其依赖[cite: 2]。
-* 移除侧栏整槽克隆组件、`conversation` shadow cell、`sidebar.panellist` 自造行投影与宽度计算套件。
-
-
-2. **依赖与配置同步**：
-* 移除 `packages/dsh-tauri-bundle/package.json` 中的 `"dsh-tauri-panel"` 依赖[cite: 2]。
-
-
-3. **样式与容器行为调整**：
-* 移除宿主对面板的列宽强制包裹；面板居中及对齐对话列宽时，自持样式 `max-width: var(--dsh-chat-content-width, 780px); margin-inline: auto`。
-
-
-
----
-
-## 四、 迁移与重构指南
+## 三、 迁移与重构指南
 
 所有面板插件（`dsh-tauri-panel-extension`、`dsh-tauri-panel-scheduler` 等）必须执行以下重构：
 
@@ -126,10 +105,15 @@ export function definePanel(ctx: ClientContext, entry: PanelEntry): PanelHandle
 * 调整图标渲染逻辑，使其正确消费 `{ size, active }` 属性。
 
 
+3. **面板容器样式**：
+* 宿主不再强制包裹面板列宽；面板根节点一律铺开 `dsh-tauri-ui/client` 导出的 `panelContainer`（`width:100%` + `max-width: clamp(680px, 64%, 920px)` + `margin-inline:auto` + `padding-block:24px`），即得到与会话列同宽居中的左右间隙与上下间距[cite: 2]。
+* `--dsh-chat-content-width` 只在官方会话根元素上声明（会话列宽 × 0.64，夹在 680–920px），切到 `main` 槽的面板取不到该变量，因此不要再用 `max-width: var(--dsh-chat-content-width, 780px)` 或 `1080px` 之类的固定宽度值。
+
+
 
 ---
 
-## 五、 违规反面模式 (Forbidden Patterns)
+## 四、 违规反面模式 (Forbidden Patterns)
 
 | 违规形态 | 说明 |
 | --- | --- |
@@ -143,11 +127,12 @@ export function definePanel(ctx: ClientContext, entry: PanelEntry): PanelHandle
 
 ---
 
-## 六、 自检清单
+## 五、 自检清单
 
 * [ ] **入口规范**：面板注册是否仅通过 `definePanel(ctx, entry)` 完成？是否存在遗留的反射获取或私有槽位？
 * [ ] **无异步握手**：是否删除了所有轮询重试逻辑？`dispose` 是否通过 `controller.add` 托管[cite: 1]？
 * [ ] **类型收拢**：`PanelEntry` / `PanelHandle` / `PanelIconProps` 是否统一从 `dsh-tauri/client` 导入？
 * [ ] **图标响应**：`icon` 函数是否正确消费 `{ size, active }`？
 * [ ] **关闭链路**：面板内部返回会话是否统一调用 `handle.close()`？
-* [ ] **清理彻底**：`packages/dsh-tauri-panel` 目录及 `dsh-tauri-bundle` 依赖是否已彻底删除[cite: 2]？`pnpm typecheck` 与构建流程是否全绿？
+* [ ] **工程校验**：`pnpm typecheck` 与构建流程是否全绿？
+

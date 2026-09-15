@@ -30,14 +30,14 @@ $$\text{apply.ts (装配)} \longrightarrow \begin{bmatrix} \text{routes/} \\ \te
 | **`config/`** | 配置与单例 | `runtime.ts`: 导出内存单例及 `setCurrentHostInstance`/`getCurrentHostInstance` 宿主绑定。<br>
 
 <br>`constants.ts`: 静态常量与配置，严禁硬编码 Magic Number/String。 |
-| **`types/`** | 类型定义 | 导出领域模型、DTO、输入输出接口（纯类型定义）。 |
+| **`types/`** | 类型定义 | 导出领域模型、DTO、输入输出接口（纯类型定义）。单一模块专属的类型与所属模块**同目录同名**，命名为 `<module>.types.ts`（如 `service/worktree.types.ts`）；此目录仅保留被多个模块共享的类型（如 `index.ts`）。 |
 | **`storage/`** | 持久化实例 | `index.ts` 纯粹导出持久化驱动实例，不包含任何业务读写逻辑。 |
 | **`routes/`** | HTTP 路由层 *(可选)* | 遵循“文件路径 = URL 路径”。仅做协议解析、DTO 校验与 Service 调用，不含业务实现。 |
 | **`tools/`** | Agent 工具层 *(可选)* | 单工具单文件，包含声明、JSON Schema 与 execute 编排。 |
 | **`prompts/`** | 系统提示词层 *(可选)* | 拆分为常驻提示词 (`*-section.ts`) 与动态单次上下文注入 (`*-context.ts`)。 |
 | **`events/`** | 事件监听层 *(可选)* | 宿主生命周期事件处理（如 `turn/end`、工具前置拦截等）。 |
 | **`service/`** | 领域服务层 | 全员使用 `defineService`。唯一可读写 storage 和访问宿主能力（`ctx`/`host`）的层。 |
-| **`utils/`** | 底层工具纯函数 | 纯粹、无状态，不包含业务上下文与契约宏。返回标准操作结果 `{ ok: boolean, ... }`。 |
+| **`utils/`** | 底层工具纯函数 | 纯粹、无状态，不包含业务上下文与契约宏。返回标准操作结果 `{ ok: boolean, ... }`。单一模块专属的工具与所属模块**同目录同名**，命名为 `<module>.utils.ts`；此目录仅保留被多个模块共享的纯函数（如 `git.ts`、`paths.ts`）。 |
 
 ---
 
@@ -47,7 +47,7 @@ $$\text{apply.ts (装配)} \longrightarrow \begin{bmatrix} \text{routes/} \\ \te
 packages/dsh-tauri-worktree/src/host/
 ├── apply.ts                   # 平铺装配器
 ├── config/ (runtime.ts | constants.ts)
-├── types/index.ts
+├── types/index.ts             # 仅跨多模块共享类型；单模块专属类型与其模块同目录同名
 ├── storage/index.ts           # 仅导出 storage 实例
 ├── routes/                    # RESTful 文件路由 (例: delete.ts -> DELETE /api/worktree)
 ├── tools/                     # Agent 工具定义 (create-worktree.ts, checkout-worktree.ts)
@@ -58,7 +58,7 @@ packages/dsh-tauri-worktree/src/host/
 │   ├── ledger.ts              # 持久化 <Binding> (load/save/remove/list)
 │   ├── cleaner.ts             # 长任务调度 (start/lookup/unsettled)
 │   └── session-context.ts     # 只读推演 (resolve/peek)
-└── utils/                     # 纯函数 (git.ts, filesystem.ts, dependencies.ts)
+└── utils/                     # 仅跨多模块共享纯函数 (git.ts, filesystem.ts)；单模块专属工具与其模块同目录同名
 
 ```
 
@@ -112,5 +112,6 @@ export function apply(ctx: HostContext): void {
 * [ ] **路由纯度**：`routes/` 是否仅负责协议解析与 DTO 校验？无直接操作 `storage`/宿主对象/系统命令行为？
 * [ ] **存储抽象**：`storage/index.ts` 是否仅导出驱动实例？
 * [ ] **工具解耦**：`utils/` 是否无状态、脱离业务上下文且未引入契约宏？
+* [ ] **类型/工具归属**：单一模块专属的类型/工具是否与所属模块**同目录同名**（`<module>.types.ts` / `<module>.utils.ts`），`types/`、`utils/` 是否只留真正跨模块共享的文件？
 * [ ] **彻底清理**：废弃代码/兼容层/无用 `index.ts` 是否已清理？重命名是否使用 `git mv`？
 * [ ] **工程校验**：`pnpm --filter <pkg> typecheck` 与 `test` 是否全绿通过？

@@ -48,7 +48,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 | --- | --- | --- |
 | **`index.ts`** | 装配入口 | 仅平铺装配 feature 与样式（<40 行），无业务逻辑与初始化请求[cite: 2]。 |
 | **`constants/`** | 静态常量 | 声明 slot 名、注册 ID、storage key、排序权重；跨 half 常量放 `src/shared/`[cite: 2]。 |
-| **`types/`** | 类型定义 | 导出跨文件共享的 interface / type，纯类型无实现[cite: 2]。 |
+| **`types/`** | 类型定义 | 导出跨文件共享的 interface / type，纯类型无实现[cite: 2]。单一模块专属的类型不入此目录，而是与所属模块**同目录同名**，命名为 `<module>.types.ts`（如 `components/sidebar.types.ts`、`store/modules/settings.types.ts`）；此目录仅保留被多个模块共享的类型。 |
 | **`locales/`** | 本地化字典 | 纯词典定义与 `defineLocale` 导出，无业务代码。 |
 | **`apis/`** | HTTP 出口 | **唯一允许发请求的层**。路径匹配路由，导出 `get*`/`post*`/`delete*` 函数及 DTO。 |
 | **`store/`** | 状态管理 | 包含 `index.ts`（纯聚合）与 `modules/<domain>.ts`（一领域一文件，包含 `state` 与同步 `actions`）[cite: 1]。 |
@@ -58,7 +58,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 | **`components/`** | 纯 UI 组件 | 一组件一文件，配同名 `.cssr.ts`（若有样式）；仅读 store、发命令[cite: 1]。 |
 | **`styles/`** | 公共样式 | 无组件面的公共 cssr 树，仅导出 `CNode` 对象。 |
 | **`config/`** | 只读配置 | 存放静态默认值与初始化标志，**严禁存放可变状态**[cite: 2]。 |
-| **`utils/`** | 纯工具函数 | 无状态纯函数，不得认识业务概念，不得导入 `store/`/`service/`/`register/`[cite: 1, 2]。 |
+| **`utils/`** | 纯工具函数 | 无状态纯函数，不得认识业务概念，不得导入 `store/`/`service/`/`register/`[cite: 1, 2]。单一模块专属的工具与所属模块**同目录同名**，命名为 `<module>.utils.ts`；此目录仅保留被多个模块共享的纯工具（如 `cssr.ts`、`style.ts`）。 |
 
 **落点决策树**：
 
@@ -67,6 +67,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 3. 跨多次事件存活（订阅/定时器/DOM观察）？→ `register/`；仅纯逻辑调度？→ `service/`[cite: 1]。
 4. 仅在 React 渲染周期内使用？→ `hooks/`；返回 JSX？→ `components/`[cite: 1]。
 5. 纯数据处理且脱离业务概念？→ `utils/`[cite: 1]。
+6. 类型/工具只服务于单一模块？→ 与该模块**同目录同名**：`<module>.types.ts` / `<module>.utils.ts`；被多个模块共享？→ 才落入 `types/`、`utils/`。
 
 ---
 
@@ -116,7 +117,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 
 * 使用 `defineLocale(PLUGIN_NAME, { zh, en })` 声明语言包，通过 `ctx.effect(locale.registerLocale, LOCALE_EFFECT)` 安装。
 * 禁止自建 locale store、`let activeLocale` 或在 DOM 选择器中使用文案[cite: 1]。通用动词直接复用 `common` 命名空间。
-* **依赖隔离**：第三方库（`unstorage` / `ofetch` / `valtio-define` / `@reause/core`）统一由 `dsh-tauri/client` 转出，严禁插件直接 import。
+* **依赖隔离**：第三方库（`unstorage` / `ofetch` / `valtio-define` / `@reause/core` / `lodash-es`）统一由 `dsh-tauri/client` 转出，严禁插件直接 import；需要白名单外的 `lodash-es` 方法时，先补进 `packages/dsh-tauri/src/client/modules/lodash-es.ts`。
 
 ---
 
@@ -149,4 +150,6 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 * [ ] **注册层薄度**：`register/*.ts` 仅做登记编排，>150 行的代码已将逻辑下沉至 `service/`。
 * [ ] **请求纯度**：所有网络请求集中于 `apis/`，统一使用 `dsh-tauri/client` 导出的 `fetch`。
 * [ ] **依赖与本地化**：无第三方库直接 import；本地化统一采用 `defineLocale`[cite: 1]。
+* [ ] **类型/工具归属**：单一模块专属的类型/工具是否与所属模块**同目录同名**（`<module>.types.ts` / `<module>.utils.ts`），`types/`、`utils/` 是否只留真正跨模块共享的文件？
+* [ ] **零无意义封装**：不存在 `function f(x) { return lodashFn(x) }` 这类纯转调包装；手写处理逻辑（裁剪、比较、排序、去重、取值、判空）一律改用 `dsh-tauri/client` 转出的 `lodash-es`。
 * [ ] **工程校验**：`pnpm --filter <pkg> typecheck` / `lint` / `test` / `build` 全部通过[cite: 2]。

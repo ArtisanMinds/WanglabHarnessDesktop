@@ -1,3 +1,5 @@
 - 如果你正在处理插件客户端的代码，必须严格遵守 [PLUGIN_CLIENT.spec.md](./PLUGIN_CLIENT.spec.md) 规范。
 - 如果你正在处理插件宿主端的代码，必须严格遵守 [PLUGIN_HOST.spec.md](./PLUGIN_HOST.spec.md) 规范。
 - 如果你正在处理插件宿主端服务的代码，必须严格遵守 [PLUGIN_HOST_SERVICE.spec.md](./PLUGIN_HOST_SERVICE.spec.md) 规范。
+- host 直接安装 lodash-es 作为依赖
+- client 需引用 `dsh-tauri/client/` 导出的 lodash-es 模块，禁止直接从模块中加载

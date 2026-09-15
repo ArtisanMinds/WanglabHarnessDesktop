@@ -32,7 +32,7 @@ import { defineService } from 'dsh-tauri'
 * `service/session-context.ts` $\rightarrow$ `export const sessionContext`[cite: 1]
 
 
-* **禁止导出其它内容**：类型归入 `types/`，常量归入 `config/`[cite: 1]。私有函数/常量统一收敛于文件末尾 `// --- internal ---` 且不导出[cite: 1]。
+* **禁止导出其它内容**：类型归入 `types/`，常量归入 `config/`[cite: 1]。单模块专属类型与所属模块**同目录同名**（`<module>.types.ts`，见 [PLUGIN_HOST.spec.md](./PLUGIN_HOST.spec.md) 第二章）。私有函数/常量统一收敛于文件末尾 `// --- internal ---` 且不导出[cite: 1]。
 
 ### 2. 动词白名单 (Verb Whitelist)
 
