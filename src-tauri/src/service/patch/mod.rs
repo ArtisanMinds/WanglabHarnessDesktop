@@ -10,6 +10,7 @@
 
 pub(crate) mod alpha_auth;
 pub(crate) mod client_hmr;
+pub(crate) mod llm_session;
 pub(crate) mod renderer;
 pub(crate) mod session;
 pub(crate) mod workspace;
