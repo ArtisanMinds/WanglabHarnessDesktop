@@ -4,6 +4,10 @@
  * @deepseek-ai/dsh-api-workspace-controller/client。
  * 【版本】当前 lockfile 解析版本 0.1.2-alpha.3。
  * 【修订】2026-01：删除重复快照接口；startSession 仅保留为兼容扩展。
+ *
+ * 注意与 `register/index.adapter.ts` 的分工：本文件只提供**类型**（官方快照形状，
+ * 供 `useSessions` / `useWorkspaces` 等框架标准 prop 使用）；跨核心版本的
+ * **运行时服务布局**漂移一律由适配层（`defineRegister` 的第三个参数）收敛。
  */
 import type { ISessions, SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { IWorkspaces, WorkspaceSnapshot, WorkspaceSource, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
@@ -88,6 +92,8 @@ export interface WorkspacesRuntimeLike {
  * 三个动作与官方「添加工作区」流程（ui-workspace `WorkspacePickFlow.adoptDirectory`）
  * 逐步一致：`pickDirectory()` → `create({ path })` → `startSession(workspaceId)`；
  * 任一步缺失即视为能力不可用，由消费方走 DOM 退级（点官方按钮）。
+ *
+ * 新代码优先用适配层的 `adapter.addWorkspace()`（同一流程 + DOM 退级 + 明确回报）。
  */
 export interface AddWorkspaceRuntime {
   /** `uiWorkspace.pickDirectory()`：拉起宿主原生目录选择器；用户取消时为 null。 */
