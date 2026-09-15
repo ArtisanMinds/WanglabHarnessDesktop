@@ -1,18 +1,7 @@
-/**
- * host/routes/index.test.ts — 能力管理器路由声明的协议回归。
- *
- * 覆盖（迁移契约）：19 条路由的 (kind, path) 与声明方法、方法不符时 405 + allow 头、
- * OPTIONS 预检 204、GET /skills 的行形状、GET /mcp 的载荷形状、POST 的 400 领域错误、
- * 非 JSON 体 400、重启路由对非同源 / 带转发痕迹请求的 403。
- *
- * 走真实 node:http 服务（h3 的 toNodeHandler 依赖真实 req/res 流），并在测试内复刻
- * 宿主 webserver 的 exact 匹配契约；连接鉴权 / 回环 / 跨源边界由 dsh-tauri 的
- * `defineRoutes` 统一承担（其自身已有覆盖），这里只锁本插件的路径、方法与响应形状。
- */
-
 import type { HostRoute, RoutesContext } from 'dsh-tauri'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import type { PanelExtensionHost } from '../config/runtime.types'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -21,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
 import { resetTestDshHome } from '../../../../.test/test-utils'
 import { API_PREFIX as P } from '../../shared/constants'
+import { setCurrentHostInstance } from '../config/runtime'
 
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
@@ -30,7 +20,6 @@ vi.mock('dsh-tauri', async (importOriginal) => {
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
-/** 迁移前的路由表（路径 + 方法），防止声明漂移。 */
 const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['GET', `${P}/skills`],
   ['POST', `${P}/skills/refresh`],
@@ -53,7 +42,6 @@ const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['POST', `${P}/restart`],
 ]
 
-/** 宿主 skills 服务面返回的一行（不带 resourceBase：可编辑性判定不依赖磁盘）。 */
 const SKILL = {
   name: 'demo-skill',
   description: 'A demo skill',
@@ -68,7 +56,6 @@ interface Harness {
   dir: string
 }
 
-/** 假宿主 ctx：注册表模拟宿主 webserver（重复 (kind,path) 抛错，disposer 删行）。 */
 function createHarness(): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-panel-extension-'))
   const registered = new Map<string, HostRoute>()
@@ -88,7 +75,6 @@ function createHarness(): Harness {
         },
       },
       logger: { error: () => {} },
-      // 业务面：插件 HostContext 的扩展点，defineRoutes 只把 ctx 原样透传给 handler。
       skills: {
         list: async () => [SKILL],
         get: async (name: string) => (name === SKILL.name
@@ -99,8 +85,8 @@ function createHarness(): Harness {
   }
 }
 
-/** 按协议注册：`routes(ctx, deps)` 返回本次注册的卸载函数（deps 随注册传入，无需全局状态）。 */
 function mount(harness: Harness): () => void {
+  setCurrentHostInstance(harness.ctx as unknown as PanelExtensionHost)
   return routes(harness.ctx as RoutesContext, {
     profileDirPath: join(harness.dir, 'profiles', 'web'),
     remountProvider: async () => {},
@@ -110,7 +96,6 @@ function mount(harness: Harness): () => void {
 const servers: Server[] = []
 const dirs: string[] = []
 
-/** 复刻宿主 webserver 的 exact 匹配契约，起一个真实 HTTP 服务并返回 base URL。 */
 async function listen(registered: Map<string, HostRoute>): Promise<string> {
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
     const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
@@ -132,7 +117,6 @@ async function listen(registered: Map<string, HostRoute>): Promise<string> {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 }
 
-/** 起一个服务并挂上本次注册的路由。 */
 async function start(): Promise<{ base: string, dispose: () => void }> {
   const harness = createHarness()
   dirs.push(harness.dir)
@@ -277,7 +261,6 @@ describe('能力管理器路由声明', () => {
     })
     expect(invalidJson.status).toBe(400)
 
-    // 请求体一律按 JSON 解析：urlencoded 体不会被当成合法对象放行。
     const urlencoded = await fetch(`${base}${P}/mcp/toggle`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -306,8 +289,6 @@ describe('能力管理器路由声明', () => {
   })
 
   it('同一份声明两次注册下各读各的 deps（两次注册互不串台）', async () => {
-    // 两次注册各带自己的 profileDirPath（数据根 DSH_HOME 是全局的，profile 目录不是）。
-    // 迁移前的模块级单例绑定会被后一次注册覆盖，先注册的一方会读后一方的目录——本用例即该回归。
     const first = createHarness()
     const second = createHarness()
     dirs.push(first.dir, second.dir)

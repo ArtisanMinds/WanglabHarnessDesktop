@@ -1,22 +1,10 @@
-/**
- * lib/mcp.ts — MCP 导入/解析的纯函数（无 DOM、无 React、无副作用）。
- * 从 mcp-tab.tsx 剥离，便于单测与复用。
- */
+import type { McpImportItem, ParsedMcpJson } from './mcp-tab.types'
+import { isEmpty, omitBy, orderBy, uniq } from 'dsh-tauri/client'
 
-import type { McpImportItem, ParsedMcpJson } from '../types'
-
-/** Group import candidates by source agent, known agents first. */
 export function importGroups(items: McpImportItem[]): Array<{ agent: string, label: string, items: Array<{ item: McpImportItem, index: number }> }> {
   const label = (agent: string): string => agent === 'claude-code' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : agent === 'gemini' ? 'Gemini CLI' : agent
   const order = ['claude-code', 'codex', 'cursor', 'gemini']
-  const agents = [...new Set(items.map(item => item.server.agent))]
-    .sort((a, b) => {
-      const rank = (agent: string): number => {
-        const at = order.indexOf(agent)
-        return at === -1 ? order.length : at
-      }
-      return rank(a) - rank(b) || a.localeCompare(b)
-    })
+  const agents = orderBy(uniq(items.map(item => item.server.agent)), agent => order.indexOf(agent))
   return agents.map(agent => ({
     agent,
     label: label(agent),
@@ -24,7 +12,6 @@ export function importGroups(items: McpImportItem[]): Array<{ agent: string, lab
   }))
 }
 
-/** KEY=VALUE / KEY: VALUE lines to a map. */
 export function parsePairs(text: string, separator: ':' | '='): Record<string, string> {
   const map: Record<string, string> = {}
   for (const line of text.split(/\r?\n/)) {
@@ -45,10 +32,6 @@ export function mapToPairs(map: Record<string, string> | undefined, separator: s
   return Object.entries(map).map(([key, value]) => `${key}${separator}${value.includes('\n') ? JSON.stringify(value) : value}`).join('\n')
 }
 
-/**
- * Parse one MCP server from pasted JSON: a bare entry, a dsh row, or a
- *  `{"mcpServers": {…}}` wrapper (first entry wins). Returns the reason on bad input.
- */
 export function parseMcpJson(text: string): ParsedMcpJson | { error: string } {
   let parsed: unknown
   try {
@@ -74,12 +57,8 @@ export function parseMcpJson(text: string): ParsedMcpJson | { error: string } {
   const stringMap = (value: unknown): Record<string, string> | undefined => {
     if (typeof value !== 'object' || value === null || Array.isArray(value))
       return undefined
-    const out: Record<string, string> = {}
-    for (const [key, entry] of Object.entries(value)) {
-      if (typeof entry === 'string')
-        out[key] = entry
-    }
-    return Object.keys(out).length > 0 ? out : undefined
+    const out = omitBy(value as Record<string, unknown>, entry => typeof entry !== 'string') as Record<string, string>
+    return isEmpty(out) ? undefined : out
   }
   const args = Array.isArray(record.args) && record.args.every(entry => typeof entry === 'string')
     ? record.args as string[]
@@ -100,13 +79,6 @@ export function parseMcpJson(text: string): ParsedMcpJson | { error: string } {
     ?? (typeof record.name === 'string' && record.name !== '@deepseek-ai/dsh-mcp-client' ? record.name : undefined)
   const env = stringMap(record.env)
   const headers = stringMap(record.headers)
-  return {
-    ...(serverName !== undefined ? { serverName } : {}),
-    transport,
-    ...(command !== undefined ? { command } : {}),
-    ...(args !== undefined ? { args } : {}),
-    ...(env !== undefined ? { env } : {}),
-    ...(url !== undefined ? { url } : {}),
-    ...(headers !== undefined ? { headers } : {}),
-  }
+  const draft: ParsedMcpJson = { serverName, transport, command, args, env, url, headers }
+  return omitBy(draft, value => value === undefined) as ParsedMcpJson
 }

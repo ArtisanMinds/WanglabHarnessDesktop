@@ -1,17 +1,9 @@
-/**
- * utils/workspace.ts — 工作区选择与运行时快照归一化。
- *
- * 适配层的 `sessions.list` / `workspaces.list` 投影读出来是 `unknown`（官方服务
- * 布局逐版本漂移），这里统一归一化成组件可用的稳定快照形状。
- */
-
-import type { SessionListSnapshot, WorkspaceListItem, WorkspaceListSnapshot } from '../types'
+import type { SessionListSnapshot, WorkspaceListItem, WorkspaceListSnapshot } from './extension-panel.types'
 
 function workspaceId(item: WorkspaceListItem): string | undefined {
   return item.workspaceId ?? item.id
 }
 
-/** 归一化会话列表投影：只有字符串 current 与字符串 id 数组算有效。 */
 export function sessionSnapshotOf(value: unknown): SessionListSnapshot {
   if (typeof value !== 'object' || value === null)
     return { ids: [] }
@@ -22,7 +14,6 @@ export function sessionSnapshotOf(value: unknown): SessionListSnapshot {
   }
 }
 
-/** 归一化工作区列表投影：条目按 id/sessionIds 逐字段取值。 */
 export function workspaceSnapshotOf(value: unknown): WorkspaceListSnapshot {
   if (typeof value !== 'object' || value === null)
     return {}
@@ -36,7 +27,6 @@ export function workspaceSnapshotOf(value: unknown): WorkspaceListSnapshot {
   }
 }
 
-/** Follow DSH's New Session target order: current session, recent workspace, first workspace. */
 export function chooseWorkspace(
   sessions: SessionListSnapshot,
   workspaces: WorkspaceListSnapshot,

@@ -1,15 +1,8 @@
-/**
- * routes/mcp/save/post.ts — POST /mcp/save：新增或覆盖一行 MCP 服务器。
- *
- * 行写进 profile 或机器级 patch 层（`scope === 'global'`），恒回报
- * `restartNeeded`。方法限制 / 连接鉴权 / 回环与跨源 / 1 MiB 上限由
- * `defineRoutes` 统一承担。
- */
-
-import type { McpInput } from '../../../service/mcp'
-import type { ExtensionRouteDeps } from '../../../types'
+import type { McpInput } from '../../../service/mcp.types'
+import type { ExtensionRouteDeps } from '../../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { mcpScopeDir, normalizeMcpScope, upsertMcp, validateMcpInput } from '../../../service/mcp'
+import { mcp } from '../../../service/mcp'
+import { mcpScopeDir, normalizeMcpScope, validateMcpInput } from '../../../service/mcp.utils'
 
 export default defineEventHandler(async (event) => {
   const deps = dshRouteDepsOf<ExtensionRouteDeps>(event)!
@@ -25,7 +18,7 @@ export default defineEventHandler(async (event) => {
       return { error: invalid }
     }
     const scope = normalizeMcpScope(body.scope)
-    const id = upsertMcp(mcpScopeDir(scope, deps.profileDirPath), body)
+    const id = mcp.save(mcpScopeDir(scope, deps.profileDirPath), body)
     return { ok: true, id, restartNeeded: true }
   }
   catch (error) {

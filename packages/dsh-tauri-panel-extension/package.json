@@ -63,6 +63,7 @@
     "dsh-tauri": "workspace:*",
     "dsh-tauri-ui": "workspace:*",
     "hookable": "catalog:utils",
+    "lodash-es": "catalog:utils",
     "ofetch": "catalog:utils",
     "pathe": "catalog:utils",
     "unstorage": "catalog:utils",
@@ -71,6 +72,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "catalog:dsh",
     "@deepseek-ai/dsh-skill-filesystem": "catalog:dsh",
+    "@types/lodash-es": "catalog:types",
     "dompurify": "catalog:ui",
     "dsh-tauri-tsdown": "workspace:*",
     "marked": "catalog:ui",

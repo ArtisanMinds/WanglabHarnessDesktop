@@ -1,49 +1,37 @@
-/**
- * host/service/skill-catalog.ts — 技能目录投影（领域逻辑，不是请求级助手）。
- *
- * 把宿主 skills 注册表报告的 SkillSummary 投影成设置页看到的行：附加可编辑/
- * 可删除判定、磁盘目录与所属仓库元数据；并提供注册仓库的行视图。路由处理器
- * 只做「读参 → 调本文件 → 组织响应」，不在此重复状态码与响应形状。
- */
-
-import type { HostSkill, PanelExtensionHost, SkillRepositoryMetadata } from '../types'
-import type { SkillRootEntry } from './skill-root'
+import type { SkillRepositoryMetadata, SkillRow } from './skill-catalog.types'
+import type { SkillRootEntry } from './skill-root.types'
+import type { HostSkill, HostSkillDefinition } from './skills.types'
+import { defineService } from 'dsh-tauri'
+import { orderBy } from 'lodash-es'
 import { isAbsolute, relative, resolve, sep } from 'pathe'
-import { rootExists } from './repos'
-import { getSkillRoots, skillsRootDir } from './skill-root'
+import { getCurrentHostInstance } from '../config/runtime'
+import { skillsDataDir } from '../utils/paths.utils'
+import { skillRoot } from './skill-root'
 
-/** One catalog skill as the browser sees it (edit flags and repository metadata added). */
-export type SkillRow = HostSkill & {
-  editable: boolean
-  removable: boolean
-  dir?: string
-  policyEditable: boolean
-  /** Registered root containing this skill, if any. */
-  repository?: SkillRepositoryMetadata
-}
+export const skillCatalog = defineService({
+  async resolve(): Promise<SkillRow[]> {
+    const skills = await getCurrentHostInstance().skills.list()
+    const entries = await skillRoot.list()
+    const rows = await Promise.all(skills.map(skill => toSkillRow(skill, entries)))
+    return orderBy(rows, [row => row.repository === undefined], ['asc'])
+  },
 
-/** One registered repository plus a liveness flag (roots can go stale). */
-export function toRootView(entry: SkillRootEntry): SkillRootEntry & { live: boolean } {
-  return { ...entry, live: entry.roots.every(root => rootExists(root)) }
-}
+  async peek(name: string): Promise<HostSkillDefinition | null> {
+    return (await getCurrentHostInstance().skills.get(name)) ?? null
+  },
+})
 
-/**
- * A 'custom' skill is writable only when its folder sits inside a root this
- * plugin manages: the materialized repositories under the plugin state dir,
- * or a registered local root. Vendored skills shipped inside the plugin
- * package (under node_modules) are custom-sourced too but stay read-only —
- * edits there would die with the next plugin update.
- */
+// --- internal ---
+
 async function customSkillWritable(dir: string): Promise<boolean> {
-  const state = skillsRootDir()
+  const state = skillsDataDir()
   if (dir === state || dir.startsWith(state + sep))
     return true
-  return (await getSkillRoots()).some(entry =>
+  return (await skillRoot.list()).some(entry =>
     entry.roots.some(root => dir === root || dir.startsWith(root + sep)))
 }
 
-/** Whether the save route may write this catalog row back to disk. */
-export async function skillWritable(skill: HostSkill, dir: string | undefined): Promise<boolean> {
+async function skillWritable(skill: HostSkill, dir: string | undefined): Promise<boolean> {
   if (dir === undefined)
     return false
   if (skill.source === 'user-dsh')
@@ -58,7 +46,6 @@ function pathWithin(path: string, parent: string): boolean {
   return nested === '' || (!nested.startsWith(`..${sep}`) && nested !== '..' && !isAbsolute(nested))
 }
 
-/** Match a catalog row to the registered root that contributed its directory. */
 function repositoryForSkill(
   skill: HostSkill,
   entries: SkillRootEntry[],
@@ -88,18 +75,4 @@ async function toSkillRow(skill: HostSkill, entries: SkillRootEntry[]): Promise<
     policyEditable: dir !== undefined,
     ...(repository !== undefined ? { repository } : {}),
   }
-}
-
-/** Repository skills are first; groups retain the registry's stable order. */
-function sortSkillRows(rows: SkillRow[]): SkillRow[] {
-  return rows.map((row, index) => ({ row, index }))
-    .sort((left, right) => Number(right.row.repository !== undefined) - Number(left.row.repository !== undefined) || left.index - right.index)
-    .map(item => item.row)
-}
-
-/** Collect the current catalog from the registry and shape it into rows. */
-export async function listSkillRows(host: PanelExtensionHost): Promise<SkillRow[]> {
-  const skills = await host.skills.list()
-  const entries = await getSkillRoots()
-  return sortSkillRows(await Promise.all(skills.map(skill => toSkillRow(skill, entries))))
 }

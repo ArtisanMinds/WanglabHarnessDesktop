@@ -1,15 +1,8 @@
-/**
- * routes/mcp/toggle/post.ts — POST /mcp/toggle：启用 / 停用一行 MCP 服务器。
- *
- * 行不存在返回 404（不是静默成功）；成功恒带 `restartNeeded`。方法限制 / 连接鉴权 /
- * 回环与跨源 / 1 MiB 上限由 `defineRoutes` 统一承担。
- */
-
-import type { ExtensionRouteDeps } from '../../../types'
+import type { ExtensionRouteDeps } from '../../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { mcpScopeDir, normalizeMcpScope, setMcpDisabled } from '../../../service/mcp'
+import { mcpToggle } from '../../../service/mcp-toggle'
+import { mcpScopeDir, normalizeMcpScope } from '../../../service/mcp.utils'
 
-/** 启停请求体：id + disabled 都必须成立。 */
 interface McpToggleBody { id?: unknown, disabled?: unknown, scope?: unknown }
 
 export default defineEventHandler(async (event) => {
@@ -22,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const id = body.id
   const disabled = body.disabled
   try {
-    const ok = setMcpDisabled(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath), id, disabled)
+    const ok = mcpToggle.save(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath), id, disabled)
     if (!ok) {
       event.res.status = 404
       return { error: 'server row not found' }
