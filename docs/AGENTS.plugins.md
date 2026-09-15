@@ -56,13 +56,17 @@ packages/<plugin>/
   - `pathe`：宿主全部路径处理，**不用 `node:path`**（git/storage/operation/route 等）。
   - `hookable`：宿主钩子轴（host/hooks/）。
   - `ofetch`：宿主二进制下载（如 GitHub tarball 走 `$fetch.raw`）。
-- **客户端依赖统一由 `dsh-tauri` 承载**：`unstorage` / `hookable` / `ofetch` 只被 `dsh-tauri` 的 client bundle 加载并内联；**其他插件 client 禁止直接 import 这三个包**，一律从 `dsh-tauri/client` 导入：
+  - `unstorage`：宿主侧存储（配合 `fsAtomicDriver`）。
+- **客户端依赖统一由 `dsh-tauri` 承载**：`unstorage` / `hookable` / `ofetch` / `valtio-define` / `@reause/core` 只被 `dsh-tauri` 的 client bundle 加载并内联；**其他插件 client 禁止直接 import 这些包**，一律从 `dsh-tauri/client` 导入：
   - `createHooks`（hookable 命名钩子）
   - `createStorage` / `localStorageDriver`（unstorage；各插件自定义 `const storage = createStorage({ driver: localStorageDriver({ base: PLUGIN_ID }) })`，命名统一 `storage`，读写一律 `storage.getItem/setItem`，不使用 `store(xxx).setItem` 动态工厂）
   - `fetch`（ofetch 统一 JSON 客户端；非 2xx 错误解析内置 dsh-tauri，调用方不手包 requestJson/createJsonClient）
   - `createLifecycleController`（生命周期控制器）
-  - `createAtomicFsStorage(base)` 从 `dsh-tauri` 根导入（宿主侧 unstorage fs + tmp+rename 原子写）。
-- 后果：`dsh-tauri` 的 client bundle 是唯一内联三库的地方；其他插件 client 走外部 `dsh-tauri/client`，不重复内联。
+  - `defineRegister`（客户端注册协议）
+  - `defineStore` / `useStore`（valtio-define 状态定义协议）
+  - `@reause/core` 的全部 hooks（经 `modules/reause.ts` 转出）
+  - 宿主侧存储：`storage.createStorage({ driver: fsAtomicDriver({ base: '...' }) })`（`fsAtomicDriver` 从 `dsh-tauri` 根导入，unstorage fs + tmp+rename 原子写）。
+- 后果：`dsh-tauri` 的 client bundle 是唯一内联上述库的地方；其他插件 client 走外部 `dsh-tauri/client`，不重复内联。
 - 纯 client 插件（dsh-tauri-panel / rightclick / ui 等）通常只需 `dsh-tauri` 一个依赖。
 - 通用 UI 只允许单向复用：消费插件从 `dsh-tauri-ui/client` 导入 `MenuSelect`、`styles` 和共享图标；`dsh-tauri-ui/client` 不得反向依赖消费插件。Gravity 图标由 `dsh-tauri-ui` 单点内联，消费插件禁止直接导入 `@gravity-ui/icons`。
 
@@ -209,6 +213,78 @@ ctx.effect(() => mountStyle(turnNavigationStyle, TURN_NAVIGATION_STYLE_ID), '…
 
 ## 客户端 apply 与生命周期规则
 
+### 客户端注册协议（defineRegister）
+
+每个插件的客户端功能特性（feature）按 `defineRegister` 协议定义：
+
+```ts
+// client/register/feature.ts
+import { defineRegister } from 'dsh-tauri/client'
+
+export const feature = defineRegister((controller, ctx, adapter) => {
+  // 登记资源（控制器自动托管，不需手写 return () => controller.dispose()）
+  controller.add(listenParent(handler, 'dsh://demo:sync'))
+  controller.observe(document.body, () => sync(), { childList: true, subtree: true })
+  
+  // DSH 升级迁移统一走适配层：能力探测 + 退级阶梯，不猜核心版本号
+  void adapter.startSession()
+  adapter.sessions.list?.getSnapshot()
+})
+```
+
+```ts
+// client/index.ts (apply)
+ctx.effect(feature, 'plugin: feature')
+```
+
+**协议关键点**：
+
+1. **声明期**：`defineRegister((controller, ctx, adapter) => { ... })` 定义一个 feature，返回的是可直接交给 `ctx.effect` 的函数。
+2. **运行期**：`ctx.effect(feature, 'label')` 执行时，`defineRegister` 创建控制器并执行 setup，返回 `() => controller.dispose()`，卸载时自动清理全部登记的资源。
+3. **控制器托管**：`controller.add(disposer)` / `controller.observe(...)` / `controller.interval(...)` / `controller.timeout(...)` / `controller.listen(...)` 统一登记，业务代码不需手写 `return () => { ... }`。
+4. **适配层**：第三个参数 `adapter` 是 DSH 升级迁移适配实例（`defineAdapter(ctx)` 按需创建），消费方只读能力探测面（`adapter.has(...)`、`adapter.sessions`、`adapter.workspaces`），不猜版本号。
+
+参考：
+- `packages/dsh-tauri/src/client/register/index.ts`：`defineRegister` 完整实现。
+- `packages/dsh-tauri-worktree/src/client/register/hydration.ts`：实际插件示范（水合 feature）。
+
+### 客户端状态定义协议（valtio-define）
+
+每个插件的客户端共享状态用 `defineStore` 定义，模块放在 `src/client/store/modules/`：
+
+```ts
+// client/store/modules/demo.ts
+import { defineStore } from 'dsh-tauri/client'
+
+export interface DemoState {
+  tasks: Task[]
+  loading: boolean
+}
+
+export const demo = defineStore({
+  state: (): DemoState => ({ tasks: [], loading: false }),
+})
+```
+
+```ts
+// client/store/index.ts
+import { demo } from './modules/demo'
+export const store = { demo }
+
+// 组件内订阅：
+import { useStore } from 'dsh-tauri/client'
+const state = useStore(store.demo)
+
+// React 外读写：
+store.demo.$state.tasks
+store.demo.$patch({ loading: true })
+```
+
+参考：
+- `packages/dsh-tauri-panel-scheduler/src/client/store/modules/scheduler.ts`：实际插件示范。
+
+### Apply 顺序与命名
+
 每个客户端插件的 `apply()` 应按以下顺序组织：
 
 1. 注册或安装 locale、运行时状态和协议服务。
@@ -219,14 +295,8 @@ ctx.effect(() => mountStyle(turnNavigationStyle, TURN_NAVIGATION_STYLE_ID), '…
 命名按职责区分：
 
 - `mount*Styles`：挂载 css-render 样式并返回 disposer。
-- `register*`：注册 slot、组件、协议条目、locale、observer、hydration 等运行时能力（**统一 `register*` 前缀，不保留 `install*`**；经 `ctx.effect(() => register*(ctx))` 包装，卸载即释放 inject）。
+- `register*`：注册 slot、组件、协议条目、locale、observer、hydration 等运行时能力（**统一 `register*` 前缀，不保留 `install*`**；新写法按 `defineRegister` 协议定义 feature，旧写法保留 `register*(ctx)` 函数但推荐迁移）。
 - `apply`：插件唯一的总装配入口。
-
-**生命周期控制器（Controller 化）**：需要同时管理 observer / timer / listener / 订阅时，使用 `dsh-tauri/client` 的 `createLifecycleController()`：
-
-- `add(disposer)` / `timeout(fn, ms)` / `interval(fn, ms)` / `listen(type, fn, options)` / `observe(target, options, onMutate)` 统一登记。
-- `dispose()` 幂等，一次性清理全部资源；`isDisposed()` 用于异步续接守护，业务代码不再各自维护 `disposed` 标志。
-- `dispose` 本身是命名钩子（hookable），保留扩展点。
 
 宿主侧若存在真实事件/状态机轴，建 `host/hooks/`（hookable 命名钩子），事件在业务状态**落定后**触发（如归档 `archive:added`、provider `provider:after-remount`、会话 `session:turn-end`）；钩子实例在 apply 内创建或作为插件级单例导出。
 
@@ -276,8 +346,38 @@ ctx.slots.register(
 
 ## 宿主侧规则
 
+### Host routes
+
+每个插件的宿主 HTTP 路由按以下协议定义：
+
+1. **声明期**：`host/routes/index.ts` 中导出模块级 `routes` 常量，用 `defineRoutes<Deps>(...)` 声明路由表，每个处理器放在 `host/routes/<feature>/<method>.ts`（RESTful 资源树优先；非资源命令保留动词路径）。
+2. **运行期**：`host/apply.ts` 中经 `ctx.effect(() => routes(ctx, deps), 'plugin: routes')` 注册，其中 `deps` 是 apply 期创建的依赖（插件配置、数据根、队列、服务实例），由 `defineRoutes` 的类型参数声明。
+3. **处理器依赖读取**：handler 内用 `dshRouteDepsOf<Deps>(event)` 取回 deps，用 `dshContextOf(event)` 取宿主 ctx；deps 由注册闭包捕获，同一插件挂载两次不会串台，没有模块级可变状态。
+4. **协议边界统一由框架承担**：`defineRoutes` 自动实现 405 + allow、OPTIONS 204、连接鉴权（401/403）、变更方法仅回环 + 跨源校验、1 MiB 请求体上限；handler 只写业务逻辑，不重复实现安全守护。
+
+参考：
+- `packages/dsh-tauri/src/host/routes/index.ts`：完整实现与 DI 设计。
+- `packages/dsh-tauri-worktree/src/host/routes/index.ts`：实际插件示范。
+- `docs/plugins/dsh-tauri-路由依赖注入.md`：DI 设计文档。
+
+### Host storage
+
+宿主侧存储使用 `unstorage` + 原子写驱动（`fsAtomicDriver`）：
+
+```ts
+import { fsAtomicDriver } from 'dsh-tauri'
+import { createStorage } from 'unstorage'
+
+export const storage = createStorage({
+  driver: fsAtomicDriver({ base: 'plugin-name' }),
+})
+```
+
+不再使用旧 API `createAtomicFsStorage(base)`；新 API 直接调用 `createStorage` 并指定驱动。
+
+### 其他宿主规则
+
 - Git、文件系统、进程和宿主 API 只能放在 host half。
-- HTTP route 必须严格限制方法；变更操作必须校验来源、参数和 session 归属。
 - 破坏性 Git 操作必须检查每一步结果，失败时保留可恢复 binding/ledger。
 - 不得用 `process.cwd()` 作为未知 session 的静默 fallback。
 - ledger 和 checkout context 使用原子写入；load-modify-save 需要考虑并发更新。
