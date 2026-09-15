@@ -1,190 +1,114 @@
-# 插件宿主端开发协议与架构规范 (Plugin Host Architecture Protocol)
+# 插件宿主端架构规范 (Plugin Host Architecture Protocol)
 
-> 本规范是 [通用软件开发规范与协议 (DEVLOPMENT.SPEC.md)](./DEVLOPMENT.SPEC.md) 在 **DeepSeek Harness 内置插件宿主端（Plugin Host Half / Node Runtime）** 的具象化工程落地协议。所有插件的 `src/host` 实现必须严格遵循本规范。
-
----
-
-## 一、 核心架构原则与映射 (Alignment with Core Principles)
-
-本规范与 `DEVLOPMENT.SPEC.md` 的核心原则映射关系如下：
-
-1. **唯一事实来源 (SSOT) 在宿主状态中的落地**
-   - 运行期内存单例（如防抖队列、异步任务在途映射、特定会话上下文标记）**只允许存在单一权威实例**，统一由 `config/runtime.ts` 集中持有与导出。
-   - 严禁通过参数在 `apply -> service -> routes` 间层层透传可变状态。
-2. **零无用中间层 (Zero Pass-Through Layers) 与扁平化**
-   - 插件入口 `apply.ts` 必须遵循 **“只做接线总线，不写业务逻辑”**。
-   - 严禁在只有 2~3 个具体文件的子领域建立纯转发性质的 `index.ts`（例如 `tools/`、`prompts/`、`events/` 直接按文件名具名导出，直接在 `apply.ts` 中引用）。
-   - 外部业务无直接复用价值的临时数据结构转换必须就地处理，不抽象中间层。
-3. **彻底删除与零包袱原则 (Radical Cleanup)**
-   - 废弃的旧版本兼容逻辑、数据自愈代码或已过期的过渡层，必须在重构中彻底清理，禁止保留 `legacy`、`compat` 文件。
-4. **单向依赖流 (Unidirectional Dependency Flow)**
-   - 依赖严格自上而下流动，严禁跨层反向依赖或同级环状引用：
-     $$\text{apply.ts (装配)} \longrightarrow \begin{bmatrix} \text{routes/ (HTTP 触发)} \\ \text{tools/ (Agent 触发)} \\ \text{events/ (事件触发)} \\ \text{prompts/ (上下文触发)} \end{bmatrix} \longrightarrow \text{service/ (业务领域)} \longrightarrow \begin{bmatrix} \text{storage/ (持久化)} \\ \text{utils/ (无状态纯函数)} \end{bmatrix}$$
+> 本规范为 [DEVELOPMENT.spec.md](./DEVELOPMENT.spec.md) 在 **DeepSeek Harness 插件宿主端（Node Runtime）** 的落地协议。插件 `src/host` 实现必须严格遵守本规范。
+> **服务层细则**见：[PLUGIN_HOST_SERVICE.spec.md](./PLUGIN_HOST_SERVICE.spec.md)（定义宏、动词白名单与签名铁律）。
 
 ---
 
-## 二、 模块目录分类通用标准 (Host Directory Protocol)
+## 一、 核心架构原则
 
-每个插件的 `src/host` 目录必须严格遵循以下按职责边界划分的物理落点决策树：
+* **唯一事实来源 (SSOT)**：运行期内存单例（防抖队列、在途任务映射、会话标记等）必须统一由 `config/runtime.ts` 导出。严禁参数层层透传可变状态。
+* **零无用中间层**：`apply.ts` 只做装配接线，不写业务逻辑；禁止为 2~3 个文件建立纯转发的 `index.ts`；临时数据转换必须就地处理。
+* **彻底删除与零包袱**：彻底清理废弃逻辑、兼容层与存根代码，严禁保留 `legacy`/`compat` 文件。文件移动/重命名统一使用 `git mv`。
+* **单向依赖流**：
 
-```text
-packages/<plugin>/src/host/
-├── apply.ts                       # 【装配入口】声明式组装工具、事件、提示词与路由，无逻辑实现
-├── config/                        # 【配置与状态】
-│   ├── runtime.ts                 # 运行期内存单例状态（SSOT，内存队列/标记/在途状态）
-│   └── constants.ts               # 静态常量与默认配置（数值、正则、默认参数、UI 排序等）
-├── types/                         # 【类型定义】
-│   └── index.ts                   # 领域模型、DTO、输入输出接口（纯类型定义，无业务实现）
-├── storage/                       # 【持久化底层】
-│   └── index.ts                   # 纯 unstorage / 持久化驱动实例导出，不写业务读写逻辑
-├── routes/                        # 【HTTP 路由层】（可选，按需声明）
-│   ├── index.ts                   # defineRoutes 路由集合挂载
-│   └── <resource>/<method>.ts     # 纯协议转换层（入参校验、调用 service、状态码）
-├── tools/                         # 【Agent 工具层】（可选，单工具单文件）
-│   ├── <tool-name>.ts             # 单个工具的声明、JSON Schema 与 execute 编排
-│   └── ...
-├── prompts/                       # 【系统提示词层】（可选，按提示词类别拆分）
-│   ├── <domain>-section.ts        # ctx.systemPrompt.section 常驻系统提示词
-│   └── <domain>-context.ts        # ctx.systemPrompt.context 动态单次上下文注入
-├── events/                        # 【事件监听层】（可选，按事件类型拆分）
-│   ├── <event-name>.ts            # 宿主生命周期事件处理（如 turn/end、工具前置拦截等）
-│   └── ...
-├── service/                       # 【领域业务层】（无 HTTP 协议概念，高内聚纯业务）
-│   ├── manager.ts                 # 核心生命周期编排（主业务流程聚合）
-│   ├── task-queue.ts / cleaner.ts # 长耗时操作的异步任务调度、重试与状态机管理
-│   ├── <domain>.ts                # 具体业务逻辑实现（如会话继承、规则演算）
-│   └── <entity>-store.ts          # 业务实体的序列化/持久化封装（读写 storage）
-└── utils/                         # 【底层纯工具层】（完全脱离业务上下文的无状态纯函数）
-    ├── <tech-stack>.ts            # 外部 CLI / 进程交互封装（如 git、docker、curl 等）
-    ├── filesystem.ts              # 跨平台文件系统可靠操作（目录清理、加锁、原子写等）
-    └── ...
-```
+$$\text{apply.ts (装配)} \longrightarrow \begin{bmatrix} \text{routes/} \\ \text{tools/} \\ \text{events/} \\ \text{prompts/} \end{bmatrix} \longrightarrow \text{service/ (业务领域)} \longrightarrow \begin{bmatrix} \text{storage/} \\ \text{utils/} \end{bmatrix}$$
+
+
 
 ---
 
-## 三、 参考范例：以 Worktree 插件为例 (Reference Implementation)
+## 二、 目录结构与规范
 
-以包含完整 HTTP 路由、Agent 工具、异步删除任务与上下文注入的典型复杂插件 `dsh-tauri-worktree` 为例，其实际物理文件树映射如下：
+各插件 `src/host/` 物理落点定义如下：
+
+| 目录/文件 | 职责说明 | 关键约束 |
+| --- | --- | --- |
+| **`apply.ts`** | 装配入口 | 仅做声明式组装（工具/事件/提示词/路由），控制在 30~50 行以内，不含业务逻辑。 |
+| **`config/`** | 配置与单例 | `runtime.ts`: 导出内存单例及 `bindHost`/`useHost` 宿主绑定。<br>
+
+<br>`constants.ts`: 静态常量与配置，严禁硬编码 Magic Number/String。 |
+| **`types/`** | 类型定义 | 导出领域模型、DTO、输入输出接口（纯类型定义）。 |
+| **`storage/`** | 持久化实例 | `index.ts` 纯粹导出持久化驱动实例，不包含任何业务读写逻辑。 |
+| **`routes/`** | HTTP 路由层 *(可选)* | 遵循“文件路径 = URL 路径”。仅做协议解析、DTO 校验与 Service 调用，不含业务实现。 |
+| **`tools/`** | Agent 工具层 *(可选)* | 单工具单文件，包含声明、JSON Schema 与 execute 编排。 |
+| **`prompts/`** | 系统提示词层 *(可选)* | 拆分为常驻提示词 (`*-section.ts`) 与动态单次上下文注入 (`*-context.ts`)。 |
+| **`events/`** | 事件监听层 *(可选)* | 宿主生命周期事件处理（如 `turn/end`、工具前置拦截等）。 |
+| **`service/`** | 领域服务层 | 全员使用 `defineService`。唯一可读写 storage 和访问宿主能力（`ctx`/`host`）的层。 |
+| **`utils/`** | 底层工具纯函数 | 纯粹、无状态，不包含业务上下文与契约宏。返回标准操作结果 `{ ok: boolean, ... }`。 |
+
+---
+
+## 三、 结构范例 (`dsh-tauri-worktree`)
 
 ```text
 packages/dsh-tauri-worktree/src/host/
-├── apply.ts                       # 极简平铺装配器
-├── config/
-│   ├── runtime.ts                 # pendingHandoffs (等待交接队列), injectedCheckoutContexts
-│   └── constants.ts               # 分支正则、默认软链目录、删除重试次数与保留上限
-├── types/
-│   └── index.ts                   # Binding, CheckoutContext, DiscardJob 等类型
-├── storage/
-│   └── index.ts                   # export const storage = createStorage({ driver: fsAtomicDriver(...) })
-├── routes/                        # RESTful 文件路由 (文件路径 = URL 路径)
-│   ├── index.ts                   # defineRoutes 路由集合声明
-│   ├── post.ts                    # POST   /api/worktree            (创建工作树)
-│   ├── delete.ts                  # DELETE /api/worktree            (异步删除工作树)
-│   ├── bindings/get.ts            # GET    /api/worktree/bindings   (批量查询工作树及任务)
-│   ├── status/get.ts              # GET    /api/worktree/status     (查询单个工作树状态)
-│   ├── attach/post.ts             # POST   /api/worktree/attach     (关联到源工作区)
-│   └── checkout/post.ts           # POST   /api/worktree/checkout   (检出到本地并带回会话)
-├── tools/
-│   ├── create-worktree.ts         # create_worktree 工具定义与执行
-│   └── checkout-worktree.ts       # checkout_worktree 工具定义与执行
-├── prompts/
-│   ├── worktree-section.ts        # ctx.systemPrompt.section (工作树隔离环境常驻提示)
-│   └── checkout-context.ts        # ctx.systemPrompt.context (检出完成首条动态上下文)
-├── events/
-│   ├── session-event.ts           # session/event 监听：turn/end 消费 handoff 并清理上下文
-│   └── tools-execute.ts           # tools/execute 拦截：安装依赖前断开软链并物化
-├── service/
-│   ├── manager.ts                 # 工作树业务主流程 (创建、检出、挂载)
-│   ├── cleaner.ts                 # 异步删除工作树与重试任务调度 (原 discard-jobs + discardWorktree)
-│   ├── handoff.ts                 # 会话继承与 Seed 搬运
-│   ├── ledger.ts                  # 绑定账本数据访问层 (读写 storage/ledger/*)
-│   ├── checkout.ts                # 检出上下文数据访问层 (读写 storage/checkout-context/*)
-│   └── session-context.ts         # 宿主会话与项目工作区路径推演
-└── utils/
-    ├── git.ts                     # 纯 Git 命令封装 (worktree add/remove/prune/patch)
-    ├── filesystem.ts              # 跨平台目录可靠清理与空父目录清理
-    └── dependencies.ts            # node_modules 软链接/硬拷贝纯逻辑
+├── apply.ts                   # 平铺装配器
+├── config/ (runtime.ts | constants.ts)
+├── types/index.ts
+├── storage/index.ts           # 仅导出 storage 实例
+├── routes/                    # RESTful 文件路由 (例: delete.ts -> DELETE /api/worktree)
+├── tools/                     # Agent 工具定义 (create-worktree.ts, checkout-worktree.ts)
+├── prompts/                   # 提示词注入 (worktree-section.ts, checkout-context.ts)
+├── events/                    # 事件监听 (session-event.ts, tools-execute.ts)
+├── service/                   # 业务领域服务 (文件名 = 导出标识符)
+│   ├── worktree.ts            # 领域编排 (create/checkout/attach)
+│   ├── ledger.ts              # 持久化 <Binding> (load/save/remove/list)
+│   ├── cleaner.ts             # 长任务调度 (start/lookup/unsettled)
+│   └── session-context.ts     # 只读推演 (resolve/peek)
+└── utils/                     # 纯函数 (git.ts, filesystem.ts, dependencies.ts)
+
 ```
 
 ---
 
-## 四、 各层通用实现规范与细则
+## 四、 核心层实现细则
 
-### 1. 装配总线规范 (`apply.ts`)
-`apply.ts` 是插件宿主生命周期的接入点，代码行数原则上控制在 30~50 行以内，保持平铺直叙：
-- **核心原语**：只允许包含显式注册语句（`ctx.tools.register()`、`ctx.on()`、`ctx.systemPrompt.*()`、`ctx.effect()`）。
-- **零复杂内联**：回调函数如果超过 2 行，必须抽离至 `events/` 或 `prompts/`。
-- **禁止参数穿透**：不得创建全局打包的 `deps` 字典传递给路由或工具，各模块直接从对应的 `config/` 或 `service/` 引入所需功能。
+**1. 装配总线 (`apply.ts`)**
+
+* 仅包含声明式注册 (`ctx.tools.register()`、`ctx.on()`、`ctx.systemPrompt.*()`、`ctx.effect()`)。
+* 超过 2 行的回调必须抽离至 `events/` 或 `prompts/`。禁止创建全局 `deps` 对象透传。
 
 ```typescript
-// 规范范例：清晰直观的装配总线
 export function apply(ctx: HostContext): void {
-  // 1. 注册 Agent 调用的工具
-  ctx.tools.register(createWorktreeTool(ctx))
-  ctx.tools.register(checkoutWorktreeTool(ctx))
+  bindHost(ctx) // 1. 绑定宿主能力（仅 service 层可通过 useHost() 读取）
 
-  // 2. 注册系统事件监听
-  ctx.on('session/event', (session: any, event: any) => handleSessionEvent(ctx, session, event))
-  ctx.on('tools/execute', (exec: any, next: any) => handleToolsExecute(ctx, exec, next))
-
-  // 3. 注册系统提示词注入
+  ctx.tools.register(createWorktreeTool())
+  ctx.tools.register(checkoutWorktreeTool())
+  ctx.on('session/event', (session, event) => handleSessionEvent(session, event))
+  ctx.on('tools/execute', (exec, next) => handleToolsExecute(exec, next))
   ctx.systemPrompt.context(checkoutContextProvider)
   ctx.systemPrompt.section(worktreeSectionProvider)
-
-  // 4. 挂载 HTTP 路由
+  
   ctx.effect(() => routes(ctx), 'plugin: routes')
 }
+
 ```
 
-### 2. 配置与状态层规范 (`config/`)
-- **`config/runtime.ts`**：
-  - 仅用于导出当前插件生命周期内的内存单例（如在途请求防抖、长任务调度表、消费性标记队列）。
-  - 每个导出实例必须具备清晰的消费与销毁机制，严防长期运行造成内存泄露。
-- **`config/constants.ts`**：
-  - 存放所有硬编码常量（数值上限、重试间隔、正则规则、Prompt 注入优先级等）。业务代码中严禁裸写 Magic Number / Magic String。
+**2. 配置与状态层 (`config/`)**
 
-### 3. 持久化层规范 (`storage/`)
-- `storage/index.ts` 必须做到极致纯粹，**只负责创建并导出持久化存储实例**：
-  ```typescript
-  import { DSH_HOME, fsAtomicDriver } from 'dsh-tauri'
-  import { createStorage } from 'unstorage'
+* `runtime.ts` 导出内存单例与宿主绑定函数 (`bindHost` / `useHost`)。宿主进程按 `--profile` 启动，单进程内插件仅挂载一次，模块级单例安全。必须包含清除/销毁机制以防内存泄漏。
 
-  export const storage = createStorage({
-    driver: fsAtomicDriver({ base: DSH_HOME }),
-  })
-  ```
-- **禁止在 `storage/` 下编写业务实体的增删改查方法**。业务实体（如 Ledger、Session Meta）的序列化格式、路径拼接、JSON 容错和校验，必须收拢在 `service/<entity>-store.ts` 中。
+**3. 持久化层 (`storage/`)**
 
-### 4. 路由层规范 (`routes/`)
-- **路径契约**：严格遵循 **“文件路径 = URL 路径”** 的 RESTful 规则。
-- **职责边界**：
-  1. 仅负责 HTTP 报文解析（`readBody` / `getQuery`）。
-  2. 执行 DTO 输入合法性校验（字段缺失或类型错误立即响应 400）。
-  3. 调用对应的 `service` 函数，不得包含具体业务实现代码。
-  4. **严禁在路由处理器内直接访问底层 `storage` 原始键值，或直接执行底层系统命令**。
+* `storage/index.ts` 仅负责创建并导出驱动实例（如 `createStorage({ driver: fsAtomicDriver(...) })`）。
+* 禁止在 `storage/` 目录下编写业务增删改查，存取逻辑统一收拢于 `service/` 对应的持久化服务中。
 
-### 5. 业务领域服务层规范 (`service/`)
-- **`manager.ts`**：作为领域业务主编排者，组合调用各种底层 service 与 utils，形成完整业务用例。
-- **异步任务管理 / 队列（如 `cleaner.ts` / `task-queue.ts`）**：
-  - 当某些操作耗时较长、无法同步响应请求时，必须由专职的任务管理器封装为状态机（`pending` / `running` / `completed` / `failed`）。
-  - 路由仅触发任务启动并获取任务 ID，客户端通过轮询获取最终状态。
-- **持久化数据访问封装**：
-  - 负责具体实体的读写（`load`、`save`、`remove`），承担数据校验与反序列化容错。
+**4. 业务领域服务层 (`service/`)**
 
-### 6. 底层纯工具层规范 (`utils/`)
-- 保持纯粹与无状态，不得导入任何业务状态（如 `config/runtime.ts`）或高层业务概念（如 `sessionId`、业务 DTO 等）。
-- 仅接受操作路径与纯参数，返回标准的操作结果对象 `{ ok: boolean, error?: string, ... }`。
+* 统一使用 `dsh-tauri` 的 `defineService` 宏声明，禁止自造宏。
+* `routes/`、`tools/`、`events/`、`prompts/` 严禁直接接触宿主对象或底层 `storage`，必须通过服务层间接访问。
 
 ---
 
-## 五、 质量与重构自检清单 (Verification Checklist)
+## 五、 自检清单 (Checklist)
 
-在开发新插件宿主端或重构既有模块时，开发者必须对照以下标准自检：
-
-- [ ] **装配精简**：`apply.ts` 是否只包含声明式注册？是否存在内联的事件处理、模板字符串或过度嵌套？
-- [ ] **状态收口**：内存中的临时 Map/Set 是否已收拢至 `config/runtime.ts`？是否存在通过参数层层击穿透传状态的情况？
-- [ ] **路由纯度**：`routes/` 下的各个处理器是否只负责协议解析与 DTO 校验？是否存在直接调用 `storage` 或操作底层系统的越权代码？
-- [ ] **存储抽象**：`storage/index.ts` 是否仅导出了存储驱动实例？具体的业务存取函数是否已移入 `service/`？
-- [ ] **工具解耦**：`utils/` 下的代码是否完全脱离业务上下文？是否是无状态的纯函数？
-- [ ] **无用代码清理**：历史遗留的自愈代码、废弃兼容层或无引用的 Barrel（`index.ts`）是否已全部删除？
-- [ ] **工程校验**：执行 `pnpm --filter <pkg> typecheck` 与 `pnpm --filter <pkg> test`，确保类型完备且测试全绿。
+* [ ] **装配精简**：`apply.ts` 是否仅包含声明式注册（无逻辑内联/过度嵌套）？
+* [ ] **状态收口**：内存 Map/Set 是否收拢于 `config/runtime.ts`？是否存在参数击穿透传？
+* [ ] **服务约束**：是否全员使用 `defineService`？文件名与导出标识符是否一致？动词是否符合白名单？
+* [ ] **签名收口**：服务方法参数是否按需声明且不含 `ctx`/`host`？是否仅 `service/` 内部使用 `useHost()`？
+* [ ] **路由纯度**：`routes/` 是否仅负责协议解析与 DTO 校验？无直接操作 `storage`/宿主对象/系统命令行为？
+* [ ] **存储抽象**：`storage/index.ts` 是否仅导出驱动实例？
+* [ ] **工具解耦**：`utils/` 是否无状态、脱离业务上下文且未引入契约宏？
+* [ ] **彻底清理**：废弃代码/兼容层/无用 `index.ts` 是否已清理？重命名是否使用 `git mv`？
+* [ ] **工程校验**：`pnpm --filter <pkg> typecheck` 与 `test` 是否全绿通过？
