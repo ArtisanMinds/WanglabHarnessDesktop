@@ -1,18 +1,14 @@
-import type { PetSessionEvent, PetSessionPeer } from './reducer'
+import type { PetSessionEvent, PetSessionPeer } from './session-stream.types'
 /**
- * src/host/reducer.test.ts — reducer（会话增量 → 桌宠展示态）单测。
+ * src/host/service/session-stream.utils.test.ts — reducer（会话增量 → 桌宠展示态）单测。
  *
  * 输入是真实 `SessionEvent` 形状（{type, seq, time, data}），reducer 的输出
  * 必须与 use-bubble.ts 期望的展示态字段（status/running/liveActivity/message/…）
  * 一致。重点覆盖：running 生命周期翻转、展示态去重、子代理 origin 透传。
  */
 import { describe, expect, it } from 'vitest'
-import {
-  createPetSessionReducer,
-  PET_REASONING_PUSH_INTERVAL_MS,
-  PET_REASONING_TAIL_WINDOW,
-
-} from './reducer'
+import { PET_REASONING_PUSH_INTERVAL_MS, PET_REASONING_TAIL_WINDOW } from '../config/constants'
+import { createPetSessionReducer } from './session-stream.utils'
 
 function ev(type: string, data: Record<string, unknown>, seq: number): PetSessionEvent {
   return { type, seq, time: Date.now(), data }

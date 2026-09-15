@@ -1,11 +1,8 @@
-/** Bilingual copy for the pet settings section. */
-import type { LocaleKey } from '../types'
-import { useStore } from 'dsh-tauri/client'
-import { store } from '../store'
+import { defineLocale } from 'dsh-tauri/client'
+import { PET_PLUGIN_NAME } from '../../shared/constants'
 
-export { PET_CLIENT_NS as NS } from '../constants'
-
-export const DICT_ZH: Record<LocaleKey, string> = {
+/** 桌宠设置分区的双语文案（`zh` 键集合为权威，`en` 缺键即编译错误）。 */
+const zh = {
   clear: '取消选择',
   clearFailed: '取消选择失败',
   closePet: '关闭宠物',
@@ -29,7 +26,7 @@ export const DICT_ZH: Record<LocaleKey, string> = {
   toggleFailed: '切换桌宠开关失败',
 }
 
-export const DICT_EN: Record<LocaleKey, string> = {
+const en: Record<keyof typeof zh, string> = {
   clear: 'Clear selection',
   clearFailed: 'Failed to clear pet selection',
   closePet: 'Close pet',
@@ -53,15 +50,4 @@ export const DICT_EN: Record<LocaleKey, string> = {
   toggleFailed: 'Failed to toggle the pet',
 }
 
-/**
- * 组件内订阅活跃语言：`rev` 前进即重渲染，`text()` 随之按新 locale 取词。
- * 语言快照与变更订阅见 store/modules/locale.ts 与 register/locale.ts。
- */
-export function usePetLocale(): void {
-  useStore(store.locale)
-}
-
-export function text(key: LocaleKey): string {
-  const dict = store.locale.$state.active.toLowerCase().startsWith('en') ? DICT_EN : DICT_ZH
-  return dict[key] ?? DICT_EN[key] ?? key
-}
+export const locale = defineLocale(PET_PLUGIN_NAME, { zh, en })

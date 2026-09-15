@@ -29,7 +29,7 @@ interface InvokeBridgeRequest {
 
 /**
  * 允许 iframe 桥调用的 Tauri command 白名单（与 dsh-tauri-pet 的
- * service/pet.ts 一一对应）。凡新增可经桥调用的 command 必须在此登记，
+ * client/apis/index.ts 一一对应）。凡新增可经桥调用的 command 必须在此登记，
  * 防止 iframe 内其他插件借道桥执行任意 Tauri command（越权）。
  */
 const ALLOWED_INVOKE_CMDS = new Set([

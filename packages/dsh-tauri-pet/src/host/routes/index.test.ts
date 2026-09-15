@@ -2,7 +2,7 @@ import type { HostContext } from 'dsh-tauri'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 /**
- * src/index.test.ts — 宿主装配 apply() 的性能约定回归 + 会话流路由契约。
+ * src/host/routes/index.test.ts — 宿主装配 apply() 的性能约定回归 + 会话流路由契约。
  *
  * 背景（0.11.x 用户反馈「吐字变慢」）：宿主曾在**每个** session/event（含逐 token 的
  * assistant/chunk）上调用 `sessionTitle.get(session)`，其内部是
@@ -22,8 +22,8 @@ import type { AddressInfo } from 'node:net'
  */
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { apply, SESSION_STREAM_PATH } from './index'
-import { SSE_KEEPALIVE_MS, SSE_RETRY_MS } from './shared/constants'
+import { apply, SESSION_STREAM_PATH } from '../../index'
+import { SSE_KEEPALIVE_MS, SSE_RETRY_MS } from '../../shared/constants'
 
 /** 一帧数据载荷（`data:` 行反序列化后的形状）。 */
 interface SsePayload {
