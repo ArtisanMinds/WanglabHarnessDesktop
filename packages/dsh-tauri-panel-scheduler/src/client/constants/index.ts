@@ -32,7 +32,9 @@ export const MENU_STYLE_ID = 'dsh-tauri-panel-scheduler-menu-styles'
 export const TASK_CREATE_DIALOG_STYLE_ID = 'dsh-tauri-panel-scheduler-task-create-dialog-styles'
 
 export const STYLES_EFFECT = `${SCHEDULER_PLUGIN_NAME}: styles`
+export const LOCALE_EFFECT = `${SCHEDULER_PLUGIN_NAME}: locale`
 export const PANEL_EFFECT = `${SCHEDULER_PLUGIN_NAME}: panel slot`
+export const PREFILL_EFFECT = `${SCHEDULER_PLUGIN_NAME}: prefill`
 export const SESSION_ICONS_EFFECT = `${SCHEDULER_PLUGIN_NAME}: session clock icons`
 
 /** 会话行时钟图标补丁的 css-render 样式 id（防重复挂载）。 */

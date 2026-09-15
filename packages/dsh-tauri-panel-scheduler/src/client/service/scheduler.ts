@@ -17,12 +17,12 @@ import {
   postTasksToggle,
   postTasksUpdate,
 } from '../apis'
-import { schedulerStore } from '../store'
+import { store } from '../store'
 
 /** 领域 injected（模块级单例，与面板注册共享）。 */
 /** 合并状态（merge 语义）。 */
 function patchState(patch: Partial<SchedulerUiState>): void {
-  schedulerStore.set(state => ({ ...state, ...patch }))
+  store.scheduler.$patch(patch)
 }
 
 /** 轮询代际：只允许最新一次 refresh 落地，防止旧响应覆盖新状态。 */

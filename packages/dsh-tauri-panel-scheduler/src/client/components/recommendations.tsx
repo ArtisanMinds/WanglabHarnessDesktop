@@ -51,7 +51,8 @@ export const RECOMMENDATIONS: Recommendation[] = [
 
 export interface RecommendationsProps {
   t: Translate
-  tasks: TaskView[]
+  /** 只读：直接消费 store snapshot（见 types/scheduler.ts 的只读约定）。 */
+  tasks: readonly TaskView[]
 }
 
 /** 推荐（预置）定时任务列表：点击直接创建，成功后该项从任务列表中消失。 */

@@ -11,7 +11,8 @@ import runsTabStyle from './runs-tab.cssr'
 
 export interface RunsTabProps {
   t: Translate
-  runs: RunView[]
+  /** 只读：直接消费 store snapshot（见 types/scheduler.ts 的只读约定）。 */
+  runs: readonly RunView[]
   onDelete: (id: string) => void
 }
 

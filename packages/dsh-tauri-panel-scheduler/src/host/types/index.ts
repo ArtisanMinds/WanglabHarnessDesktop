@@ -6,9 +6,25 @@
  */
 
 import type { SCHEDULE_KINDS, WEEKDAYS } from '../../shared/constants'
+import type { SchedulerEngine } from '../service/scheduler'
 
 /** 宿主根上下文（Cordis 注入能力；插件侧以 any 消费，类型由 dsh 生态 declare module 增强）。 */
 export type HostContext = any
+
+/**
+ * 路由的 apply 期依赖面（`routes(ctx, deps)` 的 deps 形状）。
+ *
+ * 调度引擎在装配期创建、不作为宿主服务暴露，处理器无法从事件取回，因此随注册传入、
+ * 由处理器经 `dshRouteDepsOf(event)` 取回（宿主 ctx 本身仍由 `dshContextOf(event)` 取回，
+ * 不走 deps）。
+ *
+ * 依赖面只声明路由真正用到的成员（`runNow`），而不是整个引擎类：处理器只调这一项，
+ * 测试替身也因此无需伪造 private 字段（不需要 `as unknown as` 断言）。
+ */
+export interface SchedulerRouteDeps {
+  /** 调度引擎（apply 装配时创建，与 tick 定时器共用同一实例）。 */
+  engine: Pick<SchedulerEngine, 'runNow'>
+}
 
 /** 插件行配置。 */
 export interface PluginConfig {
@@ -206,7 +222,3 @@ export interface SchedulerOptions {
   failures: Array<ModelCatalogFailure>
   defaultModel: ModelOption | null
 }
-
-/** HTTP 路由结果（dsh-tauri routeHandler 契约）。 */
-export type RouteResult = [number, unknown]
-export type JsonBody = Record<string, unknown>

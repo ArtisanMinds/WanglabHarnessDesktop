@@ -12,7 +12,7 @@
 import type { HostContext } from './types'
 import { SCHEDULER_TICK_MS } from './constants'
 import { createSchedulerHooks } from './hooks'
-import { buildRoutes } from './routes'
+import { routes } from './routes'
 import { recoverInterruptedRuns } from './service/run'
 import { SchedulerEngine } from './service/scheduler'
 import { createToolSet } from './tools'
@@ -49,13 +49,7 @@ export function apply(ctx: HostContext, config: Config = {}): void {
     })
   }, 'dsh-tauri-panel-scheduler: recover interrupted runs')
 
-  // 3) HTTP 路由注册（卸载统一释放）。
-  ctx.effect(() => {
-    const disposers = buildRoutes(ctx, engine).map(route => ctx.webServer.register(route))
-    return () => {
-      for (const dispose of disposers) dispose()
-    }
-  }, 'dsh-tauri-panel-scheduler: http routes')
+  ctx.effect(() => routes(ctx, { engine }), 'dsh-tauri-panel-scheduler: routes')
 
   // 4) 调度引擎 tick。
   ctx.effect(() => {

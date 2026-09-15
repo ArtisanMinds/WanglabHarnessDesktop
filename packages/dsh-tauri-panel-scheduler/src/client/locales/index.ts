@@ -1,5 +1,6 @@
 import type { SchedulerClientContext } from '../types'
-import { LOCALE_NAMESPACE, PLUGIN_ID } from '../constants'
+import { defineRegister } from 'dsh-tauri/client'
+import { LOCALE_NAMESPACE } from '../constants'
 
 const zh: Record<string, string> = {
   'scheduler': '定时任务',
@@ -241,9 +242,11 @@ const en: Record<string, string> = {
   'perWeek': 'Weekly',
 }
 
-export function registerSchedulerLocale(ctx: SchedulerClientContext): void {
-  ctx.effect(() => [
-    ctx.locale.register(LOCALE_NAMESPACE, 'zh', zh),
-    ctx.locale.register(LOCALE_NAMESPACE, 'en', en),
-  ], `${PLUGIN_ID}: locale`)
-}
+/**
+ * 双语文案 feature：注册 zh / en 两份字典（字典内容与迁移前逐字一致）。
+ * 运行期：`ctx.effect(localeFeature, LOCALE_EFFECT)`。
+ */
+export const localeFeature = defineRegister<SchedulerClientContext>((controller, ctx) => {
+  controller.add(ctx.locale.register(LOCALE_NAMESPACE, 'zh', zh))
+  controller.add(ctx.locale.register(LOCALE_NAMESPACE, 'en', en))
+})

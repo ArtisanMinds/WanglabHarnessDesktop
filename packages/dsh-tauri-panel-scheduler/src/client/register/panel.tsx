@@ -1,5 +1,5 @@
 /**
- * register/panel.tsx — 调度器面板的 slot 注册。
+ * register/panel.tsx — 调度器面板的 slot 注册（defineRegister feature）。
  *
  * 走 **官方全局面板协议**（0.1.5-rc.1 起）：`panel.protocol.registerPanel` 由宿主
  * 代注册 `sidebar.panellist`（入口行）+ `main`（内容），选中态由官方
@@ -9,11 +9,15 @@
  * 注册逻辑与组件分离：这里只负责「等宿主协议就绪 → 一次性注册」，含 50ms 重试等待
  * （宿主 apply 与插件 apply 的先后由客户端加载器决定）。UI 在
  * components/scheduler-panel.tsx。
+ *
+ * 文案 `t` 在 feature setup 内从 `ctx.locale.bind(LOCALE_NAMESPACE)` 现取（不跨层传参）；
+ * 生命周期（inject 句柄 / 重试定时器 / 面板注销）全部由 `defineRegister` 的 controller 托管。
  */
 
 import type { ReactElement } from 'react'
 import type { PanelProtocol, SchedulerClientContext, Translate } from '../types'
 import { Calendar, Icon } from 'dsh-tauri-ui/client'
+import { defineRegister } from 'dsh-tauri/client'
 import { SchedulerPanel } from '../components/scheduler-panel'
 import {
   LOCALE_NAMESPACE,
@@ -26,10 +30,23 @@ import {
 import { setChatPrefill } from '../prefill'
 import { hydrateScheduler } from '../service/scheduler'
 
-export function registerSchedulerPanel(ctx: SchedulerClientContext, t: Translate): void {
-  ctx.slots.inject(PANEL_SLOT_NAME as never, () => {
+/**
+ * 面板条目 feature：等宿主 panel.protocol 就绪后注册入口行与内容区。
+ * 运行期：`ctx.effect(panelFeature, PANEL_EFFECT)`。
+ */
+export const panelFeature = defineRegister<SchedulerClientContext>((controller, ctx) => {
+  const t = ctx.locale.bind(LOCALE_NAMESPACE) as Translate
+
+  controller.add(ctx.slots.inject(PANEL_SLOT_NAME as never, () => {
     let registration: (() => void) | undefined
     let retryTimer: number | undefined
+
+    const clearRetry = (): void => {
+      if (retryTimer !== undefined) {
+        window.clearInterval(retryTimer)
+        retryTimer = undefined
+      }
+    }
 
     const attemptRegistration = (): void => {
       if (registration)
@@ -55,10 +72,7 @@ export function registerSchedulerPanel(ctx: SchedulerClientContext, t: Translate
         icon: <Icon as={Calendar} />,
         render: Content,
       })
-      if (retryTimer !== undefined) {
-        window.clearInterval(retryTimer)
-        retryTimer = undefined
-      }
+      clearRetry()
       void hydrateScheduler()
     }
 
@@ -66,9 +80,8 @@ export function registerSchedulerPanel(ctx: SchedulerClientContext, t: Translate
     if (!registration)
       retryTimer = window.setInterval(attemptRegistration, PROTOCOL_RETRY_MS)
     return () => {
-      if (retryTimer !== undefined)
-        window.clearInterval(retryTimer)
+      clearRetry()
       registration?.()
     }
-  })
-}
+  }))
+})

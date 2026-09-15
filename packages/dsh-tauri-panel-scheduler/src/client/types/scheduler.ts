@@ -10,14 +10,20 @@ export type ScheduleKind = 'once' | 'hourly' | 'daily' | 'interval' | 'workdays'
 /** 星期枚举。 */
 export type Weekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
 
-/** 调度计划（客户端表单形状）。 */
+/**
+ * 调度计划（客户端表单形状）。
+ *
+ * 数组字段一律 `readonly`：这些类型同时是 store snapshot 的读面（valtio 的
+ * `Snapshot<T>` 会把数组投影成只读数组），声明成可变数组会让组件 props 与
+ * snapshot 不兼容。写路径只做「整段替换」，不需要可变数组。
+ */
 export type ScheduleForm
   = | { kind: 'once', at: string }
     | { kind: 'hourly', minute: number }
     | { kind: 'daily', time: string }
     | { kind: 'interval', everyMinutes: number, anchor?: string }
     | { kind: 'workdays', time: string }
-    | { kind: 'weekly', weekdays: Weekday[], time: string }
+    | { kind: 'weekly', weekdays: readonly Weekday[], time: string }
     | { kind: 'monthly', day: number, time: string }
     | { kind: 'custom', everyDays: number, anchor?: string, time: string }
 
@@ -35,7 +41,8 @@ export interface ModelReasoningEffort {
 }
 
 export interface ModelReasoning {
-  efforts: Array<ModelReasoningEffort>
+  /** 只读：同时是 store snapshot 的读面（见 ScheduleForm 的只读约定）。 */
+  efforts: readonly ModelReasoningEffort[]
   defaultEffort?: string
 }
 
@@ -114,16 +121,16 @@ export interface TaskFormState {
   reasoningEffort: string
 }
 
-/** 对话框下拉选项。 */
+/** 对话框下拉选项（数组只读：同时是 store snapshot 的读面，见 ScheduleForm 注释）。 */
 export interface SchedulerOptions {
-  workspaces: Array<{ id: string, path: string, title: string }>
+  workspaces: readonly { id: string, path: string, title: string }[]
   /** 权限选项（宿主 permissionPresets）。 */
-  permissions: Array<PermissionOption>
+  permissions: readonly PermissionOption[]
   defaultPermission: string
   /** 模型目录（flat，含 reasoning）。 */
-  models: Array<ModelOption>
+  models: readonly ModelOption[]
   /** 模型目录加载失败项（照搬 dsh-automation ModelCatalogFailure）。 */
-  failures: Array<ModelCatalogFailure>
+  failures: readonly ModelCatalogFailure[]
   defaultModel: ModelOption | null
 }
 
