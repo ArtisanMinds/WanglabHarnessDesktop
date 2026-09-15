@@ -15,6 +15,8 @@ type Dicts = Record<string, LocaleDict>
 
 interface FakeLocale {
   service: LocaleService
+  /** 假服务的宽松 register（上游 typed 双参按命名空间收窄，测试用 untyped 形态）。 */
+  register: (ns: string, dicts: Dicts) => () => void
   dicts: Map<string, Map<string, Dicts[string]>>
   listeners: Set<() => void>
   setLocale: (id: string) => void
@@ -84,6 +86,7 @@ function createFakeLocale(): FakeLocale {
 
   return {
     service: service as unknown as LocaleService,
+    register: (ns: string, dicts2: Dicts) => service.register(ns, dicts2),
     dicts,
     listeners,
     setLocale: (id: string) => service.setLocale(id),
@@ -131,7 +134,7 @@ describe('defineLocale', () => {
 
   it('安装后让位给运行时（common 兜底生效）', async () => {
     const { locale, fake, ctx } = await setup()
-    fake.service.register('common', { zh: { cancel: '取消' }, en: { cancel: 'Cancel' } })
+    fake.register('common', { zh: { cancel: '取消' }, en: { cancel: 'Cancel' } })
     const dispose = locale.registerLocale(ctx)
 
     const t = locale.text as (key: string) => string
@@ -157,7 +160,7 @@ describe('defineLocale', () => {
 
   it('重叠安装时，最后一个 disposer 才解除运行时绑定', async () => {
     const { locale, fake, ctx } = await setup()
-    fake.service.register('common', { zh: { cancel: '取消' }, en: { cancel: 'Cancel' } })
+    fake.register('common', { zh: { cancel: '取消' }, en: { cancel: 'Cancel' } })
     const first = locale.registerLocale(ctx)
     const second = locale.registerLocale(ctx)
     const t = locale.text as (key: string) => string

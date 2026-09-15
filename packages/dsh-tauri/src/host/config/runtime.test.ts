@@ -36,7 +36,7 @@ describe('defineHostRuntime', () => {
   it('支持收窄到插件自有宿主面', () => {
     const runtime = defineHostRuntime<HostContext & { stopSessionProcesses: () => void }>()
     const stopSessionProcesses = () => {}
-    runtime.setCurrentHostInstance({ ...createHost(), stopSessionProcesses })
+    runtime.setCurrentHostInstance(Object.assign(createHost(), { stopSessionProcesses }))
 
     expect(runtime.getCurrentHostInstance().stopSessionProcesses).toBe(stopSessionProcesses)
   })

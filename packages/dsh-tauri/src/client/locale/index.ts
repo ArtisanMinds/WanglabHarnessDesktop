@@ -15,7 +15,7 @@
  * ```
  */
 
-import type { LocaleDict, LocaleService, Translate } from '../types'
+import type { LocaleDict, LocaleService, Translate } from '../types/harness'
 import { defineStore, useStore } from '../modules/valtio-define'
 
 /** 双语词典声明：键集合以 `zh` 为权威，`en` 必须等键集（缺键/多键都是编译错误）。 */
@@ -122,7 +122,10 @@ export function defineLocale<const NS extends string, const D extends LocaleDict
     installations += 1
 
     const sync = (): void => localeBridge.sync(locale.getLocale().active)
-    const unregister = locale.register(namespace, { zh, en })
+    // 上游 register 只有「已声明命名空间的 typed 双参」与「单语言三参」两种形态；
+    // 插件命名空间是运行期字符串，走三参 untyped 形态逐语言登记。
+    const unregisterZh = locale.register(namespace, 'zh', zh)
+    const unregisterEn = locale.register(namespace, 'en', en)
     sync()
     const unsubscribe = locale.subscribe(sync)
 
@@ -132,7 +135,8 @@ export function defineLocale<const NS extends string, const D extends LocaleDict
         return
       disposed = true
       unsubscribe()
-      unregister()
+      unregisterZh()
+      unregisterEn()
       installations -= 1
       if (installations === 0 && live === bound)
         live = undefined
