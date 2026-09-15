@@ -135,12 +135,12 @@ fire-and-forget 的 `discard`（删除由宿主后台完成；归档会话没有
 
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
+| POST | `/api/dsh-worktree` | 为预分配的新会话创建工作树（集合资源上创建） |
+| DELETE | `/api/dsh-worktree` | 放弃更改：删除工作树并解除绑定，会话保留（异步 job） |
 | GET | `/api/dsh-worktree/bindings` | 批量绑定视图：全部工作树绑定 + 未收敛删除任务（hydration 入口） |
 | GET | `/api/dsh-worktree/status` | 单个会话的状态（当前会话 `isGit` 校准、回合结束复核、job 进度） |
-| POST | `/api/dsh-worktree/create` | 为预分配的新会话创建工作树 |
 | POST | `/api/dsh-worktree/attach` | 把工作树会话归属到源项目 Workspace |
 | POST | `/api/dsh-worktree/checkout` | 检出本地并带回会话历史 |
-| POST | `/api/dsh-worktree/discard` | 放弃更改（异步 job） |
 
 ## 用户流程
 

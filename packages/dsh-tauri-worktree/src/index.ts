@@ -15,7 +15,8 @@
  *   2. 维护 per-session 绑定（WeakMap 活对象 + 磁盘 ledger 持久化）；
  *   3. 注册 `create_worktree` / `checkout_worktree` / `discard_worktree` 工具（Agent 自发调用）；
  *   4. 系统提示注入 `is_worktree: true`；
- *   5. 暴露 /api/dsh-worktree/* 给客户端（create / status / checkout / discard）。
+ *   5. 暴露 /api/dsh-worktree/* 给客户端（集合根的 POST 创建 / DELETE 删除，
+ *      以及 bindings / status / attach / checkout）。
  *
  * 检出语义（已与用户确认）：「检出本地」= 在工作树分支上保留全部改动，在本地仓库
  * 创建/切换到 `dsh/<branch>` 分支，Agent 继续在本地仓库工作；主分支不受影响。
@@ -40,10 +41,9 @@ export const inject = ['tools', 'systemPrompt', 'webServer', 'sessions', 'worksp
 export const API_PREFIX = WORKTREE_API_PREFIX
 
 export { apply } from './host/apply'
-export { createWorktreeHooks } from './host/hooks'
-export type { WorktreeLifecycleHooks } from './host/hooks'
-export { buildRoutes } from './host/routes'
+export { routes } from './host/routes'
 export { checkoutToLocalAndHandback, completeWorktreeHandoff } from './host/service/handoff'
 export { computeHash, worktreeKey, worktreePath } from './host/service/operation'
 export { checkoutToLocal, discardWorktree, ensureWorktree } from './host/service/operation'
 export { createToolSet } from './host/tools'
+export type { WorktreeRouteDeps } from './host/types'

@@ -8,8 +8,8 @@
  * 共享文件竞争，无需额外加锁。
  *
  * key 形态：unstorage 以 `:` 作层级分隔符，driver 把它还原成 `/`（见 dsh-tauri 的
- * createAtomicFsStorage）。故「ledger:sess-id.json」落在 `base/ledger/sess-id.json`。
- * 原子写走 dsh-tauri 共享的 createAtomicFsStorage（tmp+rename）。
+ * fsAtomicDriver）。故「ledger:sess-id.json」落在 `base/ledger/sess-id.json`。
+ * 原子写走 dsh-tauri 共享的 fsAtomicDriver（tmp+rename）。
  *
  * 迁移：旧版本遗留的 `ledger.json` / `checkout-context.json` 整表文件在首次运行时拆分成
  * 按会话文件并删除，幂等。同步读面对迁移前的窗口做「旧文件单键回退」。同步面保留给
@@ -18,8 +18,9 @@
 
 import type { Binding, CheckoutContext } from '../types'
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
-import { createAtomicFsStorage } from 'dsh-tauri'
+import { fsAtomicDriver } from 'dsh-tauri'
 import { join } from 'pathe'
+import { createStorage } from 'unstorage'
 
 const LEDGER_DIR = 'ledger'
 const CHECKOUT_CONTEXT_DIR = 'checkout-context'
@@ -27,8 +28,14 @@ const CHECKOUT_CONTEXT_DIR = 'checkout-context'
 const LEGACY_LEDGER_KEY = 'ledger.json'
 const LEGACY_CHECKOUT_CONTEXT_KEY = 'checkout-context.json'
 
+/**
+ * 工作树根目录下的 key-value 存储（绝对路径直接作为 driver base）。
+ *
+ * `fsAtomicDriver({ base })` 的 base 是绝对路径时原样使用，写盘走 tmp+rename 原子写；
+ * 与旧核的 `createAtomicFsStorage(worktreesRoot)` 等价。
+ */
 function store(worktreesRoot: string) {
-  return createAtomicFsStorage(worktreesRoot)
+  return createStorage({ driver: fsAtomicDriver({ base: worktreesRoot }) })
 }
 
 /** 会话 id → 按会话文件的相对路径（不含 base）。 */

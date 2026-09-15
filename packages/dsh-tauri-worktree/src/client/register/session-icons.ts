@@ -1,4 +1,3 @@
-import { circleTreeSvg, mountStyle } from 'dsh-tauri-ui/client'
 /**
  * register/session-icons.ts — 会话列表里给绑定工作树的会话行加 Git 分支图标（DOM 补丁）。
  *
@@ -10,24 +9,23 @@ import { circleTreeSvg, mountStyle } from 'dsh-tauri-ui/client'
  *
  * 注意：行没有 data-session-id 属性，使用 React `SessionNodeItem` Fiber key 读取精确
  * session id（只读，不移动 React 管理的节点），再读 store 判断是否处于工作树模式。
+ *
+ * 观察器 / 轮询 / store 订阅全部登记进 `defineRegister` 的控制器，卸载即释放。
  */
-import { createLifecycleController } from 'dsh-tauri/client'
+import type { ClientContext } from 'dsh-tauri/client'
+import { circleTreeSvg, mountStyle } from 'dsh-tauri-ui/client'
+import { defineRegister } from 'dsh-tauri/client'
 import {
   SESSION_ICON_ATTRIBUTE,
   SESSION_ICON_STYLE_ID,
   SIDEBAR_SELECTOR,
 } from '../constants'
-import { worktreeStore } from '../store'
+import { store } from '../store'
 import sessionIconStyle from '../styles/index.cssr'
 
-/**
- * 安装会话行分支图标（CSS + DOM 观察器）。返回卸载函数。
- * @returns 卸载函数。
- */
-export function registerSessionIcons(): () => void {
+export const sessionIconsFeature = defineRegister<ClientContext>((controller) => {
   if (typeof document === 'undefined')
-    return () => {}
-  const controller = createLifecycleController()
+    return
   controller.add(mountStyle(sessionIconStyle, SESSION_ICON_STYLE_ID))
 
   /**
@@ -74,7 +72,7 @@ export function registerSessionIcons(): () => void {
   // 全量扫描：只绘制/清除图标，不移动 React 管理的 DOM。
   function scan(): void {
     const rows = sessionRows()
-    const states = worktreeStore.getSnapshot().bySession
+    const states = store.worktree.$state.bySession
     for (const [sessionId, row] of rows) {
       const icon = row.querySelector<HTMLElement>(`[${SESSION_ICON_ATTRIBUTE}]`)
       if (states[sessionId]?.mode === 'worktree') {
@@ -88,14 +86,13 @@ export function registerSessionIcons(): () => void {
   }
 
   // 观察 document.body（覆盖其后挂载的侧边栏子树），store 变更时重扫。
-  controller.observe(document.body, { childList: true, subtree: true }, scan)
-  controller.add(worktreeStore.subscribe(scan))
+  // 观察配置是第三参（target → onMutate → options）。
+  controller.observe(document.body, scan, { childList: true, subtree: true })
+  controller.add(store.worktree.$subscribe(scan))
 
   // 应用晚挂载时侧边栏可能尚未出现，短暂轮询直到侧边栏出现即停（观察器已覆盖其子树）。
   const stopPolling = controller.interval(() => {
     if (document.querySelector(SIDEBAR_SELECTOR))
       stopPolling()
   }, 400)
-
-  return () => controller.dispose()
-}
+})

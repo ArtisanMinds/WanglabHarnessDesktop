@@ -15,9 +15,9 @@ export function getStatus(query: Types.GetStatusQuery): Promise<Types.WorktreeSt
   return fetch(`${baseURL}/status?sessionId=${encodeURIComponent(query.sessionId)}${jobId}`)
 }
 
-/** @method post 为预分配的新会话创建工作树。 */
+/** @method post 为预分配的新会话创建工作树（在集合根资源上创建）。 */
 export function postCreate(body: Types.PostCreateBody): Promise<Types.WorktreeCreate> {
-  return fetch(`${baseURL}/create`, { method: 'POST', body })
+  return fetch(baseURL, { method: 'POST', body })
 }
 
 /** @method post 将已创建的 worktree 会话归属到源项目 Workspace。 */
@@ -30,7 +30,7 @@ export function postCheckout(body: Types.PostCheckoutBody): Promise<Types.Worktr
   return fetch(`${baseURL}/checkout`, { method: 'POST', body })
 }
 
-/** @method post 放弃更改：删除工作树并解除绑定，会话保留。 */
+/** @method delete 放弃更改：删除工作树并解除绑定，会话保留（在集合根资源上删除）。 */
 export function postDiscard(body: Types.PostDiscardBody): Promise<Types.WorktreeDiscard> {
-  return fetch(`${baseURL}/discard`, { method: 'POST', body })
+  return fetch(baseURL, { method: 'DELETE', body })
 }

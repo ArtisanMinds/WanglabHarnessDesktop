@@ -60,7 +60,8 @@
     "dsh-tauri-ui": "workspace:*",
     "hookable": "catalog:utils",
     "pathe": "catalog:utils",
-    "simple-git": "catalog:utils"
+    "simple-git": "catalog:utils",
+    "unstorage": "catalog:utils"
   },
   "devDependencies": {
     "dsh-tauri-tsdown": "workspace:*",

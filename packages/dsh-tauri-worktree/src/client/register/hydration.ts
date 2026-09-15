@@ -10,9 +10,9 @@
  *   2. **当前会话校准**：模式选择器只在当前会话渲染，切换会话时为它打一次 /status。
  *   3. **回合结束复核**：工作树会话在 `running: true → false` 边沿复核一次。
  */
-import type { ClientContext } from 'dsh-tauri/client'
+import type { AdapterSessions, AdapterWorkspaces, ClientContext, RegisterController } from 'dsh-tauri/client'
 import type { SessionListSnapshot, WorkspaceListSnapshot, WorktreeBindings, WorktreeHydrationSessionsRuntime } from '../types'
-import { createLifecycleController } from 'dsh-tauri/client'
+import { defineRegister } from 'dsh-tauri/client'
 import {
   DISCARD_MAX_POLLS,
   DISCARD_POLL_DELAY_MS,
@@ -25,7 +25,7 @@ import {
 } from '../constants'
 import { attachWorktreeSession, discardWorktree, fetchBindings, fetchStatus } from '../service/actions'
 import { openWorktreeSession } from '../service/handoff'
-import { patchSession, selectSessionState, worktreeStore } from '../store'
+import { patchSession, selectSessionState, store } from '../store'
 import { createKeyedThrottle } from '../utils/throttle'
 
 /** 批量绑定同步在节流器里占用的保留 key */
@@ -98,11 +98,21 @@ class HydrationTracker {
   }
 }
 
-export function registerWorktreeHydration(ctx: ClientContext): () => void {
-  const sessionsRuntime = ctx.sessions as unknown as WorktreeHydrationSessionsRuntime
-  const workspacesRuntime = ctx.workspaces as unknown as WorkspaceRuntimeMock
+/**
+ * 安装工作树状态水合（订阅 / 定时器 / 在途去重全部登记进传入的控制器）。
+ *
+ * @param controller - `defineRegister` 托管的生命周期控制器。
+ * @param sessions - 适配后的会话服务面（`adapter.sessions`）。
+ * @param workspaces - 适配后的工作区服务面（`adapter.workspaces`）。
+ */
+export function registerWorktreeHydration(
+  controller: RegisterController,
+  sessions: AdapterSessions,
+  workspaces: AdapterWorkspaces,
+): void {
+  const sessionsRuntime = sessions as unknown as WorktreeHydrationSessionsRuntime
+  const workspacesRuntime = workspaces as unknown as WorkspaceRuntimeMock
 
-  const controller = createLifecycleController()
   const state = new HydrationTracker()
 
   let bindingsInFlight = false
@@ -288,7 +298,7 @@ export function registerWorktreeHydration(ctx: ClientContext): () => void {
         continue
       }
 
-      if (selectSessionState(worktreeStore.getSnapshot(), sessionId).mode === 'worktree') {
+      if (selectSessionState(store.worktree.$state, sessionId).mode === 'worktree') {
         resetWorktreeSessionToLocal(sessionId)
       }
     }
@@ -321,12 +331,12 @@ export function registerWorktreeHydration(ctx: ClientContext): () => void {
   function requestTurnEndReconcile(sessionId: string): void {
     if (state.isArchived(sessionId) || state.exhausted.has(sessionId))
       return
-    const isWorktree = selectSessionState(worktreeStore.getSnapshot(), sessionId).mode === 'worktree'
+    const isWorktree = selectSessionState(store.worktree.$state, sessionId).mode === 'worktree'
     if (!isWorktree)
       return
 
     reconcileThrottle.request(sessionId, () => {
-      if (selectSessionState(worktreeStore.getSnapshot(), sessionId).mode === 'worktree') {
+      if (selectSessionState(store.worktree.$state, sessionId).mode === 'worktree') {
         reconcileSession(sessionId)
       }
     })
@@ -366,7 +376,7 @@ export function registerWorktreeHydration(ctx: ClientContext): () => void {
       return
     }
 
-    const previous = selectSessionState(worktreeStore.getSnapshot(), sessionId)
+    const previous = selectSessionState(store.worktree.$state, sessionId)
     state.inFlight.add(sessionId)
 
     void fetchStatus(sessionId)
@@ -484,7 +494,7 @@ export function registerWorktreeHydration(ctx: ClientContext): () => void {
       // 早就在归档集合里：不重放、不检测。
       if (state.archivedIds.has(sessionId))
         continue
-      const local = selectSessionState(worktreeStore.getSnapshot(), sessionId)
+      const local = selectSessionState(store.worktree.$state, sessionId)
       if (local.mode !== 'worktree' || !local.worktreeKey)
         continue
       void discardWorktree(sessionId, local.worktreeKey).catch(() => {
@@ -556,6 +566,12 @@ export function registerWorktreeHydration(ctx: ClientContext): () => void {
   lastCurrent = getSessionSnapshot().current
   hydrate()
   bindSessionEvents()
-
-  return () => controller.dispose()
 }
+
+/**
+ * 水合 feature（`defineRegister` 协议）：把控制器与适配后的服务面交给安装器。
+ * 运行期注册：`ctx.effect(hydrationFeature, '<plugin>: hydrate session bindings')`。
+ */
+export const hydrationFeature = defineRegister<ClientContext>((controller, _ctx, adapter) => {
+  registerWorktreeHydration(controller, adapter.sessions, adapter.workspaces)
+})

@@ -8,7 +8,7 @@ export interface GetStatusQuery {
   jobId?: string
 }
 
-/** POST /create 请求体。 */
+/** POST `/api/dsh-worktree`（集合根）请求体。 */
 export interface PostCreateBody {
   sessionId: string
   sourceSessionId: string
@@ -27,7 +27,7 @@ export interface PostCheckoutBody {
   branchName: string
 }
 
-/** POST /discard 请求体。 */
+/** DELETE `/api/dsh-worktree`（集合根）请求体。 */
 export interface PostDiscardBody {
   sessionId: string
   worktreeHashDirname: string

@@ -7,8 +7,7 @@
 
 import type { HostContext, PendingHandoff, PluginConfig } from '../types'
 import { randomUUID } from 'node:crypto'
-import { homedir } from 'node:os'
-import { join } from 'pathe'
+import { DSH_HOME } from 'dsh-tauri'
 import { checkoutToLocal, ensureWorktree } from '../service/operation'
 import { resolveProjectPath } from '../service/session'
 import { loadBindingSync } from '../storage'
@@ -24,7 +23,7 @@ export function createToolSet(
   config: PluginConfig,
   pendingHandoffs: Map<string, PendingHandoff> = new Map(),
 ): any[] {
-  const worktreesRoot = config.worktreesRoot || join(homedir(), '.dsh')
+  const worktreesRoot = config.worktreesRoot || DSH_HOME
 
   return [
     {

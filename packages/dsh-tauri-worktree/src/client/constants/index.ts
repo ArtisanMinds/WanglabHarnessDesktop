@@ -15,6 +15,7 @@ export const SURFACE_ORDER = -10
 export const DIALOG_ID = `${WORKTREE_PLUGIN_NAME}-dialog`
 
 export const STYLES_EFFECT = `${WORKTREE_PLUGIN_NAME}: styles`
+export const LOCALE_EFFECT = `${WORKTREE_PLUGIN_NAME}: locale`
 export const MODE_SELECT_EFFECT = `${WORKTREE_PLUGIN_NAME}: mode select slot`
 export const SURFACE_EFFECT = `${WORKTREE_PLUGIN_NAME}: surface slot`
 export const DIALOG_EFFECT = `${WORKTREE_PLUGIN_NAME}: dialog`

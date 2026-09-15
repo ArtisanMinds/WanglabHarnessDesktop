@@ -9,12 +9,12 @@
  *   4. HTTP 路由注册在 effect 内，卸载统一释放。
  */
 
-import type { HostContext, PendingHandoff, PluginConfig } from './types'
-import { homedir } from 'node:os'
-import { join } from 'pathe'
+import type { HostContext, PendingHandoff, PluginConfig, WorktreeRouteDeps } from './types'
+import { DSH_HOME } from 'dsh-tauri'
 import { WORKTREE_SECTION_ORDER } from '../shared/constants'
-import { createWorktreeHooks } from './hooks'
-import { buildRoutes } from './routes'
+import { hooks } from './hooks'
+import { routes } from './routes'
+import { createDiscardJobs } from './service/discard-jobs'
 import { completeWorktreeHandoff } from './service/handoff'
 import { materializeLinkedDependencies } from './service/install-hook'
 import { unregisterWorktreeWorkspace, worktreeKey } from './service/operation'
@@ -36,10 +36,7 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   const cfg = config ?? {}
   const worktreesRoot = typeof cfg.worktreesRoot === 'string' && cfg.worktreesRoot
     ? cfg.worktreesRoot
-    : join(homedir(), '.dsh')
-
-  // 生命周期钩子：会话 turn/end 挂为命名钩子（hookable），apply 只做事件转发。
-  const hooks = createWorktreeHooks()
+    : DSH_HOME
   // 1) 工具注册。create_worktree 的交接延迟到源 turn/end，确保 seed 是完整日志。
   const pendingHandoffs = new Map<string, PendingHandoff>()
   // 只有 provider 确实参与过模型组装的会话，才允许在 turn/end 消费一次性上下文。
@@ -142,11 +139,18 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
     },
   })
 
-  // 5) HTTP 路由注册（客户端 UI 经此调用 create/status/checkout/discard）。
-  ctx.effect(() => {
-    const disposers = buildRoutes(ctx, cfg).map(route => ctx.webServer.register(route))
-    return () => {
-      for (const dispose of disposers) dispose()
-    }
-  })
+  // 5) HTTP 路由注册（客户端 UI 经此调用集合根的 POST/DELETE 与 bindings/status/attach/checkout）。
+  //    删除任务登记表是 apply 期服务（登记表本身与 HTTP 面无关），按文档 §7.2 在本层创建，
+  //    与插件配置、数据根一起组成 apply 期依赖，随注册传入路由层；运行期由 effect 注册，
+  //    卸载统一释放。
+  const deps: WorktreeRouteDeps = {
+    config: cfg,
+    worktreesRoot,
+    discardJobs: createDiscardJobs({
+      ctx,
+      worktreesRoot,
+      linkDependencyDirectories: cfg.linkDependencyDirectories,
+    }),
+  }
+  ctx.effect(() => routes(ctx, deps), 'dsh-tauri-worktree: routes')
 }

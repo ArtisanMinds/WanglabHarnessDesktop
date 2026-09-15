@@ -13,35 +13,20 @@
  * fetch（HTTP 边界）与定时器收敛成可观察的替身。
  */
 import type { WorktreeBindings } from '../types'
+import { createLifecycleController } from 'dsh-tauri/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DISCARD_POLL_DELAY_MS, HYDRATION_RETRY_BUDGET_PER_SECOND, HYDRATION_RETRY_WINDOW_MS, SESSION_RECONCILE_MIN_INTERVAL_MS } from '../constants'
+import { DISCARD_POLL_DELAY_MS, HYDRATION_RETRY_BUDGET_PER_SECOND, HYDRATION_RETRY_WINDOW_MS, SESSION_RECONCILE_MIN_INTERVAL_MS, WORKTREE_API_PREFIX } from '../constants'
 import { registerWorktreeHydration } from './hydration'
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn() }))
+/** fetch 替身：资源化后同一个 URL 上可能挂多个方法（集合根的 POST / DELETE），故连同 method 一起记录。 */
+const mocks = vi.hoisted(() => ({
+  fetch: vi.fn<(url: string, options?: { method?: string, body?: unknown }) => Promise<unknown>>(),
+}))
 
-vi.mock('dsh-tauri/client', () => ({
-  fetch: mocks.fetch,
-  createStorage: () => ({ getItem: async () => null, setItem: async () => {} }),
-  localStorageDriver: () => ({}),
-  createExternalStore: <T>(initial: T) => {
-    let state = initial
-    const listeners = new Set<() => void>()
-    return {
-      getSnapshot: () => state,
-      subscribe: (listener: () => void) => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
-      },
-      set: (next: T | ((current: T) => T)) => {
-        state = typeof next === 'function' ? (next as (current: T) => T)(state) : next
-        for (const listener of [...listeners])
-          listener()
-      },
-    }
-  },
+vi.mock('dsh-tauri/client', () => {
   // 最小生命周期控制器替身：timeout 走真实 setTimeout（测试用 vi.useFakeTimers 驱动），
   // dispose 清理全部定时器与 disposer，与 dsh-tauri 的语义一致。
-  createLifecycleController: () => {
+  const createLifecycleController = () => {
     let disposed = false
     const disposers = new Set<() => void>()
     const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -79,8 +64,63 @@ vi.mock('dsh-tauri/client', () => ({
         disposers.clear()
       },
     }
-  },
-}))
+  }
+
+  /**
+   * valtio-define 替身：只支撑 hydration 读写的这一小片状态面
+   * （`state` / `actions` / `$state` / `$subscribe`）。actions 绑定到同一个 state 对象，
+   * 写入后通知订阅方——与真实 `defineStore` 的 `this` 绑定语义一致。
+   */
+  const defineStore = (options: {
+    state: () => Record<string, unknown>
+    actions?: Record<string, (...args: unknown[]) => unknown>
+  }) => {
+    const state = options.state()
+    const listeners = new Set<() => void>()
+    const notify = (): void => {
+      for (const listener of [...listeners])
+        listener()
+    }
+    const store: Record<string, unknown> = { ...state, $state: state }
+    for (const [name, action] of Object.entries(options.actions ?? {})) {
+      store[name] = (...args: unknown[]) => {
+        const result = action.apply(state, args)
+        notify()
+        return result
+      }
+    }
+    store.$subscribe = (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+    store.$subscribeKey = () => () => {}
+    store.$patch = (patch: Record<string, unknown>) => {
+      Object.assign(state, patch)
+      notify()
+    }
+    return store
+  }
+
+  return {
+    fetch: mocks.fetch,
+    createStorage: () => ({ getItem: async () => null, setItem: async () => {} }),
+    localStorageDriver: () => ({}),
+    defineStore,
+    useStore: () => ({}),
+    defineRegister: (ctxOrSetup: unknown, maybeSetup?: unknown) => {
+      const setup = (typeof maybeSetup === 'function' ? maybeSetup : ctxOrSetup) as
+        (controller: unknown, ctx: unknown, adapter: unknown) => void
+      return function registerEffect(this: unknown): () => void {
+        const controller = createLifecycleController()
+        setup(controller, this, { sessions: {}, workspaces: {} })
+        return () => controller.dispose()
+      }
+    },
+    createLifecycleController,
+  }
+})
 
 /** 可订阅的最小快照源（对应 ctx.sessions.list / ctx.workspaces.list）。 */
 function snapshotSource<T>(initial: T) {
@@ -208,9 +248,17 @@ function harness(
   }
 
   const urls = (): string[] => mocks.fetch.mock.calls.map(call => String(call[0]))
-  const dispose = registerWorktreeHydration(ctx as never)
+  // 放弃工作树资源化后走集合根的 DELETE（`/api/dsh-worktree`），不能再按 `/discard` 子串匹配，
+  // 故按「URL 命中集合根 + 方法为 DELETE」计数。
+  const deleteCalls = (): number => mocks.fetch.mock.calls
+    .filter(call => String(call[0]) === WORKTREE_API_PREFIX && call[1]?.method === 'DELETE')
+    .length
+  // 安装器现在接收 `defineRegister` 托管的控制器与适配后的服务面；
+  // 本用例直接驱动安装器本身（feature 包装只做参数转发）。
+  const controller = createLifecycleController()
+  registerWorktreeHydration(controller as never, ctx.sessions as never, ctx.workspaces as never)
   return {
-    dispose,
+    dispose: () => controller.dispose(),
     emitSessionEvent: (sessionId = ids[0]) => notify(sessionId),
     setRunning: (sessionId: string, running: boolean) => {
       runningBySession.set(sessionId, running)
@@ -227,7 +275,7 @@ function harness(
     },
     statusCalls: () => urls().filter(url => url.includes('/status')).length,
     bindingsCalls: () => urls().filter(url => url.includes('/bindings')).length,
-    discardCalls: () => urls().filter(url => url.includes('/discard')).length,
+    discardCalls: deleteCalls,
     publishWorkspaces: () => workspaces.publish({ archivedSessionIds: [...(workspaces.getSnapshot().archivedSessionIds)] }),
     setArchived: (next: string[]) => workspaces.publish({ archivedSessionIds: [...next] }),
     callsFor: (sessionId: string) => {

@@ -1,3 +1,5 @@
+import type { DiscardJobs } from '../service/discard-jobs'
+
 export type HostContext = any
 
 /** Optional host capability for terminating processes that still hold a worktree cwd. */
@@ -5,14 +7,28 @@ export interface WorktreeProcessController {
   stopSessionProcesses?: (sessionId: string, worktreePath: string) => Promise<void>
 }
 
-export type JsonBody = Record<string, unknown>
-
 export interface PluginConfig {
   worktreesRoot?: string
   /** 是否把源仓库的依赖目录链接进新工作树（默认 true）。 */
   linkDependencies?: boolean
   /** 需要链接的依赖目录名，默认 `['node_modules']`。 */
   linkDependencyDirectories?: string[]
+}
+
+/**
+ * 工作树路由处理器需要的 apply 期依赖。
+ *
+ * 这些依赖在装配期由 `apply` 创建，无法从事件里取回；因此随
+ * `routes(ctx, deps)` 在注册期传入，由 `defineRoutes` 挂到 `event.context.dshDeps`，
+ * 处理器经 `routeDeps(event)` 取回。宿主 ctx 本身仍由处理器经 `dshContextOf(event)` 取回。
+ */
+export interface WorktreeRouteDeps {
+  /** 插件行配置（依赖链接目录等）。 */
+  config: PluginConfig
+  /** 工作树数据根（`config.worktreesRoot` 或 `DSH_HOME`）。 */
+  worktreesRoot: string
+  /** 「放弃工作树」后台删除任务登记表（apply 期一份）。 */
+  discardJobs: DiscardJobs
 }
 
 export interface Binding {
@@ -86,6 +102,3 @@ export interface WorktreeParams {
   sessionId?: string
   branch_name?: string
 }
-
-export type RouteResult = [number, unknown]
-export type RouteFunction = (body: JsonBody, req: import('node:http').IncomingMessage) => Promise<RouteResult>

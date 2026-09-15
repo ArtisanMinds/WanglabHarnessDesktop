@@ -67,7 +67,7 @@ export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | 
   )
 }
 
-export function Logs({ log, open }: { log: string[], open: boolean }): ReactElement {
+export function Logs({ log, open }: { log: readonly string[], open: boolean }): ReactElement {
   return (
     <div
       aria-hidden={!open}

@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { WorkspacesRuntime, WorktreeDialogProps } from '../types'
 import { useMountStyle } from 'dsh-tauri-ui/client'
+import { useEventListener } from 'dsh-tauri/client'
 /**
  * dialog.tsx — 检出本地 / 放弃更改 两个模态框（shell.overlay 条目）。
  *
@@ -16,7 +17,7 @@ import { useMountStyle } from 'dsh-tauri-ui/client'
  *
  * 职责拆分：slot 注册在 register/dialog.ts，工作区顶部插入逻辑在 lib/worktree.ts。
  */
-import { useEffect } from 'react'
+import { useRef } from 'react'
 import { DIALOG_STYLE_ID } from '../constants'
 import { text, useLocale } from '../locales'
 import { applyCheckout, applyDiscard } from '../service/actions'
@@ -41,17 +42,14 @@ export function WorktreeDialog({ useSessions, workspacesRuntime, sessionsRuntime
   const abandon = state.abandonOpen
   const closeAll = (): void => patchSession(sessionId, { checkoutOpen: false, abandonOpen: false })
 
-  // Hook 必须在所有 render 中保持相同顺序；仅打开弹窗时安装 Esc 监听。
-  useEffect(() => {
-    if (!sessionId || (!checkout && !abandon))
-      return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape')
-        closeAll()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [sessionId, checkout, abandon])
+  // Esc 关闭：文档级 keydown 由 reause 托管（卸载自动移除；仅弹窗打开时响应）。
+  const documentRef = useRef<Document | null | undefined>(
+    typeof document === 'undefined' ? undefined : document,
+  )
+  useEventListener(documentRef, 'keydown', (event: KeyboardEvent) => {
+    if ((checkout || abandon) && event.key === 'Escape')
+      closeAll()
+  })
 
   if (!sessionId || (!checkout && !abandon))
     return null
