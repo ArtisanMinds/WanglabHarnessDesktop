@@ -160,14 +160,14 @@ export function McpTab({ t }: McpTabProps): ReactElement {
       ...(!lockIdentity ? { transport: parsed.transport } : {}),
       ...(parsed.transport === 'stdio'
         ? {
-          command: parsed.command ?? editor.command,
-          args: (parsed.args ?? []).join('\n'),
-          env: mapToPairs(parsed.env, '='),
-        }
+            command: parsed.command ?? editor.command,
+            args: (parsed.args ?? []).join('\n'),
+            env: mapToPairs(parsed.env, '='),
+          }
         : {
-          url: parsed.url ?? editor.url,
-          headers: mapToPairs(parsed.headers, ':'),
-        }),
+            url: parsed.url ?? editor.url,
+            headers: mapToPairs(parsed.headers, ':'),
+          }),
     })
     setEditorMode('form')
   }
@@ -198,14 +198,14 @@ export function McpTab({ t }: McpTabProps): ReactElement {
         transport: editor.transport,
         ...(editor.transport === 'stdio'
           ? {
-            command: editor.command.trim(),
-            args: compact(editor.args.split(/\r?\n/).map(line => line.trim())),
-            env: parsePairs(editor.env, '='),
-          }
+              command: editor.command.trim(),
+              args: compact(editor.args.split(/\r?\n/).map(line => line.trim())),
+              env: parsePairs(editor.env, '='),
+            }
           : {
-            url: editor.url.trim(),
-            headers: parsePairs(editor.headers, ':'),
-          }),
+              url: editor.url.trim(),
+              headers: parsePairs(editor.headers, ':'),
+            }),
       }
     }
     setBusy(true)
@@ -288,12 +288,12 @@ export function McpTab({ t }: McpTabProps): ReactElement {
             ? (!isDesktopHost() && t('restartPortHint'))
             : isDesktopHost()
               ? (
-                <>
-                  {t('restartDesktopHint')}
-                  {' '}
-                  <Button variant="outline" size="sm" onClick={() => setRestartConfirm(true)}>{t('restartNow')}</Button>
-                </>
-              )
+                  <>
+                    {t('restartDesktopHint')}
+                    {' '}
+                    <Button variant="outline" size="sm" onClick={() => setRestartConfirm(true)}>{t('restartNow')}</Button>
+                  </>
+                )
               : t('restartOtherHint')}
         </span>
       </div>
