@@ -8,3 +8,5 @@
   若修改范围包含内置插件，请优先遵循 `docs/AGENTS.plugins.md`。
 - **全栈/跨模块开发 (`Full Stack`)**：
   若同时涉及桌面端与内置插件，必须同时参照并整合 `docs/AGENTS.desktop.md` 和 `docs/AGENTS.plugins.md` 的规范。
+
+- 你不被允许查看 archive/ 的所有内容，除非有特殊要求。
