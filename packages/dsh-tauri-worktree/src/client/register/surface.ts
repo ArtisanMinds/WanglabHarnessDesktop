@@ -1,15 +1,8 @@
-/**
- * register/surface.ts — 工作树状态条（input.dock 上方的 surface）的 slot 注册。
- *
- * 注册进 conversation.input.dock；inject 句柄由 `defineRegister` 的控制器统一 dispose。
- */
-
 import type { ClientContext } from 'dsh-tauri/client'
 import { defineRegister } from 'dsh-tauri/client'
 import { WorktreeSurface } from '../components/surface'
 import { INPUT_DOCK_SLOT, SURFACE_ID, SURFACE_ORDER } from '../constants'
 
-/** input.dock 正位于 inputBar 上方，宽度天然受右侧会话内容区约束。 */
 export const surfaceFeature = defineRegister<ClientContext>((controller, ctx) => {
   controller.add(ctx.slots.inject(INPUT_DOCK_SLOT as never, () =>
     ctx.slots.register(

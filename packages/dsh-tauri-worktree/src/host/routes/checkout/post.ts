@@ -1,15 +1,6 @@
-/**
- * routes/checkout/post.ts — POST /api/dsh-worktree/checkout。
- *
- * UI 检出：git 检出 + 把工作树会话完整历史带回本地新会话（targetSessionId）。
- * `carryStaged` 可选：把工作树已暂存内容携带回本地检出。
- */
+import { defineEventHandler, readBody } from 'dsh-tauri'
+import { handoff } from '../../service/handoff'
 
-import type { HostContext, WorktreeRouteDeps } from '../../types'
-import { defineEventHandler, dshContextOf, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { checkoutToLocalAndHandback } from '../../service/handoff'
-
-/** 检出请求体（形状校验在处理器内做，绝不信客户端类型）。 */
 interface CheckoutBody {
   sessionId?: unknown
   worktreeHashDirname?: unknown
@@ -18,25 +9,21 @@ interface CheckoutBody {
 }
 
 export default defineEventHandler(async (event) => {
-  const { config } = dshRouteDepsOf<WorktreeRouteDeps>(event)!
-  const host = dshContextOf(event) as unknown as HostContext
   const body = (await readBody<CheckoutBody>(event)) ?? {}
-  const r = await checkoutToLocalAndHandback(host, {
-    sessionId: String(body.sessionId ?? ''),
-    worktree_hash_dirname: String(body.worktreeHashDirname ?? ''),
-    branch_name: String(body.branchName ?? ''),
-  }, {
-    carryStaged: body.carryStaged === true,
-    linkDependencyDirectories: config.linkDependencyDirectories,
-  })
-  if (!r.ok) {
+  const result = await handoff.checkout(
+    String(body.sessionId ?? ''),
+    String(body.worktreeHashDirname ?? ''),
+    String(body.branchName ?? ''),
+    body.carryStaged === true,
+  )
+  if (!result.ok) {
     event.res.status = 400
-    return { error: r.error }
+    return { error: result.error }
   }
   return {
     ok: true,
-    branch: r.branch,
-    projectPath: r.projectPath,
-    targetSessionId: r.targetSessionId,
+    branch: result.branch,
+    projectPath: result.projectPath,
+    targetSessionId: result.targetSessionId,
   }
 })

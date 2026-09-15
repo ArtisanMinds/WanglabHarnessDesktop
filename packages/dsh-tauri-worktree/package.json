@@ -58,11 +58,13 @@
     "dsh-tauri": "workspace:*",
     "dsh-tauri-ui": "workspace:*",
     "hookable": "catalog:utils",
+    "lodash-es": "catalog:utils",
     "pathe": "catalog:utils",
     "simple-git": "catalog:utils",
     "unstorage": "catalog:utils"
   },
   "devDependencies": {
+    "@types/lodash-es": "catalog:types",
     "dsh-tauri-tsdown": "workspace:*",
     "tsdown": "catalog:cli"
   }
