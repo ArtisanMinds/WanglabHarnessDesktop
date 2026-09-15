@@ -52,11 +52,14 @@ export const TURNREWIND_CARD_STYLE_ID = `${TURNREWIND_PLUGIN_NAME}/TurnChangesCa
 export const TURNREWIND_CHIP_STYLE_ID = `${TURNREWIND_PLUGIN_NAME}/RunningChangesChip.module.css`
 export const TURNREWIND_COUNTS_STYLE_ID = `${TURNREWIND_PLUGIN_NAME}/ChangeCounts.module.css`
 
-/** effect 标签（诊断/日志）。 */
-export const TURNREWIND_EFFECT_TURN_TAIL = `${TURNREWIND_PLUGIN_NAME}: turn tail slot`
-export const TURNREWIND_EFFECT_RUNNING_CHIP = `${TURNREWIND_PLUGIN_NAME}: running chip slot`
-export const TURNREWIND_EFFECT_LOCALE = `${TURNREWIND_PLUGIN_NAME}: locale`
-export const TURNREWIND_EFFECT_CAPABILITIES = `${TURNREWIND_PLUGIN_NAME}: capabilities`
+/**
+ * effect 标签（诊断/日志）。
+ *
+ * 四项注册（能力探测 / locale / 两个槽位）由 `register/features.ts` 的同一个
+ * `defineRegister` 特性承载，因此只留一个标签；各自的 disposer 由该特性的
+ * lifecycle controller 统一登记与释放。
+ */
+export const TURNREWIND_EFFECT_FEATURE = `${TURNREWIND_PLUGIN_NAME}: features`
 
 /**
  * 「应用内右侧边栏」服务名（新内核由 `dsh-client-ui-sidebar-right` 发布）。

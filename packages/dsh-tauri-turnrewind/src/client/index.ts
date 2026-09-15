@@ -1,8 +1,8 @@
 /**
  * dsh-tauri-turnrewind 客户端插件体（browser half）：turn 级变更卡片与一键撤销。
  *
- * 四项装配（全部经 ctx.effect，卸载即释放）：
- *   1. locale：注册 zh/en 字典并把语言切换桥接到 uSES rev；
+ * 四点装配（同一个 `defineRegister` 特性，卸载即释放）：
+ *   1. locale：注册 zh/en 字典并把语言切换桥接到 store.locale 的 revision；
  *   2. 能力：装入运行时能力探测所需的上下文（「打开文件」是否可用的判据）；
  *   3. 槽位 A：`conversation.chat.turnTail`（chain，priority -1）注册变更卡片 ——
  *      每轮结束处显示「已编辑 N 个文件 / +N -M / 文件清单 / 撤销」，
@@ -20,18 +20,8 @@
  */
 
 import type { ClientContext } from 'dsh-tauri/client'
-import { compat } from 'dsh-tauri/client'
-import { registerCapabilities } from './capabilities'
-import {
-  TURNREWIND_EFFECT_CAPABILITIES,
-  TURNREWIND_EFFECT_LOCALE,
-  TURNREWIND_EFFECT_RUNNING_CHIP,
-  TURNREWIND_EFFECT_TURN_TAIL,
-  TURNREWIND_PLUGIN_NAME,
-} from './constants'
-import { registerLocale } from './locales'
-import { registerRunningChangesChip } from './register/running-chip'
-import { registerTurnChangesCard } from './register/turn-tail'
+import { TURNREWIND_EFFECT_FEATURE, TURNREWIND_PLUGIN_NAME } from './constants'
+import { feature } from './register/features'
 
 export type {
   LiveSnapshot,
@@ -56,14 +46,12 @@ export const inject = ['slots', 'locale']
 /**
  * 插件体：安装文案、能力探测、变更卡片与运行中提示条。
  *
+ * 四项注册收敛在 {@link feature}（`defineRegister`）里，跨内核的服务布局差异
+ * 由它的 `adapter` 承担（取代迁移前的 `compat(ctx)`）。
  * 「打开文件」按内核能力分流（新核心 → 侧边栏预览；旧核心 → 静默），
- * 能力探测所需的上下文由 {@link registerCapabilities} 装好（见 client/capabilities）。
+ * 能力探测所需的上下文由 feature 中的 `registerCapabilities` 装好。
  * @param ctx - 客户端根上下文。
  */
 export function apply(ctx: ClientContext): void {
-  const cx = compat(ctx)
-  ctx.effect(() => registerCapabilities(cx), TURNREWIND_EFFECT_CAPABILITIES)
-  ctx.effect(() => registerLocale(cx), TURNREWIND_EFFECT_LOCALE)
-  ctx.effect(() => registerTurnChangesCard(cx), TURNREWIND_EFFECT_TURN_TAIL)
-  ctx.effect(() => registerRunningChangesChip(cx), TURNREWIND_EFFECT_RUNNING_CHIP)
+  ctx.effect(feature, TURNREWIND_EFFECT_FEATURE)
 }

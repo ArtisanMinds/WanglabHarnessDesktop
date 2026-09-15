@@ -1,141 +1,45 @@
 /**
  * host/routes/index.ts — turnrewind HTTP 路由（客户端 UI 唯一的数据面）。
  *
- *   GET  /api/turnrewind/summary?sessionId=<id>  读本会话的 turn 变更记录
- *   GET  /api/turnrewind/live?sessionId=<id>     读运行中实时读数（客户端提示条）
- *   POST /api/turnrewind/undo                    撤销某个 turn 的文件改动
+ *   GET  /api/turnrewind/session/summary?sessionId=<id>  读本会话的 turn 变更记录
+ *   GET  /api/turnrewind/session/live?sessionId=<id>     读运行中实时读数（客户端提示条）
+ *   POST /api/turnrewind/session/undo                    撤销某个 turn 的文件改动
  *
- * 三条路由都经 dsh-tauri 的 routeHandler（方法严格限制、mutate 仅回环 + JSON 校验）；
- * 连接信任边界用 `ctx.get('connection')` 可选获取——服务缺席时优雅降级为
- * routeHandler 自身的回环校验，不因未注入而让插件 fiber 卡在 PENDING（见方案 2.4-B3/B5）。
- * live 是宿主定时刷新的缓存值（读内存，不起 git 子进程）。
+ * 声明协议（见 docs/plugins/dsh-tauri-设计重构迁移.md 第 1 条）：本文件只做
+ * 「导入 feature 处理器 + 登记 (方法, 路径)」，每个处理器的实现放在
+ * `./<feature>/<method>.ts`（`./session/summary/get.ts`、`./session/live/get.ts`、
+ * `./session/undo/post.ts`），文件内默认导出一个 h3 处理器
+ * （`defineEventHandler` 已在其内定义，这里不再二次包装）。
+ *
+ * **目录层级即 URL 层级**：`routes/session/<子资源>/<方法>.ts` 逐段对应
+ * `/api/turnrewind/session/<子资源>`；改目录必须同步改这里的登记路径与
+ * `client/apis` 的 fetch URL（唯一数据面，两处必须逐字一致）。
+ *
+ * 方法限制、OPTIONS 204、连接信任边界（401/403）、变更方法仅回环 + 跨源校验、
+ * 请求体 1 MiB 上限**全部由 `defineRoutes` 承担**，处理器里不再重复实现。
+ *
+ * 处理器需要的 apply 期依赖（队列、实时读数、未落定判定、数据根）无法从事件取回，
+ * 因此经注册期第二参数传入、请求期由处理器用 `dshRouteDepsOf<TurnrewindRouteDeps>(event)`
+ * 取回；deps 由本次注册的闭包捕获，同一插件挂载两次各读各的，没有模块级可变状态。
+ * 宿主 ctx 本身仍由处理器经 `dshContextOf(event)` 取回。
  */
 
-import type { WorkspaceQueue } from '../service/queue'
-import type { HostContext, JsonBody, LiveSnapshot, SummaryPayload } from '../types'
-import { routeHandler, withConnectionAuth } from 'dsh-tauri'
-import { TURNREWIND_API_PREFIX, TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
-import { MAX_SUMMARY_FILES, REASON_GIT_REQUIRED } from '../constants'
-import { currentDshHome, readLedger } from '../service/ledger'
-import { undoTurn } from '../service/undo'
-import { findSession, probeWorkspace, sessionCwdOf } from '../service/workspace'
-
-/** 运行中实时读数的读取面（由 capture 编排器提供；未接线时返回 inactive）。 */
-export type LiveStateReader = (sessionId: string) => LiveSnapshot
+import type { TurnrewindRouteDeps } from '../types'
+import { defineRoutes } from 'dsh-tauri'
+import { TURNREWIND_API_PREFIX } from '../../shared/constants'
+import live from './session/live/get'
+import summary from './session/summary/get'
+import undo from './session/undo/post'
 
 /**
- * 「该轮是否仍未落定」的读取面（撤销据此拒绝）。
+ * turnrewind 路由声明：URL 与 `routes/**` 目录逐段对齐（`session/live/get.ts` ↔
+ * GET `${TURNREWIND_API_PREFIX}/session/live`，其余同理）。
  *
- * 不复用 {@link LiveStateReader}：读数是提示条的过程态，`turn/end` 一到就归零，
- * 而这一轮此后还要在后台结算——用读数判定会把「还在结算」误判成「可以撤销」。
+ * @returns `routes(ctx, deps)` —— 注册三条路由并返回卸载函数（交给 `ctx.effect`）。
  */
-export type TurnPendingReader = (sessionId: string, turn: number) => boolean
-
-/** 路由依赖（队列与捕获层共用同一实例，保证撤销与结算互斥）。 */
-export interface RouteDeps {
-  dshHome?: string
-  live?: LiveStateReader
-  /** 未落定判定；缺席时退化为「会话有活动读数」这一宽容判定（仅测试/降级路径）。 */
-  isTurnPending?: TurnPendingReader
-  /** 工作区级串行队列。 */
-  queue: WorkspaceQueue
-}
-
-/** 每条 turn 记录最多回传多少个「不在撤销范围内」的路径（避免载荷无界）。 */
-const MAX_SKIPPED_PATHS = 20
-
-/** 构建路由列表。 */
-export function buildRoutes(ctx: HostContext, options: RouteDeps): any[] {
-  const dshHome = options.dshHome ?? currentDshHome()
-  const live = options.live
-  const queue = options.queue
-  // 连接信任边界是可选能力：服务缺席时 withConnectionAuth 原样放行，
-  // 由 routeHandler 自己的回环校验兜底（绝不因未注入而卡住 fiber）。
-  const connection = typeof ctx?.get === 'function' ? ctx.get('connection') : undefined
-
-  const summaryHandler = routeHandler(async (_body: JsonBody, req: any): Promise<[number, unknown]> => {
-    const url = new URL(req?.url ?? '/', 'http://localhost')
-    const sessionId = String(url.searchParams.get('sessionId') ?? '')
-    if (sessionId.length === 0)
-      return [400, { error: '缺少 sessionId' }]
-    const session = findSession(ctx, sessionId)
-    if (session === undefined)
-      return [404, { error: '会话不存在或尚未就绪' }]
-    const ledger = await readLedger(dshHome, sessionId)
-    // 以**当前**资格为准（cwd 可能在会话中途切换）：账本里的旧结论只作为兜底。
-    const probe = await probeWorkspace(sessionCwdOf(session))
-    // 非 Git → false（客户端点撤销弹「需要 Git 仓库」）；「确实是 Git 仓库但被守卫拒绝」
-    // （家目录/盘根等）保留 true，只呈现不可用原因，不误报缺少仓库。
-    const refusedGitWorkspace = !probe.ok && probe.reason !== REASON_GIT_REQUIRED && ledger.isGit
-    const isGit = probe.ok || refusedGitWorkspace
-    const payload: SummaryPayload = {
-      sessionId,
-      isGit,
-      workspaceRoot: probe.ok ? probe.root : ledger.workspaceRoot,
-      unavailableReason: probe.ok ? null : (probe.reason ?? ledger.unavailableReason),
-      turns: ledger.turns.map((turn) => {
-        const truncated = turn.files.length > MAX_SUMMARY_FILES
-        return {
-          turn: turn.turn,
-          fileCount: turn.files.length,
-          insertions: turn.insertions,
-          deletions: turn.deletions,
-          undoneAt: turn.undoneAt ?? null,
-          unavailable: turn.unavailable ?? null,
-          // 失败/超限行的 refs 语义见 host/types：空 refs = 这一轮没建立过快照。
-          hasBaseline: turn.beforeRef.length > 0 || turn.afterRef.length > 0,
-          truncated,
-          files: truncated ? turn.files.slice(0, MAX_SUMMARY_FILES) : turn.files,
-          // 「不在撤销范围内」的路径：让卡片能如实标注，而不是静默漏掉。
-          skippedOversized: (turn.skippedOversized ?? []).slice(0, MAX_SKIPPED_PATHS),
-          skippedNestedRepos: (turn.skippedNestedRepos ?? []).slice(0, MAX_SKIPPED_PATHS),
-        }
-      }),
-    }
-    return [200, payload]
-  })
-
-  const undoHandler = routeHandler(async (body: JsonBody): Promise<[number, unknown]> => {
-    const sessionId = String(body.sessionId ?? '')
-    const turn = Number(body.turn)
-    if (sessionId.length === 0)
-      return [400, { error: '缺少 sessionId' }]
-    if (!Number.isInteger(turn) || turn <= 0)
-      return [400, { error: 'turn 必须是正整数' }]
-    const session = findSession(ctx, sessionId)
-    if (session === undefined)
-      return [404, { error: '会话不存在或尚未就绪' }]
-    const probe = await probeWorkspace(sessionCwdOf(session))
-    // 归属校验用当前 worktree 根；探测失败时传 null，由 service 层按账本判定。
-    // 撤销与捕获共用同一队列，且该会话仍在跑时直接拒绝（after 快照尚未结算）。
-    const isTurnPending = options.isTurnPending
-    const outcome = await undoTurn({
-      dshHome,
-      sessionId,
-      turn,
-      currentWorkspace: probe.ok ? probe.root : null,
-      queue,
-      turnActive: isTurnPending === undefined ? live?.(sessionId).active === true : isTurnPending(sessionId, turn),
-    })
-    if (outcome.ok)
-      return [200, { ok: true, restored: outcome.restored, removed: outcome.removed, failed: outcome.failed }]
-    return [outcome.code, { error: outcome.error, conflicts: outcome.conflicts ?? [] }]
-  }, { mutate: true })
-
-  const liveHandler = routeHandler(async (_body: JsonBody, req: any): Promise<[number, unknown]> => {
-    const url = new URL(req?.url ?? '/', 'http://localhost')
-    const sessionId = String(url.searchParams.get('sessionId') ?? '')
-    if (sessionId.length === 0)
-      return [400, { error: '缺少 sessionId' }]
-    // 只读宿主内存里的读数：客户端轮询频率与 git 调用频率解耦。
-    const snapshot: LiveSnapshot = live?.(sessionId)
-      ?? { active: false, turn: null, fileCount: 0, insertions: 0, deletions: 0 }
-    return [200, snapshot]
-  })
-
-  return [
-    { kind: 'exact', path: `${TURNREWIND_API_PREFIX}/summary`, handler: withConnectionAuth(connection, summaryHandler, TURNREWIND_PLUGIN_NAME) },
-    { kind: 'exact', path: `${TURNREWIND_API_PREFIX}/live`, handler: withConnectionAuth(connection, liveHandler, TURNREWIND_PLUGIN_NAME) },
-    { kind: 'exact', path: `${TURNREWIND_API_PREFIX}/undo`, handler: withConnectionAuth(connection, undoHandler, TURNREWIND_PLUGIN_NAME) },
-  ]
-}
+export const routes = defineRoutes<TurnrewindRouteDeps>((disposer) => {
+  // 路径与 `./session/<子资源>/<方法>.ts` 逐段对应，不再有平铺的 feature 目录。
+  disposer.get({ kind: 'exact', path: `${TURNREWIND_API_PREFIX}/session/summary` }, summary)
+  disposer.get({ kind: 'exact', path: `${TURNREWIND_API_PREFIX}/session/live` }, live)
+  disposer.post({ kind: 'exact', path: `${TURNREWIND_API_PREFIX}/session/undo` }, undo)
+})

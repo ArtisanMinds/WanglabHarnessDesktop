@@ -5,6 +5,8 @@
  * 各内核版本自带，本插件只消费已核实存在的成员，避免把某一版的类型钉进构建。
  */
 
+import type { WorkspaceQueue } from '../service/queue'
+
 export type HostContext = any
 
 export type JsonBody = Record<string, unknown>
@@ -176,4 +178,57 @@ export interface SummaryPayload {
     /** 被跳过的嵌套 Git 仓库路径（其内部改动不受撤销保护）。 */
     skippedNestedRepos: string[]
   }>
+}
+
+/**
+ * 撤销路由（`POST /api/turnrewind/session/undo`）的响应体。
+ *
+ * 客户端 `client/types` 持有同一形状的镜像（host 与 client 互不导入）。
+ * 成功带恢复 / 删除 / 失败三份清单；失败带 `error` 与可选 `conflicts`。
+ */
+export interface UndoResponse {
+  ok?: boolean
+  restored?: string[]
+  removed?: string[]
+  failed?: Array<{ path: string, reason: string }>
+  error?: string
+  conflicts?: Array<{ path: string, reason: string }>
+}
+
+/**
+ * 运行中实时读数的读取面（由 capture 编排器提供；未接线时返回 inactive）。
+ *
+ * 这是领域读面而不是注入管道：处理器经 {@link TurnrewindRouteDeps} 拿到它，
+ * 与依赖如何传递无关，因此随 deps 接口一并落在宿主类型里。
+ */
+export type LiveStateReader = (sessionId: string) => LiveSnapshot
+
+/**
+ * 「该轮是否仍未落定」的读取面（撤销据此拒绝）。
+ *
+ * 不复用 {@link LiveStateReader}：读数是提示条的过程态，`turn/end` 一到就归零，
+ * 而这一轮此后还要在后台结算——用读数判定会把「还在结算」误判成「可以撤销」。
+ */
+export type TurnPendingReader = (sessionId: string, turn: number) => boolean
+
+/**
+ * 路由的 apply 期依赖面（`routes(ctx, deps)` 的 deps 形状）。
+ *
+ * 队列、实时读数、未落定判定与数据根都由 `apply` 在装配期创建、不作为宿主服务发布，
+ * 处理器无法从事件取回，因此随注册传入、由 `defineRoutes` 挂到 `event.context.dshDeps`，
+ * 处理器经 `dshRouteDepsOf<TurnrewindRouteDeps>(event)` 取回（宿主 ctx 本身仍由
+ * `dshContextOf(event)` 取回，不走 deps）。
+ *
+ * `dshHome` 是**已落定**的值：默认值（`$DSH_HOME` / 插件行配置覆盖）在 `apply` 组装 deps
+ * 时解析，路由层不再重复判定。
+ */
+export interface TurnrewindRouteDeps {
+  /** 数据根目录（`$DSH_HOME` 或插件行配置覆盖）；由 apply 解析默认值后传入。 */
+  dshHome: string
+  /** 运行中读数读取面；缺席时退化为 inactive 占位。 */
+  live?: LiveStateReader
+  /** 未落定判定；缺席时退化为「会话有活动读数」这一宽容判定（仅测试/降级路径）。 */
+  isTurnPending?: TurnPendingReader
+  /** 工作区级串行队列（与捕获层共用同一实例，保证撤销与结算互斥）。 */
+  queue: WorkspaceQueue
 }

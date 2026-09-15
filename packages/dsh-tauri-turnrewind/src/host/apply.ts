@@ -10,12 +10,12 @@
  *   4. 路由注册在 effect 内，卸载统一释放；捕获编排器同样在 effect 内 dispose。
  */
 
-import type { HostContext } from './types'
+import type { HostContext, TurnrewindRouteDeps } from './types'
+import { DSH_HOME } from 'dsh-tauri'
 import { TURNREWIND_PLUGIN_NAME } from '../shared/constants'
 import { createTurnRewindHooks } from './hooks'
-import { buildRoutes } from './routes'
+import { routes } from './routes'
 import { createTurnCapture } from './service/capture'
-import { currentDshHome } from './service/ledger'
 import { createWorkspaceQueue } from './service/queue'
 import { sessionCwdOf } from './service/workspace'
 
@@ -33,7 +33,7 @@ export interface PluginConfig {
 export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   const dshHome = typeof config?.dshHome === 'string' && config.dshHome.length > 0
     ? config.dshHome
-    : currentDshHome()
+    : DSH_HOME
   const hooks = createTurnRewindHooks()
   // 工作区级串行队列：捕获、结算、实时读数、容量治理与撤销共用同一实例，
   // 私有仓 index 因此不会出现两件 git 操作并发（见 service/queue.ts）。
@@ -99,18 +99,16 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   })
 
   // 5) HTTP 路由（客户端 UI 经此读摘要 / 运行中读数 / 执行撤销）。
-  ctx.effect(() => {
-    const disposers = buildRoutes(ctx, {
-      dshHome,
-      live: capture.liveState,
-      isTurnPending: capture.isTurnPending,
-      queue,
-    }).map(route => ctx.webServer.register(route))
-    return () => {
-      for (const dispose of disposers)
-        dispose()
-    }
-  }, `${TURNREWIND_PLUGIN_NAME}: routes`)
+  //    安全边界（方法/连接/回环/跨源/体积）由 defineRoutes 承担，这里只做注册与卸载。
+  //    apply 期依赖（数据根、读数、未落定判定、队列）随注册传入、由处理器经
+  //    dshRouteDepsOf(event) 取回；宿主 ctx 由 defineRoutes 在调用处理器前挂到 event.context.dsh。
+  const deps: TurnrewindRouteDeps = {
+    dshHome,
+    live: capture.liveState,
+    isTurnPending: capture.isTurnPending,
+    queue,
+  }
+  ctx.effect(() => routes(ctx, deps), `${TURNREWIND_PLUGIN_NAME}: routes`)
 
   ctx.effect(() => () => capture.dispose(), `${TURNREWIND_PLUGIN_NAME}: turn capture`)
 }

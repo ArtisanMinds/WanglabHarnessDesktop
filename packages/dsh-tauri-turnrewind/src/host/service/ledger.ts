@@ -18,8 +18,6 @@
 import type { SessionLedger, TurnRecord } from '../types'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import process from 'node:process'
 import { writeAtomic } from 'dsh-tauri'
 import { join } from 'pathe'
 import {
@@ -230,9 +228,4 @@ export async function markTurnExpired(dshHome: string, sessionId: string, turn: 
     }
   })
   return hit
-}
-
-/** 宿主数据根目录（`$DSH_HOME`，与 dsh-tauri 存储口径一致）。 */
-export function currentDshHome(): string {
-  return process.env.DSH_HOME ?? join(homedir(), '.dsh')
 }

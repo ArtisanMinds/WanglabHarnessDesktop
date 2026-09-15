@@ -169,16 +169,16 @@ $DSH_HOME/dsh-tauri-turnrewind/
 ## 协议
 
 ```text
-GET  /api/turnrewind/summary?sessionId=<id>
+GET  /api/turnrewind/session/summary?sessionId=<id>
   → 200 { sessionId, isGit, workspaceRoot, unavailableReason,
           turns: [{ turn, fileCount, insertions, deletions, undoneAt, unavailable, hasBaseline,
                     truncated, files: [{ path, status, insertions, deletions, binary }],
                     skippedOversized: [path], skippedNestedRepos: [path] }] }
 
-GET  /api/turnrewind/live?sessionId=<id>
+GET  /api/turnrewind/session/live?sessionId=<id>
   → 200 { active, turn, fileCount, insertions, deletions }   # 宿主内存读数，不跑 git
 
-POST /api/turnrewind/undo   { sessionId, turn }
+POST /api/turnrewind/session/undo   { sessionId, turn }
   → 200 { ok: true, restored: [...], removed: [...], failed: [...] }
   → 409 { error: "TURNREWIND_CONFLICT" | "TURNREWIND_EXPIRED" | "TURNREWIND_TURN_ACTIVE"
                 | "TURNREWIND_ALREADY_UNDONE" | "TURNREWIND_GIT_REQUIRED"
