@@ -32,7 +32,7 @@ export const routes = defineRoutes<FeatureRouteDeps>(disposer => {
 const deps: FeatureRouteDeps = { config, root }
 ctx.effect(() => routes(ctx, deps), '...')
 
-- host/routes/deps.ts（无状态：没有模块级变量，同一插件挂载两次不会串台）
+- host/routes/deps.ts（无状态：没有模块级变量，同一份声明在两组 deps 下注册时各读各的）
 import { dshRouteDepsOf } from 'dsh-tauri'
 export function routeDeps(event: H3Event): FeatureRouteDeps {
   const deps = dshRouteDepsOf<FeatureRouteDeps>(event)

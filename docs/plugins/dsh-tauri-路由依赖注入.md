@@ -68,7 +68,7 @@ ctx.effect(() => routes(ctx), '...')
 
 | 缺陷 | 证据 |
 | --- | --- |
-| **跨实例串台（真 bug）** | `deps.ts:14-17` 注释自述「重复调用以最后一次为准」。同一插件模块挂载两次（两个配置行 / 两个 profile / 单测里建两个 harness）时，第二次 `bindRouteDeps` 覆盖 `bound`，**先注册的路由会改读后者的 deps** |
+| **跨实例串台（真 bug）** | `deps.ts:14-17` 注释自述「重复调用以最后一次为准」。同一份声明被两组 deps 各注册一次（单测在同一进程里建多个 harness 即命中）时，第二次 `bindRouteDeps` 覆盖 `bound`，**先注册的路由会改读后者的 deps** |
 | **卸载不清理** | `bound` 永不置空。插件 dispose 后仍持有 `discardJobs` 的 `Map` 与在飞 Promise，直到下次 apply 覆盖 |
 | **测试互相污染** | 测试必须先 bind 再发请求；同文件挂两次即串。旁证：`packages/dsh-tauri-worktree` 与 `packages/dsh-tauri-turnrewind` **至今没有任何 `routes/**/*.test.ts`**，而有测试的两个包都走 `createRoutes(deps)(ctx)`（`packages/dsh-tauri-panel-scheduler/src/host/routes/index.test.ts:126`、`packages/dsh-tauri-panel-extension/src/host/routes/index.test.ts:97`） |
 | **签名说谎** | handler 静态类型是 `(event) => ...`，实际依赖模块全局；IDE 跳转与类型检查都看不到这层依赖 |
@@ -406,7 +406,7 @@ return routes(harness.ctx, { engine: createEngineStub() })
 1. **`spec §2` 没有可指向的源文件。** `packages/dsh-tauri-turnrewind/src/host/routes/index.type.ts:5`
    与 `packages/dsh-tauri-panel-scheduler/src/host/routes/index.type.ts:7` 都引用了
    「spec §2：能用 `dshContextOf` 拿到的依赖才不要走工厂」，但全仓库检索 `§2` / `走工厂`
-   找不到对应文档（`docs/DEVLOPMENT.SPEC.md` 是小节编号无关的通用规范）。
+   找不到对应文档（`docs/DEVELOPMENT.spec.md` 是小节编号无关的通用规范）。
    需要确认它指的是哪份 spec —— 方案 B 正是让 apply 期依赖也变成「能从事件拿到」，
    从而**满足**这条规则，但规则原文的出处应当补齐。
 2. **字段名**：`event.context.dshDeps` 还是 `event.context.dsh.deps`。前者与既有 `dsh` 平级、
