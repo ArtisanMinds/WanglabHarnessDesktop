@@ -1,8 +1,9 @@
 import type { CSSProperties, ReactElement } from 'react'
-import type { PanelListEntry, SidebarRootProps } from '../types'
+import type { SidebarRootProps } from '../types'
 import { SlotOutlet } from '@deepseek-ai/dsh-client-ui-renderer'
 import { CommentPlus, FishMark, Icon, useMountStyle } from 'dsh-tauri-ui/client'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useElementHover, useStore } from 'dsh-tauri/client'
+import { useEffect, useRef, useState } from 'react'
 import { ACTION_ITEM_STYLE_ID, COLLAPSE_SETTLE_MS, PANEL_ACTION_SLOT, PANEL_DATA_ATTRIBUTES, PANEL_SIDEBAR_COMPAT_CLASS, SCROLLBAR_LINGER_MS, SIDEBAR_STYLE_ID } from '../constants'
 import actionItemStyle from './action-item.cssr'
 import { PanelRow } from './panel-row'
@@ -28,8 +29,13 @@ import sidebarStyle from './sidebar.cssr'
  * 其 children 声明与 locale 注册继续生效；本条目**只**声明新增槽
  * sidebar.panel.action（子槽 key 全局唯一，绝不重声明官方子槽）。
  *
- * 交互行为镜像官方：折叠 settled（COLLAPSE_SETTLE_MS=150）→ wide 判定、
- * rail-in/fading 动画类、滚动条 linger（quietBars）。
+ * 交互行为镜像官方：
+ *   - 折叠 settled（COLLAPSE_SETTLE_MS=150）→ wide 判定 —— 一次性延时状态翻转，
+ *     @reause/core 没有等价的一次性 timeout hook（`useTimeoutPoll` 是轮询语义），
+ *     故保留最小 useEffect + setTimeout；
+ *   - 滚动条 linger（quietBars）改用 @reause/core 的 `useElementHover(root, { delayLeave })`：
+ *     指针离开后 2s 才落回非 hover（进入即取消计时），等价于原先手写的
+ *     pointerenter/pointerleave + 定时器，DOM 结构不变。
  *
  * 样式：sidebar.cssr（壳与面板区几何）+ **action-item.cssr**（`.dshp-panel__menu-item`
  * 行样式，本组件与 PanelActionItem 共用；见组件内注释）。
@@ -51,8 +57,11 @@ export function SidebarRootClone({ collapsed, width, startSession, toggleSidebar
   // 因此由克隆侧栏统一挂一份（mountStyle 引用计数幂等，与 PanelActionItem 的挂载
   // 互不冲突，两边都只挂一次）。
   useMountStyle(actionItemStyle, ACTION_ITEM_STYLE_ID)
-  // 官方 `sidebar.panellist` 的行投影（宿主注入的 store；旧核心恒为空表）。
-  const panelRows = useSyncExternalStore<PanelListEntry[]>(panels.subscribe, panels.getSnapshot)
+  // 官方 `sidebar.panellist` 的行投影（宿主注入的 valtio-define store；旧核心恒为空表）。
+  const { rows: panelRows } = useStore(panels)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  // 滚动条 linger：指针进入取消计时，离开后 2s 把滚动条 thumb 变透明。
+  const pointerInside = useElementHover(rootRef, { delayLeave: SCROLLBAR_LINGER_MS })
   useEffect(() => {
     setSettled(false)
     const timer = window.setTimeout(() => {
@@ -71,24 +80,9 @@ export function SidebarRootClone({ collapsed, width, startSession, toggleSidebar
   if (!collapsed)
     everWide.current = true
 
-  // 滚动条 linger：指针进入取消计时，离开后 2s 把滚动条 thumb 变透明。
-  const [pointerInside, setPointerInside] = useState(false)
-  const lingerTimer = useRef<number | undefined>(undefined)
-  const armLinger = (): void => {
-    if (lingerTimer.current !== undefined)
-      return
-    lingerTimer.current = window.setTimeout(() => {
-      lingerTimer.current = undefined
-      setPointerInside(false)
-    }, SCROLLBAR_LINGER_MS)
-  }
-  const cancelLinger = (): void => {
-    window.clearTimeout(lingerTimer.current)
-    lingerTimer.current = undefined
-  }
-
   return (
     <div
+      ref={rootRef}
       className={cx(
         'dshp-panel',
         !wide && 'dshp-panel--collapsed',
@@ -99,13 +93,6 @@ export function SidebarRootClone({ collapsed, width, startSession, toggleSidebar
       )}
       {...{ [PANEL_DATA_ATTRIBUTES.sidebar]: '' }}
       style={wide ? { '--dshp-width': `${collapsed ? lastWideWidth.current : width}px` } as CSSProperties : undefined}
-      onPointerEnter={() => {
-        cancelLinger()
-        setPointerInside(true)
-      }}
-      onPointerLeave={() => {
-        armLinger()
-      }}
     >
       <div className="dshp-panel__logo-row">
         {wide && (

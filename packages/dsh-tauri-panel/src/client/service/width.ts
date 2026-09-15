@@ -4,11 +4,15 @@
  * 不依赖官方根元素）。协议层方法（setWidth/resetWidth/getWidth）也在这里，
  * 供 panel.protocol 装配。
  *
+ * 尺寸监听不在本服务里手写 observer：组件用 @reause/core 的 `useResizeObserver`
+ * 观察自己的根元素，尺寸变化时回调 `refresh()` 重新发布（见
+ * components/conversation-seat.tsx）。本服务只保留「发布列宽 + 偏好读写」的纯投影，
+ * 因此没有需要 dispose 的监听资源。
+ *
  * 能力探测：ResizeObserver 缺失（旧 WebView）→ supported=false，宽度固定
  * （与现状一致），仅 console.warn 一次。
  */
 
-import { createLifecycleController } from 'dsh-tauri/client'
 import {
   PANEL_CONTENT_DEFAULT,
   PANEL_WIDTH_PREF_KEY,
@@ -16,12 +20,14 @@ import {
 } from '../constants'
 import { readWidthPreference, resolveContentWidth, writeWidthPreference } from '../utils/width'
 
-/** 宽度控制器：UI 侧（attach）+ 协议侧（set/reset/get）共用。 */
+/** 宽度控制器：UI 侧（attach/refresh）+ 协议侧（set/reset/get）共用。 */
 export interface PanelWidthController {
   /** 能力探测结果：false 时固定宽度。 */
   supported: boolean
-  /** 挂载根元素：ResizeObserver 发布列宽 + 偏好；返回 detach（disconnect）。 */
+  /** 挂载根元素：发布一次列宽 + 偏好；返回 detach。 */
   attach: (root: HTMLElement) => () => void
+  /** 重新发布当前根元素的列宽 + 偏好（ResizeObserver 回调）。 */
+  refresh: () => void
   /** 程序化设置内容宽度（clamp 到契约范围并持久化）。 */
   setWidth: (px: number) => void
   /** 清除宽度偏好，恢复自适应。 */
@@ -70,16 +76,15 @@ export function createPanelWidthController(): PanelWidthController {
       }
     }
     publishWidths(el)
-    // 每次 attach 建独立生命周期：detach 时统一清理该次的 observer，
-    // 面板重开（再次 attach）不会命中已 dispose 的旧控制器。
-    const lifecycle = createLifecycleController()
-    const observer = new ResizeObserver(() => publishWidths(el))
-    observer.observe(el)
-    lifecycle.add(() => observer.disconnect())
     return () => {
-      lifecycle.dispose()
       root = null
     }
+  }
+
+  /** 尺寸变化后重发列宽（组件侧 ResizeObserver 的回调入口）。 */
+  function refresh(): void {
+    if (root !== null && supported)
+      publishWidths(root)
   }
 
   function setWidth(px: number): void {
@@ -103,5 +108,5 @@ export function createPanelWidthController(): PanelWidthController {
     return resolveContentWidth(root.offsetWidth, preference)
   }
 
-  return { supported, attach, setWidth, resetWidth, getWidth }
+  return { supported, attach, refresh, setWidth, resetWidth, getWidth }
 }

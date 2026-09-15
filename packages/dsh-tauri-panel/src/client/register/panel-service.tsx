@@ -14,11 +14,15 @@
  *     旧核心走 `conversation` 单槽 / `main` 的 `conversation` cell 双候选 shadow。
  *   - 不能常驻注册 + SlotOutlet 透传：SlotOutlet 对 single 槽只渲染 live 条目，
  *     自己 live 后渲染官方条目 = 自递归（无公开 API 渲染被 shadow 条目）。
+ *
+ * 协议面的发布**必须留在 apply 期同步执行**（见下方注释）：effect 的清理部分才
+ * 交给 `defineRegister` 的控制器托管。
  */
 
 import type { ClientContext } from 'dsh-tauri/client'
 import type { PanelWidthController } from '../service/width'
 import type { PanelContentSpec, PanelProtocol, PanelRegistration } from '../types'
+import { defineRegister } from 'dsh-tauri/client'
 import { PanelActionItem } from '../components/action-item'
 import { ConversationSeat } from '../components/conversation-seat'
 import { PANEL_ACTION_SLOT, PANEL_LIST_SLOT, PANEL_MAIN_SLOT, PANEL_PROTOCOL_SERVICE } from '../constants'
@@ -79,9 +83,39 @@ function registerOfficialPanel(
 }
 
 /**
- * 安装宿主服务：经 ctx.reflect.provide 暴露 panel.protocol（effect 生命周期，
- * 插件卸载即注销）。不依赖 renderer 补丁（面板注册只走 slots runtime）——
- * 旧核心下会话区替换仍可用（仅私有槽条目需 renderer 渲染）。
+ * 旧核心路径：注册私有 `sidebar.panel.action` 条目，点击切到会话区替换。
+ * 文案是 thunk 时在此求值一次（ActionItem 的 children 不随时间重投影）。
+ */
+function registerLegacyPanel(
+  ctx: ClientContext,
+  entry: PanelRegistration,
+  api: PanelProtocol,
+): () => void {
+  const label = typeof entry.label === 'function' ? entry.label() : entry.label
+  return ctx.slots.inject(PANEL_ACTION_SLOT as never, () =>
+    ctx.slots.register(
+      {
+        name: PANEL_ACTION_SLOT,
+        id: entry.id,
+        order: entry.order ?? 0,
+        registrant: entry.id,
+      } as never,
+      () => (
+        <api.ActionItem
+          id={entry.id}
+          icon={entry.icon}
+          onClick={() => api.renderPanelContent(toSeatSpec(entry))}
+        >
+          {label}
+        </api.ActionItem>
+      ),
+    ))
+}
+
+/**
+ * 安装宿主服务：经 ctx.reflect.provide 暴露 panel.protocol（卸载即注销）。
+ * 不依赖 renderer 补丁（面板注册只走 slots runtime）——旧核心下会话区替换仍可用
+ * （仅私有槽条目需 renderer 渲染）。
  *
  * 协议方法：既有三方法原样；`registerPanel` 为推荐入口（见上）；`setPanelWidth` /
  * `resetPanelWidth` / `getPanelWidth` 委托宽度控制器（始终提供——控制器内部有
@@ -119,41 +153,13 @@ export function registerPanelService(ctx: ClientContext): void {
   // Publish synchronously during apply: alpha slot injections can run before
   // sibling effects, so publishing from inside ctx.effect makes consumers see
   // an absent protocol and permanently skip their action registration.
+  // 因此 provide 留在 apply 期同步执行，只有清理句柄进 effect。
   const disposeProtocol = ctx.reflect.provide(PANEL_PROTOCOL_SERVICE, api)
-  ctx.effect(() => {
-    return () => {
-      controller.close()
-      disposeProtocol()
-    }
-  }, 'dsh-tauri-panel: panel.protocol host service')
-}
-
-/**
- * 旧核心路径：注册私有 `sidebar.panel.action` 条目，点击切到会话区替换。
- * 文案是 thunk 时在此求值一次（ActionItem 的 children 不随时间重投影）。
- */
-function registerLegacyPanel(
-  ctx: ClientContext,
-  entry: PanelRegistration,
-  api: PanelProtocol,
-): () => void {
-  const label = typeof entry.label === 'function' ? entry.label() : entry.label
-  return ctx.slots.inject(PANEL_ACTION_SLOT as never, () =>
-    ctx.slots.register(
-      {
-        name: PANEL_ACTION_SLOT,
-        id: entry.id,
-        order: entry.order ?? 0,
-        registrant: entry.id,
-      } as never,
-      () => (
-        <api.ActionItem
-          id={entry.id}
-          icon={entry.icon}
-          onClick={() => api.renderPanelContent(toSeatSpec(entry))}
-        >
-          {label}
-        </api.ActionItem>
-      ),
-    ))
+  ctx.effect(
+    defineRegister<ClientContext>(ctx, (registerController) => {
+      registerController.add(disposeProtocol)
+      registerController.add(() => controller.dispose())
+    }),
+    'dsh-tauri-panel: panel.protocol host service',
+  )
 }

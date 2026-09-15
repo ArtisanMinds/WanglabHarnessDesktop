@@ -3,7 +3,8 @@
  *
  * 覆盖三件容易回归的事：
  *   1. order 升序 + thunk 文案读时求值 + 缺 label 回退 id；
- *   2. 结构未变时**不写 store**（entriesOfSlot 每次返回新数组，必须比内容）；
+ *   2. 结构未变时**不写 store**（entriesOfSlot 每次返回新数组，必须比内容；
+ *      store 换成 valtio-define 后这条同样成立：不写入则快照引用不变）；
  *   3. 旧核心 slots 服务没有投影能力时 store 恒为空表（克隆侧栏不渲染清单）。
  */
 
@@ -12,27 +13,70 @@ import { describe, expect, it, vi } from 'vitest'
 import { PANEL_LIST_SLOT } from '../constants'
 import { createPanelList } from './panel-list'
 
-vi.mock('dsh-tauri/client', () => ({
-  createExternalStore: <T>(initial: T) => {
-    let state = initial
-    const listeners = new Set<() => void>()
+// dsh-tauri 的 dist bundle 以 `window.__ModuleLoader__.load(...)` 包裹，脱离宿主
+// 加载器后无法在 node 环境求值；只 mock 被测服务实际消费的工厂（defineStore /
+// defineRegister），用最小实现还原两者的可观察契约。
+vi.mock('dsh-tauri/client', () => {
+  const createMockController = () => {
+    const disposers: Array<() => void> = []
+    let disposed = false
     return {
-      getSnapshot: () => state,
-      set: (next: T | ((current: T) => T)) => {
-        const value = typeof next === 'function' ? (next as (current: T) => T)(state) : next
-        if (Object.is(value, state))
-          return
-        state = value
-        for (const listener of [...listeners])
-          listener()
+      add: (disposer: () => void) => {
+        disposers.push(disposer)
+        return () => {}
       },
-      subscribe: (listener: () => void) => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
+      timeout: () => () => {},
+      interval: () => () => {},
+      listen: () => () => {},
+      observe: () => undefined,
+      isDisposed: () => disposed,
+      dispose: () => {
+        disposed = true
+        for (const disposer of disposers.splice(0))
+          disposer()
       },
     }
-  },
-}))
+  }
+
+  // valtio-define 的最小替身：state 为可变对象，actions 绑定到该对象。
+  const createMockStore = (options: unknown): Record<string, unknown> => {
+    const { state, actions } = options as {
+      state: () => Record<string, unknown>
+      actions?: Record<string, (...args: unknown[]) => unknown>
+    }
+    const store = state()
+    for (const [key, action] of Object.entries(actions ?? {}))
+      store[key] = (...args: unknown[]) => Reflect.apply(action, store, args)
+    return store
+  }
+
+  // defineRegister 的最小替身：运行 setup、登记返回值、返回 dispose 句柄。
+  const createMockRegister = (ctxOrSetup: unknown, maybeSetup?: unknown) => {
+    const boundCtx = typeof maybeSetup === 'function' ? ctxOrSetup : undefined
+    const setup = (typeof maybeSetup === 'function' ? maybeSetup : ctxOrSetup) as (
+      controller: ReturnType<typeof createMockController>,
+      ctx: unknown,
+      adapter: unknown,
+    ) => unknown
+    return function registerEffect(this: unknown): () => void {
+      const controller = createMockController()
+      const cleanup = setup(controller, boundCtx ?? this, {})
+      if (typeof cleanup === 'function') {
+        controller.add(cleanup as () => void)
+      }
+      else if (Array.isArray(cleanup)) {
+        for (const fn of cleanup) controller.add(fn as () => void)
+      }
+      return () => controller.dispose()
+    }
+  }
+
+  return {
+    defineStore: (options: unknown) => createMockStore(options),
+    defineRegister: (ctxOrSetup: unknown, maybeSetup?: unknown) =>
+      createMockRegister(ctxOrSetup, maybeSetup),
+  }
+})
 
 interface FakeContext {
   ctx: ClientContext
@@ -103,7 +147,7 @@ describe('createPanelList 行投影', () => {
     ])
     const { store } = createPanelList(ctx)
 
-    expect(store.getSnapshot()).toEqual([
+    expect(store.rows).toEqual([
       { id: 'a', order: 10, label: 'a' },
       { id: 'b', order: 20, label: 'Second' },
       { id: 'c', order: 30, label: 'Third' },
@@ -118,35 +162,35 @@ describe('createPanelList 行投影', () => {
     ])
     const { store } = createPanelList(ctx)
 
-    expect(store.getSnapshot()).toEqual([
+    expect(store.rows).toEqual([
       { id: 'no-order', order: 0, label: 'y' },
       { id: 'has-order', order: 5, label: 'x' },
     ])
   })
 
-  it('结构未变时不换快照（entriesOfSlot 每次返回新数组，uSES 快照必须稳定）', () => {
+  it('结构未变时不写 store（entriesOfSlot 每次返回新数组，快照引用必须稳定）', () => {
     const { ctx, runtime, notifySlots } = createCtx([
       { options: { id: 'a', order: 1, label: 'A' } },
     ])
     const { store } = createPanelList(ctx)
-    const first = store.getSnapshot()
+    const first = store.rows
 
     // 换一批等价但不同引用的条目对象，再通知一次
     runtime.entries = [{ options: { id: 'a', order: 1, label: 'A' } }]
     notifySlots()
 
-    expect(store.getSnapshot()).toBe(first)
+    expect(store.rows).toBe(first)
   })
 
   it('槽位变化后投影更新（新增条目进入清单）', () => {
     const { ctx, runtime, notifySlots } = createCtx()
     const { store } = createPanelList(ctx)
-    expect(store.getSnapshot()).toEqual([])
+    expect(store.rows).toEqual([])
 
     runtime.entries = [{ options: { id: 'new', order: 7, label: 'New' } }]
     notifySlots()
 
-    expect(store.getSnapshot()).toEqual([{ id: 'new', order: 7, label: 'New' }])
+    expect(store.rows).toEqual([{ id: 'new', order: 7, label: 'New' }])
   })
 
   it('locale 变化重新投影 thunk 文案（语言切换无需重新注册）', () => {
@@ -155,12 +199,12 @@ describe('createPanelList 行投影', () => {
       { options: { id: 'a', order: 1, label: () => (lang === 'zh' ? '甲' : 'A') } },
     ])
     const { store } = createPanelList(ctx)
-    expect(store.getSnapshot()).toEqual([{ id: 'a', order: 1, label: '甲' }])
+    expect(store.rows).toEqual([{ id: 'a', order: 1, label: '甲' }])
 
     lang = 'en'
     notifyLocale()
 
-    expect(store.getSnapshot()).toEqual([{ id: 'a', order: 1, label: 'A' }])
+    expect(store.rows).toEqual([{ id: 'a', order: 1, label: 'A' }])
   })
 
   it('旧核心（slots 无投影能力）时 store 恒为空表，available=false', () => {
@@ -168,6 +212,6 @@ describe('createPanelList 行投影', () => {
     const service = createPanelList(ctx)
 
     expect(service.available).toBe(false)
-    expect(service.store.getSnapshot()).toEqual([])
+    expect(service.store.rows).toEqual([])
   })
 })

@@ -1,5 +1,5 @@
-import type { ExternalStore } from 'dsh-tauri/client'
 import type { ComponentType, ReactElement, ReactNode } from 'react'
+import type { panelList } from '../store/modules/panel-list'
 
 /** 官方全局面板的选中态快照（layout 的 `panelInfo` root hook 投影）。 */
 export interface PanelInfo {
@@ -25,8 +25,14 @@ export interface PanelListEntry {
   label: string
 }
 
-/** 面板清单的外部 store（`useSyncExternalStore` 安全）。 */
-export type PanelListStore = ExternalStore<PanelListEntry[]>
+/**
+ * 面板清单 store（valtio-define）。
+ *
+ * 结构面取 `store.panelList` 自身的类型：组件经 `useStore(panels)` 订阅 `rows`，
+ * 非 React 消费方（service）经 `setRows` 写入——调用前必须做结构比较，
+ * 逐字段相等时不得写入（见 service/panel-list.ts）。
+ */
+export type PanelListStore = typeof panelList
 
 /**
  * 官方全局面板行的 owner props（对齐上游 `SidebarPanelIconOwnerProps`）。

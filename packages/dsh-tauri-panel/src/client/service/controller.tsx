@@ -14,6 +14,9 @@
  * 只注册旧槽时 0.1.5+ 的声明永不出现 → inject 回调永不执行 → 内容区不替换
  * （只剩侧栏条目选中样式）。
  *
+ * 监听器不再手写 addEventListener/removeEventListener：统一登记进
+ * `createLifecycleController()`（dispose 幂等），close() 取回句柄即移除。
+ *
  * open/close 走命名钩子（hookable），供诊断与第三方联动。重复创建（插件
  * 重载）时旧实例先被其 effect 清理，互不干扰。
  */
@@ -22,7 +25,7 @@ import type { ClientContext } from 'dsh-tauri/client'
 import type { ReactElement } from 'react'
 import type { PanelContentSpec, PanelViewSeatTarget } from '../types'
 import type { PanelWidthController } from './width'
-import { createHooks } from 'dsh-tauri/client'
+import { createHooks, createLifecycleController } from 'dsh-tauri/client'
 import { ConversationSeat } from '../components/conversation-seat'
 import { PANEL_MAIN_SLOT, PANEL_VIEW_SEAT_TARGETS } from '../constants'
 import { setSidebarPanelActive, shouldClosePanelForSidebarTarget } from '../dom/panel'
@@ -39,6 +42,8 @@ export interface PanelConversationController {
   viewId: () => { id: string } | null
   /** 内容宽度控制器（方案 A：attach/handle；方案 C：setWidth/resetWidth/getWidth）。 */
   width: PanelWidthController
+  /** 释放本控制器独占的生命周期资源（capture 监听器）；幂等。 */
+  dispose: () => void
 }
 
 /** 会话区替换的生命周期钩子（hookable：open/close 事件轴）。 */
@@ -66,10 +71,12 @@ function seatRegistrationOptions(target: PanelViewSeatTarget, locale: string): R
 /** 创建会话区替换控制器。 */
 export function createPanelConversationController(): PanelConversationController {
   const hooks = createHooks<ConversationLifecycleHooks>()
+  const lifecycle = createLifecycleController()
   const width = createPanelWidthController()
   let seatDisposers: Array<() => void> = []
   let currentSpec: PanelContentSpec | undefined
-  let onPointerDownCapture: ((event: PointerEvent) => void) | undefined
+  /** capture 监听器的移除句柄（由 lifecycle 托管）。 */
+  let removePointerDownCapture: (() => void) | undefined
   /** 本次替换走的是官方 `main` 路径（close 需要据此归还选中态）。 */
   let viaOfficialPanel = false
   /** 官方路径的 close() 需要 ctx；open() 与 close() 由同一宿主插件调用，缓存安全。 */
@@ -109,11 +116,10 @@ export function createPanelConversationController(): PanelConversationController
       seatDisposers = PANEL_VIEW_SEAT_TARGETS.map(target =>
         ctx.slots.inject(target.slot as never, () =>
           ctx.slots.register(seatRegistrationOptions(target, locale) as never, renderSeat)))
-      onPointerDownCapture = (event: PointerEvent): void => {
+      removePointerDownCapture = lifecycle.listen('pointerdown', (event) => {
         if (shouldClosePanelForSidebarTarget(event.target instanceof Element ? event.target : null))
           close()
-      }
-      document.addEventListener('pointerdown', onPointerDownCapture, true)
+      }, { capture: true })
     }
     setSidebarPanelActive(true)
     void hooks.callHook('view:open', spec)
@@ -132,9 +138,9 @@ export function createPanelConversationController(): PanelConversationController
     currentSpec = undefined
     activeCtx = undefined
     panelViewStore.set(null)
-    if (onPointerDownCapture) {
-      document.removeEventListener('pointerdown', onPointerDownCapture, true)
-      onPointerDownCapture = undefined
+    if (removePointerDownCapture) {
+      removePointerDownCapture()
+      removePointerDownCapture = undefined
     }
     setSidebarPanelActive(false)
     void hooks.callHook('view:close')
@@ -153,5 +159,9 @@ export function createPanelConversationController(): PanelConversationController
     },
     viewId: () => panelViewStore.getSnapshot(),
     width,
+    dispose() {
+      close()
+      lifecycle.dispose()
+    },
   }
 }

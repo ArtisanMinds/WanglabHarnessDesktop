@@ -3,7 +3,9 @@
  * + 宿主内容列（宽度约束由宿主决定，见 styles.ts）+ 宽度同步（方案 A 机制侧）。
  *
  * 宽度能力（镜像 alpha ConversationRoot，仅同步不拖拽）：
- *   - 根元素 ref + ResizeObserver 发布 `--dsh-conversation-column-width`；
+ *   - 根元素用 @reause/core 的 `useResizeObserver` 观察，尺寸变化回调宽度控制器
+ *     的 `refresh()` 重发 `--dsh-conversation-column-width`（发布逻辑见
+ *     service/width.ts，本组件不自己造 observer）；
  *   - 偏好读写（localStorage 与官方共用一键）；宽度调整走协议侧 set/reset；
  *   - 无偏好时回退自适应 clamp；旧 WebView（无 RO）→ 固定宽度（supported=false），
  *     见 service/width.ts。
@@ -15,6 +17,7 @@ import type { ReactElement } from 'react'
 import type { PanelWidthController } from '../service/width'
 import type { PanelContentSpec } from '../types'
 import { useMountStyle } from 'dsh-tauri-ui/client'
+import { useResizeObserver } from 'dsh-tauri/client'
 import { useEffect, useRef } from 'react'
 import { CONVERSATION_SEAT_STYLE_ID, PANEL_DATA_ATTRIBUTES } from '../constants'
 import conversationSeatStyle from './conversation-seat.cssr'
@@ -31,7 +34,10 @@ export function ConversationSeat({
   const rootRef = useRef<HTMLDivElement | null>(null)
   useMountStyle(conversationSeatStyle, CONVERSATION_SEAT_STYLE_ID)
 
-  // 挂载根元素到宽度控制器：RO 发布列宽 + 偏好；卸载时 detach（disconnect）。
+  // 根元素尺寸变化 → 重发列宽 + 偏好（监听器由 reause 托管，卸载即断开）。
+  useResizeObserver(rootRef, () => width.refresh())
+
+  // 挂载根元素到宽度控制器：发布一次列宽 + 偏好；卸载时 detach。
   useEffect(() => {
     const root = rootRef.current
     if (!root)

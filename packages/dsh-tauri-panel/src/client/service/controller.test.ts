@@ -16,33 +16,32 @@ import { PANEL_VIEW_COMPONENT_ID } from '../constants'
 import { createPanelConversationController } from './controller'
 
 // dsh-tauri 的 dist bundle 以 `window.__ModuleLoader__.load(...)` 包裹，脱离宿主
-// 加载器后无法在 node 环境求值；只 mock 控制器实际消费的三个工厂。
+// 加载器后无法在 node 环境求值；只 mock 控制器实际消费的工厂
+// （createHooks / createLifecycleController / defineStore / useResizeObserver）。
 vi.mock('dsh-tauri/client', () => ({
-  createExternalStore: <T>(initial: T) => {
-    let state = initial
-    const listeners = new Set<() => void>()
-    return {
-      getSnapshot: () => state,
-      set: (next: T | ((current: T) => T)) => {
-        const value = typeof next === 'function' ? (next as (current: T) => T)(state) : next
-        if (Object.is(value, state))
-          return
-        state = value
-        for (const listener of [...listeners])
-          listener()
-      },
-      subscribe: (listener: () => void) => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
-      },
+  // valtio-define 最小替身：state 为可变对象，actions 绑定到该对象
+  // （store/modules/*.ts 在模块顶层调用它）。
+  defineStore: (options: unknown) => {
+    const { state, actions } = options as {
+      state: () => Record<string, unknown>
+      actions?: Record<string, (...args: unknown[]) => unknown>
     }
+    const store = state()
+    for (const [key, action] of Object.entries(actions ?? {}))
+      store[key] = (...args: unknown[]) => Reflect.apply(action, store, args)
+    return store
   },
   createHooks: () => ({ callHook: vi.fn(() => Promise.resolve()) }),
   createLifecycleController: () => ({
     add: vi.fn(),
+    timeout: vi.fn(() => () => {}),
+    interval: vi.fn(() => () => {}),
+    listen: vi.fn(() => () => {}),
+    observe: vi.fn(),
     dispose: vi.fn(),
     isDisposed: () => false,
   }),
+  useResizeObserver: () => ({ isSupported: true, stop: () => {} }),
 }))
 
 // conversation-seat.cssr / conversation-seat.tsx 依赖 dsh-tauri-ui/client 的

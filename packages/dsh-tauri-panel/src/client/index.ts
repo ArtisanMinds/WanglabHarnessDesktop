@@ -18,6 +18,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ClientContext } from 'dsh-tauri/client'
 import { SlotOutlet } from '@deepseek-ai/dsh-client-ui-renderer'
 import { mountStyle } from 'dsh-tauri-ui/client'
+import { defineRegister } from 'dsh-tauri/client'
 import { PANEL_STYLE_ID } from './constants'
 import { registerPanelLocale } from './locales'
 import { registerPanelService } from './register/panel-service'
@@ -37,8 +38,10 @@ export const name = 'dsh-tauri-panel'
  * locale（双语文案）。
  *
  * `workspaces` 不能列为强制注入：Alpha 将会话导航放在 `uiWorkspace`，而
- * rc.2 才把 `startSession` 暴露在 `workspaces` 上。运行时差异由 compat(ctx)
- * 在 apply 内探测，避免 Alpha 在执行 apply 前因缺少 workspaces 而被 Cordis 跳过。
+ * rc.2 才把 `startSession` 暴露在 `workspaces` 上。运行时差异不再由插件自己探测
+ * （旧 `compat(ctx)` 已废弃），统一交给 `defineRegister` 第三个参数
+ * `adapter`（`adapter.startSession()` 走完整退级阶梯），避免 Alpha 在执行
+ * apply 前因缺少 workspaces 而被 Cordis 跳过。
  */
 export const inject = ['slots', 'layout', 'locale']
 
@@ -47,8 +50,9 @@ export const inject = ['slots', 'layout', 'locale']
  * @param ctx - 客户端根上下文。
  */
 export function apply(ctx: ClientContext): void {
+  // 样式表挂载：mountStyle 的引用计数 + defineRegister 统一释放。
   ctx.effect(
-    () => mountStyle(panelIndexStyle, PANEL_STYLE_ID),
+    defineRegister<ClientContext>(ctx, () => mountStyle(panelIndexStyle, PANEL_STYLE_ID)),
     'dsh-tauri-panel: styles',
   )
   registerPanelLocale(ctx)

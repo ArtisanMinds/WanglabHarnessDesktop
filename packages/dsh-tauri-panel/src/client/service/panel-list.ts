@@ -10,7 +10,11 @@
  *   - `label` 可为 thunk，读时才求值（语义同上游 `resolveSlotLabel`）；本地实现
  *     而不引入 `@deepseek-ai/dsh-client-ui-slots` 平台模块的类型面依赖。
  *   - `entriesOfSlot` 每次返回新数组且「未声明时为空表」，所以写入 store 前必须做
- *     结构比较，否则 `useSyncExternalStore` 每帧都判定快照变化。
+ *     结构比较（`sameRows`）：逐字段相等时**不写 store**，否则订阅方每帧都判定
+ *     快照变化（`useStore` / 任何快照相等性消费方都会无谓重渲染）。
+ *
+ * 状态落在 valtio-define store（`store/modules/panel-list.ts`）：React 消费方
+ * 经 `useStore` 订阅 `rows`，本服务只负责投影 + 按需写入。
  *
  * 旧核心（≤0.1.2-rc.1）的 slots 服务没有这两个方法，`available` 为 false，
  * store 恒为空表 → 克隆侧栏不渲染面板清单（与官方侧栏「无注册不渲染」一致）。
@@ -18,12 +22,13 @@
 
 import type { ClientContext, SlotEntryLike } from 'dsh-tauri/client'
 import type { PanelListEntry, PanelListStore } from '../types'
-import { createExternalStore } from 'dsh-tauri/client'
+import { defineRegister } from 'dsh-tauri/client'
 import { PANEL_LIST_SLOT } from '../constants'
+import { panelList } from '../store/modules/panel-list'
 
 /** 官方 list 槽行投影服务。 */
 export interface PanelListService {
-  /** 行快照 store（组件经 `useSyncExternalStore` 订阅）。 */
+  /** 行快照 store（valtio-define；组件经 `useStore(panels)` 订阅 `rows`）。 */
   store: PanelListStore
   /** 官方 `sidebar.panellist` 投影能力是否可用（新核心 + slots 服务带读取能力）。 */
   available: boolean
@@ -71,10 +76,11 @@ function sameRows(a: readonly PanelListEntry[], b: readonly PanelListEntry[]): b
 /**
  * 建立行投影服务并挂上订阅：槽位变化（注册/注销/声明建立）与 locale 变化都会
  * 重新投影，thunk 文案因此跟随语言切换而无需消费方重新注册。
+ *
+ * 订阅与清理交给 `defineRegister` 的控制器托管（统一 dispose 队列）。
  * @param ctx - 客户端根上下文。
  */
 export function createPanelList(ctx: ClientContext): PanelListService {
-  const store = createExternalStore<PanelListEntry[]>([])
   const available = typeof ctx.slots.entriesOfSlot === 'function'
     && typeof ctx.slots.subscribe === 'function'
 
@@ -82,23 +88,26 @@ export function createPanelList(ctx: ClientContext): PanelListService {
     const next = projectPanels(ctx)
     if (next === undefined)
       return
-    if (sameRows(store.getSnapshot(), next))
+    // 结构未变 → 绝不写 store：快照引用保持稳定，订阅方不会无谓重渲染。
+    if (sameRows(panelList.rows, next))
       return
-    store.set(next)
+    panelList.setRows(next)
   }
 
-  ctx.effect(() => {
-    sync()
-    const disposers: Array<() => void> = []
-    if (available) {
-      disposers.push(ctx.slots.subscribe?.(PANEL_LIST_SLOT, sync) ?? (() => {}))
-      disposers.push(ctx.locale.subscribe(sync))
-    }
-    return () => {
-      for (const dispose of disposers)
-        dispose()
-    }
-  }, 'dsh-tauri-panel: panellist projection')
+  ctx.effect(
+    defineRegister<ClientContext>(ctx, (controller) => {
+      // store 是模块级单例（valtio-define 协议），装配时必须显式从空表起步：
+      // 旧核心没有读取能力 → 永远停在空表（克隆侧栏不渲染清单，与官方侧栏
+      // 「无注册不渲染」一致），不会残留上一次装配的投影。
+      panelList.setRows([])
+      sync()
+      if (available) {
+        controller.add(ctx.slots.subscribe?.(PANEL_LIST_SLOT, sync) ?? (() => {}))
+        controller.add(ctx.locale.subscribe(sync))
+      }
+    }),
+    'dsh-tauri-panel: panellist projection',
+  )
 
-  return { store, available }
+  return { store: panelList, available }
 }
