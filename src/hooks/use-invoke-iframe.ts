@@ -14,7 +14,7 @@ import { useIframeMessage } from '@/hooks/use-iframe-message'
  * 协议（与 dsh-tauri client service/invoke.ts 逐字一致）：
  *   iframe → 宿主：{ source: 'dsh-tauri-invoke', type: 'dsh://tauri:invoke',
  *                     cmd, args, nonce }
- *   宿主 → iframe：{ source: 'dsh-desktop-invoke', type: 'dsh://tauri:reply',
+ *   宿主 → iframe：{ type: 'dsh://tauri:reply',
  *                     nonce, ok, value | error }
  *
  * 来源与 origin 校验由 `useIframeMessage` 统一完成（直接 iframe + origin；
@@ -59,7 +59,7 @@ export function useInvokeIframe(iframeRef: RefObject<HTMLIFrameElement | null>):
 
     function reply(payload: { ok: boolean, value?: unknown, error?: string }) {
       iframeRef.current?.contentWindow?.postMessage(
-        { source: 'dsh-desktop-invoke', type: 'dsh://tauri:reply', nonce, ...payload },
+        { type: 'dsh://tauri:reply', nonce, ...payload },
         origin,
       )
     }
