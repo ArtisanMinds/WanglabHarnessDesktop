@@ -22,14 +22,11 @@ interface LiveReading {
  *
  * 宿主侧自己按 1.5s 刷新 git 读数、路由只读内存，所以客户端这里的轮询成本极低；
  * 反过来宿主无法主动推给客户端（不引入投影/事件轴的复杂度），故用固定间隔轮询。
- * 轮询节拍交给 `@reause/core` 的 `useTimeoutPoll`（经 `dsh-tauri/client` 引入），
- * 不再手写 setTimeout 链；「何时开始/停止轮询」仍由本 hook 按会话与闸门决定。
+ * 轮询节拍交给 `@reause/core` 的 `useTimeoutPoll`（经 `dsh-tauri/client` 引入）。
  *
- * **读数必须随边界归零**：它只是「这一轮此刻改了什么」。会话切换、会话结束
- * （闸门关闭）、或同一个会话里闸门重新打开，旧读数一律不再成立——否则组件实例
- * 被复用时提示条会继续渲染上一份统计，并随工作区漂移越变越大（用户反馈的
- * 「统计一直在叠加」）。归零走**派生**而不是 effect 里的 setState：渲染期立刻生效，
- * 不产生额外一轮渲染，也不会在卸载路径上写状态。
+ * **读数必须随边界归零**：它只是「这一轮此刻改了什么」。会话切换、会话结束（闸门关闭）、
+ * 或同一个会话里闸门重新打开，旧读数一律不再成立——否则组件实例被复用时提示条会继续渲染
+ * 上一份统计，并随工作区漂移越变越大。归零走**派生**而不是 effect 里的 setState。
  *
  * @param sessionId - 当前会话 id。
  * @param shouldPoll - 是否允许轮询（owner 份额明确说「没在跑」时置 false）。
@@ -63,6 +60,7 @@ export function useLiveChanges(sessionId: string | undefined, shouldPoll: boolea
     }
   }, TURNREWIND_LIVE_POLL_INTERVAL_MS, { immediate: false })
 
+  // keep:effect 轮询节拍的起停必须跟随「会话 id / 闸门」两个 React 依赖，无声明式等价物
   useEffect(() => {
     // 每次订阅条件变化都推进世代：旧读数与在飞的旧请求随之作废。
     generationRef.current += 1

@@ -1,17 +1,21 @@
-import type { TurnRecord } from '../types'
+import type { SnapshotStore, TurnRecord } from '../types'
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetTestDshHome } from '../../../../.test/test-utils'
-import { REASON_ALREADY_UNDONE, REASON_CONFLICT, REASON_EXPIRED, REASON_GIT_REQUIRED, REASON_TURN_ACTIVE } from '../constants'
-import { readLedger, recordTurn, recordWorkspaceState } from './ledger'
-import { createWorkspaceQueue } from './queue'
-import { captureSnapshot, diffTurnChanges, readGenerationFor, readRefCommit, snapshotStoreFor, turnRef } from './snapshot'
-import { undoTurn } from './undo'
+import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
+import { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+import { REASON_ALREADY_UNDONE, REASON_CONFLICT, REASON_EXPIRED, REASON_GIT_REQUIRED, REASON_TURN_ACTIVE } from '../config/constants'
+import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance } from '../config/runtime'
+import { capture } from './capture'
+import { ledger } from './ledger'
+import { snapshot } from './snapshot'
+import { turns } from './turns'
+import { undo } from './undo'
+import { workspace } from './workspace'
 
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
@@ -21,16 +25,26 @@ vi.mock('dsh-tauri', async (importOriginal) => {
 
 const run = promisify(execFile)
 
-/** 撤销与捕获共用同一工作区队列；本文件的用例只需一个实例。 */
-const queue = createWorkspaceQueue()
-
 const temporaryDirectories: string[] = []
+
+/** 绑定的宿主实例：会话 cwd 决定 `undo` 自己解析出的「当前工作区」。 */
+let hostCwd = ''
+
+function bindHost(cwd: string): void {
+  hostCwd = cwd
+  setCurrentHostInstance({
+    sessions: {
+      get: (id: string) => ({ id, header: { cwd: hostCwd } }),
+    },
+  })
+}
 
 interface Fixture {
   worktree: string
   sessionId: string
   turn: number
   record: TurnRecord
+  store: SnapshotStore
 }
 
 /**
@@ -47,14 +61,19 @@ async function fixture(): Promise<Fixture> {
 
   const sessionId = 'session-undo'
   const turn = 1
-  const store = snapshotStoreFor(worktree)
-  const before = await captureSnapshot(store, turnRef(sessionId, turn, 'before'), 'before')
+  // 账本里的 workspaceRoot 必须是会话当前解析出的同一路径，否则归属校验会拒掉自己。
+  bindHost(worktree)
+  const probe = await workspace.resolve(sessionId)
+  if (!probe.ok)
+    throw new Error('fixture probe failed')
+  const store = snapshot.resolve(probe.root)
+  const before = await snapshot.capture(store, snapshot.ref(sessionId, turn, 'before'), 'before')
   await writeFile(join(worktree, 'a.txt'), 'first\nsecond\n', 'utf8')
   await writeFile(join(worktree, 'added.txt'), 'new\n', 'utf8')
-  const after = await captureSnapshot(store, turnRef(sessionId, turn, 'after'), 'after')
+  const after = await snapshot.capture(store, snapshot.ref(sessionId, turn, 'after'), 'after')
   if (!before.ok || !after.ok)
     throw new Error('fixture capture failed')
-  const diff = await diffTurnChanges(store, before.commit, after.commit)
+  const diff = await snapshot.diff(store, before.commit, after.commit)
   if (!diff.ok)
     throw new Error('fixture diff failed')
 
@@ -66,8 +85,8 @@ async function fixture(): Promise<Fixture> {
   }
   const record: TurnRecord = {
     turn,
-    beforeRef: turnRef(sessionId, turn, 'before'),
-    afterRef: turnRef(sessionId, turn, 'after'),
+    beforeRef: snapshot.ref(sessionId, turn, 'before'),
+    afterRef: snapshot.ref(sessionId, turn, 'after'),
     files: diff.changes,
     insertions,
     deletions,
@@ -75,23 +94,28 @@ async function fixture(): Promise<Fixture> {
     undoneAt: null,
     unavailable: null,
   }
-  await recordWorkspaceState(sessionId, { workspaceRoot: store.worktree, isGit: true, unavailableReason: null })
-  await recordTurn(sessionId, record)
-  return { worktree, sessionId, turn, record }
+  await turns.note(sessionId, { workspaceRoot: store.worktree, isGit: true, unavailableReason: null })
+  await turns.record(sessionId, record)
+  return { worktree, sessionId, turn, record, store }
 }
 
 beforeEach(() => {
   resetTestDshHome()
+  // 账本与私有快照仓都在 <DSH_HOME>/<feature> 下，resetTestDshHome 不清这个目录。
+  rmSync(join(testDshHome, TURNREWIND_PLUGIN_NAME), { recursive: true, force: true })
+  resetHostRuntime()
 })
 
 afterEach(async () => {
+  capture.dispose()
+  clearHostRuntime()
   await Promise.all(temporaryDirectories.splice(0).map(path => rm(path, { recursive: true, force: true })))
 })
 
-describe('undoTurn', () => {
+describe('undo.turn', () => {
   it('restores the workspace and marks the turn undone', async () => {
     const { worktree, sessionId, turn } = await fixture()
-    const outcome = await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree })
+    const outcome = await undo.turn(sessionId, turn)
     expect(outcome.ok).toBe(true)
     if (!outcome.ok)
       return
@@ -105,7 +129,7 @@ describe('undoTurn', () => {
   it('refuses with the conflict list and changes nothing when the file changed again', async () => {
     const { worktree, sessionId, turn } = await fixture()
     await writeFile(join(worktree, 'a.txt'), 'user edit after the turn\n', 'utf8')
-    const outcome = await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree })
+    const outcome = await undo.turn(sessionId, turn)
     expect(outcome.ok).toBe(false)
     if (outcome.ok)
       return
@@ -118,17 +142,17 @@ describe('undoTurn', () => {
   })
 
   it('rejects a second undo of the same turn', async () => {
-    const { worktree, sessionId, turn } = await fixture()
-    expect((await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree })).ok).toBe(true)
-    const second = await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree })
+    const { sessionId, turn } = await fixture()
+    expect((await undo.turn(sessionId, turn)).ok).toBe(true)
+    const second = await undo.turn(sessionId, turn)
     expect(second.ok).toBe(false)
     if (!second.ok)
       expect(second.error).toBe(REASON_ALREADY_UNDONE)
   })
 
   it('returns 404 for a turn with no record', async () => {
-    const { worktree, sessionId } = await fixture()
-    const outcome = await undoTurn({ queue, sessionId, turn: 42, currentWorkspace: worktree })
+    const { sessionId } = await fixture()
+    const outcome = await undo.turn(sessionId, 42)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok)
       expect(outcome.code).toBe(404)
@@ -136,19 +160,24 @@ describe('undoTurn', () => {
 
   it('refuses when the session now points at another workspace', async () => {
     const { worktree, sessionId, turn } = await fixture()
-    const outcome = await undoTurn({ queue, sessionId, turn, currentWorkspace: join(worktree, 'other') })
+    // 会话 cwd 切到另一个真实 Git 仓库：探测成功但与账本里的 workspaceRoot 不同。
+    const other = join(worktree, 'other')
+    await mkdir(other, { recursive: true })
+    await run('git', ['-c', 'init.defaultBranch=main', 'init', '--quiet', other], { windowsHide: true })
+    bindHost(other)
+    const outcome = await undo.turn(sessionId, turn)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok)
       expect(outcome.code).toBe(403)
   })
 
   it('reports the Git requirement for a non-repository ledger', async () => {
-    await recordWorkspaceState('session-nogit', {
+    await turns.note('session-nogit', {
       workspaceRoot: null,
       isGit: false,
       unavailableReason: REASON_GIT_REQUIRED,
     })
-    await recordTurn('session-nogit', {
+    await turns.record('session-nogit', {
       turn: 1,
       beforeRef: '',
       afterRef: '',
@@ -159,60 +188,59 @@ describe('undoTurn', () => {
       undoneAt: null,
       unavailable: null,
     })
-    const outcome = await undoTurn({ queue, sessionId: 'session-nogit', turn: 1, currentWorkspace: null })
+    const outcome = await undo.turn('session-nogit', 1)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok)
       expect(outcome.error).toBe(REASON_GIT_REQUIRED)
   })
 
   it('refs 消失时把该轮落为「已过期」终态，而不是每次点击都撞同一个模糊错误', async () => {
-    const { worktree, sessionId, turn } = await fixture()
-    const store = snapshotStoreFor(worktree)
-    const { deleteRefs } = await import('./snapshot')
-    await deleteRefs(store, [turnRef(sessionId, turn, 'before')])
-    const outcome = await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree })
+    const { sessionId, turn, store } = await fixture()
+    await snapshot.remove(store, [snapshot.ref(sessionId, turn, 'before')])
+    const outcome = await undo.turn(sessionId, turn)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.code).toBe(409)
       expect(outcome.error).toBe(REASON_EXPIRED)
     }
     // 终态写回账本：卡片能给出确定结论，后续点击不会重复走一遍 git 校验。
-    const ledger = await readLedger(sessionId)
-    const record = ledger.turns.find(item => item.turn === turn)
+    const current = await ledger.load(sessionId)
+    const record = current.turns.find(item => item.turn === turn)
     expect(record?.unavailable).toBe(REASON_EXPIRED)
     expect(record?.beforeRef).toBe('')
   })
 
   it('代际不一致时直接落「已过期」——即使 refs 还在，也不能信任它是同一批快照', async () => {
-    const { worktree, sessionId, turn, record } = await fixture()
-    const store = snapshotStoreFor(worktree)
-    const generation = await readGenerationFor(worktree)
+    const { worktree, sessionId, turn, record, store } = await fixture()
+    const generation = await snapshot.generation(worktree)
     expect(generation).toBeTypeOf('string')
     // 真实捕获路径会把代数写进账本记录；fixture 手工补上。
-    await recordTurn(sessionId, { ...record, generation })
+    await turns.record(sessionId, { ...record, generation })
 
     // 模拟「标记文件被清理掉、但私有仓还在」：下一次捕获会重新分配一个代数，
     // 而旧 refs 依然存在——此时**只有代数比对**能发现这轮记录不可信。
     await rm(`${store.gitDir}.json`, { force: true })
-    const recapture = await captureSnapshot(store, turnRef(sessionId, turn + 100, 'before'), 'recheck')
+    const recapture = await snapshot.capture(store, snapshot.ref(sessionId, turn + 100, 'before'), 'recheck')
     expect(recapture.ok).toBe(true)
-    expect(await readGenerationFor(worktree)).not.toBe(generation)
+    expect(await snapshot.generation(worktree)).not.toBe(generation)
 
-    const outcome = await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree })
+    const outcome = await undo.turn(sessionId, turn)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.code).toBe(409)
       expect(outcome.error).toBe(REASON_EXPIRED)
     }
     // 关键：refs 仍在（说明不是「ref 消失」那条兜底在生效），且工作区一个字节都没动。
-    expect(await readRefCommit(store, record.beforeRef)).not.toBeNull()
+    expect(await snapshot.read(store, record.beforeRef)).not.toBeNull()
     expect(await readFile(join(worktree, 'a.txt'), 'utf8')).toBe('first\nsecond\n')
     expect(existsSync(join(worktree, 'added.txt'))).toBe(true)
   })
 
   it('会话仍在跑（有在飞 turn）时拒绝撤销', async () => {
     const { worktree, sessionId, turn } = await fixture()
-    const outcome = await undoTurn({ queue, sessionId, turn, currentWorkspace: worktree, turnActive: true })
+    // 本轮登记在飞：撤销判定必须看结算状态，而不是读数是否归零。
+    await capture.begin(sessionId, turn)
+    const outcome = await undo.turn(sessionId, turn)
     expect(outcome.ok).toBe(false)
     if (!outcome.ok) {
       expect(outcome.code).toBe(409)

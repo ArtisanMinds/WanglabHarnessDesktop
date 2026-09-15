@@ -1,5 +1,5 @@
 /**
- * host/service/queue.test.ts — 工作区级串行队列。
+ * host/utils/queue.test.ts — 工作区级串行队列。
  *
  * 这里守的是「同一工作区的私有仓操作绝不并发」这条不变量：index 与 refs 是共享可变状态，
  * 并发就会撞 `index.lock`。另外两条同样重要：不同工作区必须互不阻塞；队尾必须在结算后出队

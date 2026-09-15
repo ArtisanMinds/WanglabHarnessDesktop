@@ -13,7 +13,7 @@
 import type { GitResult, SnapshotStore } from '../types'
 import { execFile } from 'node:child_process'
 import process from 'node:process'
-import { GIT_TIMEOUT_MS } from '../constants'
+import { GIT_TIMEOUT_MS } from '../config/constants'
 
 /** 单次 git 调用的可选项。 */
 export interface GitRunOptions {

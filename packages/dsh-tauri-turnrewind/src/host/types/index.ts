@@ -1,22 +1,17 @@
 /**
- * host/types/index.ts — 宿主侧共享类型。
+ * host/types/index.ts — 宿主侧跨模块共享的领域模型与线协议。
  *
- * HostContext 保持结构化 any（与 dsh-tauri-worktree 同口径）：宿主服务的完整类型由
- * 各内核版本自带，本插件只消费已核实存在的成员，避免把某一版的类型钉进构建。
+ * HostContext 保持结构化 any（与 dsh-tauri-worktree 同口径）：宿主服务的完整类型由各内核
+ * 版本自带，本插件只消费已核实存在的成员，避免把某一版的类型钉进构建。
  */
 
-import type { WorkspaceQueue } from '../service/queue'
-
 export type HostContext = any
-
-export type JsonBody = Record<string, unknown>
 
 /**
  * 一次 git 子进程的结果；捕获/撤销路径从不抛异常，失败一律走该联合。
  *
  * 失败分支同样带 `out`：`git check-ignore` 这类命令**用退出码表达否定答案**
- * （exit 1 = 没有路径被忽略），stdout 才是真正的结果，丢弃它会把「没有命中」
- * 误判成「命令失败」。
+ * （exit 1 = 没有路径被忽略），stdout 才是真正的结果。
  */
 export type GitResult
   = | { ok: true, out: string }
@@ -36,10 +31,7 @@ export interface SnapshotStore {
   rebuiltReason?: string
 }
 
-/** 一次路径安全校验的结果。 */
-export type PathSafety = { ok: true } | { ok: false, reason: string }
-
-/** 单次捕获的用量上限（默认取宿主常量；宿主插件行配置/测试可覆盖）。 */
+/** 单次捕获的用量上限（默认取宿主常量；宿主配置/测试可覆盖）。 */
 export interface CaptureLimits {
   /** 单个文件超过此值即排除并标注。 */
   maxFileBytes: number
@@ -92,6 +84,13 @@ export interface TurnFileChange {
   binary: boolean
 }
 
+/** 一次恢复的执行结果。 */
+export interface RestoreReport {
+  restored: string[]
+  removed: string[]
+  failed: Array<{ path: string, reason: string }>
+}
+
 /** 一个 turn 的变更记录（账本行）。 */
 export interface TurnRecord {
   turn: number
@@ -129,9 +128,7 @@ export interface SessionLedger {
 
 /** 运行中实时读数的线协议形态（客户端「运行中」提示条）。 */
 export interface LiveSnapshot {
-  /** 是否有正在进行的 turn（false 时其余字段为占位 0）。 */
   active: boolean
-  /** 正在进行的 turn 号；无活动 turn 时为 null。 */
   turn: number | null
   fileCount: number
   insertions: number
@@ -141,7 +138,6 @@ export interface LiveSnapshot {
 /** 撤销前的冲突明细。 */
 export interface UndoConflict {
   path: string
-  /** 冲突原因（人类可读，用于卡片展示）。 */
   reason: string
 }
 
@@ -164,28 +160,18 @@ export interface SummaryPayload {
     undoneAt: number | null
     unavailable: string | null
     /**
-     * 该轮是否建立过 before/after 快照（refs 是否留下）。
-     *
-     * 与 `unavailable` 配合区分两种失败：连基线都没有 = 这一轮从没有过可撤销的东西
-     * （客户端对通用失败保持沉默）；基线在而 after 结算失败 = 承诺过的撤销落空了
-     * （客户端必须告警）。
+     * 该轮是否建立过 before/after 快照（refs 是否留下）。与 `unavailable` 配合区分两种失败：
+     * 连基线都没有 = 这一轮从没有过可撤销的东西；基线在而 after 结算失败 = 承诺过的撤销落空了。
      */
     hasBaseline: boolean
     truncated: boolean
     files: TurnFileChange[]
-    /** 因超过单文件上限而未纳入快照的路径（不在撤销范围内）。 */
     skippedOversized: string[]
-    /** 被跳过的嵌套 Git 仓库路径（其内部改动不受撤销保护）。 */
     skippedNestedRepos: string[]
   }>
 }
 
-/**
- * 撤销路由（`POST /api/turnrewind/session/undo`）的响应体。
- *
- * 客户端 `client/types` 持有同一形状的镜像（host 与 client 互不导入）。
- * 成功带恢复 / 删除 / 失败三份清单；失败带 `error` 与可选 `conflicts`。
- */
+/** 撤销路由的响应体（客户端持有同形状的镜像，host 与 client 互不导入）。 */
 export interface UndoResponse {
   ok?: boolean
   restored?: string[]
@@ -193,37 +179,4 @@ export interface UndoResponse {
   failed?: Array<{ path: string, reason: string }>
   error?: string
   conflicts?: Array<{ path: string, reason: string }>
-}
-
-/**
- * 运行中实时读数的读取面（由 capture 编排器提供；未接线时返回 inactive）。
- *
- * 这是领域读面而不是注入管道：处理器经 {@link TurnrewindRouteDeps} 拿到它，
- * 与依赖如何传递无关，因此随 deps 接口一并落在宿主类型里。
- */
-export type LiveStateReader = (sessionId: string) => LiveSnapshot
-
-/**
- * 「该轮是否仍未落定」的读取面（撤销据此拒绝）。
- *
- * 不复用 {@link LiveStateReader}：读数是提示条的过程态，`turn/end` 一到就归零，
- * 而这一轮此后还要在后台结算——用读数判定会把「还在结算」误判成「可以撤销」。
- */
-export type TurnPendingReader = (sessionId: string, turn: number) => boolean
-
-/**
- * 路由的 apply 期依赖面（`routes(ctx, deps)` 的 deps 形状）。
- *
- * 队列、实时读数与未落定判定都由 `apply` 在装配期创建、不作为宿主服务发布，
- * 处理器无法从事件取回，因此随注册传入、由 `defineRoutes` 挂到 `event.context.dshDeps`，
- * 处理器经 `dshRouteDepsOf<TurnrewindRouteDeps>(event)` 取回（宿主 ctx 本身仍由
- * `dshContextOf(event)` 取回，不走 deps）。数据根不在这里：各领域模块直接读 `DSH_HOME`。
- */
-export interface TurnrewindRouteDeps {
-  /** 运行中读数读取面；缺席时退化为 inactive 占位。 */
-  live?: LiveStateReader
-  /** 未落定判定；缺席时退化为「会话有活动读数」这一宽容判定（仅测试/降级路径）。 */
-  isTurnPending?: TurnPendingReader
-  /** 工作区级串行队列（与捕获层共用同一实例，保证撤销与结算互斥）。 */
-  queue: WorkspaceQueue
 }

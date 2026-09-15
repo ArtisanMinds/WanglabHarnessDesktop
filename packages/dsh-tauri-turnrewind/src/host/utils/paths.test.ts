@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import process from 'node:process'
 import { join } from 'pathe'
 import { afterEach, describe, expect, it } from 'vitest'
-import { REASON_NON_EMPTY_DIR, REASON_UNSAFE_PATH } from '../constants'
+import { REASON_NON_EMPTY_DIR, REASON_UNSAFE_PATH } from '../config/constants'
 import { assertSafeParents, removeCreatedPath, resolveInsideWorkspace } from './paths'
 
 const temporaryDirectories: string[] = []
