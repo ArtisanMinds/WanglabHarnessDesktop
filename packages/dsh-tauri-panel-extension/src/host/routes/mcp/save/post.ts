@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
       return { error: invalid }
     }
     const scope = normalizeMcpScope(body.scope)
-    const id = upsertMcp(mcpScopeDir(scope, deps.profileDirPath, deps.dshHome), body)
+    const id = upsertMcp(mcpScopeDir(scope, deps.profileDirPath), body)
     return { ok: true, id, restartNeeded: true }
   }
   catch (error) {

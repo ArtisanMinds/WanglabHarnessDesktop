@@ -17,9 +17,16 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'pathe'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
+import { resetTestDshHome } from '../../../../.test/test-utils'
 import { API_PREFIX as P } from '../../shared/constants'
+
+vi.mock('dsh-tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dsh-tauri')>()
+  const { testDshHome: home } = await import('../../../../.test/test-utils')
+  return { ...actual, DSH_HOME: home }
+})
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
@@ -96,7 +103,6 @@ function createHarness(): Harness {
 function mount(harness: Harness): () => void {
   return routes(harness.ctx as RoutesContext, {
     profileDirPath: join(harness.dir, 'profiles', 'web'),
-    dshHome: harness.dir,
     remountProvider: async () => {},
   })
 }
@@ -134,6 +140,10 @@ async function start(): Promise<{ base: string, dispose: () => void }> {
   const base = await listen(harness.registered)
   return { base, dispose }
 }
+
+beforeEach(() => {
+  resetTestDshHome()
+})
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => new Promise<void>(resolve => server.close(() => resolve()))))
@@ -296,8 +306,8 @@ describe('能力管理器路由声明', () => {
   })
 
   it('同一份声明两次注册下各读各的 deps（两次注册互不串台）', async () => {
-    // 两次注册各带自己的 profileDirPath / dshHome。迁移前的模块级单例绑定会被后一次
-    // 注册覆盖，先注册的一方会读后一方的目录——本用例即该回归。
+    // 两次注册各带自己的 profileDirPath（数据根 DSH_HOME 是全局的，profile 目录不是）。
+    // 迁移前的模块级单例绑定会被后一次注册覆盖，先注册的一方会读后一方的目录——本用例即该回归。
     const first = createHarness()
     const second = createHarness()
     dirs.push(first.dir, second.dir)

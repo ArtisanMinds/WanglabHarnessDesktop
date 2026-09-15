@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   }
   const id = body.id
   try {
-    const dir = mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath, deps.dshHome)
+    const dir = mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath)
     const row = listMcp(dir).find(item => item.id === id)
     if (row === undefined) {
       event.res.status = 404

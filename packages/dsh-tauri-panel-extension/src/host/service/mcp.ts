@@ -21,6 +21,7 @@
 import type { YAMLMap, YAMLSeq } from 'yaml'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
+import { DSH_HOME } from 'dsh-tauri'
 import { join } from 'pathe'
 import { Document, parseDocument } from 'yaml'
 /** The plugin every managed row instantiates. */
@@ -232,12 +233,12 @@ export function listMcp(dirPath: string): McpRow[] {
  * profile layer still lists (the assertPatchParses message names the file
  * and the parser location, which is what the banner shows).
  */
-export function listMcpScoped(profileDirPath: string, dshHomePath: string): McpListResult {
+export function listMcpScoped(profileDirPath: string): McpListResult {
   let globalRows: McpRow[] = []
   let globalError: string | undefined
-  if (existsSync(join(dshHomePath, 'cordis.patch.yml'))) {
+  if (existsSync(join(DSH_HOME, 'cordis.patch.yml'))) {
     try {
-      globalRows = listMcp(dshHomePath)
+      globalRows = listMcp(DSH_HOME)
     }
     catch (error) {
       globalError = error instanceof Error ? error.message : String(error)
@@ -258,8 +259,8 @@ export function listMcpScoped(profileDirPath: string, dshHomePath: string): McpL
 }
 
 /** Resolve a write target: the layer's directory holding its cordis.patch.yml. */
-export function mcpScopeDir(scope: McpScope, profileDirPath: string, dshHomePath: string): string {
-  return scope === 'global' ? dshHomePath : profileDirPath
+export function mcpScopeDir(scope: McpScope, profileDirPath: string): string {
+  return scope === 'global' ? DSH_HOME : profileDirPath
 }
 
 /**

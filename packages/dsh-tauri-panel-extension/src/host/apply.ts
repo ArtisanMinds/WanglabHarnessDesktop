@@ -15,7 +15,6 @@ import type { HostContext } from 'dsh-tauri'
 import type { ExtensionRouteDeps } from './types'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { DSH_HOME } from 'dsh-tauri'
 import { dirname, join } from 'pathe'
 import { PLUGIN_NAME } from '../shared/constants'
 import { providerHooks } from './hooks'
@@ -146,7 +145,6 @@ export function apply(ctx: HostContext, config?: Config): void {
       const deps: ExtensionRouteDeps = {
         profileDirPath: profileDir(profile),
         remountProvider,
-        dshHome: DSH_HOME,
       }
       ctx.effect(() => routes(hostCtx, deps), 'dsh-tauri-panel-extension: routes')
       return disposer

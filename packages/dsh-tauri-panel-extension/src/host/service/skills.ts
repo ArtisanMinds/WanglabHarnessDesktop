@@ -23,8 +23,8 @@ export interface SkillInput {
 }
 
 /** The user-owned skill root this plugin writes into (provider rank 400). */
-export function userSkillsDir(dshHome: string = DSH_HOME): string {
-  return join(dshHome, 'skills')
+export function userSkillsDir(): string {
+  return join(DSH_HOME, 'skills')
 }
 
 /** YAML double-quoted scalar (JSON string syntax is valid YAML 1.2). */
@@ -64,13 +64,13 @@ export function validateSkillInput(input: SkillInput): string | null {
 }
 
 /** Directory holding one user skill's SKILL.md; name grammar blocks traversal. */
-function skillDir(name: string, dshHome?: string): string {
-  return join(userSkillsDir(dshHome), name)
+function skillDir(name: string): string {
+  return join(userSkillsDir(), name)
 }
 
 /** Create or update a user skill. Returns the written path. */
-export function writeSkill(input: SkillInput, dshHome?: string): string {
-  const dir = skillDir(input.name, dshHome)
+export function writeSkill(input: SkillInput): string {
+  const dir = skillDir(input.name)
   mkdirSync(dir, { recursive: true })
   const file = join(dir, 'SKILL.md')
   writeFileSync(file, serializeSkill(input), 'utf8')
@@ -78,10 +78,10 @@ export function writeSkill(input: SkillInput, dshHome?: string): string {
 }
 
 /** Delete a user skill directory. Returns false when it does not exist. */
-export function deleteSkill(name: string, dshHome?: string): boolean {
+export function deleteSkill(name: string): boolean {
   if (!SKILL_NAME_RE.test(name))
     return false
-  const dir = skillDir(name, dshHome)
+  const dir = skillDir(name)
   if (!existsSync(dir) || !statSync(dir).isDirectory())
     return false
   // Only ever remove the exact directory this name resolves to under the

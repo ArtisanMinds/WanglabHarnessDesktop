@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   }
   const id = body.id
   try {
-    const ok = removeMcp(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath, deps.dshHome), id)
+    const ok = removeMcp(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath), id)
     if (!ok) {
       event.res.status = 404
       return { error: 'server row not found' }

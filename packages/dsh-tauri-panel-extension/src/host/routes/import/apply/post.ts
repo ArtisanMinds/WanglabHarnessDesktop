@@ -24,12 +24,12 @@ export default defineEventHandler(async (event) => {
           typeof item === 'object' && item !== null && typeof (item as { agent?: unknown }).agent === 'string' && typeof (item as { name?: unknown }).name === 'string')
         .map(item => `${item.agent}/${item.name}`),
     )
-    const dir = mcpScopeDir(normalizeMcpScope(body?.scope), deps.profileDirPath, deps.dshHome)
+    const dir = mcpScopeDir(normalizeMcpScope(body?.scope), deps.profileDirPath)
     const results: Array<{ name: string, ok: boolean, error?: string }> = []
     for (const server of scanAllMcp()) {
       if (!wanted.has(`${server.agent}/${server.name}`))
         continue
-      const existing = listMcpScoped(deps.profileDirPath, deps.dshHome).servers.some(row => row.serverName === server.name)
+      const existing = listMcpScoped(deps.profileDirPath).servers.some(row => row.serverName === server.name)
       if (existing) {
         results.push({ name: server.name, ok: false, error: 'already in profile' })
         continue

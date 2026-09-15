@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
   const id = body.id
   const disabled = body.disabled
   try {
-    const ok = setMcpDisabled(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath, deps.dshHome), id, disabled)
+    const ok = setMcpDisabled(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath), id, disabled)
     if (!ok) {
       event.res.status = 404
       return { error: 'server row not found' }

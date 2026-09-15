@@ -5,8 +5,14 @@
  * 实现，不在此写包装。
  */
 
-import { fsAtomicDriver } from 'dsh-tauri'
+import { DSH_HOME, fsAtomicDriver } from 'dsh-tauri'
+import { join } from 'pathe'
 import { createStorage } from 'unstorage'
 
-/** skills 功能目录存储（`$DSH_HOME/skills`；key 如 `state.json`）。 */
-export const storage = createStorage({ driver: fsAtomicDriver({ base: 'skills' }) })
+/**
+ * skills 功能目录存储（`$DSH_HOME/skills`；key 如 `state.json`）。
+ *
+ * base 必须是**绝对路径**：`fsAtomicDriver` 会把相对 base 拼到 dsh-tauri 内部的
+ * `DSH_HOME` 上，那样 `vi.mock('dsh-tauri')` 换掉数据根时驱动仍会写真实目录。
+ */
+export const storage = createStorage({ driver: fsAtomicDriver({ base: join(DSH_HOME, 'skills') }) })

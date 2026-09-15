@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   }
   const id = body.id
   try {
-    const sourceDir = mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath, deps.dshHome)
+    const sourceDir = mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath)
     const source = listMcp(sourceDir).find(item => item.id === id)
     if (source === undefined) {
       event.res.status = 404
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     }
     const scope = normalizeMcpScope(body.toScope)
     const createdId = upsertMcp(
-      mcpScopeDir(scope, deps.profileDirPath, deps.dshHome),
+      mcpScopeDir(scope, deps.profileDirPath),
       mcpRowToInput(source),
     )
     return { ok: true, id: createdId, scope, restartNeeded: true }

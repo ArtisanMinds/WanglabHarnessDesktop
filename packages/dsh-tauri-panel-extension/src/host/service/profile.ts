@@ -13,6 +13,6 @@ export function argvProfile(argv: readonly string[] = process.argv): string | un
 }
 
 /** Directory of a profile under DSH_HOME（数据根一律引用核心的 DSH_HOME）。 */
-export function profileDir(profile: string, dshHome: string = DSH_HOME): string {
-  return join(dshHome, 'profiles', profile)
+export function profileDir(profile: string): string {
+  return join(DSH_HOME, 'profiles', profile)
 }

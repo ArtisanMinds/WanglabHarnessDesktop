@@ -63,6 +63,4 @@ export interface ExtensionRouteDeps {
    * 技能「刷新」与仓库增删都要先走它，避免删被 watch 的树（Windows EPERM）。
    */
   remountProvider: () => Promise<void>
-  /** 数据根；装配期由 `apply` 解析（默认 `DSH_HOME`）。 */
-  dshHome: string
 }

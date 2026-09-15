@@ -11,5 +11,5 @@ import { listMcpScoped } from '../../service/mcp'
 
 export default defineEventHandler((event) => {
   const deps = dshRouteDepsOf<ExtensionRouteDeps>(event)!
-  return { ...listMcpScoped(deps.profileDirPath, deps.dshHome), restartNeeded: true }
+  return { ...listMcpScoped(deps.profileDirPath), restartNeeded: true }
 })

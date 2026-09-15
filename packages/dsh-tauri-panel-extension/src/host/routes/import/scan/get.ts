@@ -16,7 +16,7 @@ export default defineEventHandler((event) => {
     return {
       servers: scanAllMcp(),
       // Profile serverNames, so the browser can grey out existing ones.
-      existing: listMcpScoped(deps.profileDirPath, deps.dshHome).servers.map(row => row.serverName),
+      existing: listMcpScoped(deps.profileDirPath).servers.map(row => row.serverName),
     }
   }
   catch (error) {
