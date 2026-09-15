@@ -1,6 +1,6 @@
 {
   "name": "dsh-tauri-bundle",
-  "version": "0.6.7",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "dsh-tauri": "workspace:*",

@@ -1,7 +1,7 @@
 {
   "name": "dsh-tauri-panel-scheduler",
   "type": "module",
-  "version": "0.6.7",
+  "version": "1.0.0",
   "author": "Hairyf <wwu710632@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins#readme",
@@ -29,7 +29,6 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "README.md",
     "cordis.patch.yml",
     "dist"
   ],

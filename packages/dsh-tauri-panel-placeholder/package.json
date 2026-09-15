@@ -1,7 +1,7 @@
 {
   "name": "dsh-tauri-panel-placeholder",
   "type": "module",
-  "version": "0.6.7",
+  "version": "1.0.0",
   "private": true,
   "author": "Hairyf <wwu710632@gmail.com>",
   "license": "MIT",
@@ -28,7 +28,6 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "README.md",
     "cordis.patch.yml",
     "dist"
   ],
