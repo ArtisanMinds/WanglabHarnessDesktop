@@ -11,13 +11,21 @@
  *     （get_pet_status/set_pet_enabled/set_active_pet/set_pet_size）。
  *
  * 依赖：slots（注册 settings.section）、locale（双语文案）。invoke 桥来自
- * dsh-tauri/client。
+ * dsh-tauri/client。每个 feature 一个 `defineRegister` effect：槽位 inject 句柄、
+ * 观察器、定时器与订阅全部由控制器统一释放。
  */
 import type { ClientContext } from 'dsh-tauri/client'
 import { mountStyle } from 'dsh-tauri-ui/client'
-import { PET_CLIENT_PLUGIN, PET_STYLES_EFFECT } from './constants'
-import { registerLocale } from './locales'
-import { registerPetIconPatch, registerPetPrefill, registerPetSection } from './register/pet'
+import {
+  PET_CLIENT_PLUGIN,
+  PET_ICON_PATCH_EFFECT,
+  PET_LOCALE_EFFECT,
+  PET_PREFILL_EFFECT,
+  PET_SECTION_EFFECT,
+  PET_STYLES_EFFECT,
+} from './constants'
+import { localeFeature } from './register/locale'
+import { petIconPatchFeature, petPrefillFeature, petSectionFeature } from './register/pet'
 import petEntryStyle from './styles/index.cssr'
 
 /** 插件显示名（诊断元数据）。 */
@@ -33,9 +41,8 @@ export const inject = ['slots', 'locale', 'sessions', 'workspaces']
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => mountStyle(petEntryStyle, `${PET_CLIENT_PLUGIN}-styles`), PET_STYLES_EFFECT)
 
-  registerLocale(ctx)
-
-  registerPetSection(ctx)
-  registerPetIconPatch(ctx)
-  registerPetPrefill(ctx)
+  ctx.effect(localeFeature, PET_LOCALE_EFFECT)
+  ctx.effect(petSectionFeature, PET_SECTION_EFFECT)
+  ctx.effect(petIconPatchFeature, PET_ICON_PATCH_EFFECT)
+  ctx.effect(petPrefillFeature, PET_PREFILL_EFFECT)
 }

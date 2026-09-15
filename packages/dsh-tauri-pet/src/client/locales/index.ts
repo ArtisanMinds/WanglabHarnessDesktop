@@ -1,13 +1,11 @@
 /** Bilingual copy for the pet settings section. */
-import type { ClientContext } from 'dsh-tauri/client'
 import type { LocaleKey } from '../types'
-import { createExternalStore } from 'dsh-tauri/client'
-import { useSyncExternalStore } from 'react'
-import { PET_CLIENT_NS as NS } from '../constants'
+import { useStore } from 'dsh-tauri/client'
+import { store } from '../store'
 
 export { PET_CLIENT_NS as NS } from '../constants'
 
-const DICT_ZH: Record<LocaleKey, string> = {
+export const DICT_ZH: Record<LocaleKey, string> = {
   clear: '取消选择',
   clearFailed: '取消选择失败',
   closePet: '关闭宠物',
@@ -31,7 +29,7 @@ const DICT_ZH: Record<LocaleKey, string> = {
   toggleFailed: '切换桌宠开关失败',
 }
 
-const DICT_EN: Record<LocaleKey, string> = {
+export const DICT_EN: Record<LocaleKey, string> = {
   clear: 'Clear selection',
   clearFailed: 'Failed to clear pet selection',
   closePet: 'Close pet',
@@ -55,31 +53,15 @@ const DICT_EN: Record<LocaleKey, string> = {
   toggleFailed: 'Failed to toggle the pet',
 }
 
-let activeLocale = 'en'
-const localeRevision = createExternalStore({ revision: 0 })
-
-export function registerLocale(ctx: ClientContext): void {
-  activeLocale = ctx.locale.getLocale().active
-  ctx.locale.register(NS, 'zh', DICT_ZH)
-  ctx.locale.register(NS, 'en', DICT_EN)
-  ctx.locale.subscribe(() => {
-    try {
-      activeLocale = ctx.locale.getLocale().active
-    }
-    catch {
-      // 插件 reload/卸载时上下文会短暂失效（inactive context），服务访问器抛错；
-      // 此时无需更新本地 locale 快照，忽略本次通知避免 `locale subscriber crashed` 刷屏。
-      return
-    }
-    localeRevision.set(state => ({ revision: state.revision + 1 }))
-  })
-}
-
+/**
+ * 组件内订阅活跃语言：`rev` 前进即重渲染，`text()` 随之按新 locale 取词。
+ * 语言快照与变更订阅见 store/modules/locale.ts 与 register/locale.ts。
+ */
 export function usePetLocale(): void {
-  useSyncExternalStore(localeRevision.subscribe, () => localeRevision.getSnapshot().revision)
+  useStore(store.locale)
 }
 
 export function text(key: LocaleKey): string {
-  const dict = activeLocale.toLowerCase().startsWith('en') ? DICT_EN : DICT_ZH
+  const dict = store.locale.$state.active.toLowerCase().startsWith('en') ? DICT_EN : DICT_ZH
   return dict[key] ?? DICT_EN[key] ?? key
 }

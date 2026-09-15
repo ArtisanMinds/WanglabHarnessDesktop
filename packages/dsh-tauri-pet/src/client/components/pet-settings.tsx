@@ -1,7 +1,8 @@
 import type { ChangeEvent, ReactElement } from 'react'
 import type { PetListItem, PetSettingsProps, PresetPetItem } from '../types'
 import { ArrowDownToLine, Icon, Plus, useMountStyle } from 'dsh-tauri-ui/client'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useStore, useWatchImmediate } from 'dsh-tauri/client'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { PET_DEFAULT_SIZE, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
 import { text, usePetLocale } from '../locales'
 import {
@@ -13,7 +14,7 @@ import {
   setPetEnabled,
   setPetSize,
 } from '../service/pet'
-import { beginPetStatusFetch, commitPetStatusFetch, getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
+import { beginPetStatusFetch, commitPetStatusFetch, setPetStatus, store } from '../store'
 import petSettingsStyle from './pet-settings.cssr'
 
 /** 模块级清单缓存：跨组件挂载复用，避免反复打开设置页闪烁（初次仍显示加载占位）。 */
@@ -90,7 +91,7 @@ function readAsBase64(file: File): Promise<string> {
 export function PetSettings(props: PetSettingsProps): ReactElement {
   useMountStyle(petSettingsStyle, 'dsh-tauri-pet-settings-styles')
   usePetLocale()
-  const { status } = useSyncExternalStore(subscribePetUi, getPetUiSnapshot, getPetUiSnapshot)
+  const { status } = useStore(store.pet)
   const [tab, setTab] = useState<'pets' | 'codex'>('pets')
   // 无缓存（首次挂载）时进入加载态，避免空列表闪烁；有缓存直接渲染、后台静默刷新。
   const [busy, setBusy] = useState(() => cachedPresetPets === null)
@@ -104,10 +105,11 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
   const active = status?.active_pet ?? ''
   const statusSize = status?.pet_size ?? PET_DEFAULT_SIZE
 
-  useEffect(() => {
+  // 宿主状态里的尺寸变化（别的入口改过）同步到本地滑条；本地正在拖动的值不被覆盖。
+  useWatchImmediate(statusSize, () => {
     if (statusSize !== committedSizeRef.current)
       setSize(statusSize)
-  }, [statusSize])
+  })
 
   useEffect(() => {
     let cancelled = false

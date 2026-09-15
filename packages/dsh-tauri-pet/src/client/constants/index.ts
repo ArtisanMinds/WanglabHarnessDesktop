@@ -3,6 +3,7 @@ export const PET_CLIENT_PLUGIN = 'dsh-tauri-pet'
 export const PET_SECTION_ID = 'dsh-tauri-pet-settings'
 export const PET_SECTION_ORDER = 230
 export const PET_STYLES_EFFECT = 'dsh-tauri-pet: styles'
+export const PET_LOCALE_EFFECT = 'dsh-tauri-pet: locale'
 export const PET_SECTION_EFFECT = 'dsh-tauri-pet: settings section'
 export const PET_ICON_PATCH_EFFECT = 'dsh-tauri-pet: sidebar icon patch'
 export const PET_PREFILL_EFFECT = 'dsh-tauri-pet: conversation prefill'

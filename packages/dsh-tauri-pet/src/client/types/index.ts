@@ -46,27 +46,6 @@ export interface WorkspaceItem {
   workspaceId?: string
 }
 
-export interface PetRuntimeContext {
-  sessions: {
-    list: {
-      getSnapshot: () => {
-        current?: string
-        ids: readonly string[]
-      }
-    }
-    open?: (id: string) => void
-  }
-  workspaces: {
-    connectWorkspace?: (id: string) => Promise<string>
-    list: {
-      getSnapshot: () => {
-        items?: WorkspaceItem[]
-        recentWorkspaceId?: string
-      }
-    }
-  }
-}
-
 export interface PetSettingsProps {
   close?: () => void
   onCreate: (close?: () => void) => Promise<void>

@@ -9,15 +9,17 @@
  *
  * 挂载策略参照 dsh-tauri-session 的 workspace-patch：MutationObserver 监听
  * document.body，侧栏就绪后插入并持续看护（React 重渲染容器后自动补插）；
- * guard 属性 + 位置校验防止重复插入与死循环。
+ * guard 属性 + 位置校验防止重复插入与死循环。观察器 / 重试计时器 / store 订阅
+ * 全部登记进 `defineRegister` 的控制器，卸载即释放（观察器先断开，再移除按钮）。
  *
  * 入口常驻：预设宠物直连远端素材，任何安装状态下都可直接启用，因此不再需要
  * 「有没有可用宠物」的可用性判定。
  */
+import type { RegisterController } from 'dsh-tauri/client'
 import { PET_ICON_ATTRIBUTE, PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS, PET_SETTINGS_ROW_CLASS, SETTINGS_TRIGGER_SELECTOR, SIDEBAR_SELECTOR } from '../constants'
 import { text } from '../locales'
 import { fetchPetStatus, setPetEnabled } from '../service/pet'
-import { beginPetStatusFetch, commitPetStatusFetch, getPetUiSnapshot, setPetStatus, subscribePetUi } from '../store'
+import { beginPetStatusFetch, commitPetStatusFetch, setPetStatus, store } from '../store'
 
 /** 入口图标（爪印，currentColor 跟随官方 iconButton 悬停变色）。 */
 const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 13.5c-2.7 0-5.5 2-5.5 4.3 0 1.4 1 2.2 2.3 2.2 1 0 1.9-.6 3.2-.6s2.2.6 3.2.6c1.3 0 2.3-.8 2.3-2.2 0-2.3-2.8-4.3-5.5-4.3z"/><path d="M7.3 8.1c-1 .1-1.8 1.2-1.7 2.5.1 1.2 1 2.1 2 2 .9-.1 1.7-1.2 1.6-2.4-.1-1.2-1-2.2-1.9-2.1z"/><path d="M12 4.5c-1.1 0-2 1.1-2 2.5s.9 2.5 2 2.5 2-1.1 2-2.5-.9-2.5-2-2.5z"/><path d="M16.7 8.1c-.9-.1-1.8.9-1.9 2.1-.1 1.2.7 2.3 1.6 2.4 1 .1 1.9-.8 2-2 .1-1.3-.7-2.4-1.7-2.5z"/><path d="M4.8 12.3c-.8.3-1.2 1.4-.9 2.4.3 1 1.2 1.6 2 1.3.8-.3 1.1-1.4.8-2.4-.3-1-1.1-1.6-1.9-1.3z"/><path d="M19.2 12.3c-.8-.3-1.6.3-1.9 1.3-.3 1 0 2.1.8 2.4.8.3 1.7-.3 2-1.3.3-1-.1-2.1-.9-2.4z"/></svg>'
@@ -29,7 +31,7 @@ const PET_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="curr
  * 「临时隐藏」——用户点这个按钮的语义是「关掉宠物」，不是「这次先收起来」。
  */
 async function togglePetEnabled(): Promise<void> {
-  const enabled = Boolean(getPetUiSnapshot().status?.enabled)
+  const enabled = Boolean(store.pet.$state.status?.enabled)
   try {
     setPetStatus(await setPetEnabled(!enabled))
   }
@@ -55,18 +57,20 @@ function createPetIconButton(): HTMLButtonElement {
 
 /** 按共享状态缓存同步按钮两态（绿点显隐 + aria-pressed）：绿点 = 宠物已开启。 */
 function syncIconState(button: HTMLButtonElement): void {
-  const active = Boolean(getPetUiSnapshot().status?.enabled)
+  const active = Boolean(store.pet.$state.status?.enabled)
   button.classList.toggle('dshp-pet__icon--on', active)
   button.setAttribute('aria-pressed', String(active))
 }
 
 /**
- * 安装侧栏入口补丁。返回卸载函数（移除按钮、断开观察器与订阅）。
+ * 安装侧栏入口补丁。观察器 / 重试计时器 / store 订阅 / 收尾全部登记进控制器。
  * 桌宠状态缓存在这里初始化拉取一次；此后由设置页与按钮自身的切换写入。
+ *
+ * @param controller - `defineRegister` 提供的生命周期控制器（卸载时统一释放）。
  */
-export function registerSidebarPetIcon(): () => void {
+export function registerSidebarPetIcon(controller: RegisterController): void {
   if (typeof document === 'undefined')
-    return () => {}
+    return
 
   const button = createPetIconButton()
   /** 当前打过设置行类的宿主（卸载时移除，React 重渲染换宿主时随旧节点废弃）。 */
@@ -76,11 +80,13 @@ export function registerSidebarPetIcon(): () => void {
   /** 上次修正时触发器是否为折叠态（Rail），状态翻转时需重写内联样式。 */
   let patchedRail: boolean | undefined
 
-  const unsubscribe = subscribePetUi(() => syncIconState(button))
+  // 状态缓存订阅：绿点两态随 store 变化。
+  controller.add(store.pet.$subscribe(() => syncIconState(button)))
+
   const revision = beginPetStatusFetch()
   void fetchPetStatus()
     .then((status) => {
-      if (getPetUiSnapshot().status === null)
+      if (store.pet.$state.status === null)
         commitPetStatusFetch(revision, status)
     })
     .catch(error => console.error('[dsh-tauri-pet] fetchPetStatus failed:', error))
@@ -138,28 +144,23 @@ export function registerSidebarPetIcon(): () => void {
     ensurePlaced()
   }
 
-  const observer = new MutationObserver(scan)
-  let timer: ReturnType<typeof setInterval> | undefined
+  // 观察配置是第三参（target → onMutate → options）：观察 document.body，
+  // 侧栏就绪后插入并持续看护（React 重渲染容器后自动补插）。
+  controller.observe(document.body, scan, { childList: true, subtree: true })
+
+  // 观察器已覆盖侧栏子树，这里再保留一条短暂轮询兜底（侧栏出现即停、最多
+  // PET_ICON_RETRY_MAX 次）：应用晚挂载时可能长时间没有任何 DOM 变更。
   let tries = 0
-  /** 首次挂载：侧栏就绪后开始观察并执行首轮扫描；未就绪时轮询重试。 */
-  function attach(): boolean {
-    if (!document.querySelector(SIDEBAR_SELECTOR))
-      return false
-    observer.observe(document.body, { childList: true, subtree: true })
+  const stopPolling = controller.interval(() => {
     scan()
-    return true
-  }
+    if (document.querySelector(SIDEBAR_SELECTOR) || ++tries > PET_ICON_RETRY_MAX)
+      stopPolling()
+  }, PET_ICON_RETRY_MS)
+  // 首轮立即尝试（侧栏可能已就绪）。
+  scan()
 
-  if (!attach()) {
-    timer = setInterval(() => {
-      if (attach() || ++tries > PET_ICON_RETRY_MAX)
-        clearInterval(timer)
-    }, PET_ICON_RETRY_MS)
-  }
-
-  return () => {
-    observer.disconnect()
-    unsubscribe()
+  // 收尾：注册顺序保证它在观察器断开之后执行（否则移除按钮会触发 scan 重新插入）。
+  controller.add(() => {
     button.remove()
     if (rowHost) {
       rowHost.classList.remove(PET_SETTINGS_ROW_CLASS)
@@ -176,7 +177,5 @@ export function registerSidebarPetIcon(): () => void {
     rowHost = undefined
     patchedTrigger = undefined
     patchedRail = undefined
-    if (timer !== undefined)
-      clearInterval(timer)
-  }
+  })
 }
