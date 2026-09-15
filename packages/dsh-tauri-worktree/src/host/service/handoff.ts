@@ -106,12 +106,10 @@ export async function createInheritedSession(
  */
 export async function inheritSessionIntoWorktree(
   ctx: HostContext,
-  worktreesRoot: string,
   sourceSessionId: string,
   targetSessionId: string,
   cwd: string,
 ): Promise<OperationResult<{ targetSessionId: string, seedLength: number }>> {
-  void worktreesRoot
   return createInheritedSession(
     ctx,
     sourceSessionId,
@@ -129,7 +127,6 @@ export async function inheritSessionIntoWorktree(
  * 检出后仍能看到并继续完整对话。
  *
  * @param ctx 宿主根上下文
- * @param worktreesRoot 工作树根目录
  * @param sessionId 工作树会话 id（其事件将被继承）
  * @param projectPath 检出后的本地项目路径（新会话 cwd）
  * @param checkoutInfo 首条消息的一次性检出上下文
@@ -137,7 +134,6 @@ export async function inheritSessionIntoWorktree(
  */
 export async function handbackWorktreeSession(
   ctx: HostContext,
-  worktreesRoot: string,
   sessionId: string,
   projectPath: string,
   checkoutInfo: CheckoutInfo = {},
@@ -176,7 +172,7 @@ export async function handbackWorktreeSession(
     const workspace = await ctx.workspaceRegistry.resolveByPath(projectPath)
     if (workspace)
       await workspace.attachSession(targetSessionId)
-    await setPendingCheckoutContext(worktreesRoot, targetSessionId, {
+    await setPendingCheckoutContext(targetSessionId, {
       projectPath,
       branch: checkoutInfo.branch,
       worktreePath: checkoutInfo.worktreePath,
@@ -194,23 +190,21 @@ export async function handbackWorktreeSession(
  * 并把工作树会话的完整事件作为 seed 覆盖过去。只有新会话创建成功才删除工作树。
  *
  * @param ctx 宿主根上下文
- * @param worktreesRoot 工作树根目录
  * @param params 检出参数（worktree_hash_dirname / sessionId / branch_name）
  * @param opts 选项（signal / carryStaged）
  * @returns 检出 + 带回结果
  */
 export async function checkoutToLocalAndHandback(
   ctx: HostContext,
-  worktreesRoot: string,
   params: WorktreeParams,
   opts: CheckoutOptions = {},
 ): Promise<OperationResult<{ branch: string, projectPath: string, targetSessionId?: string }>> {
   const sessionId = String(params.sessionId ?? '')
   let targetSessionId
-  const checkout = await checkoutToLocal(ctx, worktreesRoot, params, {
+  const checkout = await checkoutToLocal(ctx, params, {
     ...opts,
     beforeRemove: async (prepared) => {
-      const handback = await handbackWorktreeSession(ctx, worktreesRoot, sessionId, prepared.projectPath, {
+      const handback = await handbackWorktreeSession(ctx, sessionId, prepared.projectPath, {
         branch: prepared.branch,
         worktreePath: prepared.worktreePath,
       })
@@ -230,7 +224,6 @@ export async function checkoutToLocalAndHandback(
  */
 export async function completeWorktreeHandoff(
   ctx: HostContext,
-  worktreesRoot: string,
   handoff: PendingHandoff,
 ): Promise<void> {
   const { sourceAgent, targetSessionId, binding } = handoff
@@ -272,7 +265,7 @@ export async function completeWorktreeHandoff(
   catch (error) {
     // 未发布时可以完整回滚；已发布时保留工作树，避免正在运行的新会话丢失 cwd。
     if (!ctx.agents.get(targetSessionId)) {
-      await discardWorktree(ctx, worktreesRoot, { sessionId: targetSessionId })
+      await discardWorktree(ctx, { sessionId: targetSessionId })
     }
     const message = error instanceof Error ? error.message : String(error)
     ctx.logger?.error?.(`create_worktree handoff failed for ${targetSessionId}: ${message}`)

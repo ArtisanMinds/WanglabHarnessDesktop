@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { rmdir } from 'node:fs/promises'
 import process from 'node:process'
+import { DSH_HOME } from 'dsh-tauri'
 import { join, resolve } from 'pathe'
 import { WORKTREE_BRANCH_NAME_PATTERN } from '../constants'
 import { listBindings, loadBinding, removeBinding, saveBinding } from '../storage'
@@ -43,9 +44,9 @@ export function computeHash(projectPath: string, sessionId: string): string {
   return createHash('sha256').update(`${projectPath}:${sessionId}`).digest('hex').slice(0, 12)
 }
 
-/** 工作树落盘目录：`<home>/worktrees/<hash>/<dirname>`。 */
-export function worktreePath(worktreesRoot: string, hash: string, dirname: string): string {
-  return join(worktreesRoot, 'worktrees', hash, dirname)
+/** 工作树落盘目录：`<DSH_HOME>/worktrees/<hash>/<dirname>`。 */
+export function worktreePath(hash: string, dirname: string): string {
+  return join(DSH_HOME, 'worktrees', hash, dirname)
 }
 
 /** 工作树展示用相对标识 `[hash]/[dirname]`。 */
@@ -53,21 +54,21 @@ export function worktreeKey(hash: string, dirname: string): string {
   return `${hash}/${dirname}`
 }
 
-function worktreeTrashPath(worktreesRoot: string, hash: string, dirname: string): string {
-  return join(worktreesRoot, '.trash', hash, dirname)
+function worktreeTrashPath(hash: string, dirname: string): string {
+  return join(DSH_HOME, '.trash', hash, dirname)
 }
 
 /**
  * 顺带删除某 hash 的插件自有容器目录 `worktrees/<hash>` 与 `.trash/<hash>`。
  * 工作树目录被 rename 到 .trash 再删除后，这两个父目录只剩空壳；一并移除，避免
- * 每次放弃/检出都在 worktreesRoot 下累积一个空 `<hash>` 文件夹。rmdir 只在目录
+ * 每次放弃/检出都在 `DSH_HOME` 下累积一个空 `<hash>` 文件夹。rmdir 只在目录
  * 为空时成功——目录不存在（ENOENT）或仍含内容（ENOTEMPTY，如并发重建/异常残留）
  * 时静默跳过；收尾是尽力而为，绝不因清理失败让删除操作整体报错。
  */
-async function removeEmptyHashContainers(worktreesRoot: string, hash: string): Promise<void> {
+async function removeEmptyHashContainers(hash: string): Promise<void> {
   for (const container of [
-    join(worktreesRoot, 'worktrees', hash),
-    join(worktreesRoot, '.trash', hash),
+    join(DSH_HOME, 'worktrees', hash),
+    join(DSH_HOME, '.trash', hash),
   ]) {
     try {
       await rmdir(container)
@@ -132,7 +133,6 @@ async function stopWorktreeProcesses(ctx: HostContext, sessionId: string, path: 
 async function removeWorktreeOnDisk(
   ctx: HostContext,
   sessionId: string,
-  worktreesRoot: string,
   root: string,
   path: string,
   hash: string,
@@ -148,14 +148,14 @@ async function removeWorktreeOnDisk(
     await unlinkWorktreeDependencies(path, linkDirectories)
 
   try {
-    await removeDirectoryReliably(path, worktreeTrashPath(worktreesRoot, hash, dirname))
+    await removeDirectoryReliably(path, worktreeTrashPath(hash, dirname))
   }
   catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) }
   }
 
   // 工作树目录及其 .trash 副本都已删除：顺带清掉因此变空的 <hash> 容器目录。
-  await removeEmptyHashContainers(worktreesRoot, hash)
+  await removeEmptyHashContainers(hash)
 
   // Git is deliberately limited to metadata cleanup. It must never traverse
   // the worktree because old Git for Windows follows junction targets.
@@ -188,7 +188,6 @@ async function deleteOwnedBranch(root: string, branch: string, signal?: AbortSig
 /**
  * 创建工作树（幂等）：已存在则复用并返回已存在标记。
  * @param ctx 宿主根上下文（agents/workspaceRegistry 与 agents.create 流程在 handoff.ts 使用）
- * @param worktreesRoot 工作树根目录
  * @param projectPath 源项目路径（须为 git 仓库顶层）
  * @param sessionId 目标（工作树）会话 id
  * @param opts 创建选项（signal / sourceSessionId / branchName / carryStaged）
@@ -196,12 +195,11 @@ async function deleteOwnedBranch(root: string, branch: string, signal?: AbortSig
  */
 export async function ensureWorktree(
   ctx: HostContext,
-  worktreesRoot: string,
   projectPath: string,
   sessionId: string,
   opts: EnsureOptions = {},
 ): Promise<OperationResult<{ binding: Binding, log: string[], existed: boolean }>> {
-  // ctx 仅为工具/路由层统一签名保留（本实现只依赖 worktreesRoot 与 opts）。
+  // ctx 仅为工具/路由层统一签名保留（本实现只依赖 projectPath 与 opts）。
   void ctx
   const root = await gitToplevel(projectPath)
   if (!root)
@@ -209,12 +207,12 @@ export async function ensureWorktree(
 
   const hash = computeHash(projectPath, sessionId)
   const dirname = projectDirname(projectPath)
-  const path = worktreePath(worktreesRoot, hash, dirname)
+  const path = worktreePath(hash, dirname)
   // 依赖链接配置在建/删两条路径上共用：创建时建立，删除前断开。
   const linkDirectories = normalizeLinkDirectories(opts.linkDependencyDirectories)
   const linkDependencies = opts.linkDependencies !== false
 
-  const existing = await loadBinding(worktreesRoot, sessionId)
+  const existing = loadBinding(sessionId)
   if (existing && !samePath(existing.worktreePath, path)) {
     // A stale ledger pointing elsewhere must never be silently ignored: the
     // computed path could then be recreated while the old directory (or its
@@ -249,7 +247,7 @@ export async function ensureWorktree(
     }
     // State B: a prior interrupted removal left only the directory. Delete the
     // orphan before pruning metadata; prune alone never removes disk content.
-    const removed = await removeWorktreeOnDisk(ctx, sessionId, worktreesRoot, root, path, hash, dirname, linkDirectories, opts.signal)
+    const removed = await removeWorktreeOnDisk(ctx, sessionId, root, path, hash, dirname, linkDirectories, opts.signal)
     if (!removed.ok)
       return { ok: false, error: `清理孤儿工作树目录失败：${removed.error}` }
   }
@@ -291,7 +289,7 @@ export async function ensureWorktree(
     const carried = await carryStagedChanges(root, path, { signal: opts.signal })
     if (!carried.ok) {
       const rollbackFailures: string[] = []
-      const removed = await removeWorktreeOnDisk(ctx, sessionId, worktreesRoot, root, path, hash, dirname, linkDirectories, opts.signal)
+      const removed = await removeWorktreeOnDisk(ctx, sessionId, root, path, hash, dirname, linkDirectories, opts.signal)
       if (!removed.ok)
         rollbackFailures.push(`移除工作树失败：${removed.error}`)
       if (branchName) {
@@ -353,11 +351,11 @@ export async function ensureWorktree(
   // 孤儿目录。saveBinding 只原子写本会话自己的文件，不再整表读写；saveBinding 内部
   // 已对瞬时 EPERM 做退避重试，这里兜底覆盖其余硬失败（如权限/磁盘）。
   try {
-    await saveBinding(worktreesRoot, sessionId, binding)
+    await saveBinding(sessionId, binding)
   }
   catch {
     const rollbackFailures: string[] = []
-    const removed = await removeWorktreeOnDisk(ctx, sessionId, worktreesRoot, root, path, hash, dirname, linkDirectories, opts.signal)
+    const removed = await removeWorktreeOnDisk(ctx, sessionId, root, path, hash, dirname, linkDirectories, opts.signal)
     if (!removed.ok)
       rollbackFailures.push(`移除工作树失败：${removed.error}`)
     if (branchName) {
@@ -376,16 +374,16 @@ export async function ensureWorktree(
 }
 
 /** 解析工作树绑定（兼容 sessionId 或 worktreeHashDirname 定位）。 */
-export async function resolveBinding(worktreesRoot: string, sessionId?: string, key?: string): Promise<{ binding: Binding | null }> {
+export async function resolveBinding(sessionId?: string, key?: string): Promise<{ binding: Binding | null }> {
   // 主路径：按会话直读自己的 ledger 文件（多工作树同组时也能精确命中）。
   if (sessionId) {
-    const bySession = await loadBinding(worktreesRoot, sessionId)
+    const bySession = loadBinding(sessionId)
     if (bySession)
       return { binding: bySession }
   }
   // 回退：按 [hash]/[dirname] key 遍历。仅会话 id 对不上时走全量扫描。
   if (key) {
-    const all = await listBindings(worktreesRoot)
+    const all = listBindings()
     for (const binding of all) {
       if (binding.hash && binding.dirname && `${binding.hash}/${binding.dirname}` === key) {
         return { binding }
@@ -413,18 +411,16 @@ export async function unregisterWorktreeWorkspace(ctx: HostContext, path: string
  * 检出语义（已与用户确认）：「检出本地」= 在工作树分支上保留全部改动，在本地仓库
  * 创建/切换到 `dsh/<branch>` 分支，Agent 继续在本地仓库工作；主分支不受影响。
  * @param ctx 宿主根上下文
- * @param worktreesRoot 工作树根目录
  * @param params 检出参数（worktree_hash_dirname / sessionId / branch_name）
  * @param opts 检出选项（signal / carryStaged / beforeRemove 会话交接钩子）
  * @returns 检出结果
  */
 export async function checkoutToLocal(
   ctx: HostContext,
-  worktreesRoot: string,
   params: WorktreeParams,
   opts: CheckoutOptions = {},
 ): Promise<OperationResult<{ branch: string, projectPath: string, worktreePath: string }>> {
-  const { binding } = await resolveBinding(worktreesRoot, params.sessionId, params.worktreeHashDirname)
+  const { binding } = await resolveBinding(params.sessionId, params.worktreeHashDirname)
   if (!binding)
     return { ok: false, error: `未找到绑定的工作树` }
   if (!existsSync(binding.worktreePath))
@@ -566,7 +562,6 @@ export async function checkoutToLocal(
   const removed = await removeWorktreeOnDisk(
     ctx,
     binding.sessionId,
-    worktreesRoot,
     root,
     binding.worktreePath,
     binding.hash,
@@ -584,7 +579,7 @@ export async function checkoutToLocal(
   }
 
   // 5) 解除绑定：只删本会话的 ledger 文件，互不干扰同组其他工作树。
-  await removeBinding(worktreesRoot, binding.sessionId)
+  await removeBinding(binding.sessionId)
 
   return { ok: true, branch, projectPath: root, worktreePath: binding.worktreePath }
 }
@@ -592,7 +587,6 @@ export async function checkoutToLocal(
 /**
  * 放弃更改：删除工作树并解除绑定（会话保留）。
  * @param ctx 宿主根上下文
- * @param worktreesRoot 工作树根目录
  * @param params 放弃参数（worktree_hash_dirname / sessionId）
  * @param opts 选项
  * @param opts.signal 可选取消信号
@@ -601,11 +595,10 @@ export async function checkoutToLocal(
  */
 export async function discardWorktree(
   ctx: HostContext,
-  worktreesRoot: string,
   params: WorktreeParams,
   opts: { signal?: AbortSignal, linkDependencyDirectories?: string[] } = {},
 ): Promise<OperationResult<{ worktreePath: string }>> {
-  const { binding } = await resolveBinding(worktreesRoot, params.sessionId, params.worktreeHashDirname)
+  const { binding } = await resolveBinding(params.sessionId, params.worktreeHashDirname)
   if (!binding)
     return { ok: false, error: `未找到绑定的工作树` }
 
@@ -614,7 +607,6 @@ export async function discardWorktree(
   const removed = await removeWorktreeOnDisk(
     ctx,
     binding.sessionId,
-    worktreesRoot,
     binding.projectPath,
     binding.worktreePath,
     binding.hash,
@@ -633,7 +625,7 @@ export async function discardWorktree(
       return { ok: false, error: `删除工作树分支失败，绑定已保留以便重试：${dropped.error}` }
   }
 
-  await removeBinding(worktreesRoot, binding.sessionId)
+  await removeBinding(binding.sessionId)
 
   return { ok: true, worktreePath: binding.worktreePath }
 }

@@ -7,36 +7,32 @@
  * 这里改为每个会话独立文件 `ledger/<sessionId>.json`，读改写只作用于单个会话，天然消除
  * 共享文件竞争，无需额外加锁。
  *
+ * 数据根：固定为 `DSH_HOME`（`~/.dsh`）。插件行配置不提供覆盖项——调用方不再传根目录，
+ * 路径一律从这里拼出，避免同一份状态被拆到两个根下。测试用 `vi.mock('dsh-tauri')`
+ * 注入临时根。
+ *
  * key 形态：unstorage 以 `:` 作层级分隔符，driver 把它还原成 `/`（见 dsh-tauri 的
  * fsAtomicDriver）。故「ledger:sess-id.json」落在 `base/ledger/sess-id.json`。
- * 原子写走 dsh-tauri 共享的 fsAtomicDriver（tmp+rename）。
- *
- * 迁移：旧版本遗留的 `ledger.json` / `checkout-context.json` 整表文件在首次运行时拆分成
- * 按会话文件并删除，幂等。同步读面对迁移前的窗口做「旧文件单键回退」。同步面保留给
- * 工具 execute 与 systemPrompt 渲染路径（小文件同步读可接受）。
+ * 原子写走 dsh-tauri 共享的 fsAtomicDriver（tmp+rename）。同步读保留给工具 execute 与
+ * systemPrompt 渲染路径（小文件同步读可接受）。
  */
 
 import type { Binding, CheckoutContext } from '../types'
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
-import { fsAtomicDriver } from 'dsh-tauri'
+import { readdirSync, readFileSync } from 'node:fs'
+import { DSH_HOME, fsAtomicDriver } from 'dsh-tauri'
 import { join } from 'pathe'
 import { createStorage } from 'unstorage'
 
 const LEDGER_DIR = 'ledger'
 const CHECKOUT_CONTEXT_DIR = 'checkout-context'
-/** 旧版本整表文件（迁移后删除）。 */
-const LEGACY_LEDGER_KEY = 'ledger.json'
-const LEGACY_CHECKOUT_CONTEXT_KEY = 'checkout-context.json'
 
 /**
- * 工作树根目录下的 key-value 存储（绝对路径直接作为 driver base）。
+ * 数据根下的 key-value 存储（绝对路径直接作为 driver base）。
  *
- * `fsAtomicDriver({ base })` 的 base 是绝对路径时原样使用，写盘走 tmp+rename 原子写；
- * 与旧核的 `createAtomicFsStorage(worktreesRoot)` 等价。
+ * `fsAtomicDriver({ base })` 的 base 是绝对路径时原样使用，写盘走 tmp+rename 原子写。
+ * `DSH_HOME` 是模块级常量，故存储实例可以一次建立、全程复用。
  */
-function store(worktreesRoot: string) {
-  return createStorage({ driver: fsAtomicDriver({ base: worktreesRoot }) })
-}
+const storage = createStorage({ driver: fsAtomicDriver({ base: DSH_HOME }) })
 
 /** 会话 id → 按会话文件的相对路径（不含 base）。 */
 function sessionFile(sessionId: string): string {
@@ -77,47 +73,20 @@ function parseCheckoutContext(raw: string): CheckoutContext | null {
 // ---------------------------------------------------------------------------
 
 /**
- * 同步读取某会话的 binding。优先按会话文件；对迁移前窗口回退旧整表 `ledger.json`。
- * 文件缺失/损坏一律返回 null（绝不让只读渲染路径抛错）。
+ * 同步读取某会话的 binding。文件缺失/损坏一律返回 null（绝不让只读渲染路径抛错）。
  */
-export function loadBindingSync(worktreesRoot: string, sessionId: string): Binding | null {
+export function loadBinding(sessionId: string): Binding | null {
   try {
-    const raw = readFileSync(join(worktreesRoot, sessionFile(sessionId)), 'utf8')
-    const binding = parseBinding(raw)
-    if (binding)
-      return binding
+    return parseBinding(readFileSync(join(DSH_HOME, sessionFile(sessionId)), 'utf8'))
   }
   catch {
-    /* 会话文件缺失则回退旧整表 */
+    /* 文件缺失/损坏按无绑定处理 */
+    return null
   }
-  return legacyLedgerEntrySync(worktreesRoot, sessionId)
-}
-
-/** 从旧整表 `ledger.json` 取单键（迁移前的只读回退；不在此处落盘）。 */
-function legacyLedgerEntrySync(worktreesRoot: string, sessionId: string): Binding | null {
-  try {
-    const raw = readFileSync(join(worktreesRoot, LEGACY_LEDGER_KEY), 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') {
-      const entry = (parsed as Record<string, unknown>)[sessionId]
-      return entry && typeof entry === 'object' ? entry as Binding : null
-    }
-  }
-  catch {
-    /* 旧文件缺失/损坏按无绑定处理 */
-  }
-  return null
-}
-
-/** 异步读绑定：先保证旧整表已迁移，再读按会话文件。 */
-export async function loadBinding(worktreesRoot: string, sessionId: string): Promise<Binding | null> {
-  await migrateLegacyLedger(worktreesRoot)
-  return loadBindingSync(worktreesRoot, sessionId)
 }
 
 /** 原子写某个会话的 binding（幂等：同会话重复写只覆盖自己的文件）。 */
-export async function saveBinding(worktreesRoot: string, sessionId: string, binding: Binding): Promise<void> {
-  const storage = store(worktreesRoot)
+export async function saveBinding(sessionId: string, binding: Binding): Promise<void> {
   await storage.setItem(
     sessionFile(sessionId),
     `${JSON.stringify(binding, null, 2)}\n`,
@@ -125,15 +94,14 @@ export async function saveBinding(worktreesRoot: string, sessionId: string, bind
 }
 
 /** 删除某个会话的 binding（不存在时视为成功）。 */
-export async function removeBinding(worktreesRoot: string, sessionId: string): Promise<void> {
-  const storage = store(worktreesRoot)
+export async function removeBinding(sessionId: string): Promise<void> {
   await storage.removeItem(sessionFile(sessionId))
 }
 
-/** 同步枚举全部 binding（仅自愈/按 key 寻址等「需要全量」的路径使用）。 */
-export function listBindingsSync(worktreesRoot: string): Binding[] {
+/** 同步枚举全部 binding（仅按 key 寻址等「需要全量」的路径使用）。 */
+export function listBindings(): Binding[] {
   const results: Binding[] = []
-  const dir = join(worktreesRoot, LEDGER_DIR)
+  const dir = join(DSH_HOME, LEDGER_DIR)
   let names: string[]
   try {
     names = readdirSync(dir)
@@ -142,7 +110,7 @@ export function listBindingsSync(worktreesRoot: string): Binding[] {
     return results // ledger/ 目录尚不存在
   }
   for (const name of names) {
-    // 只认本方案的 `<sessionId>.json` 叶文件，忽略迁移残留的 tmp/目录项。
+    // 只认本方案的 `<sessionId>.json` 叶文件，忽略中断写盘残留的 tmp/目录项。
     if (!name.endsWith('.json'))
       continue
     try {
@@ -157,73 +125,23 @@ export function listBindingsSync(worktreesRoot: string): Binding[] {
   return results
 }
 
-/** 异步枚举全部 binding；先迁移旧整表再枚举，保证结果完整。 */
-export async function listBindings(worktreesRoot: string): Promise<Binding[]> {
-  await migrateLegacyLedger(worktreesRoot)
-  return listBindingsSync(worktreesRoot)
-}
-
-// ---------------------------------------------------------------------------
-// 旧整表迁移
-// ---------------------------------------------------------------------------
-
-/** 旧版本整表 migration：拆分到按会话文件后删除旧文件。幂等（旧文件不存在即跳过）。 */
-export async function migrateLegacyLedger(worktreesRoot: string): Promise<void> {
-  const legacyPath = join(worktreesRoot, LEGACY_LEDGER_KEY)
-  if (!existsSync(legacyPath))
-    return
-  const s = store(worktreesRoot)
-  try {
-    const raw = readFileSync(legacyPath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') {
-      for (const [sessionId, entry] of Object.entries(parsed as Record<string, unknown>)) {
-        if (!entry || typeof entry !== 'object')
-          continue
-        await s.setItem(sessionFile(sessionId), `${JSON.stringify(entry, null, 2)}\n`)
-      }
-    }
-    // 所有按会话文件落盘成功后，才删旧整表（提交点）。
-    rmSync(legacyPath, { force: true })
-  }
-  catch {
-    // 迁移失败不动旧文件，保留可重试状态；分文件写入均幂等，重跑安全。
-  }
-}
-
 // ---------------------------------------------------------------------------
 // 一次检出上下文（按会话独立文件）
 // ---------------------------------------------------------------------------
 
-/** 同步读取某会话的一次性检出上下文（迁移前回退旧整表）。 */
-export function loadCheckoutContextSync(worktreesRoot: string, sessionId: string): CheckoutContext | null {
+/** 同步读取某会话的一次性检出上下文（缺失/损坏返回 null）。 */
+export function loadCheckoutContext(sessionId: string): CheckoutContext | null {
   try {
-    const raw = readFileSync(join(worktreesRoot, checkoutContextFile(sessionId)), 'utf8')
-    const context = parseCheckoutContext(raw)
-    if (context)
-      return context
+    return parseCheckoutContext(readFileSync(join(DSH_HOME, checkoutContextFile(sessionId)), 'utf8'))
   }
   catch {
-    /* 会话文件缺失则回退旧整表 */
+    /* 文件缺失/损坏按无上下文处理 */
+    return null
   }
-  try {
-    const raw = readFileSync(join(worktreesRoot, LEGACY_CHECKOUT_CONTEXT_KEY), 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') {
-      const entry = (parsed as Record<string, unknown>)[sessionId]
-      if (entry && typeof entry === 'object')
-        return entry as CheckoutContext
-    }
-  }
-  catch {
-    /* 旧文件缺失/损坏按无上下文处理 */
-  }
-  return null
 }
 
 /** 写入某会话的一次性检出上下文（原子写，只碰自己的文件）。 */
-export async function setPendingCheckoutContext(worktreesRoot: string, sessionId: string, context: CheckoutContext): Promise<void> {
-  const storage = store(worktreesRoot)
+export async function setPendingCheckoutContext(sessionId: string, context: CheckoutContext): Promise<void> {
   await storage.setItem(
     checkoutContextFile(sessionId),
     `${JSON.stringify(context, null, 2)}\n`,
@@ -231,7 +149,6 @@ export async function setPendingCheckoutContext(worktreesRoot: string, sessionId
 }
 
 /** 清除某会话的一次性检出上下文（不存在时视为成功）。 */
-export async function clearPendingCheckoutContext(worktreesRoot: string, sessionId: string): Promise<void> {
-  const storage = store(worktreesRoot)
+export async function clearPendingCheckoutContext(sessionId: string): Promise<void> {
   await storage.removeItem(checkoutContextFile(sessionId))
 }

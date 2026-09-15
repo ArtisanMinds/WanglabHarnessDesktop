@@ -23,7 +23,7 @@ export function createToolSet(
   config: PluginConfig,
   pendingHandoffs: Map<string, PendingHandoff> = new Map(),
 ): any[] {
-  const worktreesRoot = config.worktreesRoot || DSH_HOME
+  const worktreesRoot = DSH_HOME
 
   return [
     {

@@ -8,7 +8,6 @@ export interface WorktreeProcessController {
 }
 
 export interface PluginConfig {
-  worktreesRoot?: string
   /** 是否把源仓库的依赖目录链接进新工作树（默认 true）。 */
   linkDependencies?: boolean
   /** 需要链接的依赖目录名，默认 `['node_modules']`。 */
@@ -25,7 +24,7 @@ export interface PluginConfig {
 export interface WorktreeRouteDeps {
   /** 插件行配置（依赖链接目录等）。 */
   config: PluginConfig
-  /** 工作树数据根（`config.worktreesRoot` 或 `DSH_HOME`）。 */
+  /** 工作树数据根（恒为 `DSH_HOME`，见 apply.ts）。 */
   worktreesRoot: string
   /** 「放弃工作树」后台删除任务登记表（apply 期一份）。 */
   discardJobs: DiscardJobs

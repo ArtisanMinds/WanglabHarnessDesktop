@@ -12,7 +12,6 @@
 import type { HostContext, PendingHandoff, PluginConfig, WorktreeRouteDeps } from './types'
 import { DSH_HOME } from 'dsh-tauri'
 import { WORKTREE_SECTION_ORDER } from '../shared/constants'
-import { hooks } from './hooks'
 import { routes } from './routes'
 import { createDiscardJobs } from './service/discard-jobs'
 import { completeWorktreeHandoff } from './service/handoff'
@@ -27,25 +26,24 @@ import {
 } from './storage'
 import { createToolSet } from './tools'
 
-/**
- * 插件体：注册工具、HTTP 路由与系统提示注入。
- * @param ctx - 客户端根上下文（注入 tools/systemPrompt/webServer/sessions/workspaceRegistry）。
- * @param config - 插件行配置（worktreesRoot 等）。
- */
 export function apply(ctx: HostContext, config: PluginConfig = {}): void {
   const cfg = config ?? {}
-  const worktreesRoot = typeof cfg.worktreesRoot === 'string' && cfg.worktreesRoot
-    ? cfg.worktreesRoot
-    : DSH_HOME
+  // 数据根固定为 DSH_HOME（`~/.dsh`）：插件行配置不提供覆盖项，工作树、ledger 与
+  // checkout 上下文都落在同一处，避免同一份状态被拆到两个根下。
+  const worktreesRoot = DSH_HOME
   // 1) 工具注册。create_worktree 的交接延迟到源 turn/end，确保 seed 是完整日志。
   const pendingHandoffs = new Map<string, PendingHandoff>()
   // 只有 provider 确实参与过模型组装的会话，才允许在 turn/end 消费一次性上下文。
   // 新继承会话发布、列表同步或其他空转事件不能提前清除它。
   const injectedCheckoutContexts = new Set<string>()
+
   for (const tool of createToolSet(ctx, cfg, pendingHandoffs)) {
     ctx.tools.register(tool)
   }
-  hooks.hook('session:turn-end', (session, _event) => {
+
+  ctx.on('session/event', (session: any, event: any) => {
+    if (event.type !== 'turn/end')
+      return
     const handoff = pendingHandoffs.get(session.id)
     if (handoff) {
       pendingHandoffs.delete(session.id)
@@ -55,11 +53,6 @@ export function apply(ctx: HostContext, config: PluginConfig = {}): void {
     // 否则新会话发布时出现的既有/空转 turn/end 会在用户首条消息前误删上下文。
     if (injectedCheckoutContexts.delete(session.id))
       void clearPendingCheckoutContext(worktreesRoot, session.id)
-  })
-  ctx.on('session/event', (session: any, event: any) => {
-    if (event.type !== 'turn/end')
-      return
-    void hooks.callHook('session:turn-end', session, event)
   })
 
   // 1.5) 安装依赖前断开工作树内的共享链接：链接让工作树开箱可用，但包管理器直接写入会
