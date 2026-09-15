@@ -4,6 +4,8 @@ export * from './hooks/use-invoke'
 export * from './hooks/use-listen'
 export * from './hooks/use-listen-parent'
 
+export * from './locale'
+
 export * from './modules/css-render'
 export * from './modules/date-fns'
 export * from './modules/hookable'
