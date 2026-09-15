@@ -28,6 +28,7 @@ import { SlotOutlet } from '@deepseek-ai/dsh-client-ui-renderer'
  * 职责边界：拖拽交互 → hooks/use-rail-drag.ts；下层/外部表面隐藏 →
  * dom/settings-obstructions.ts；本文件只保留组件状态 + JSX + 打开期副作用。
  */
+import { useEventListener } from 'dsh-tauri/client'
 import { useEffect, useRef } from 'react'
 import {
   SETTINGS_SECTION_SLOT,
@@ -43,7 +44,7 @@ import {
   RAIL_WIDTH_DEFAULT,
   selectSection,
   setRailWidth,
-  settingsStore,
+  store,
   useSettingsUi,
 } from '../store'
 import { useMountStyle } from '../utils/style'
@@ -64,18 +65,15 @@ export function SettingsSidebar(_props: SettingsSidebarProps): ReactElement | nu
   useMountStyle(settingsSidebarStyle, SETTINGS_STYLE_ID)
   const searchRef = useRef<HTMLInputElement>(null)
   const { dragging, onHandlePointerDown } = useRailDrag()
+  const documentRef = useRef<Document | null | undefined>(
+    typeof document === 'undefined' ? undefined : document,
+  )
 
-  // Esc 关闭（仅打开期间挂载监听，与官方 SettingsPanel 同生命周期）。
-  useEffect(() => {
-    if (!ui.open)
-      return
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape')
-        closeSettings()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [ui.open])
+  // Esc 关闭：文档级 keydown 由 reause 托管（卸载自动移除；仅打开期间生效）。
+  useEventListener(documentRef, 'keydown', (event: KeyboardEvent) => {
+    if (ui.open && event.key === 'Escape')
+      closeSettings()
+  })
 
   // 打开时聚焦搜索框；并按官方 sidebar 槽的实际渲染宽度同步左栏宽度（item 3）。
   useEffect(() => {
@@ -133,7 +131,7 @@ export function SettingsSidebar(_props: SettingsSidebarProps): ReactElement | nu
           placeholder={settingsText('search')}
           aria-label={settingsText('search')}
           onChange={event =>
-            settingsStore.set(state => ({ ...state, query: event.target.value }))}
+            store.settings.setQuery(event.target.value)}
         />
         <nav className="dshp-settings-sidebar__nav" aria-label={settingsText('settings')}>
           {visible.map(row => (

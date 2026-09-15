@@ -1,8 +1,10 @@
 import type { SettingsRow } from '../types'
-import { useMemo, useSyncExternalStore } from 'react'
+import { useStore } from 'dsh-tauri/client'
+import { useMemo } from 'react'
 import { SETTINGS_ONBOARDING_SLOT, SETTINGS_SECTION_SLOT } from '../constants'
 import { useSettingsLocale } from '../locales'
 import { getSettingsSlots } from '../register/sections'
+import { store } from '../store'
 
 export type { SettingsRow } from '../types'
 /**
@@ -10,8 +12,11 @@ export type { SettingsRow } from '../types'
  *
  * 官方 SettingsRoot 用 inject hooks（sections / onboardingSteps）把
  * 'settings.section' / 'settings.onboarding' 两个 list 槽的注册条目投影为
- * 导航行。这里做同样的事，但更贴近 renderer 自身的 uSES 习惯：订阅槽位
- * 版本 + locale 变更，重算 `entries(key) -> {id, order, label}` 排序行。
+ * 导航行。这里做同样的事：订阅槽位 revision + locale 变更，重算
+ * `entries(key) -> {id, order, label}` 排序行。
+ *
+ * 槽位变更不经自建订阅器：注册中心的注册/声明通知由 register/sections.ts 在
+ * apply 期订阅并推进 store.slots 的 revision，本文件经 useStore 按 key 订阅。
  *
  * label 与官方一致经 resolveSlotLabel 语义解析（函数型 label 即按当前
  * locale 求值，所以 locale 变更也要触发重算）。
@@ -45,21 +50,16 @@ function projectRows(slotKey: string): SettingsRow[] {
 }
 
 /**
- * 订阅一个 list 槽的注册/声明变更（uSES：getVersion 做快照，变更在
- * microtask 批量通知后重渲染）。
+ * 订阅一个 list 槽的注册/声明变更。
+ *
+ * revision 由 register/sections.ts 的 apply 期订阅推进（见 store/modules/slots.ts），
+ * 这里只经 useStore 读取并按 key 精确重渲染。
  * @param slotKey - 槽 key。
- * @returns 当前版本号。
+ * @returns 当前 revision。
  */
 function useSlotVersion(slotKey: string): number {
-  const slots = getSettingsSlots()
-  return useSyncExternalStore(
-    (onChange) => {
-      if (!slots)
-        return () => {}
-      return slots.subscribe(slotKey as never, onChange)
-    },
-    () => (slots ? slots.getVersion(slotKey as never) : 0),
-  )
+  const { revisions } = useStore(store.slots)
+  return revisions[slotKey] ?? 0
 }
 
 /** 设置分区导航行（'settings.section' 投影；订阅槽位与 locale 变更）。 */

@@ -1,4 +1,5 @@
 import type { ClientContext } from 'dsh-tauri/client'
+import { defineRegister } from 'dsh-tauri/client'
 import { SettingsTrigger } from '../components/trigger'
 import {
   SETTINGS_REGISTRANT,
@@ -12,12 +13,14 @@ import {
  * 'sidebar.settings' 不属于本插件类型图的 SlotMap 键（声明权在 ui-sidebar，
  * 类型未提升到根 node_modules），此处对 options 显式 cast 以通过 K 收窄；
  * 组件 props 仍由本地 SettingsTriggerProps 提供类型保证。
- * @param ctx - 客户端根上下文。
+ * inject 的撤销句柄交给 controller：插件卸载时随 effect 一并撤销。
  */
-export function registerSettingsTrigger(ctx: ClientContext): void {
-  ctx.slots.inject(SETTINGS_SIDEBAR_SLOT as never, () =>
-    ctx.slots.register(
-      { name: SETTINGS_SIDEBAR_SLOT, priority: SETTINGS_TRIGGER_PRIORITY, registrant: SETTINGS_REGISTRANT } as never,
-      SettingsTrigger,
-    ))
-}
+export const registerSettingsTrigger = defineRegister<ClientContext>((controller, ctx) => {
+  controller.add(
+    ctx.slots.inject(SETTINGS_SIDEBAR_SLOT as never, () =>
+      ctx.slots.register(
+        { name: SETTINGS_SIDEBAR_SLOT, priority: SETTINGS_TRIGGER_PRIORITY, registrant: SETTINGS_REGISTRANT } as never,
+        SettingsTrigger,
+      )),
+  )
+})

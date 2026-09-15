@@ -6,25 +6,23 @@
  * 且无需增广 LocaleNamespaceMap（避免外部类型依赖）。
  *
  * 组件侧不引入框架的 `t` 座（那需要 register option locale + 增广），
- * 改用一个极薄的 uSES 桥：apply 时订阅 locale 变更并推进 rev ->
- * 组件订阅 rev 重渲染，文案按当前 active locale 从本地字典读取。
+ * 改用 store.locale 的 revision：apply 时订阅 locale 变更并 bump ->
+ * 组件经 useStore(store.locale) 订阅 rev 重渲染，文案按当前 active locale
+ * 从本地字典读取。
  */
 import type { ClientContext } from 'dsh-tauri/client'
 import type { SettingsUiKey } from '../types'
-import { createExternalStore } from 'dsh-tauri/client'
-import { useSyncExternalStore } from 'react'
+import { useStore } from 'dsh-tauri/client'
 import { DICT_EN, DICT_ZH, SETTINGS_UI_NS } from '../constants'
+import { store } from '../store'
 
 export type { SettingsUiKey } from '../types'
 
 /** 活跃语言 id（module 级缓存，apply 时初始化并由订阅推进）。 */
 let activeLocale = 'en'
 
-/** locale 变更推进器：revision 前进 -> uSES 订阅方重渲染。 */
-export const settingsLocaleRev = createExternalStore({ rev: 0 })
-
 /**
- * 在 apply 里安装：注册本插件的双语字典，并桥接 locale 变更到 rev。
+ * 在 apply 里安装：注册本插件的双语字典，并桥接 locale 变更到 store.locale。
  * @param ctx - 客户端根上下文（须已注入 locale 服务）。
  */
 export function registerSettingsLocale(ctx: ClientContext): void {
@@ -33,7 +31,7 @@ export function registerSettingsLocale(ctx: ClientContext): void {
   ctx.locale.register(SETTINGS_UI_NS, 'en', DICT_EN)
   ctx.locale.subscribe(() => {
     activeLocale = ctx.locale.getLocale().active
-    settingsLocaleRev.set(s => ({ ...s, rev: s.rev + 1 }))
+    store.locale.bump()
   })
 }
 
@@ -43,6 +41,7 @@ export function settingsText(key: SettingsUiKey): string {
 }
 
 /** 组件内订阅 locale 变更（revision 前进即重渲染）。 */
-export function useSettingsLocale(): void {
-  useSyncExternalStore(settingsLocaleRev.subscribe, () => settingsLocaleRev.getSnapshot().rev)
+export function useSettingsLocale(): number {
+  const { rev } = useStore(store.locale)
+  return rev
 }
