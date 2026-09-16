@@ -39,9 +39,12 @@ const PET_MANIFEST_MAX_BYTES: u64 = 64 * 1024;
 const PET_SPRITESHEET_MAX_BYTES: u64 = 8 * 1024 * 1024;
 const PET_SPRITESHEET_MAX_DIMENSION: u32 = 16_384;
 const PET_SPRITESHEET_MAX_PIXELS: u64 = 64 * 1024 * 1024;
-const PET_SPRITE_VERSION: u8 = 2;
+/// Codex 图集协议：列恒为 8，行数由 `spriteVersionNumber` 决定（v1=8x9 / v2=8x11）。
+const PET_SPRITE_V1: u8 = 1;
+const PET_SPRITE_V2: u8 = 2;
 const PET_SPRITE_COLUMNS: u8 = 8;
-const PET_SPRITE_ROWS: u8 = 11;
+const PET_SPRITE_V1_ROWS: u8 = 9;
+const PET_SPRITE_V2_ROWS: u8 = 11;
 
 /// 设置变化推送给 pet 窗口的事件名；会话生命周期使用 `session:*` 事件。
 pub const PET_STATUS_EVENT: &str = "pet://status";
@@ -88,7 +91,7 @@ impl PetSource {
     }
 }
 
-/// `pet.json` 的受支持字段；缺省版本按 Codex v2 处理。
+/// `pet.json` 的受支持字段；`spriteVersionNumber` 缺省表示清单未声明，网格按图集尺寸推断。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PetManifest {
@@ -97,13 +100,9 @@ struct PetManifest {
     display_name: Option<String>,
     #[serde(default)]
     description: Option<String>,
-    #[serde(default = "default_sprite_version")]
-    sprite_version_number: u8,
+    #[serde(default)]
+    sprite_version_number: Option<u8>,
     spritesheet_path: String,
-}
-
-fn default_sprite_version() -> u8 {
-    PET_SPRITE_VERSION
 }
 
 /// 列表项使用来源限定 id，避免 chat 与 codex 同名时互相覆盖。
@@ -634,10 +633,12 @@ fn parse_manifest_bytes(bytes: &[u8]) -> Result<PetManifest, String> {
     let manifest: PetManifest = serde_json::from_slice(bytes)
         .map_err(|error| format!("PET_MANIFEST_INVALID: invalid pet.json: {error}"))?;
     validate_manifest_id(&manifest.id)?;
-    if manifest.sprite_version_number != PET_SPRITE_VERSION {
-        return Err(format!(
-            "PET_SPRITE_VERSION_UNSUPPORTED: spriteVersionNumber must be {PET_SPRITE_VERSION}"
-        ));
+    if let Some(version) = manifest.sprite_version_number {
+        if version != PET_SPRITE_V1 && version != PET_SPRITE_V2 {
+            return Err(format!(
+                "PET_SPRITE_VERSION_UNSUPPORTED: spriteVersionNumber must be {PET_SPRITE_V1} or {PET_SPRITE_V2}"
+            ));
+        }
     }
     safe_relative_path(&manifest.spritesheet_path)?;
     Ok(manifest)
@@ -671,7 +672,51 @@ fn contained_file(directory: &Path, relative: &str) -> Result<PathBuf, String> {
     Ok(candidate)
 }
 
-fn spritesheet_dimensions(bytes: &[u8]) -> Result<(&'static str, u32, u32), String> {
+/// 图集网格：列恒为 8，行数由版本决定（v1=9 / v2=11）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SpriteGrid {
+    version: u8,
+    columns: u8,
+    rows: u8,
+}
+
+/// 由图集高度确定网格，清单声明的版本只在两种布局都整除时用于消歧。
+///
+/// 声明与图集比例不符时以图集为准：旧版 8x9 图集沿用缺省 v2 声明（或清单漏写版本）
+/// 是常见写法，按声明拒绝会让整个宠物无法导入。
+fn sprite_grid(declared: Option<u8>, width: u32, height: u32) -> Result<SpriteGrid, String> {
+    if width % u32::from(PET_SPRITE_COLUMNS) != 0 {
+        return Err(format!(
+            "PET_ASSET_DIMENSIONS_INVALID: spritesheet width must be divisible by {PET_SPRITE_COLUMNS} columns"
+        ));
+    }
+    let v1 = height % u32::from(PET_SPRITE_V1_ROWS) == 0;
+    let v2 = height % u32::from(PET_SPRITE_V2_ROWS) == 0;
+    let version = match (v1, v2) {
+        (false, false) => {
+            return Err(format!(
+                "PET_ASSET_DIMENSIONS_INVALID: spritesheet height must be divisible by {PET_SPRITE_V1_ROWS} (v1) or {PET_SPRITE_V2_ROWS} (v2) rows"
+            ))
+        }
+        (true, false) => PET_SPRITE_V1,
+        (false, true) => PET_SPRITE_V2,
+        (true, true) => declared.unwrap_or(PET_SPRITE_V2),
+    };
+    Ok(SpriteGrid {
+        version,
+        columns: PET_SPRITE_COLUMNS,
+        rows: if version == PET_SPRITE_V1 {
+            PET_SPRITE_V1_ROWS
+        } else {
+            PET_SPRITE_V2_ROWS
+        },
+    })
+}
+
+fn spritesheet_dimensions(
+    bytes: &[u8],
+    declared: Option<u8>,
+) -> Result<(&'static str, SpriteGrid), String> {
     let (mime, width, height) = if bytes.len() >= 24 && bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         if &bytes[12..16] != b"IHDR" {
             return Err("PET_ASSET_FORMAT_INVALID: PNG is missing IHDR".to_string());
@@ -724,19 +769,30 @@ fn spritesheet_dimensions(bytes: &[u8]) -> Result<(&'static str, u32, u32), Stri
             "PET_ASSET_DIMENSIONS_INVALID: spritesheet dimensions exceed {PET_SPRITESHEET_MAX_DIMENSION}px or {PET_SPRITESHEET_MAX_PIXELS} pixels"
         ));
     }
-    if width % u32::from(PET_SPRITE_COLUMNS) != 0 || height % u32::from(PET_SPRITE_ROWS) != 0 {
-        return Err(format!(
-            "PET_ASSET_DIMENSIONS_INVALID: v2 spritesheet must be divisible by {PET_SPRITE_COLUMNS} columns and {PET_SPRITE_ROWS} rows"
-        ));
-    }
-    Ok((mime, width, height))
+    Ok((mime, sprite_grid(declared, width, height)?))
 }
 
-fn image_data_url(directory: &Path, relative: &str) -> Result<String, String> {
+/// 读取并校验精灵图，返回可直接渲染的 data URL 与它的真实网格。
+fn read_spritesheet(
+    directory: &Path,
+    relative: &str,
+    declared: Option<u8>,
+) -> Result<(String, SpriteGrid), String> {
     let path = contained_file(directory, relative)?;
     let bytes = read_bounded_file(&path, PET_SPRITESHEET_MAX_BYTES, "PET_ASSET_READ_FAILED")?;
-    let (mime, _, _) = spritesheet_dimensions(&bytes)?;
-    Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
+    let (mime, grid) = spritesheet_dimensions(&bytes, declared)?;
+    Ok((
+        format!("data:{mime};base64,{}", STANDARD.encode(bytes)),
+        grid,
+    ))
+}
+
+fn image_data_url(
+    directory: &Path,
+    relative: &str,
+    declared: Option<u8>,
+) -> Result<String, String> {
+    read_spritesheet(directory, relative, declared).map(|(url, _)| url)
 }
 
 fn manifest_to_list_item(
@@ -755,7 +811,12 @@ fn manifest_to_list_item(
         .description
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let thumbnail = image_data_url(directory, &manifest.spritesheet_path).ok();
+    let thumbnail = image_data_url(
+        directory,
+        &manifest.spritesheet_path,
+        manifest.sprite_version_number,
+    )
+    .ok();
     PetListItem {
         id: qualified_id(source, &manifest.id),
         name,
@@ -836,13 +897,17 @@ pub fn get_pet_asset(app: AppHandle, id: String) -> Result<PetAsset, String> {
             qualified_id(source, manifest_id)
         )
     })?;
-    let spritesheet = image_data_url(&directory, &manifest.spritesheet_path)?;
+    let (spritesheet, grid) = read_spritesheet(
+        &directory,
+        &manifest.spritesheet_path,
+        manifest.sprite_version_number,
+    )?;
     Ok(PetAsset {
         id: qualified_id(source, &manifest.id),
         spritesheet,
-        sprite_version_number: PET_SPRITE_VERSION,
-        columns: PET_SPRITE_COLUMNS,
-        rows: PET_SPRITE_ROWS,
+        sprite_version_number: grid.version,
+        columns: grid.columns,
+        rows: grid.rows,
     })
 }
 
@@ -862,33 +927,52 @@ fn safe_archive_entry(name: &str, unix_mode: Option<u32>) -> Result<PathBuf, Str
     safe_relative_path(name.trim_end_matches('/'))
 }
 
+/// 归档里与宠物无关的条目：操作系统元数据（macOS Finder 的 `__MACOSX` 资源叉、
+/// AppleDouble `._*`、`.DS_Store`，Windows 的 `Thumbs.db`/`desktop.ini`）与本应用
+/// 在 `~/.codex/pets` 下的导入暂存目录。整理/压缩宠物目录时它们几乎必然出现，
+/// 参与布局判定会把正常包误判成「多根归档」。
+fn ignored_archive_entry(path: &Path) -> bool {
+    path.components().any(|component| {
+        let Component::Normal(part) = component else {
+            return false;
+        };
+        let name = part.to_string_lossy();
+        matches!(
+            name.as_ref(),
+            "__MACOSX" | ".DS_Store" | "Thumbs.db" | "desktop.ini" | ".staging"
+        ) || name.starts_with("._")
+    })
+}
+
+/// 定位归档里唯一的 `pet.json`，返回需要剥离的前缀（`None` = 清单就在归档根）。
+///
+/// 包装目录层数不设限：把 `~/.codex/pets` 或 `<id>/` 整体压缩都会带上包装目录，
+/// 只要除元数据外所有条目都位于同一个 `pet.json` 所在目录下（或本身就是该目录的
+/// 上级包装目录），就是一个有效包。
 fn archive_root_prefix(paths: &[(PathBuf, bool)]) -> Result<Option<PathBuf>, String> {
     let manifests = paths
         .iter()
         .filter(|(path, is_dir)| {
-            !is_dir && path.file_name().and_then(|value| value.to_str()) == Some("pet.json")
+            !is_dir
+                && !ignored_archive_entry(path)
+                && path.file_name().and_then(|value| value.to_str()) == Some("pet.json")
         })
-        .map(|(path, _)| path)
+        .map(|(path, _)| path.clone())
         .collect::<Vec<_>>();
     if manifests.len() != 1 {
         return Err(
             "PET_ARCHIVE_LAYOUT_INVALID: archive must contain exactly one pet.json".to_string(),
         );
     }
-    let manifest = manifests[0];
-    if manifest == Path::new("pet.json") {
-        return Ok(None);
-    }
-    let prefix = manifest.parent().filter(|parent| parent.components().count() == 1)
-        .ok_or_else(|| {
-            "PET_ARCHIVE_LAYOUT_INVALID: archive must contain pet.json at root or in one wrapper directory"
-                .to_string()
-        })?
-        .to_path_buf();
-    if paths
-        .iter()
-        .any(|(path, _)| path != &prefix && !path.starts_with(&prefix))
-    {
+    let prefix = match manifests[0].parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => return Ok(None),
+    };
+    if paths.iter().any(|(path, is_dir)| {
+        !ignored_archive_entry(path)
+            && !path.starts_with(&prefix)
+            && !(*is_dir && prefix.starts_with(path))
+    }) {
         return Err(
             "PET_ARCHIVE_LAYOUT_INVALID: archive must have exactly one supported root".to_string(),
         );
@@ -953,6 +1037,9 @@ fn extract_pet_archive(bytes: &[u8], staging: &Path) -> Result<PetManifest, Stri
             .by_index(index)
             .map_err(|error| format!("PET_ARCHIVE_INVALID: failed to read entry: {error}"))?;
         let path = safe_archive_entry(file.name(), file.unix_mode())?;
+        if ignored_archive_entry(&path) {
+            continue;
+        }
         let is_dir = file.is_dir();
         if !is_dir {
             declared_total = declared_total
@@ -978,11 +1065,16 @@ fn extract_pet_archive(bytes: &[u8], staging: &Path) -> Result<PetManifest, Stri
             .by_index(index)
             .map_err(|error| format!("PET_ARCHIVE_INVALID: failed to read entry: {error}"))?;
         let path = safe_archive_entry(file.name(), file.unix_mode())?;
+        if ignored_archive_entry(&path) {
+            continue;
+        }
         let relative = match prefix.as_deref() {
-            Some(wrapper) if path == wrapper => continue,
-            Some(wrapper) => path.strip_prefix(wrapper).map_err(|_| {
-                "PET_ARCHIVE_LAYOUT_INVALID: entry is outside wrapper directory".to_string()
-            })?,
+            // wrapper 自身的条目与它的上级包装目录条目（如 `pets/`）都不含内容；
+            // 布局校验已确认上级条目只能是目录。
+            Some(wrapper) => match path.strip_prefix(wrapper) {
+                Ok(relative) => relative,
+                Err(_) => continue,
+            },
             None => path.as_path(),
         };
         if relative.as_os_str().is_empty() || !outputs.insert(relative.to_path_buf()) {
@@ -1019,7 +1111,11 @@ fn extract_pet_archive(bytes: &[u8], staging: &Path) -> Result<PetManifest, Stri
     }
 
     let manifest = read_manifest(staging)?;
-    image_data_url(staging, &manifest.spritesheet_path)?;
+    image_data_url(
+        staging,
+        &manifest.spritesheet_path,
+        manifest.sprite_version_number,
+    )?;
     Ok(manifest)
 }
 
@@ -1188,6 +1284,10 @@ mod tests {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         let options = FileOptions::default().compression_method(CompressionMethod::Stored);
         for (name, bytes) in entries {
+            if name.ends_with('/') {
+                writer.add_directory(*name, options).unwrap();
+                continue;
+            }
             writer.start_file(*name, options).unwrap();
             writer.write_all(bytes).unwrap();
         }
@@ -1260,12 +1360,15 @@ mod tests {
     }
 
     #[test]
-    fn manifest_parsing_defaults_to_v2_and_qualifies_source_ids() {
+    fn manifest_parsing_keeps_version_optional_and_qualifies_source_ids() {
         let manifest = parse_manifest_bytes(
             br#"{"id":"blue_whale","displayName":"Blue Whale","description":"Chat pet","spritesheetPath":"art/pet.webp"}"#,
         )
         .unwrap();
-        assert_eq!(manifest.sprite_version_number, 2);
+        assert_eq!(
+            manifest.sprite_version_number, None,
+            "清单未声明版本时不应替用户假定 v2，网格交给图集尺寸推断"
+        );
         assert_eq!(
             qualified_id(PetSource::Chat, &manifest.id),
             "chat:blue_whale"
@@ -1277,16 +1380,23 @@ mod tests {
     }
 
     #[test]
-    fn manifest_rejects_invalid_ids_and_non_v2_sprites() {
+    fn manifest_accepts_both_codex_sprite_versions() {
+        for version in [1_u8, 2] {
+            let body = format!(
+                r#"{{"id":"legacy","spriteVersionNumber":{version},"spritesheetPath":"spritesheet.webp"}}"#
+            );
+            let manifest = parse_manifest_bytes(body.as_bytes()).unwrap();
+            assert_eq!(manifest.sprite_version_number, Some(version));
+        }
         let invalid_id =
             parse_manifest_bytes(br#"{"id":"../pet","spritesheetPath":"spritesheet.webp"}"#)
                 .unwrap_err();
         assert!(invalid_id.starts_with("PET_ID_INVALID:"));
-        let v1 = parse_manifest_bytes(
-            br#"{"id":"legacy","spriteVersionNumber":1,"spritesheetPath":"spritesheet.webp"}"#,
+        let unsupported = parse_manifest_bytes(
+            br#"{"id":"legacy","spriteVersionNumber":3,"spritesheetPath":"spritesheet.webp"}"#,
         )
         .unwrap_err();
-        assert!(v1.starts_with("PET_SPRITE_VERSION_UNSUPPORTED:"));
+        assert!(unsupported.starts_with("PET_SPRITE_VERSION_UNSUPPORTED:"));
     }
 
     #[test]
@@ -1327,7 +1437,7 @@ mod tests {
     }
 
     #[test]
-    fn archive_layout_accepts_root_or_one_wrapper_only() {
+    fn archive_layout_accepts_root_or_wrapped_roots() {
         let root = vec![
             (PathBuf::from("pet.json"), false),
             (PathBuf::from("spritesheet.webp"), false),
@@ -1342,6 +1452,18 @@ mod tests {
         assert_eq!(
             archive_root_prefix(&wrapped).unwrap(),
             Some(PathBuf::from("my-pet"))
+        );
+
+        // 把 `~/.codex/pets` 整体压缩：宠物目录之外还有包装目录，仍按包内根目录安装。
+        let nested = vec![
+            (PathBuf::from("pets"), true),
+            (PathBuf::from("pets/my-pet"), true),
+            (PathBuf::from("pets/my-pet/pet.json"), false),
+            (PathBuf::from("pets/my-pet/spritesheet.webp"), false),
+        ];
+        assert_eq!(
+            archive_root_prefix(&nested).unwrap(),
+            Some(PathBuf::from("pets/my-pet"))
         );
 
         let mixed = vec![
@@ -1362,6 +1484,42 @@ mod tests {
     }
 
     #[test]
+    fn archive_layout_ignores_os_metadata_entries() {
+        // macOS Finder/ditto 压缩会附带 `__MACOSX` 资源叉、AppleDouble `._*` 与 `.DS_Store`，
+        // 它们不属于宠物内容，不得让正常包被判成「多根归档」。
+        let finder_zip = vec![
+            (PathBuf::from("my-pet"), true),
+            (PathBuf::from("my-pet/pet.json"), false),
+            (PathBuf::from("my-pet/spritesheet.webp"), false),
+            (PathBuf::from("__MACOSX"), true),
+            (PathBuf::from("__MACOSX/my-pet"), true),
+            (PathBuf::from("__MACOSX/my-pet/._pet.json"), false),
+            (PathBuf::from(".DS_Store"), false),
+        ];
+        assert_eq!(
+            archive_root_prefix(&finder_zip).unwrap(),
+            Some(PathBuf::from("my-pet"))
+        );
+
+        // 本应用自己的导入暂存在 `~/.codex/pets/.staging`，也不能算第二个根。
+        let with_staging = vec![
+            (PathBuf::from("pets/my-pet/pet.json"), false),
+            (PathBuf::from("pets/.staging"), true),
+        ];
+        assert_eq!(
+            archive_root_prefix(&with_staging).unwrap(),
+            Some(PathBuf::from("pets/my-pet"))
+        );
+
+        for path in ["__MACOSX/pet/._pet.json", "pet/.DS_Store", "pet/._x"] {
+            assert!(ignored_archive_entry(Path::new(path)), "{path} 应被忽略");
+        }
+        for path in ["pet/pet.json", "pet/art/spritesheet.webp"] {
+            assert!(!ignored_archive_entry(Path::new(path)));
+        }
+    }
+
+    #[test]
     fn bounded_copy_stops_before_writing_past_total_limit() {
         let mut reader = Cursor::new(vec![7_u8; 6]);
         let mut output = Vec::new();
@@ -1373,22 +1531,57 @@ mod tests {
     }
 
     #[test]
-    fn spritesheet_dimensions_require_v2_grid_and_bounds() {
+    fn spritesheet_dimensions_accept_v1_and_v2_grids() {
         let valid = valid_test_webp();
         assert_eq!(
-            spritesheet_dimensions(&valid).unwrap(),
-            ("image/webp", 88, 88)
+            spritesheet_dimensions(&valid, None).unwrap(),
+            (
+                "image/webp",
+                SpriteGrid {
+                    version: PET_SPRITE_V2,
+                    columns: 8,
+                    rows: 11
+                }
+            ),
+            "88x88 同时整除 8 与 11，缺省取 v2"
+        );
+
+        // 高度只整除 9：8x9 的旧版图集必须按 v1 接受，而不是要求 11 行。
+        let mut v1 = valid.clone();
+        v1[27..30].copy_from_slice(&[89, 0, 0]);
+        assert_eq!(
+            spritesheet_dimensions(&v1, None).unwrap().1,
+            SpriteGrid {
+                version: PET_SPRITE_V1,
+                columns: 8,
+                rows: 9
+            }
+        );
+        assert_eq!(
+            spritesheet_dimensions(&v1, Some(PET_SPRITE_V2)).unwrap().1,
+            SpriteGrid {
+                version: PET_SPRITE_V1,
+                columns: 8,
+                rows: 9
+            },
+            "声明与图集不符时以图集比例为准，否则整个宠物无法导入"
         );
 
         let mut invalid_grid = valid.clone();
         invalid_grid[24] = 86;
-        assert!(spritesheet_dimensions(&invalid_grid)
+        assert!(spritesheet_dimensions(&invalid_grid, None)
+            .unwrap_err()
+            .starts_with("PET_ASSET_DIMENSIONS_INVALID:"));
+
+        let mut invalid_height = valid.clone();
+        invalid_height[27..30].copy_from_slice(&[99, 0, 0]);
+        assert!(spritesheet_dimensions(&invalid_height, None)
             .unwrap_err()
             .starts_with("PET_ASSET_DIMENSIONS_INVALID:"));
 
         let mut oversized = valid;
         oversized[24..27].copy_from_slice(&[0xff, 0xff, 0x00]);
-        assert!(spritesheet_dimensions(&oversized)
+        assert!(spritesheet_dimensions(&oversized, None)
             .unwrap_err()
             .starts_with("PET_ASSET_DIMENSIONS_INVALID:"));
     }
@@ -1410,6 +1603,47 @@ mod tests {
             webp
         );
         assert!(!directory.0.join("wrapper").exists());
+    }
+
+    #[test]
+    fn extraction_accepts_macos_finder_archive_with_v1_atlas() {
+        // issue #559：Finder/ditto 生成的 zip 会带上 `__MACOSX` 资源叉与 `.DS_Store`，
+        // 且用户常把 `~/.codex/pets` 整体压缩（宠物目录外还有包装目录）。
+        let manifest = br#"{"id":"jiaran","displayName":"Jiaran","spriteVersionNumber":1,"spritesheetPath":"spritesheet.webp"}"#;
+        let mut webp = valid_test_webp();
+        webp[27..30].copy_from_slice(&[89, 0, 0]);
+        let archive = build_archive(&[
+            ("pets/", b""),
+            ("pets/jiaran/", b""),
+            ("pets/jiaran/pet.json", manifest),
+            ("pets/jiaran/spritesheet.webp", &webp),
+            ("pets/.DS_Store", b"junk"),
+            ("__MACOSX/", b""),
+            ("__MACOSX/pets/jiaran/._pet.json", b"junk"),
+            ("__MACOSX/pets/jiaran/._spritesheet.webp", b"junk"),
+        ]);
+        let directory = TestDirectory::new("macos-finder");
+        let parsed = extract_pet_archive(&archive, &directory.0).unwrap();
+        assert_eq!(parsed.id, "jiaran");
+        assert_eq!(parsed.sprite_version_number, Some(PET_SPRITE_V1));
+        assert_eq!(fs::read(directory.0.join("pet.json")).unwrap(), manifest);
+        assert_eq!(
+            read_spritesheet(
+                &directory.0,
+                &parsed.spritesheet_path,
+                parsed.sprite_version_number
+            )
+            .unwrap()
+            .1,
+            SpriteGrid {
+                version: PET_SPRITE_V1,
+                columns: 8,
+                rows: 9
+            }
+        );
+        assert!(!directory.0.join("pets").exists());
+        assert!(!directory.0.join("__MACOSX").exists());
+        assert!(!directory.0.join(".DS_Store").exists());
     }
 
     #[test]

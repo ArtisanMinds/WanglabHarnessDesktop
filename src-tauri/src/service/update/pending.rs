@@ -15,6 +15,7 @@ use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
 use crate::config::{STORE_DAT_DEV_FILE, STORE_DAT_FILE, STORE_PENDING_INSTALLER_KEY};
+use crate::service::workflow;
 
 /// Store 持久化文件名：debug 构建与生产隔离，语义同 `config::setting`。
 fn store_dat_file_name() -> &'static str {
@@ -102,6 +103,12 @@ pub fn launch_pending_installer(app_handle: &AppHandle) {
         pending.path,
         pending.version
     );
+    // 打开安装包前先停 Harness：安装器会强杀桌面端进程，桌面端先消失就没人回收
+    // Harness 子进程，它会变成孤儿继续占用配置端口，更新后新实例撞 EADDRINUSE。
+    // 退出路径虽已调过 stop_on_exit，但那份保障依赖调用方顺序与 `setting.installed`
+    // 门槛；自动更新是「用安装器替换本应用」的场景，停服必须由交付点自己保证（幂等，
+    // 重复调用只是 no-op）。
+    workflow::stop_for_installer(app_handle);
     if let Err(error) = super::install::open_installer_now(app_handle, &pending.path) {
         log::warn!("UPDATE_OPEN: failed to launch pending installer on exit: {error}");
     }

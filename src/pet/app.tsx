@@ -12,6 +12,7 @@ import { usePetSource } from './hooks/use-pet-source'
 import { normalizeSizePercent, usePetStatus } from './hooks/use-pet-status'
 import { usePetWindowSize } from './hooks/use-pet-window'
 import { useWakelockRelease } from './hooks/use-wakelock-release'
+import { reportPetIssue } from './utils/log'
 
 /**
  * 桌宠窗口的唯一组合入口。
@@ -69,6 +70,7 @@ export function App() {
           cache={true}
           hidden={!visible}
           hitboxRef={hitboxRef}
+          onError={reportPetAssetError}
         />
       )}
       {/* 选中了宠物但资源解析不出来（导入的宠物被删除、清单里没有该 id）：必须给出
@@ -76,4 +78,13 @@ export function App() {
       <If cond={error !== null} then={<Hint petId={activedPet} />} />
     </main>
   )
+}
+
+/**
+ * 资源加载/播放失败的出口：组件内部抓取失败会静默降级为「直接播远端地址」
+ * （`useCachedMediaUrl` 的 catch 只调 `onError`），而桌宠窗口的 console 要手动
+ * F12 才看得见 —— 不接这个回调，「IndexedDB 一次都没写进去」就无从察觉。
+ */
+function reportPetAssetError(error: unknown): void {
+  reportPetIssue('asset', error)
 }

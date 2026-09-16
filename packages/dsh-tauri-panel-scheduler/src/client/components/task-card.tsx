@@ -118,7 +118,9 @@ export function TaskCard({ task, t, describe, nextRun, paused, onEdit }: TaskCar
                 )
               : <strong>{t('paused')}</strong>}
           </span>
-
+          {task.waiting === true
+            ? <span className="dshp-scheduler__card-waiting">{t('waiting')}</span>
+            : null}
         </div>
       </div>
       <Menu

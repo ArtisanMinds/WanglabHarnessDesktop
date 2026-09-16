@@ -75,6 +75,7 @@ export type SchedulerTask = {
   updatedAt: string;
   lastRunAt?: string;
   nextRunAt?: string;
+  waiting?: boolean;
 };
 export type SchedulerSchedule = OnceSchedule | HourlySchedule | DailySchedule | IntervalSchedule | WorkdaysSchedule | WeeklySchedule | MonthlySchedule | CustomSchedule;
 export type OnceSchedule = {

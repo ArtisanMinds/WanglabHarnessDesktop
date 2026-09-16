@@ -34,6 +34,9 @@ export default defineConfig({
       'test/compat-iterator.test.ts',
       // v0.2.0：气泡托管给 dsh-pet-component，宿主侧只剩「会话快照 → pet.bubble」的映射。
       'src/pet/hooks/use-bubble-tracker.test.ts',
+      // 桌宠素材响应头：GitHub 对中文动画名回 `content-disposition`，插件版 fetch 会因
+      // 非 ISO-8859-1 抛错并静默不落 IndexedDB（pnpm patch 过滤该头，这里锁住契约）。
+      'test/pet-asset-headers.test.ts',
     ],
     maxWorkers: 4,
     testTimeout: 30_000,

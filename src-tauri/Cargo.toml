@@ -87,8 +87,11 @@ objc2-foundation = { version = "=0.3.2", default-features = false, features = [
 # TSMGetInputSourceProperty（必须 main queue）导致的 dispatch_assert_queue SIGTRAP。
 # 见 issue #397。core-graphics / core-foundation 在 rdev 传递依赖里已有，
 # 不引入新的下载源。
+# core-foundation 与 core-graphics 0.25 对齐到 0.10：监听线程要自己持有 CGEventTap
+# 并在系统禁用事件 tap 后重新启用（issue #559），这需要在同一版 core-foundation 上
+# 建 run loop source 并 add_source，混用 0.9 / 0.10 会类型不匹配。
 core-graphics = "0.25"
-core-foundation = "0.9"
+core-foundation = "0.10"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

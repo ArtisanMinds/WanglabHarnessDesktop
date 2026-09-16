@@ -48,7 +48,7 @@
 - ⌨️ **Integración con la terminal** — La instalación registra automáticamente el comando `dsh`, listo en una terminal nueva; no sobrescribe tu configuración actual del shell.
 - 🧭 **Asistente inicial** — En el primer arranque elegí los plugins recomendados, o volvé a elegirlos más tarde en la configuración.
 - 🚀 **Auto-actualización** — Actualizaciones dentro de la app; sin volver a descargar.
-- 🐾 **Mascotas de escritorio** — Administrá fuentes Pets y Codex con presets listos para usar (transmitidos desde sus hosts de assets, sin descarga), importá paquetes Codex `.zip` y mostrá estados de actividad de las conversaciones.
+- 🐾 **Mascotas de escritorio** — Administrá fuentes Pets y Codex con presets listos para usar (los recursos se cargan bajo demanda desde GitHub y se cachean localmente en IndexedDB para un mejor rendimiento, sin necesidad de descargas manuales), importá paquetes Codex `.zip` y mostrá estados de actividad de las conversaciones.
 
 ## Preinstalados
 
