@@ -1,30 +1,41 @@
-import type * as Types from './index.type'
-import { fetch } from 'dsh-tauri/client'
-import { WORKTREE_API_PREFIX } from '../../shared/constants'
+/*
+ * @title dsh-tauri-worktree
+ * @swagger 2.0
+ * @version 0.0.0
+ */
 
-export const baseURL = WORKTREE_API_PREFIX
+import type { FetchOptions } from "dsh-tauri/client";
+import { ofetch } from "dsh-tauri/client";
+import type * as Types from "./index.type";
 
-export function getBindings(): Promise<Types.WorktreeBindings> {
-  return fetch(`${baseURL}/bindings`)
+export const baseURL = "/api/desktop/dsh-tauri-worktree";
+
+/** @method get */
+export function getBindings(options?: FetchOptions) {
+  return ofetch<Types.WorktreeBindings>("/bindings", { baseURL, method: "get", ...options });
 }
 
-export function getStatus(query: Types.GetStatusQuery): Promise<Types.WorktreeStatus> {
-  const jobId = query.jobId ? `&jobId=${encodeURIComponent(query.jobId)}` : ''
-  return fetch(`${baseURL}/status?sessionId=${encodeURIComponent(query.sessionId)}${jobId}`)
+/** @method post */
+export function postBindings(body: Types.AttachBody, options?: FetchOptions) {
+  return ofetch<Types.WorktreeAttach>("/bindings", { baseURL, method: "post", body, ...options });
 }
 
-export function postCreate(body: Types.PostCreateBody): Promise<Types.WorktreeCreate> {
-  return fetch(baseURL, { method: 'POST', body })
+/** @method post */
+export function postCheckouts(body: Types.CheckoutBody, options?: FetchOptions) {
+  return ofetch<Types.WorktreeCheckout>("/checkouts", { baseURL, method: "post", body, ...options });
 }
 
-export function postAttach(body: Types.PostAttachBody): Promise<{ ok: boolean, workspaceId: string }> {
-  return fetch(`${baseURL}/attach`, { method: 'POST', body })
+/** @method post */
+export function postWorktree(body: Types.CreateBody, options?: FetchOptions) {
+  return ofetch<Types.WorktreeCreate>("", { baseURL, method: "post", body, ...options });
 }
 
-export function postCheckout(body: Types.PostCheckoutBody): Promise<Types.WorktreeCheckout> {
-  return fetch(`${baseURL}/checkout`, { method: 'POST', body })
+/** @method delete */
+export function deleteWorktree(body: Types.DiscardBody, options?: FetchOptions) {
+  return ofetch<Types.WorktreeDiscard>("", { baseURL, method: "delete", body, ...options });
 }
 
-export function deleteDiscard(body: Types.PostDiscardBody): Promise<Types.WorktreeDiscard> {
-  return fetch(baseURL, { method: 'DELETE', body })
+/** @method get */
+export function getStatus(params?: Types.GetStatusQuery, options?: FetchOptions) {
+  return ofetch<Types.WorktreeStatus>("/status", { baseURL, method: "get", params, ...options });
 }

@@ -7,8 +7,12 @@
  * 在此，调用方无需关心错误格式、无需自封装 requestJson/createJsonClient。
  */
 
+import type { FetchOptions as OfetchOptions } from 'ofetch'
 import { createFetch } from 'ofetch'
 import { defaultErrorMessage, parseJsonResponse } from './index.utils'
+
+/** 实例的选项类型：JSON 解码路径（与 `ofetch` 实例签名一致，供生成客户端直接引用）。 */
+export type FetchOptions = OfetchOptions<'json'>
 
 /** 全局 JSON fetch：同源 API 请求唯一入口（错误解析统一在此）。 */
 export const fetch = createFetch({
@@ -20,3 +24,6 @@ export const fetch = createFetch({
     },
   },
 })
+
+/** 同一实例的别名：genapi 的 ofetch 预设按 `ofetch` 标识符生成调用。 */
+export const ofetch = fetch

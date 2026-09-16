@@ -10,12 +10,14 @@ const plugins = [
   'dsh-tauri-worktree',
 ]
 
-const servers = plugins.map(plugin => ({
-  output: { main: `packages/${plugin}/src/client/apis/index.ts` },
-  server: { routes: `packages/${plugin}/src/host/routes`, plugin },
-}))
-
 export default defineConfig({
   preset: pluginPipeline,
-  servers: servers as any[],
+  meta: { import: { http: 'dsh-tauri/client' } },
+  // worktree 的根级 routes/post.ts、routes/delete.ts 生成名是 `post` / 保留字 `delete`
+  patch: { operations: { delete: 'deleteWorktree', post: 'postWorktree' } },
+  servers: plugins.map(plugin => ({
+    input: `packages/${plugin}/src/host/routes`,
+    output: { main: `packages/${plugin}/src/client/apis/index.ts` },
+    meta: { baseURL: JSON.stringify(`/api/desktop/${plugin}`) },
+  })),
 })

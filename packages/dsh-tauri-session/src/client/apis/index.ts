@@ -1,40 +1,51 @@
-import type * as Types from './index.type'
-import { fetch } from 'dsh-tauri/client'
-import { SESSION_API_PREFIX } from '../../shared/constants'
+/*
+ * @title dsh-tauri-session
+ * @swagger 2.0
+ * @version 0.0.0
+ */
 
-export const baseURL = SESSION_API_PREFIX
+import type { FetchOptions } from "dsh-tauri/client";
+import { ofetch } from "dsh-tauri/client";
+import type * as Types from "./index.type";
 
-const SESSION_ARCHIVE = `${baseURL}/session/archive`
-const SESSION_WORKSPACE_ARCHIVE = `${baseURL}/session/workspace/archive`
+export const baseURL = "/api/desktop/dsh-tauri-session";
 
-export function getArchive(): Promise<Types.ArchivedListPayload> {
-  return fetch(SESSION_ARCHIVE)
+/** @method post */
+export function postSessionArchiveClear(options?: FetchOptions) {
+  return ofetch<void>("/session/archive/clear", { baseURL, method: "post", ...options });
 }
 
-export function postArchive(body: Types.PostSessionIdBody): Promise<Types.ArchivedListPayload> {
-  return fetch(SESSION_ARCHIVE, { method: 'POST', body })
+/** @method get */
+export function getSessionArchive(options?: FetchOptions) {
+  return ofetch<Types.ArchivedListPayload>("/session/archive", { baseURL, method: "get", ...options });
 }
 
-export function deleteArchive(body: Types.PostSessionIdBody): Promise<Types.ActionResult> {
-  return fetch(SESSION_ARCHIVE, { method: 'DELETE', body })
+/** @method post */
+export function postSessionArchive(body: Types.SessionIdBody, options?: FetchOptions) {
+  return ofetch<void>("/session/archive", { baseURL, method: "post", body, ...options });
 }
 
-export function postArchiveClear(): Promise<Types.ActionResult> {
-  return fetch(`${SESSION_ARCHIVE}/clear`, { method: 'POST', body: {} })
+/** @method delete */
+export function deleteSessionArchive(body: Types.SessionIdBody, options?: FetchOptions) {
+  return ofetch<void>("/session/archive", { baseURL, method: "delete", body, ...options });
 }
 
-export function postArchiveWorkspace(body: Types.PostArchiveWorkspaceBody): Promise<Types.ArchivedListPayload> {
-  return fetch(SESSION_WORKSPACE_ARCHIVE, { method: 'POST', body })
+/** @method post */
+export function postSessionArchiveRestore(body: Types.SessionIdBody, options?: FetchOptions) {
+  return ofetch<void>("/session/archive/restore", { baseURL, method: "post", body, ...options });
 }
 
-export function deleteArchiveWorkspace(body: Types.PostDeleteWorkspaceBody): Promise<Types.ActionResult> {
-  return fetch(SESSION_WORKSPACE_ARCHIVE, { method: 'DELETE', body })
+/** @method post */
+export function postSessionOpenPath(body: Types.SessionIdBody, options?: FetchOptions) {
+  return ofetch<Types.OpenSessionDirResult>("/session/open/path", { baseURL, method: "post", body, ...options });
 }
 
-export function postUnarchive(body: Types.PostSessionIdBody): Promise<Types.ActionResult> {
-  return fetch(`${baseURL}/session/unarchive`, { method: 'POST', body })
+/** @method post */
+export function postSessionWorkspaceArchive(body: Types.WorkspaceArchiveBody, options?: FetchOptions) {
+  return ofetch<void>("/session/workspace/archive", { baseURL, method: "post", body, ...options });
 }
 
-export function postOpenSessionDir(body: Types.PostSessionIdBody): Promise<Types.ActionResult> {
-  return fetch(`${baseURL}/session/open-path`, { method: 'POST', body })
+/** @method delete */
+export function deleteSessionWorkspaceArchive(body: Types.SessionIdsBody, options?: FetchOptions) {
+  return ofetch<void>("/session/workspace/archive", { baseURL, method: "delete", body, ...options });
 }

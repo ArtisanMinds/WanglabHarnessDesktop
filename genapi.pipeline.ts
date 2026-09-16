@@ -1,65 +1,88 @@
-import type { ApiPipeline, StatementField, StatementInterface } from '@genapi/shared'
+import type { ApiPipeline, StatementField } from '@genapi/shared'
+import type { Dirent } from 'node:fs'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, relative, resolve, sep } from 'node:path'
+import { basename, dirname, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
-import { createParser, parseMethodMetadata, parseMethodParameters, transformBodyStringify, transformFetchBody, transformHeaderOptions, transformParameters, transformQueryParams, transformUrlSyntax } from '@genapi/parser'
-import pipeline, { compiler, config as configure, dest, generate } from '@genapi/pipeline'
+import pipeline, { compiler, config, dest, generate } from '@genapi/pipeline'
+import { parser } from '@genapi/presets/swag-ofetch-ts'
 
 /**
- * 自定义 genapi 管道：把每个插件 `src/host/routes/**` 的 handler 源码推导成 Swagger 2 规格，
- * 再走 genapi 既有 fetch/ts 流程生成 `src/client/apis/index.ts` 与 `index.type.ts`。
- *
- * 推导规则（文件路径 = URL 路径 = 函数名，与 PLUGIN_CLIENT.spec.md 一致）：
- *   `routes/session/archive/get.ts` → GET `${API_PREFIX}/session/archive` → `getSessionArchive`
- *   - 目录名逐段进入路径与函数名；`get.ts` / `post.ts` 这类动词文件名只决定 method
- *   - 请求参数取自 handler 的 `getQuery(event) as {...}` 与 `readBody<T>(event)`
- *   - 响应类型取自 `defineEventHandler((event): Promise<T> => ...)` 的返回注解
- *   - `src/client/types`、`src/shared/types`、`src/host/types` 里的类型声明递归展开进 definitions
+ * genapi 管道：唯一自定义步骤是 original —— 把插件 `src/host/routes/**` 的 handler 源码推导成 Swagger 2。
+ * `input` 即路由目录，文件路径 = URL 路径 = 函数名：`routes/session/archive/get.ts` → GET `/session/archive` → `getSessionArchive`；
+ * 请求参数取自 `getQuery(event) as {...}` / `readBody<T>(event)`，响应类型取自 `defineEventHandler(...)` 的返回注解。
+ * baseURL 与 fetch 导入一律来自 defineConfig 的 `meta`，管道内不做任何自定义解析。
  */
-export interface GenapiServerConfig {
-  /** host 路由目录，相对仓库根：`packages/<plugin>/src/host/routes`。 */
-  routes: string
-  /** 插件 src 根，默认由 routes 反推（`routes/../../..`）。 */
-  src?: string
-  /** 输出：字符串等价于 `{ main }`；type 由 genapi 按 main 派生为 `index.type.ts`。 */
-  output: string | { main?: string, type?: string | false }
-  /** 线协议前缀，默认读 `src/shared/constants.ts` 里的 `*_API_PREFIX` / `API_PREFIX`。 */
-  apiPrefix?: string
-  /** 规格标题，默认取插件包名。 */
-  plugin?: string
-  /** fetch 导入方式：默认命名导入 `import { fetch }`；`default` 为 `import fetch`。 */
-  fetchImport?: 'named' | 'default'
-}
-
 const RE_HANDLER = /defineEventHandler\s*\(/
 const RE_SKIP_FILE = /\.(?:test|spec)\.tsx?$|\.d\.ts$/
 const RE_TS_FILE = /\.tsx?$/
 const METHOD_FILES = new Set(['get', 'head', 'post', 'put', 'patch', 'delete', 'options'])
 const reservedNames = new Set(['delete', 'new', 'await', 'yield', 'in', 'do', 'if', 'for', 'class', 'function', 'return', 'void', 'typeof', 'instanceof', 'switch', 'case', 'default', 'this', 'super', 'import', 'export', 'with'])
-const TYPE_ROOTS = ['client/types', 'shared/types', 'host/types']
+const RE_TYPES_FILE = /(?:\.types\.tsx?|[\\/]types[\\/][^\\/]+\.tsx?)$/
+const RE_OUTPUT_DIR = /[\\/]client[\\/]apis[\\/]/
+const NULLABLE_MEMBERS = new Set(['null', 'undefined'])
+/** 具名类型（原样 TS 别名）：由 original 汇总后写回类型输出的 typings。 */
+const TYPINGS = new Map<string, string>()
+
+interface Schema {
+  $ref?: string
+  type?: string
+  enum?: string[]
+  items?: Schema
+  properties?: Record<string, Schema>
+  required?: string[]
+  additionalProperties?: Schema
+}
 
 interface Declaration {
   name: string
   file: string
   kind: 'interface' | 'alias'
   body: string
-  fields: StatementField[]
+  bases?: string[]
+}
+
+interface ImportBinding {
+  file: string
+  names: Map<string, string>
 }
 
 interface TypeIndex {
   declarations: Map<string, Declaration[]>
-  imports: Map<string, Map<string, { file: string, names: Map<string, string> }>>
+  imports: Map<string, Map<string, ImportBinding>>
 }
 
 interface HandlerParameter {
   name: string
   location: 'query' | 'body'
   required: boolean
-  schema: any
+  schema: Schema
 }
 
-function readIfExists(file: string): string | undefined {
-  return existsSync(file) ? readFileSync(file, 'utf8') : undefined
+type QueryParameter = Omit<Schema, 'required'> & {
+  name: string
+  in: 'query'
+  required: boolean
+}
+
+interface BodyParameter {
+  name: string
+  in: 'body'
+  required: boolean
+  schema: Schema
+}
+
+type OperationParameter = QueryParameter | BodyParameter
+
+interface Operation {
+  operationId: string
+  parameters: OperationParameter[]
+  responses: Record<string, { description: string, schema?: Schema }>
+}
+
+interface RouteFile {
+  segments: string[]
+  method: string
+  file: string
 }
 
 function toPosix(value: string): string {
@@ -71,7 +94,7 @@ function walkFiles(root: string, predicate: (file: string) => boolean): string[]
   const stack = [root]
   while (stack.length > 0) {
     const current = stack.pop()!
-    let entries
+    let entries: Dirent[]
     try {
       entries = readdirSync(current, { withFileTypes: true })
     }
@@ -93,12 +116,6 @@ function walkFiles(root: string, predicate: (file: string) => boolean): string[]
   return found.sort()
 }
 
-function operationName(method: string, segments: string[]): string {
-  return reservedNames.has(method)
-    ? `${method}${toIdentifier(segments)}Root`
-    : `${method}${toIdentifier(segments)}`
-}
-
 function toIdentifier(segments: string[]): string {
   return segments
     .flatMap(segment => segment.split(/[^A-Z0-9]+/i))
@@ -107,44 +124,10 @@ function toIdentifier(segments: string[]): string {
     .join('')
 }
 
-function literalValue(source: string, expression: string): string | undefined {
-  const known = new Map<string, string>()
-  for (const match of source.matchAll(/export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*([^\n]+)/g))
-    known.set(match[1], match[2].trim())
-  let value = expression.trim()
-  for (let round = 0; round < 6; round++) {
-    const replaced = value.replace(/\$\{\s*([A-Z_$][\w$]*)\s*\}|([A-Z_$][\w$]*)/gi, (raw, inside, plain) => {
-      const next = known.get(inside ?? plain)
-      return next === undefined || next === raw ? raw : `(${next})`
-    })
-    if (replaced === value)
-      break
-    value = replaced
-  }
-  const template = value.trim()
-  const unwrapped = template.startsWith('`') && template.endsWith('`') ? template.slice(1, -1) : template
-  const candidate = unwrapped.replace(/[`'"]/g, '').trim()
-  return /^\/[\w\-./]*$/.test(candidate) ? candidate : undefined
-}
-
-function resolveApiPrefix(constants: string | undefined, plugin: string, explicit?: string): string {
-  if (explicit)
-    return explicit.replace(/\/$/, '')
-  if (constants !== undefined) {
-    const declared = /export\s+const\s+\w*API_PREFIX\w*\s*=\s*([^\n]+)/.exec(constants)
-    const value = declared ? literalValue(constants, declared[1]) : undefined
-    if (value)
-      return value.replace(/\/$/, '')
-    const pathConstant = /export\s+const\s+\w+\s*=\s*(['"`]\/[^'"`\n]+['"`])/.exec(constants)
-    const path = pathConstant ? literalValue(constants, pathConstant[1]) : undefined
-    if (path) {
-      const segments = path.split('/').filter(Boolean)
-      if (segments.length >= 2 && segments[0] === 'api')
-        return `/${segments.slice(0, 2).join('/')}`
-      return `/${segments[0]}`
-    }
-  }
-  return `/api/${plugin.replace(/^dsh-tauri-/, '')}`
+function operationName(method: string, segments: string[]): string {
+  return reservedNames.has(method)
+    ? `${method}${toIdentifier(segments)}Root`
+    : `${method}${toIdentifier(segments)}`
 }
 
 function splitTopLevel(input: string): string[] {
@@ -215,11 +198,11 @@ function splitMembers(input: string): string[] {
       quote = char
       continue
     }
-    if (char === '{' || char === '[' || char === '(') {
+    if (char === '{' || char === '[' || char === '(' || char === '<') {
       depth++
       continue
     }
-    if (char === '}' || char === ']' || char === ')') {
+    if (char === '}' || char === ']' || char === ')' || char === '>') {
       depth--
       continue
     }
@@ -274,7 +257,7 @@ function genericArgs(input: string): string[] {
     if (char === '>') {
       depth--
       if (depth === 0)
-        return splitTopLevel(input.slice(start + 1, index))
+        return splitMembers(input.slice(start + 1, index))
     }
   }
   return []
@@ -372,8 +355,12 @@ function sliceDeclaration(source: string, start: number): string | undefined {
       depth--
       continue
     }
-    if (char === '\n' && depth === 0)
-      return source.slice(start, index).trim()
+    if (char === '\n' && depth === 0) {
+      const collected = source.slice(start, index).trimEnd()
+      const next = source.slice(index + 1).replace(/^\s+/, '')[0]
+      if (!/[|&]$/.test(collected) && next !== '|' && next !== '&')
+        return source.slice(start, index).trim()
+    }
   }
   return source.slice(start).trim()
 }
@@ -384,21 +371,32 @@ function extractDeclarations(source: string, file: string, target: Map<string, D
     list.push(declaration)
     target.set(declaration.name, list)
   }
-  for (const match of source.matchAll(/(?:export\s+)?(?:declare\s+)?interface\s+(\w+)\s*\{/g)) {
-    const body = sliceBalanced(source, match.index! + match[0].length - 1)
-    if (body !== undefined)
-      push({ name: match[1], file, kind: 'interface', body, fields: parseFields(body) })
+  for (const match of source.matchAll(/(?:export\s+)?(?:declare\s+)?interface\s+([\w$]+)/g)) {
+    const headStart = match.index + match[0].length
+    const open = source.indexOf('{', headStart)
+    if (open < 0)
+      continue
+    const head = source.slice(headStart, open)
+    if (head.length > 200 || head.includes(';') || head.includes('}'))
+      continue
+    const body = sliceBalanced(source, open)
+    if (body === undefined)
+      continue
+    const extendsAt = head.indexOf('extends')
+    const clause = extendsAt >= 0 ? head.slice(extendsAt + 'extends'.length).trim() : ''
+    const bases = clause.split(',').map(base => base.trim()).filter(Boolean)
+    push({ name: match[1], file, kind: 'interface', body, ...bases.length > 0 ? { bases } : {} })
   }
   for (const match of source.matchAll(/(?:export\s+)?(?:declare\s+)?type\s+(\w+)\s*=\s*/g)) {
-    const body = sliceDeclaration(source, match.index! + match[0].length)
+    const body = sliceDeclaration(source, match.index + match[0].length)
     if (body !== undefined)
-      push({ name: match[1], file, kind: 'alias', body, fields: parseFields(body) })
+      push({ name: match[1], file, kind: 'alias', body })
   }
 }
 
 function importNames(clause: string): Map<string, string> {
   const names = new Map<string, string>()
-  for (const raw of splitTopLevel(clause)) {
+  for (const raw of splitMembers(clause)) {
     const part = raw.startsWith('type ') ? raw.slice(5).trim() : raw
     const aliased = /^([A-Za-z_$][\w$]*)\s+as\s+([A-Za-z_$][\w$]*)$/.exec(part)
     if (aliased) {
@@ -420,8 +418,8 @@ function resolveSpecifier(file: string, specifier: string): string | undefined {
   return undefined
 }
 
-function collectImports(source: string, file: string): Map<string, { file: string, names: Map<string, string> }> {
-  const map = new Map<string, { file: string, names: Map<string, string> }>()
+function collectImports(source: string, file: string): Map<string, ImportBinding> {
+  const map = new Map<string, ImportBinding>()
   for (const statement of source.matchAll(/import[^\n]*?from\s*['"][^'"]+['"]/g)) {
     const parts = /\bfrom\s*['"]([^'"]+)['"]\s*$/.exec(statement[0])
     if (!parts)
@@ -448,26 +446,21 @@ function collectImports(source: string, file: string): Map<string, { file: strin
 }
 
 function typesRank(file: string): number {
-  if (/[\\/]src[\\/]client[\\/]types[\\/]/.test(file))
+  if (/[\\/]src[\\/]host[\\/]/.test(file))
     return 0
-  if (/[\\/]src[\\/](?:shared|host)[\\/]types[\\/]/.test(file))
+  if (/[\\/]src[\\/]shared[\\/]/.test(file))
     return 1
-  if (/[\\/]types[\\/]/.test(file))
-    return 2
-  return 3
+  if (/[\\/]src[\\/]client[\\/]/.test(file))
+    return 3
+  return 2
 }
 
 function buildTypeIndex(src: string): TypeIndex {
   const index: TypeIndex = { declarations: new Map(), imports: new Map() }
-  for (const part of TYPE_ROOTS) {
-    const root = resolve(src, part)
-    if (!existsSync(root))
-      continue
-    for (const file of walkFiles(root, candidate => RE_TS_FILE.test(candidate) && !RE_SKIP_FILE.test(candidate))) {
-      const source = readFileSync(file, 'utf8')
-      index.imports.set(file, collectImports(source, file))
-      extractDeclarations(source, file, index.declarations)
-    }
+  for (const file of walkFiles(src, candidate => RE_TYPES_FILE.test(candidate) && RE_TS_FILE.test(candidate) && !RE_SKIP_FILE.test(candidate) && !RE_OUTPUT_DIR.test(candidate))) {
+    const source = readFileSync(file, 'utf8')
+    index.imports.set(file, collectImports(source, file))
+    extractDeclarations(source, file, index.declarations)
   }
   return index
 }
@@ -475,13 +468,11 @@ function buildTypeIndex(src: string): TypeIndex {
 function lookup(index: TypeIndex, name: string, file: string): Declaration | undefined {
   const scope = index.imports.get(file)
   const entry = scope ? [...scope.values()].find(candidate => candidate.names.has(name)) : undefined
-  if (entry) {
-    const original = entry.names.get(name)!
-    const candidates = index.declarations.get(original) ?? []
-    const preferred = candidates.find(candidate => candidate.file === entry.file) ?? candidates[0]
-    if (preferred)
-      return preferred
-  }
+  const original = entry?.names.get(name)
+  const imported = original === undefined ? [] : index.declarations.get(original) ?? []
+  const preferred = imported.find(candidate => candidate.file === entry?.file) ?? imported[0]
+  if (preferred)
+    return preferred
   const candidates = index.declarations.get(name) ?? []
   const local = candidates.find(candidate => candidate.file === file)
   if (local)
@@ -490,99 +481,169 @@ function lookup(index: TypeIndex, name: string, file: string): Declaration | und
   return ranked[0]
 }
 
-function toSchema(type: string, index: TypeIndex, file: string, definitions: Record<string, any>, referenced: Set<string>): any {
-  const trimmed = type.trim()
-  if (trimmed.length === 0)
-    return { type: 'string' }
-  if (trimmed.startsWith('{'))
-    return objectSchema(trimmed, index, file, definitions, referenced)
-  if (trimmed.startsWith('[') && trimmed.endsWith(']'))
-    return { type: 'array', items: toSchema(splitTopLevel(trimmed.slice(1, -1))[0] ?? 'unknown', index, file, definitions, referenced) }
-  if (trimmed.includes('=>'))
+function toSchema(type: string, index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): Schema {
+  const trimmed = type.trim().replace(/^readonly\s+/, '')
+  if (trimmed.length === 0 || NULLABLE_MEMBERS.has(trimmed))
     return { type: 'string' }
   const parts = splitTopLevel(trimmed)
   if (parts.length > 1)
     return unionSchema(parts, index, file, definitions, referenced)
+  if (trimmed.startsWith('{'))
+    return objectSchema(trimmed, index, file, definitions, referenced)
+  if (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    return { type: 'array', items: toSchema(splitMembers(trimmed.slice(1, -1))[0] ?? 'string', index, file, definitions, referenced) }
+  if (trimmed.startsWith('(') && trimmed.endsWith(')'))
+    return toSchema(trimmed.slice(1, -1), index, file, definitions, referenced)
+  if (trimmed.includes('=>'))
+    return { type: 'string' }
   if (trimmed.endsWith('[]'))
     return { type: 'array', items: toSchema(trimmed.slice(0, -2), index, file, definitions, referenced) }
   const literal = /^['"]([^'"]*)['"]$/.exec(trimmed)
   if (literal)
     return { type: 'string', enum: [literal[1]] }
-  if (trimmed === 'string' || trimmed === 'number' || trimmed === 'boolean')
-    return { type: trimmed }
+  if (trimmed === 'string' || trimmed === 'number' || trimmed === 'boolean' || trimmed === 'true' || trimmed === 'false')
+    return { type: trimmed === 'true' || trimmed === 'false' ? 'boolean' : trimmed }
   if (trimmed === 'unknown' || trimmed === 'any' || trimmed === 'object' || trimmed.startsWith('typeof '))
     return { type: 'string' }
   const generic = /^([A-Z_$][\w$.]*)\s*</i.exec(trimmed)
   if (generic) {
     const args = genericArgs(trimmed)
     if (generic[1] === 'Record')
-      return { type: 'object', additionalProperties: toSchema(args[1] ?? 'unknown', index, file, definitions, referenced) }
+      return { type: 'object', additionalProperties: toSchema(args[1] ?? 'string', index, file, definitions, referenced) }
+    if (generic[1] === 'Map')
+      return { type: 'object', additionalProperties: toSchema(args[1] ?? 'string', index, file, definitions, referenced) }
     if (generic[1] === 'Array' || generic[1] === 'ReadonlyArray' || generic[1] === 'Set')
-      return { type: 'array', items: toSchema(args[0] ?? 'unknown', index, file, definitions, referenced) }
+      return { type: 'array', items: toSchema(args[0] ?? 'string', index, file, definitions, referenced) }
     if (['Partial', 'Required', 'Readonly', 'NonNullable', 'Promise'].includes(generic[1]))
-      return toSchema(args[0] ?? 'unknown', index, file, definitions, referenced)
+      return toSchema(args[0] ?? 'string', index, file, definitions, referenced)
     return { type: 'object', additionalProperties: { type: 'string' } }
   }
   const reference = /^([A-Z_$][\w$]*)$/i.exec(trimmed)
   if (reference) {
     const declaration = lookup(index, reference[1], file)
-    if (declaration) {
-      ensureDefinition(declaration, reference[1], index, definitions, referenced)
-      return { $ref: `#/definitions/${reference[1]}` }
-    }
+    if (declaration)
+      return namedSchema(reference[1], declaration, index)
   }
   return { type: 'string' }
 }
 
-function unionSchema(parts: string[], index: TypeIndex, file: string, definitions: Record<string, any>, referenced: Set<string>): any {
-  const members = parts.map(part => toSchema(part, index, file, definitions, referenced))
-  const nonNull = members.filter(member => member.type !== 'null')
-  if (nonNull.length === 0)
-    return { type: 'null' }
-  const nullable = members.length !== nonNull.length
-  if (nonNull.length === 1 && nullable)
-    return { ...nonNull[0], nullable: true }
-  if (nonNull.every(member => typeof member.enum?.[0] === 'string'))
-    return { type: 'string', enum: nonNull.map(member => member.enum[0]), ...nullable ? { nullable: true } : {} }
-  if (nonNull.every(member => member.type === 'boolean'))
-    return { type: 'boolean', ...nullable ? { nullable: true } : {} }
-  if (nonNull.every(member => member.type === 'number'))
-    return { type: 'number', ...nullable ? { nullable: true } : {} }
-  if (nonNull.every(member => member.type === 'string'))
-    return { type: 'string', ...nullable ? { nullable: true } : {} }
-  return nullable ? { ...nonNull[0], nullable: true } : {}
+/** 联合成员里可合并的对象形态：内联对象直接取 properties，`$ref` 取已解析定义的 properties。 */
+function objectMember(schema: Schema, definitions: Record<string, Schema>): Record<string, Schema> | undefined {
+  if (schema.$ref !== undefined) {
+    const name = schema.$ref.split('/').pop() ?? ''
+    const target = definitions[name]
+    return target?.properties
+  }
+  return schema.properties
 }
 
-function objectSchema(type: string, index: TypeIndex, file: string, definitions: Record<string, any>, referenced: Set<string>): any {
-  const fields = parseFields(unwrap(type))
+function unionSchema(parts: string[], index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): Schema {
+  const members = parts.filter(part => !NULLABLE_MEMBERS.has(part.trim())).map(part => toSchema(part, index, file, definitions, referenced))
+  if (members.length === 0)
+    return { type: 'string' }
+  if (members.length === 1)
+    return members[0]
+  if (members.every(member => typeof member.enum?.[0] === 'string'))
+    return { type: 'string', enum: members.map(member => member.enum?.[0] ?? '') }
+  if (members.every(member => member.type === members[0].type) && members[0].properties === undefined && members[0].additionalProperties === undefined && members[0].type !== undefined)
+    return { type: members[0].type }
+  const shapes = members.map(member => objectMember(member, definitions))
+  if (shapes.every(shape => shape !== undefined)) {
+    const properties: Record<string, Schema> = {}
+    const counts = new Map<string, number>()
+    for (const shape of shapes) {
+      for (const [name, schema] of Object.entries(shape ?? {})) {
+        properties[name] ??= schema
+        counts.set(name, (counts.get(name) ?? 0) + 1)
+      }
+    }
+    if (Object.keys(properties).length === 0)
+      return { type: 'object', additionalProperties: { type: 'string' } }
+    const required = [...counts.entries()].filter(([, count]) => count === shapes.length).map(([name]) => name)
+    return required.length > 0 ? { type: 'object', properties, required } : { type: 'object', properties }
+  }
+  const concrete = members.find(member => member.$ref !== undefined || member.properties !== undefined || member.type !== undefined)
+  return concrete ?? { type: 'string' }
+}
+
+function fieldsSchema(fields: StatementField[], index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): Schema {
   if (fields.length === 0)
     return { type: 'object', additionalProperties: { type: 'string' } }
-  const properties: Record<string, any> = {}
+  const properties: Record<string, Schema> = {}
   const required: string[] = []
   for (const field of fields) {
-    properties[field.name] = toSchema(field.type === 'unknown' ? 'string' : field.type ?? 'string', index, file, definitions, referenced)
+    properties[field.name] = toSchema(field.type ?? 'string', index, file, definitions, referenced)
     if (field.required)
       required.push(field.name)
   }
   return required.length > 0 ? { type: 'object', properties, required } : { type: 'object', properties }
 }
 
-function ensureDefinition(declaration: Declaration, name: string, index: TypeIndex, definitions: Record<string, any>, referenced: Set<string>): any {
-  if (definitions[name] !== undefined)
-    return definitions[name]
-  if (referenced.has(name))
-    return undefined
-  referenced.add(name)
-  const target: any = {}
-  definitions[name] = target
-  const resolved = declaration.kind === 'interface'
-    ? objectSchema(`{${declaration.body}}`, index, declaration.file, definitions, referenced)
-    : toSchema(declaration.body, index, declaration.file, definitions, referenced)
-  Object.assign(target, resolved)
-  return target
+function objectSchema(type: string, index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): Schema {
+  return fieldsSchema(parseFields(unwrap(type)), index, file, definitions, referenced)
 }
 
-function handlerParameters(source: string, operation: string, index: TypeIndex, file: string, definitions: Record<string, any>, referenced: Set<string>): HandlerParameter[] {
+/** 接口字段：自身字段 + `extends` 基类字段（递归解析，遇到环即停）。 */
+function interfaceFields(declaration: Declaration, index: TypeIndex, seen: Set<string>): StatementField[] {
+  const name = declaration.name ?? ''
+  if (seen.has(name))
+    return []
+  seen.add(name)
+  const bases = (declaration.bases ?? []).flatMap((base) => {
+    const resolved = lookup(index, base, declaration.file)
+    return resolved ? interfaceFields(resolved, index, seen) : []
+  })
+  return [...bases, ...parseFields(unwrap(`{${declaration.body}}`))]
+}
+
+/**
+ * 具名类型的 schema：原样登记为 `type` 别名（schema 表达不了字面量联合/可空/泛型，
+ * 逐字段近似会让 UI 端的判别联合类型失配），返回 `$ref` 供解析器引用。
+ * 请求体/查询参数的顶层具名类型仍走 definition（函数签名需要 `Types.` 命名空间前缀）。
+ */
+function namedSchema(name: string, declaration: Declaration, index: TypeIndex): Schema {
+  ensureTyping(name, declaration, index)
+  return { $ref: `#/definitions/${name}` }
+}
+
+const BUILTIN_TYPE_RE = new Set(['Array', 'ReadonlyArray', 'Record', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Partial', 'Required', 'Readonly', 'NonNullable', 'Omit', 'Pick', 'Exclude', 'Extract', 'Date', 'Error', 'RegExp', 'RequestInit', 'BodyInit', 'FormData', 'AbortSignal', 'Uint8Array'])
+
+function declarationBody(declaration: Declaration): string {
+  if (declaration.kind === 'alias')
+    return declaration.body.trim()
+  const object = `{${declaration.body}}`
+  return declaration.bases && declaration.bases.length > 0 ? `${declaration.bases.join(' & ')} & ${object}` : object
+}
+
+/** 把具名声明连同它引用的同仓类型一起登记为 type 别名（导入别名按引用名登记，避免悬空标识符）。 */
+function ensureTyping(name: string, declaration: Declaration, index: TypeIndex): void {
+  if (TYPINGS.has(name))
+    return
+  const body = declarationBody(declaration)
+  TYPINGS.set(name, body)
+  for (const match of body.matchAll(/\b([A-Z_$][\w$]*)\b/g)) {
+    const reference = match[1]
+    if (BUILTIN_TYPE_RE.has(reference) || TYPINGS.has(reference))
+      continue
+    const dependency = lookup(index, reference, declaration.file)
+    if (dependency)
+      ensureTyping(reference, dependency, index)
+  }
+}
+
+function ensureDefinition(declaration: Declaration, name: string, index: TypeIndex, definitions: Record<string, Schema>, referenced: Set<string>): void {
+  if (definitions[name] !== undefined || referenced.has(name))
+    return
+  referenced.add(name)
+  const target: Schema = {}
+  definitions[name] = target
+  const resolved = declaration.kind === 'interface'
+    ? fieldsSchema(interfaceFields(declaration, index, new Set()), index, declaration.file, definitions, referenced)
+    : toSchema(declaration.body, index, declaration.file, definitions, referenced)
+  Object.assign(target, resolved)
+}
+
+function handlerParameters(source: string, operation: string, index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): HandlerParameter[] {
   const parameters: HandlerParameter[] = []
   const queryCast = /getQuery\s*\([^)]*\)\s*as\s*(\{[\s\S]*?\})\s*[;)\n]/.exec(source)
   const queryType = genericOf(source, 'getQuery')
@@ -592,14 +653,25 @@ function handlerParameters(source: string, operation: string, index: TypeIndex, 
       name: field.name,
       location: 'query',
       required: field.required === true,
-      schema: toSchema(field.type === 'unknown' ? 'string' : field.type ?? 'string', index, file, definitions, referenced),
+      schema: toSchema(field.type ?? 'string', index, file, definitions, referenced),
     })
   }
   if (queryFields.length === 0 && queryType && !queryType.startsWith('{')) {
+    // 具名查询契约拆成逐字段 query 参数：解析器会据此合成 `<Operation>Query`，避免 `query: X` 自引用
     const declaration = lookup(index, queryType, file)
-    if (declaration) {
-      ensureDefinition(declaration, queryType, index, definitions, referenced)
-      parameters.push({ name: 'query', location: 'query', required: true, schema: { $ref: `#/definitions/${queryType}` } })
+    if (declaration && declaration.kind === 'interface') {
+      for (const field of interfaceFields(declaration, index, new Set())) {
+        parameters.push({
+          name: field.name,
+          location: 'query',
+          required: field.required === true,
+          schema: toSchema(field.type ?? 'string', index, declaration.file, definitions, referenced),
+        })
+      }
+    }
+    else {
+      const schema = declaration ? parameterSchema(queryType, declaration, index, file, definitions, referenced) : { type: 'object', additionalProperties: { type: 'string' } }
+      parameters.push({ name: 'query', location: 'query', required: false, schema })
     }
   }
   const bodyType = genericOf(source, 'readBody')
@@ -612,11 +684,19 @@ function handlerParameters(source: string, operation: string, index: TypeIndex, 
       return parameters
     }
     const declaration = lookup(index, bodyType, file)
-    if (declaration)
-      ensureDefinition(declaration, bodyType, index, definitions, referenced)
-    parameters.push({ name: 'body', location: 'body', required: true, schema: { $ref: `#/definitions/${bodyType}` } })
+    const schema = declaration ? parameterSchema(bodyType, declaration, index, file, definitions, referenced) : { type: 'object', additionalProperties: { type: 'string' } }
+    parameters.push({ name: 'body', location: 'body', required: true, schema })
   }
   return parameters
+}
+
+/** 请求体/查询参数的顶层具名类型：登记为 definition（函数签名需要 `Types.` 前缀）。 */
+function parameterSchema(name: string, declaration: Declaration, index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): Schema {
+  const objectLike = declaration.kind === 'interface' || declaration.body.trim().startsWith('{')
+  if (!objectLike)
+    return toSchema(declaration.body, index, declaration.file, definitions, referenced)
+  ensureDefinition(declaration, name, index, definitions, referenced)
+  return { $ref: `#/definitions/${name}` }
 }
 
 function scanArrow(input: string): string | undefined {
@@ -660,6 +740,20 @@ function unwrapPromise(value: string): string {
   return value.slice(open + 1, -1).trim()
 }
 
+/** 响应契约：优先取 `defineEventHandler<EventHandlerRequest, X>` 的第二个类型实参，回退到箭头返回注解。 */
+function handlerResponseType(source: string): string | undefined {
+  const generic = genericOf(source, 'defineEventHandler')
+  if (generic !== undefined) {
+    const parts = splitMembers(generic)
+    if (parts.length > 1) {
+      const response = parts[parts.length - 1].trim()
+      if (response.length > 0)
+        return unwrapPromise(response)
+    }
+  }
+  return handlerReturnAnnotation(source)
+}
+
 function handlerReturnAnnotation(source: string): string | undefined {
   const start = RE_HANDLER.exec(source)
   if (!start)
@@ -684,18 +778,16 @@ function handlerReturnAnnotation(source: string): string | undefined {
   return annotation ? unwrapPromise(annotation) : undefined
 }
 
-function operationResponse(source: string, index: TypeIndex, file: string, definitions: Record<string, any>, referenced: Set<string>): any {
-  const annotation = handlerReturnAnnotation(source)
+function operationResponse(source: string, index: TypeIndex, file: string, definitions: Record<string, Schema>, referenced: Set<string>): Schema | undefined {
+  const annotation = handlerResponseType(source)
   if (!annotation)
     return undefined
   const candidates = splitTopLevel(annotation)
   const named = candidates.find(candidate => /^[A-Z_$][\w$]*$/i.test(candidate.trim()))
   if (named) {
     const declaration = lookup(index, named.trim(), file)
-    if (declaration) {
-      ensureDefinition(declaration, named.trim(), index, definitions, referenced)
-      return { $ref: `#/definitions/${named.trim()}` }
-    }
+    if (declaration)
+      return namedSchema(named.trim(), declaration, index)
   }
   const primitive = candidates.find(candidate => /^(?:string|number|boolean|string\[\]|number\[\]|boolean\[\])$/.test(candidate.trim()))
   if (primitive) {
@@ -706,12 +798,6 @@ function operationResponse(source: string, index: TypeIndex, file: string, defin
   if (objectLiteral)
     return objectSchema(objectLiteral, index, file, definitions, referenced)
   return undefined
-}
-
-interface RouteFile {
-  segments: string[]
-  method: string
-  file: string
 }
 
 function collectRouteFiles(routesDir: string): RouteFile[] {
@@ -728,75 +814,59 @@ function collectRouteFiles(routesDir: string): RouteFile[] {
   return found
 }
 
-function resolveSrc(cwd: string, server: GenapiServerConfig, routesDir: string): string {
-  if (server.src)
-    return resolve(cwd, server.src)
-  const candidates = [
-    resolve(routesDir, '..', '..'),
-    resolve(routesDir, '..', '..', '..'),
-    resolve(routesDir, '..', '..', '..', '..'),
-  ]
-  for (const candidate of candidates) {
-    if (existsSync(resolve(candidate, 'shared')) || existsSync(resolve(candidate, 'client')) || existsSync(resolve(candidate, 'host')))
-      return candidate
-  }
-  return resolve(routesDir, '..', '..', '..')
-}
+function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.ConfigRead {
+  const routesDir = resolve(process.cwd(), configRead.inputs.uri ?? '')
+  if (!existsSync(routesDir))
+    throw new Error(`genapi: 路由目录不存在 ${routesDir}，请检查 genapi.config.ts 的 input`)
+  const src = resolve(routesDir, '..', '..')
 
-function buildSource(configRead: ApiPipeline.ConfigRead, server: GenapiServerConfig): ApiPipeline.ConfigRead {
-  const cwd = process.cwd()
-  const routesDir = resolve(cwd, server.routes)
-  const src = resolveSrc(cwd, server, routesDir)
-  const plugin = server.plugin ?? toPosix(relative(cwd, src)).split('/')[1] ?? 'plugin'
-  const apiPrefix = resolveApiPrefix(readIfExists(resolve(src, 'shared/constants.ts')), plugin, server.apiPrefix)
-  configRead.config.meta ??= {}
-  configRead.config.meta.baseURL = `"${apiPrefix}"`
-  configRead.config.meta.import ??= {}
-  configRead.config.meta.import.http ??= 'dsh-tauri/client'
-  configRead.graphs.scopes.main ??= { comments: [], functions: [], imports: [], variables: [], typings: [], interfaces: [] }
-  configRead.graphs.scopes.main.imports ??= []
-  const httpImport = configRead.config.meta.import.http
-  const imports = configRead.graphs.scopes.main.imports
-  const kept = imports.filter(item => item.value !== httpImport)
-  kept.unshift(server.fetchImport === 'default' ? { name: 'fetch', value: httpImport } : { names: ['fetch'], value: httpImport })
-  configRead.graphs.scopes.main.imports = kept
+  // 请求客户端同样只认 defineConfig 的 meta：ofetch 实例 + 其选项类型
+  const http = configRead.config.meta?.import?.http
+  if (http !== undefined) {
+    configRead.graphs.scopes.main?.imports.unshift(
+      { names: ['FetchOptions'], value: http, type: true },
+      { names: ['ofetch'], value: http },
+    )
+  }
+
   const index = buildTypeIndex(src)
-  const definitions: Record<string, any> = {}
+  TYPINGS.clear()
+  const definitions: Record<string, Schema> = {}
   const referenced = new Set<string>()
-  const paths: Record<string, any> = {}
+  const paths: Record<string, Record<string, Operation>> = {}
   for (const route of collectRouteFiles(routesDir)) {
     const source = readFileSync(route.file, 'utf8')
     index.imports.set(route.file, collectImports(source, route.file))
     extractDeclarations(source, route.file, index.declarations)
-    const url = `${apiPrefix}${route.segments.length > 0 ? `/${route.segments.join('/')}` : ''}`
-    const specPath = route.segments.length > 0 ? `/${route.segments.join('/')}` : '/'
+    // 根级路由文件（如 routes/post.ts）对应 baseURL 本身：空路径让 transformUrlSyntax 只产出 `${baseURL}`
+    const specPath = route.segments.length > 0 ? `/${route.segments.join('/')}` : ''
     const operation = operationName(route.method, route.segments)
-    const parameters = handlerParameters(source, operation, index, route.file, definitions, referenced).map((parameter) => {
-      const { name, location, required, schema } = parameter
-      return location === 'body'
-        ? { name, in: 'body', required, schema }
-        : { name, in: 'query', required, ...schema }
-    })
-    const responseSchema = operationResponse(source, index, route.file, definitions, referenced)
+    const parameters = handlerParameters(source, operation, index, route.file, definitions, referenced).map<OperationParameter>(parameter => parameter.location === 'body'
+      ? { name: parameter.name, in: 'body', required: parameter.required, schema: parameter.schema }
+      : { ...parameter.schema, name: parameter.name, in: 'query', required: parameter.required })
+    const schema = operationResponse(source, index, route.file, definitions, referenced)
+    const description = `${route.method.toUpperCase()} ${specPath.length > 0 ? specPath : '/'}`
     paths[specPath] ??= {}
     paths[specPath][route.method] = {
       operationId: operation,
       parameters,
-      responses: { 200: responseSchema ? { description: `${route.method.toUpperCase()} ${url}`, schema: responseSchema } : { description: `${route.method.toUpperCase()} ${url}` } },
+      responses: { 200: schema ? { description, schema } : { description } },
     }
   }
+
   const reachable = new Set<string>()
-  const walk = (schema: any) => {
-    if (Array.isArray(schema)) {
-      for (const item of schema)
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node)
         walk(item)
       return
     }
-    if (!schema || typeof schema !== 'object')
+    if (typeof node !== 'object' || node === null)
       return
+    const schema = node as Schema
     if (typeof schema.$ref === 'string') {
-      const name = schema.$ref.split('/').pop()!
-      if (!reachable.has(name)) {
+      const name = schema.$ref.split('/').pop()
+      if (name !== undefined && !reachable.has(name)) {
         reachable.add(name)
         walk(definitions[name])
       }
@@ -807,102 +877,28 @@ function buildSource(configRead: ApiPipeline.ConfigRead, server: GenapiServerCon
   }
   for (const methods of Object.values(paths))
     walk(methods)
-  const pruned: Record<string, any> = {}
+
+  const pruned: Record<string, Schema> = {}
   for (const name of reachable) {
-    if (definitions[name] !== undefined)
-      pruned[name] = definitions[name]
+    const definition = definitions[name]
+    if (definition !== undefined)
+      pruned[name] = definition
   }
+
   configRead.source = {
     swagger: '2.0',
-    info: { title: plugin, version: '0.0.0' },
+    info: { title: basename(dirname(src)), version: '0.0.0' },
     paths,
     definitions: pruned,
   }
-  return configRead
-}
-
-const routeParser = createParser((config, { configRead, functions, interfaces }) => {
-  const { parameters, interfaces: attached, options } = parseMethodParameters(config as any)
-  const meta = parseMethodMetadata(config as any)
-  attached.forEach(item => interfaces.add('type', item as StatementInterface))
-  parameters.push({ name: 'config', type: 'RequestInit', required: false })
-  if (config.method.toLowerCase() !== 'get')
-    options.unshift(['method', `"${config.method}"`])
-  transformHeaderOptions('body', { options, parameters })
-  options.push(['...', 'config'])
-  const { spaceResponseType } = transformParameters(parameters, {
-    syntax: 'typescript',
-    configRead,
-    description: meta.description,
-    interfaces: interfaces.all(),
-    responseType: meta.responseType,
-  } as any)
-  transformBodyStringify('body', { options, parameters })
-  const url = transformQueryParams('query', { body: meta.body, options, url: meta.url })
-  const requestUrl = transformUrlSyntax(url, { baseURL: configRead.config.meta?.baseURL })
-  const name = reservedNames.has(meta.name) ? `${meta.name}Root` : meta.name
-  functions.add('main', {
-    export: true,
-    async: true,
-    name,
-    description: meta.description,
-    parameters,
-    body: [...(meta.body ?? []), ...transformFetchBody(requestUrl, options as any, spaceResponseType)],
-  })
-})
-
-const written = new Set<string>()
-const MARKER = '@generated by genapi'
-const BANNER = `/**
- * 禁止修改 — ${MARKER}
- *
- * 本文件由 \`pnpm genapi\` 依据插件 host 路由（\`src/host/routes/**\`）自动生成，
- * 任何手工改动都会在下次生成时被覆盖；缺少本标记的文件会被生成器拒绝覆盖。
- * 需要调整接口请改 host 路由后重新运行 \`pnpm genapi\`。
- */
-
-`
-
-function guardWrites(configRead: ApiPipeline.ConfigRead, force: boolean): void {
-  for (const output of configRead.outputs) {
-    if (written.has(output.path))
-      throw new Error(`genapi: 输出路径重复，请为每个 server 指定不同的 output：${output.path}`)
-    written.add(output.path)
-    if (force || !existsSync(output.path))
-      continue
-    const current = readFileSync(output.path, 'utf8')
-    if (current.trim().length === 0 || current.includes(MARKER))
-      continue
-    throw new Error(`genapi: 拒绝覆盖手写文件 ${relative(process.cwd(), output.path)}（缺少 "${MARKER}" 标记）。确认要重新生成请设置 GENAPI_FORCE=1。`)
-  }
-}
-
-function markOutputs(configRead: ApiPipeline.ConfigRead): ApiPipeline.ConfigRead {
-  for (const output of configRead.outputs) {
-    if (!output.code || output.code.includes(MARKER))
-      continue
-    output.code = BANNER + output.code
+  // 字面量联合以 `type` 别名补进类型输出（schema 表达不了，否则会退化成 string）
+  const typeScope = configRead.graphs.scopes.type
+  if (typeScope !== undefined && TYPINGS.size > 0) {
+    typeScope.typings ??= []
+    for (const [name, value] of TYPINGS)
+      typeScope.typings.push({ name, value, export: true })
   }
   return configRead
 }
-export function pluginPipeline(userConfig: ApiPipeline.Config): Promise<void> {
-  const force = process.env.GENAPI_FORCE === '1'
-  return pipeline(
-    (config: ApiPipeline.Config) => {
-      const configRead = configure(config)
-      guardWrites(configRead, force)
-      return configRead
-    },
-    (configRead: ApiPipeline.ConfigRead) => {
-      const server = (configRead.config as ApiPipeline.Config & { server?: GenapiServerConfig }).server
-      return server ? buildSource(configRead, server) : configRead
-    },
-    routeParser,
-    compiler,
-    generate,
-    (configRead: ApiPipeline.ConfigRead) => {
-      const marked = markOutputs(configRead)
-      return dest(marked) as unknown as void
-    },
-  )(userConfig) as unknown as Promise<void>
-}
+
+export const pluginPipeline: ApiPipeline.Pipeline = pipeline(config, original, parser, compiler, generate, dest)
