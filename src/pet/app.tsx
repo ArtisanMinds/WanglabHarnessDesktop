@@ -53,6 +53,7 @@ export function App() {
     ? (draggable.direction === undefined ? undefined : `moving-${draggable.direction}`)
     : undefined
 
+  console.log('---', motion)
   return (
     // 外层只负责铺满透明窗口并让宠物锚定底部居中；窗口内可交互面只有命中箱，
     // 其余区域由 useOmitIgnoreCursorEvents 按命中箱矩形整体穿透。
@@ -64,7 +65,7 @@ export function App() {
           config={source.config}
           uri={source.uri}
           ext={source.ext}
-          motion={motion}
+          motion={source?.kind === 'codex' ? motion : undefined}
           size={width}
           dragging={draggable.dragging}
           cache={true}

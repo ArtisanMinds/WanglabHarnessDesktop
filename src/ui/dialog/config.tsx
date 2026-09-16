@@ -45,14 +45,14 @@ export function ConfigDialog(props: ConfigDialogProps) {
     <Modal isOpen={disclosure.visible} onOpenChange={disclosure.cancel}>
       <Modal.Backdrop>
         <Modal.Container size="lg">
-          <Modal.Dialog className="w-[800px] max-w-[calc(100vw-48px)] pr-2.5 h-screen">
+          <Modal.Dialog className="w-[800px] max-w-[calc(100vw-48px)] h-[min(720px,calc(100vh-96px))] pr-2.5">
             <Modal.CloseTrigger />
             <Modal.Header className="mb-3">
               <Modal.Heading>
                 {t('app.config')}
               </Modal.Heading>
             </Modal.Header>
-            <Modal.Body className="flex gap-6 pr-0 h-screen">
+            <Modal.Body className="flex gap-6 pr-0">
               <aside className="w-[164px]">
                 <nav className="flex flex-col gap-2 w-full">
                   {navs.map((item) => {
