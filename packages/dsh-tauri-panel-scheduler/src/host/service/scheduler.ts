@@ -3,6 +3,7 @@ import { defineService } from 'dsh-tauri'
 import { filter, isEmpty, isNil, take } from 'lodash-es'
 import { getCurrentHostInstance } from '../config/runtime'
 import { nextOccurrence } from '../utils/schedule'
+import { isTaskDue, selectWaitingTaskIds } from '../utils/waiting'
 import { executor } from './executor'
 import { task } from './task'
 
@@ -38,10 +39,14 @@ export const scheduler = defineService({
       if (occurrence !== undefined)
         await task.advance(item.id, item.lastRunAt, new Date(occurrence).toISOString())
     }
-    const pending = filter(all, item =>
-      item.enabled && !isNil(item.nextRunAt) && !running.has(item.id) && new Date(item.nextRunAt).getTime() <= now)
+    const pending = filter(all, item => isTaskDue(item, now) && !running.has(item.id))
     for (const item of take(pending, SCHEDULER_MAX_CONCURRENT_RUNS - running.size))
       void fire(item, 'schedule')
+  },
+
+  async waitingIds(): Promise<Set<string>> {
+    const all = await task.list()
+    return selectWaitingTaskIds(all, running, SCHEDULER_MAX_CONCURRENT_RUNS - running.size, Date.now())
   },
 })
 

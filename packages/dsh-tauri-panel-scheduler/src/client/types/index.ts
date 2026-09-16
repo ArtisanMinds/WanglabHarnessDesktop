@@ -61,6 +61,7 @@ export interface TaskView {
   updatedAt: string
   lastRunAt?: string
   nextRunAt?: string
+  waiting?: boolean
 }
 
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'interrupted' | 'skipped' | 'cancelled'
