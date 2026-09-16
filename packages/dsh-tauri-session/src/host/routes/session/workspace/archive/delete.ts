@@ -1,8 +1,9 @@
+import type { SessionIdsBody } from '../../../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { archive } from '../../../../service/archive'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ sessionIds?: unknown }>(event, { type: 'json' })
+  const body = await readBody<SessionIdsBody>(event, { type: 'json' })
   const sessionIds = Array.isArray(body?.sessionIds)
     ? body.sessionIds.map(String).filter(Boolean)
     : []

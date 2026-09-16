@@ -1,9 +1,9 @@
-import type { ArchiveRegistrySurface, ArchiveTableSurface, SessionLike, WorkspaceEntryLike } from '../config/runtime.types'
+import type { ArchiveRegistrySurface, ArchiveTableSurface, SessionLike, WorkspaceEntryLike } from '../types'
 import type { ArchiveAccounting, ArchivedListPayload } from './ledger.types'
 import { defineService } from 'dsh-tauri'
 import { difference, keyBy, uniq } from 'lodash-es'
 import { getCurrentHostInstance } from '../config/runtime'
-import { sessionStore } from './session-store'
+import { session } from './session'
 
 export const ledger = defineService({
   /**
@@ -22,14 +22,14 @@ export const ledger = defineService({
     const archivedSessionIds: string[] = []
     const meta: ArchivedListPayload['meta'] = {}
     for (const sessionId of getCurrentHostInstance().workspaceRegistry.archivedSessionIds ?? []) {
-      const session = sessionStore.load(sessionId)
-      if (session === null)
+      const entry = session.get(sessionId)
+      if (entry === null)
         continue
       archivedSessionIds.push(sessionId)
-      const title = session.displayTitle ?? session.title
+      const title = entry.displayTitle ?? entry.title
       meta[sessionId] = {
-        createdAt: session.header?.createdAt,
-        cwd: cwdOf(session),
+        createdAt: entry.header?.createdAt,
+        cwd: cwdOf(entry),
         ...(title === undefined ? {} : { title }),
       }
     }
@@ -107,7 +107,7 @@ async function restoreWorkspaceAccounting(registry: ArchiveRegistrySurface, sess
     return
   const byPath = keyBy<WorkspaceEntryLike>(workspaces, 'path')
   for (const sessionId of sessionIds) {
-    const cwd = cwdOf(sessionStore.load(sessionId))
+    const cwd = cwdOf(session.get(sessionId))
     const workspace = cwd ? byPath[cwd] : undefined
     if (!workspace || workspace.sessionIds?.includes(sessionId))
       continue

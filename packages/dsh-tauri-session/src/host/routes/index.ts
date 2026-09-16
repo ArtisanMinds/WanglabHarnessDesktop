@@ -1,16 +1,15 @@
 import { defineRoutes } from 'dsh-tauri'
-import { SESSION_API_PREFIX } from '../../shared/constants'
 import clearSessionArchive from './session/archive/clear/post'
 import deleteSessionArchive from './session/archive/delete'
 import getSessionArchive from './session/archive/get'
 import postSessionArchive from './session/archive/post'
-import postSessionOpenPath from './session/open-path/post'
-import postSessionUnarchive from './session/unarchive/post'
+import postSessionUnarchive from './session/archive/restore/post'
+import postSessionOpenPath from './session/open/path/post'
 import deleteSessionWorkspaceArchive from './session/workspace/archive/delete'
 import postSessionWorkspaceArchive from './session/workspace/archive/post'
 
-const SESSION_ARCHIVE = `${SESSION_API_PREFIX}/session/archive`
-const SESSION_WORKSPACE_ARCHIVE = `${SESSION_API_PREFIX}/session/workspace/archive`
+const SESSION_ARCHIVE = '/api/desktop/dsh-tauri-session/session/archive'
+const SESSION_WORKSPACE_ARCHIVE = '/api/desktop/dsh-tauri-session/session/workspace/archive'
 
 /**
  * 归档资源路由声明（文件路径 = URL 路径）。
@@ -27,6 +26,6 @@ export const routes = defineRoutes((disposer) => {
   disposer.post({ kind: 'exact', path: SESSION_WORKSPACE_ARCHIVE }, postSessionWorkspaceArchive)
   disposer.delete({ kind: 'exact', path: SESSION_WORKSPACE_ARCHIVE }, deleteSessionWorkspaceArchive)
 
-  disposer.post({ kind: 'exact', path: `${SESSION_API_PREFIX}/session/unarchive` }, postSessionUnarchive)
-  disposer.post({ kind: 'exact', path: `${SESSION_API_PREFIX}/session/open-path` }, postSessionOpenPath)
+  disposer.post({ kind: 'exact', path: `${SESSION_ARCHIVE}/restore` }, postSessionUnarchive)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-session/session/open/path' }, postSessionOpenPath)
 })

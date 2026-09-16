@@ -2,7 +2,7 @@
  * host/routes/index.test.ts — 归档路由声明的协议回归（RESTful 资源化后）。
  *
  * 覆盖（迁移契约）：路由表的 (kind, path) 与声明方法、方法不符时 405 + allow 头、
- * OPTIONS 预检 204、GET /session/archive 的载荷形状、POST /session/open-path 的 400
+ * OPTIONS 预检 204、GET /session/archive 的载荷形状、POST /session/open/path 的 400
  * 领域错误、DELETE 路由的请求体仍按 JSON 解析、`/session/archive/clear` 的 POST 与
  * DELETE 双方法登记。
  *
@@ -18,8 +18,9 @@ import type { AddressInfo } from 'node:net'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { routes } from '.'
-import { SESSION_API_PREFIX as P } from '../../shared/constants'
 import { setCurrentHostInstance } from '../config/runtime'
+
+const P = '/api/desktop/dsh-tauri-session'
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
@@ -35,8 +36,8 @@ const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['DELETE', `${P}/session/archive/clear`],
   ['POST', `${P}/session/workspace/archive`],
   ['DELETE', `${P}/session/workspace/archive`],
-  ['POST', `${P}/session/unarchive`],
-  ['POST', `${P}/session/open-path`],
+  ['POST', `${P}/session/archive/restore`],
+  ['POST', `${P}/session/open/path`],
 ]
 
 /** 去重后的宿主注册行（同一路径的多个方法由 defineRoutes 收敛为一行）。 */
@@ -50,8 +51,8 @@ const ALLOW_BY_PATH: Readonly<Record<string, string>> = {
   [`${P}/session/archive`]: 'GET, HEAD, POST, DELETE, OPTIONS',
   [`${P}/session/archive/clear`]: 'POST, DELETE, OPTIONS',
   [`${P}/session/workspace/archive`]: 'POST, DELETE, OPTIONS',
-  [`${P}/session/unarchive`]: 'POST, OPTIONS',
-  [`${P}/session/open-path`]: 'POST, OPTIONS',
+  [`${P}/session/archive/restore`]: 'POST, OPTIONS',
+  [`${P}/session/open/path`]: 'POST, OPTIONS',
 }
 
 /** 所有路径都未声明 PUT，用于统一验证 405 + allow。 */
@@ -246,18 +247,18 @@ describe('归档路由声明', () => {
     dispose()
   })
 
-  it('pOST /session/open-path 缺少 sessionId 或目录不存在时返回 400 领域错误', async () => {
+  it('pOST /session/open/path 缺少 sessionId 或目录不存在时返回 400 领域错误', async () => {
     const harness = createHarness()
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
-    const missing = await postJson(base, `${P}/session/open-path`, 'POST', '{}')
+    const missing = await postJson(base, `${P}/session/open/path`, 'POST', '{}')
     expect(missing.status).toBe(400)
     expect(await missing.json()).toEqual({ ok: false, error: 'invalid-session-id' })
 
     const unknown = await postJson(
       base,
-      `${P}/session/open-path`,
+      `${P}/session/open/path`,
       'POST',
       JSON.stringify({ sessionId: '__missing_session__' }),
     )
@@ -272,14 +273,14 @@ describe('归档路由声明', () => {
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
-    const arrayBody = await postJson(base, `${P}/session/open-path`, 'POST', '[]')
+    const arrayBody = await postJson(base, `${P}/session/open/path`, 'POST', '[]')
     expect(arrayBody.status).toBe(400)
 
-    const invalidJson = await postJson(base, `${P}/session/open-path`, 'POST', 'not-json')
+    const invalidJson = await postJson(base, `${P}/session/open/path`, 'POST', 'not-json')
     expect(invalidJson.status).toBe(400)
 
     // 请求体一律按 JSON 解析：urlencoded 体不会被当成合法对象放行。
-    const urlencoded = await fetch(`${base}${P}/session/open-path`, {
+    const urlencoded = await fetch(`${base}${P}/session/open/path`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: 'sessionId=archived-1',

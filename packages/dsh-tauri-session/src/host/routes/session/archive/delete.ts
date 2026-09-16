@@ -1,8 +1,9 @@
+import type { SessionIdBody } from '../../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { archive } from '../../../service/archive'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ sessionId?: unknown }>(event, { type: 'json' })
+  const body = await readBody<SessionIdBody>(event, { type: 'json' })
   const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
   if (sessionId.length === 0) {
     event.res.status = 400

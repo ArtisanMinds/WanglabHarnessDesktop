@@ -1,16 +1,13 @@
+import type { SessionIdBody } from '../../../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
-import { sessionFiles } from '../../../service/session-files'
+import { archive } from '../../../../service/archive'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody<{ sessionId?: unknown }>(event, { type: 'json' })
+  const body = await readBody<SessionIdBody>(event, { type: 'json' })
   const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
   if (sessionId.length === 0) {
     event.res.status = 400
     return { ok: false as const, error: 'invalid-session-id' }
   }
-
-  const result = await sessionFiles.open(sessionId)
-  if (!result.ok)
-    event.res.status = 400
-  return result
+  return archive.unarchive(sessionId)
 })

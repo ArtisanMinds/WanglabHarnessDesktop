@@ -1,5 +1,5 @@
 import type { HostContext } from 'dsh-tauri'
-import type { SessionHost } from './config/runtime.types'
+import type { SessionHost } from './types'
 import { PLUGIN_ID } from '../shared/constants'
 import { clearHostRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'

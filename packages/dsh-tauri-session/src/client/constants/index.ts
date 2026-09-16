@@ -1,6 +1,6 @@
 import { PLUGIN_ID } from '../../shared/constants'
 
-export { SESSION_API_PREFIX, PLUGIN_ID, SESSION_SECTION_ORDER } from '../../shared/constants'
+export { PLUGIN_ID, SESSION_SECTION_ORDER } from '../../shared/constants'
 
 export const SETTINGS_SECTION_SLOT = 'settings.section'
 export const SESSION_REGISTRANT = PLUGIN_ID

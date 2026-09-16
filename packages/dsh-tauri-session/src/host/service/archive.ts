@@ -1,12 +1,12 @@
 import type { ArchivedListPayload } from './ledger.types'
 import { defineService } from 'dsh-tauri'
 import { compact, difference, isEmpty, uniq } from 'lodash-es'
-import { LOG_PREFIX } from '../config/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import { archiveHooks } from '../events'
 import { ledger } from './ledger'
-import { sessionFiles } from './session-files'
-import { sessionStore } from './session-store'
+import { session } from './session'
+
+const LOG_PREFIX = 'dsh-tauri-session'
 
 export const archive = defineService({
   /** 归档一个会话并返回新的归档投影（幂等：已归档即无操作）。 */
@@ -66,14 +66,14 @@ async function permanentlyDelete(rawIds: readonly string[]): Promise<{ ok: true 
   if (missing.length > 0)
     throw new Error(`会话 '${missing[0]}' 不在归档集合中，拒绝删除`)
 
-  const liveFailures = sessionStore.remove(ids)
+  const liveFailures = session.remove(ids)
   for (const sessionId of liveFailures)
     host.logger?.warn?.(`[${LOG_PREFIX}] 会话 '${sessionId}' 无法从内存移除，刷新后消失`)
 
   let removed = 0
   for (const sessionId of ids) {
     try {
-      if (sessionFiles.remove(sessionId))
+      if (session.removeDir(sessionId))
         removed += 1
     }
     catch (error) {

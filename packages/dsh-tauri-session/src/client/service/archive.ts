@@ -2,14 +2,14 @@ import type { ArchivedListPayload } from '../apis/index.type'
 import type { ActionOutcome, Resync } from './archive.types'
 import { uniq } from 'dsh-tauri/client'
 import {
-  deleteArchive,
-  deleteArchiveWorkspace,
-  getArchive,
-  postArchive,
-  postArchiveClear,
-  postArchiveWorkspace,
-  postOpenSessionDir,
-  postUnarchive,
+  deleteSessionArchive,
+  deleteSessionWorkspaceArchive,
+  getSessionArchive,
+  postSessionArchive,
+  postSessionArchiveClear,
+  postSessionArchiveRestore,
+  postSessionOpenPath,
+  postSessionWorkspaceArchive,
 } from '../apis'
 import { ARCHIVE_RESYNC_TIMEOUT_MS } from '../constants'
 import { locale } from '../locales'
@@ -25,7 +25,7 @@ export async function fetchArchive(): Promise<ArchivedListPayload | null> {
   store.archive.loading = true
   store.archive.error = ''
   try {
-    const payload = await getArchive()
+    const payload = await getSessionArchive()
     if (!store.archive.isCurrentRefresh(generation))
       return null
     store.archive.archived = payload
@@ -44,33 +44,33 @@ export async function fetchArchive(): Promise<ArchivedListPayload | null> {
 
 export function archiveSession(input: { sessionId: string }): Promise<ActionOutcome> {
   store.archive.suppressedSessionIds = store.archive.suppressedSessionIds.filter(id => id !== input.sessionId)
-  return runMutation({ mutate: () => postArchive({ sessionId: input.sessionId }) })
+  return runMutation({ mutate: () => postSessionArchive({ sessionId: input.sessionId }) })
 }
 
 export function archiveWorkspace(input: { workspaceId: string, sessionIds: readonly string[] }): Promise<ActionOutcome> {
-  return runMutation({ mutate: () => postArchiveWorkspace({ workspaceId: input.workspaceId, sessionIds: input.sessionIds }) })
+  return runMutation({ mutate: () => postSessionWorkspaceArchive({ workspaceId: input.workspaceId, sessionIds: [...input.sessionIds] }) })
 }
 
 export function unarchiveSession(input: { sessionId: string, resync?: Resync }): Promise<ActionOutcome> {
-  return runMutation({ mutate: () => postUnarchive({ sessionId: input.sessionId }), resync: input.resync, sessionIds: [input.sessionId] })
+  return runMutation({ mutate: () => postSessionArchiveRestore({ sessionId: input.sessionId }), resync: input.resync, sessionIds: [input.sessionId] })
 }
 
 export function deleteSession(input: { sessionId: string, resync?: Resync }): Promise<ActionOutcome> {
-  return runMutation({ mutate: () => deleteArchive({ sessionId: input.sessionId }), resync: input.resync, sessionIds: [input.sessionId] })
+  return runMutation({ mutate: () => deleteSessionArchive({ sessionId: input.sessionId }), resync: input.resync, sessionIds: [input.sessionId] })
 }
 
 export function deleteWorkspaceSessions(input: { sessionIds: readonly string[], resync?: Resync }): Promise<ActionOutcome> {
-  return runMutation({ mutate: () => deleteArchiveWorkspace({ sessionIds: input.sessionIds }), resync: input.resync, sessionIds: input.sessionIds })
+  return runMutation({ mutate: () => deleteSessionWorkspaceArchive({ sessionIds: [...input.sessionIds] }), resync: input.resync, sessionIds: input.sessionIds })
 }
 
 export function clearArchive(input: { resync?: Resync } = {}): Promise<ActionOutcome> {
   const sessionIds = [...store.archive.archived.archivedSessionIds]
-  return runMutation({ mutate: () => postArchiveClear(), resync: input.resync, sessionIds })
+  return runMutation({ mutate: () => postSessionArchiveClear(), resync: input.resync, sessionIds })
 }
 
 export async function openSessionDir(input: { sessionId: string }): Promise<ActionOutcome> {
   try {
-    const result = await postOpenSessionDir({ sessionId: input.sessionId })
+    const result = await postSessionOpenPath({ sessionId: input.sessionId })
     if (!result.ok)
       throw new Error(locale.text('openFailed', { reason: result.error ?? '' }))
     return { ok: true }

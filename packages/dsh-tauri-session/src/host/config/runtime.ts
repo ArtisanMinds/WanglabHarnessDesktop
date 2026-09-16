@@ -1,4 +1,4 @@
-import type { SessionHost } from './runtime.types'
+import type { SessionHost } from '../types'
 import { defineHostRuntime } from 'dsh-tauri'
 
 export const { setCurrentHostInstance, getCurrentHostInstance } = defineHostRuntime<SessionHost>()

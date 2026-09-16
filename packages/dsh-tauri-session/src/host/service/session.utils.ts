@@ -1,14 +1,18 @@
 import { readdirSync } from 'node:fs'
 import { DSH_HOME } from 'dsh-tauri'
 import { join, resolve, sep } from 'pathe'
-import {
-  DOT_DOT_SEGMENT,
-  DOT_ESCAPE,
-  DOT_SEGMENT,
-  SESSION_DIRECTORY_PREFIX,
-  SESSION_ID_ESCAPE,
-  SESSIONS_DIRECTORY,
-} from '../config/constants'
+
+const SESSIONS_DIRECTORY = 'sessions'
+
+const SESSION_DIRECTORY_PREFIX = 'session-'
+
+const SESSION_ID_ESCAPE = '~'
+
+const DOT_SEGMENT = '.'
+
+const DOT_DOT_SEGMENT = '..'
+
+const DOT_ESCAPE = '~002E'
 
 export function sessionsRoot(): string {
   return join(DSH_HOME, SESSIONS_DIRECTORY)
