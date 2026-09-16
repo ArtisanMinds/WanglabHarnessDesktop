@@ -157,13 +157,16 @@ git diff --check
 | `dsh-tauri-pet` | `Skylarking/dsh-plugin-codex-pets` | `source/dsh-plugin-codex-pets` | `22e93f4` | - | 未评估 main 分支更新 | [日志](https://www.google.com/search?q=../packages/dsh-tauri-pet/docs/sync-log.md) |
 | 桌宠窗口 | `ayangweb/BongoCat` | `source/BongoCat` | `44f44bc` | `v1.1.0` | HEAD 已超前 Tag 5 个 Commit | [日志](https://www.google.com/search?q=../packages/dsh-tauri-pet/docs/sync-log.md) |
 | `dsh-tauri-panel-extension` | `qinyre/dsh-plugin-capabilities` | `source/dsh-plugin-capabilities` | `v0.3.10` (`e5e3596`) | `v0.3.10` | 暂无待评估项（Market 模块确定不移植） | [日志](https://www.google.com/search?q=../packages/dsh-tauri-panel-extension/docs/upstream-sync-log.md) |
-| `dsh-tauri-panel-scheduler` | `MichengAI/dsh-automation` | `source/dsh-automation` | `f1bc91a` (+`c426c3d`) | `v0.1.42` (`e75499e`) | `v0.1.36`–`v0.1.40` 待评估 | [日志](https://www.google.com/search?q=../packages/dsh-tauri-panel-scheduler/docs/sync-log.md) |
+| `dsh-tauri-panel-scheduler` | `MichengAI/dsh-automation` | `source/dsh-automation` | `f1bc91a` (+`c426c3d`) | `v0.1.42` (`e75499e`) | `v0.1.33`–`v0.1.42` 已评估：全部不采纳（2026-09-16）；无待评估项 | [日志](https://www.google.com/search?q=../packages/dsh-tauri-panel-scheduler/docs/sync-log.md) |
 
 ### 5.2 已知配置与异常记录
 
 * **子模块绑定**：`source/*` 下 6 个参考仓库均已引入 `.gitmodules`。当前 gitlink 配置已暂存，待提交。
 * **路径纠偏记录**：
 * `source/dsh-automation` 已纠正 gitlink 配置，子模块 HEAD 指向 `f1bc91a`。
+* `source/dsh-automation` gitlink 为 `f1bc91a`，但工作区 checkout 停在 `e75499e`（`git submodule status` 前缀 `+`，
+  父仓库表现为未暂存的 `source/dsh-automation` 变更）。2026-09-16 裁决不采纳 `v0.1.33`–`v0.1.42` 任何代码，
+  基线不推进、工作区不回落。
 * `dsh-tauri-panel-extension` 文档中引用的上游路径已更正为 `source/dsh-plugin-capabilities`。
 * 修复了 `dsh-tauri-panel-extension/README.md` 中 `soruce` 的拼写错误。
 
