@@ -1,11 +1,22 @@
 /**
- * bubble-copy.test.ts — 桌宠气泡文案纯函数（对齐 dsh-dafeiyu src/status-copy.js）单测。
+ * use-bubble-tracker.test.ts — 桌宠气泡层单测（文案纯函数 + 会话快照 → pet.bubble 映射）。
  *
- * 覆盖：seed 稳定选句（同 seed 恒定、不同 seed 可换句）、分组回落、工具活动分类
- * 文案、taskCopy 句式（对齐 dsh-dafeiyu：正在/继续、动作动词、默认处理「…」）。
+ * 气泡自身的叠加、原地更新、定时收起与多会话动作聚合由 `dsh-pet-component` 负责，
+ * 这里锁两件事：文案选句（同 seed 恒定、分组回落、任务句式）与宿主侧剩下的契约
+ * （档位推导、子代理静默、终态只下发一次、挂载前被丢弃的气泡能靠 flush 补齐）。
  */
+import type { PetBubbleHandle, PetBubbleOptions } from 'dsh-pet-component'
 import { describe, expect, it } from 'vitest'
-import { activityCopy, seedNumber, sessionTitle, statusCopy, taskCopy, toolActivityGroup, UNTITLED_SESSION_TITLE } from './bubble'
+import { createBubbleTracker } from './use-bubble-tracker'
+import { UNTITLED_SESSION_TITLE } from './use-bubble-tracker.constants'
+import {
+  activityCopy,
+  seedNumber,
+  sessionTitle,
+  statusCopy,
+  taskCopy,
+  toolActivityGroup,
+} from './use-bubble-tracker.helpers'
 
 describe('seedNumber', () => {
   it('numeric strings resolve to the absolute truncated integer', () => {
@@ -131,5 +142,124 @@ describe('sessionTitle', () => {
     }
     expect(sessionTitle({ phase: 'approval' })).toContain(UNTITLED_SESSION_TITLE)
     expect(sessionTitle({ origin: 'subagent' })).toContain(UNTITLED_SESSION_TITLE)
+  })
+})
+
+type Call
+  = | { type: 'show', options: PetBubbleOptions }
+    | { type: 'close', id: string | undefined }
+    | { type: 'clear' }
+
+/** 假命令面：`mounted` 控制 `pet.bubble` 返回 key 还是空串（组件未挂载）。 */
+function createFakeBubble(initiallyMounted = true) {
+  const calls: Call[] = []
+  const state = { mounted: initiallyMounted }
+  const bubble = ((options: PetBubbleOptions) => {
+    calls.push({ type: 'show', options })
+    return state.mounted ? options.id ?? `auto-${calls.length}` : ''
+  }) as PetBubbleHandle
+  bubble.close = (id?: string) => {
+    calls.push({ type: 'close', id })
+  }
+  bubble.clear = () => {
+    calls.push({ type: 'clear' })
+  }
+  return { bubble, calls, state }
+}
+
+function shows(calls: Call[]): PetBubbleOptions[] {
+  return calls.filter(call => call.type === 'show').map(call => call.options)
+}
+
+describe('createBubbleTracker', () => {
+  it('maps a session snapshot to a bubble carrying its own motion', () => {
+    const { bubble, calls } = createFakeBubble()
+    createBubbleTracker(bubble).apply({ id: 's1', title: '会话一', workStatus: 'working', task: '修复登录' }, 'create')
+
+    expect(shows(calls)).toEqual([
+      { id: 's1', title: '会话一', description: '正在修复登录', loading: true, motion: 'working' },
+    ])
+  })
+
+  it('prefers the fine-grained workStatus over the coarse status', () => {
+    const { bubble, calls } = createFakeBubble()
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 's1', status: 'running', workStatus: 'waiting' }, 'update')
+
+    expect(shows(calls)[0]?.motion).toBe('waiting')
+    expect(shows(calls)[0]?.loading).toBe(false)
+  })
+
+  it('keeps every subagent session silent', () => {
+    const { bubble, calls } = createFakeBubble()
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 'a1', origin: 'subagent', title: '子代理', workStatus: 'working' }, 'create')
+    tracker.apply({ id: 'a1', origin: 'subagent', title: '子代理', workStatus: 'result' }, 'update')
+
+    expect(calls).toEqual([])
+  })
+
+  it('closes the bubble when the session is removed or falls back to no motion', () => {
+    const { bubble, calls } = createFakeBubble()
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 's1', workStatus: 'thinking' }, 'create')
+    tracker.apply({ id: 's1' }, 'update')
+    tracker.apply({ id: 's2', workStatus: 'thinking' }, 'create')
+    tracker.apply({ id: 's2' }, 'remove')
+
+    expect(calls.filter(call => call.type === 'close')).toEqual([
+      { type: 'close', id: 's1' },
+      { type: 'close', id: 's2' },
+    ])
+  })
+
+  it('shows a terminal motion only once until the session leaves it', () => {
+    const { bubble, calls } = createFakeBubble()
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 's1', workStatus: 'success' }, 'update')
+    tracker.apply({ id: 's1', workStatus: 'success' }, 'update')
+    expect(shows(calls)).toHaveLength(1)
+
+    tracker.apply({ id: 's1', workStatus: 'thinking' }, 'update')
+    tracker.apply({ id: 's1', workStatus: 'success' }, 'update')
+    expect(shows(calls)).toHaveLength(3)
+  })
+
+  it('flushes bubbles dropped while <Pet> was not mounted', () => {
+    const { bubble, calls, state } = createFakeBubble(false)
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 's1', workStatus: 'success' }, 'create')
+    expect(shows(calls)).toHaveLength(1)
+
+    state.mounted = true
+    tracker.flush()
+    expect(shows(calls)).toHaveLength(2)
+    expect(shows(calls)[1]?.motion).toBe('success')
+  })
+
+  it('appends a one-shot done bubble when a running turn ends without a work status', () => {
+    const { bubble, calls } = createFakeBubble()
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 's1', title: '会话一', status: 'running' }, 'create')
+    tracker.apply({ id: 's1', title: '会话一' }, 'update')
+
+    expect(shows(calls).at(-1)).toEqual({
+      id: 's1:done',
+      title: '会话一',
+      description: '已完成',
+      variant: 'success',
+      timeout: 3000,
+    })
+  })
+
+  it('drops host state and clears the component bubbles on dispose', () => {
+    const { bubble, calls } = createFakeBubble()
+    const tracker = createBubbleTracker(bubble)
+    tracker.apply({ id: 's1', workStatus: 'working' }, 'create')
+    tracker.dispose()
+    tracker.flush()
+
+    expect(calls.at(-1)).toEqual({ type: 'clear' })
+    expect(shows(calls)).toHaveLength(1)
   })
 })

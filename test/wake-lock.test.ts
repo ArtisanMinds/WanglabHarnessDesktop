@@ -11,10 +11,11 @@ import { describe, expect, it } from 'vitest'
  *
  * 原先的 `navigator.wakeLock.request` 猴补丁（`utils/disable-wake-lock.ts`）已删除，
  * 这里把「两个窗口入口都释放唤醒锁」的不变量锁在源码层面：任一入口漏掉即失败。
+ * 桌宠窗口侧已抽成 `pet/hooks/use-wakelock-release.ts`，断言跟着搬家。
  */
 const WAKE_LOCK_ENTRIES = [
   '../src/layout/index.tsx',
-  '../src/pet/app.tsx',
+  '../src/pet/hooks/use-wakelock-release.ts',
 ]
 
 describe('wake lock contract', () => {
