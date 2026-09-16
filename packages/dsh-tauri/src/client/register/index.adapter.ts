@@ -48,10 +48,13 @@ import type {
   DefineAdapterOptions,
   DshMigration,
 } from '../types/adapter'
-import { ADD_WORKSPACE_SELECTOR, NEW_SESSION_SELECTOR } from '../constants'
+import { NEW_SESSION_SELECTOR } from '../constants'
 import { clickIfPresent } from '../utils/browser'
 
 export type * from '../types/adapter'
+
+/** 官方「添加工作区」按钮：工作区创建能力缺席时的 DOM 退级目标（只有本文件消费）。 */
+const ADD_WORKSPACE_SELECTOR = 'button[aria-label="添加工作区"],button[aria-label="Add workspace"]'
 
 /** 适配层告警出口（默认 console.warn；宿主可注入以上报到插件面板）。 */
 type AdapterWarn = (message: string, error?: unknown) => void
