@@ -315,53 +315,105 @@ fn listen_mouse_rdev(store: Arc<Mutex<Option<MouseCursorPos>>>) -> Result<(), St
     rdev::listen(callback).map_err(|e| format!("rdev::listen: {e:?}"))
 }
 
+/// 系统单方面禁用事件 tap 时投递的带外事件类型（issue #559）。
+///
+/// Apple 用这两个值通知回调「tap 已被禁用」，调用方必须自行重新启用；它们不属于
+/// `MACOS_MOUSE_EVENTS`，只在回调里出现。
+#[cfg(target_os = "macos")]
+fn tap_disabled_notice(event_type: core_graphics::event::CGEventType) -> bool {
+    use core_graphics::event::CGEventType;
+    matches!(
+        event_type,
+        CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
+    )
+}
+
 /// macOS CGEventTap 监听 mouse 事件（绕过 rdev 的 keyboard/TSM 路径，issue #397）。
 ///
 /// `CGEventGetLocation` 返回全局显示坐标（**逻辑点**），而前端命中判定用的是物理
 /// 像素，因此这里必须乘桌宠窗口的缩放系数后再写共享槽（issue #523）。
+///
+/// # 为什么自己持有 tap（issue #559）
+///
+/// `CGEventTap::with_enabled` 只在创建时 `enable` 一次，回调收到
+/// `TapDisabledByTimeout` / `TapDisabledByUserInput` 时不重新启用。系统一旦禁用事件
+/// tap（回调超时、休眠唤醒、系统级用户输入禁用），鼠标流就**静默死亡**：前端再也收
+/// 不到 `device-mouse-move`，命中判定停在最后一次结果，桌宠窗口保持整窗穿透——点宠物
+/// 会触发下层应用的界面事件，或点击完全没有反应。这里改为自己创建 tap、把句柄留在本
+/// 线程的槽里，收到禁用通知立即重新启用并留一行日志（此前这条路径完全无声）。
 #[cfg(target_os = "macos")]
 fn listen_mouse_macos(
     store: Arc<Mutex<Option<MouseCursorPos>>>,
     scale_factor: SharedScaleFactor,
 ) -> Result<(), String> {
-    use core_foundation::runloop::CFRunLoop;
+    use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
     use core_graphics::event::{
-        CallbackResult, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
-        CGEventType,
+        CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
+        CallbackResult,
     };
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
-    CGEventTap::with_enabled(
-        CGEventTapLocation::HID,
-        CGEventTapPlacement::HeadInsertEventTap,
-        CGEventTapOptions::ListenOnly,
-        MACOS_MOUSE_EVENTS.to_vec(),
-        move |_proxy, event_type, event| {
-            // 所有 MACOS_MOUSE_EVENTS 中带位置语义的类型都要更新光标位置。
-            // ScrollWheel 是滚轮 delta 没有位置，跳过。
-            if matches!(
-                event_type,
-                CGEventType::MouseMoved
-                    | CGEventType::LeftMouseDragged
-                    | CGEventType::RightMouseDragged
-                    | CGEventType::OtherMouseDragged
-            ) {
-                let point = event.location();
-                // CGEvent 是逻辑点，前端命中箱是物理像素（innerPosition + DOMRect×dpr）：
-                // 不换算会让判定区整体偏移 scale 倍，Retina 上宠物永远判否、窗口一直
-                // 点击穿透，pointerdown 到不了 WebView，startDragging 永不执行（issue #523）。
-                let scale = load_scale_factor(&scale_factor);
-                *store.lock().expect("pet mouse store poisoned") = Some(MouseCursorPos {
-                    x: point.x * scale,
-                    y: point.y * scale,
-                });
-            }
-            // ListenOnly 模式：返回值会被忽略；用 Keep 表达"原样放行"语义。
-            CallbackResult::Keep
-        },
-        CFRunLoop::run_current,
-    )
-    .map_err(|()| "CGEventTap::with_enabled failed (accessibility permission denied or HID unavailable)".to_string())?;
+    // 槽先于回调存在，回调只在 run loop 启动后被调用，读到时必然已写入。
+    let tap_slot: Rc<RefCell<Option<CGEventTap<'static>>>> = Rc::new(RefCell::new(None));
+    let rearm = tap_slot.clone();
+    // SAFETY: 回调只会在当前线程的 run loop 上被调用（下面把 source 挂在
+    // `CFRunLoop::get_current()` 上再 `run_current`），捕获的 `Rc` 也只在同一线程
+    // 使用——与 `CGEventTap::with_enabled` 内部的约定一致。
+    let event_tap: CGEventTap<'static> = unsafe {
+        CGEventTap::new_unchecked(
+            CGEventTapLocation::HID,
+            CGEventTapPlacement::HeadInsertEventTap,
+            CGEventTapOptions::ListenOnly,
+            MACOS_MOUSE_EVENTS.to_vec(),
+            move |_proxy, event_type, event| {
+                // 被系统禁用：立刻恢复，否则鼠标流永久停摆（issue #559）。
+                if tap_disabled_notice(event_type) {
+                    log::warn!(
+                        "[pet-mouse] event tap disabled by system ({event_type:?}); re-enabling"
+                    );
+                    if let Some(tap) = rearm.borrow().as_ref() {
+                        tap.enable();
+                    }
+                    return CallbackResult::Keep;
+                }
+                // 所有 MACOS_MOUSE_EVENTS 中带位置语义的类型都要更新光标位置。
+                // ScrollWheel 是滚轮 delta 没有位置，跳过。
+                if matches!(
+                    event_type,
+                    CGEventType::MouseMoved
+                        | CGEventType::LeftMouseDragged
+                        | CGEventType::RightMouseDragged
+                        | CGEventType::OtherMouseDragged
+                ) {
+                    let point = event.location();
+                    // CGEvent 是逻辑点，前端命中箱是物理像素（innerPosition + DOMRect×dpr）：
+                    // 不换算会让判定区整体偏移 scale 倍，Retina 上宠物永远判否、窗口一直
+                    // 点击穿透，pointerdown 到不了 WebView，startDragging 永不执行（issue #523）。
+                    let scale = load_scale_factor(&scale_factor);
+                    *store.lock().expect("pet mouse store poisoned") = Some(MouseCursorPos {
+                        x: point.x * scale,
+                        y: point.y * scale,
+                    });
+                }
+                // ListenOnly 模式：返回值会被忽略；用 Keep 表达"原样放行"语义。
+                CallbackResult::Keep
+            },
+        )
+    }
+    .map_err(|()| {
+        "CGEventTap creation failed (accessibility permission denied or HID unavailable)"
+            .to_string()
+    })?;
 
+    let loop_source = event_tap
+        .mach_port()
+        .create_runloop_source(0)
+        .map_err(|()| "CGEventTap run loop source creation failed".to_string())?;
+    CFRunLoop::get_current().add_source(&loop_source, unsafe { kCFRunLoopCommonModes });
+    event_tap.enable();
+    *tap_slot.borrow_mut() = Some(event_tap);
+    CFRunLoop::run_current();
     Ok(())
 }
 
@@ -397,6 +449,18 @@ mod tests {
     #[test]
     fn macos_mouse_events_include_mouse_moved() {
         assert!(mask_codes().contains(&(CGEventType::MouseMoved as u32)));
+    }
+
+    /// 系统禁用事件 tap 时投递的是带外类型，必须能识别出来并重新启用（issue #559）：
+    /// 漏掉这两种通知，鼠标流会静默死亡、命中判定永久停在最后一次结果。
+    #[test]
+    fn tap_disabled_notices_are_recognized() {
+        assert_eq!(CGEventType::TapDisabledByTimeout as u32, 0xFFFF_FFFE);
+        assert_eq!(CGEventType::TapDisabledByUserInput as u32, 0xFFFF_FFFF);
+        assert!(tap_disabled_notice(CGEventType::TapDisabledByTimeout));
+        assert!(tap_disabled_notice(CGEventType::TapDisabledByUserInput));
+        assert!(!tap_disabled_notice(CGEventType::MouseMoved));
+        assert!(!tap_disabled_notice(CGEventType::ScrollWheel));
     }
 }
 
