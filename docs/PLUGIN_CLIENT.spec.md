@@ -76,7 +76,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 ### 1. 装配入口 (`src/client/index.ts`)
 
 * 平铺调用 `ctx.effect(feature, LABEL)` 与 `ctx.slots.register()`，禁止内联回调 >2 行，禁止启动期异步请求[cite: 2]。
-* 所有 effect 标签必须取自 `constants/`（如 `LOCALE_EFFECT`），禁止硬编码字符串[cite: 2]。
+* effect 标签不得硬编码字符串：按 [AGENTS.plugins.md](./AGENTS.plugins.md) 的《通用协议：常量归属》决定落点——多消费方进 `constants/`（如 `LOCALE_EFFECT`），单一消费方留在消费方文件[cite: 2]。
 
 ### 2. 状态层 (`store/`)
 

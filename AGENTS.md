@@ -15,3 +15,17 @@
 - 编写代码时，必须保持 0 注释，只被允许在关键节点添加，避免大面积污染代码。
 - 如果你看到大量的冗余描述与注释，你应该精简 / 删除它们，以保持代码的简洁性和可读性。
 - 如果有什么你想临时记录一下，你可以编写在 .temp 文件中，在这里你是自由的。
+
+## Command Performance Constraints (Strictly Enforced)
+
+1. **FORBIDDEN POWERSHELL COMMANDS:**
+   - NEVER use `Get-ChildItem -Recurse` or `dir -s` to search files/directories.
+   - NEVER use `Select-String -Path` for recursive text searches.
+
+2. **FAST ALTERNATIVES (MANDATORY):**
+   - **Searching text in files:** Use `rg "pattern"` (ripgrep).
+   - **Finding files by name/path:** Use `fd <pattern>` or `git ls-files | Select-String "pattern"`.
+   - **Listing top-level directory items:** Use simple `Get-ChildItem` (NO `-Recurse`).
+
+3. **GIT PROJECT EXEMPTION:**
+   - Always leverage Git index if available: `git ls-files` is exponentially faster than PowerShell directory traversal.

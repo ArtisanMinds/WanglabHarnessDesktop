@@ -32,7 +32,9 @@ import { defineService } from 'dsh-tauri'
 * `service/session-context.ts` $\rightarrow$ `export const sessionContext`[cite: 1]
 
 
-* **禁止导出其它内容**：类型归入 `types/`，常量归入 `config/`[cite: 1]。单模块专属类型与所属模块**同目录同名**（`<module>.types.ts`，见 [PLUGIN_HOST.spec.md](./PLUGIN_HOST.spec.md) 第二章）。私有函数/常量统一收敛于文件末尾 `// --- internal ---` 且不导出[cite: 1]。
+* **禁止导出其它内容**：类型归入 `types/`，常量归入 `config/`[cite: 1]。单模块专属类型与所属模块**同目录同名**（`<module>.types.ts`，见 [PLUGIN_HOST.spec.md](./PLUGIN_HOST.spec.md) 第二章）。私有函数统一收敛于文件末尾 `// --- internal ---` 且不导出[cite: 1]。
+* **常量归属**：见 [AGENTS.plugins.md](./AGENTS.plugins.md) 的《通用协议：常量归属》——单一消费方的常量定义在消费方文件（不导出、放 import 之后），`config/constants.ts` 只留多消费方常量。
+* **类型归属**：`config/` 下**不允许**出现 `*.types.ts`；跨模块共享的宿主面类型（`SessionHost` / `PanelExtensionHost` 等）放 `host/types/index.ts`。
 
 ### 2. 动词白名单 (Verb Whitelist)
 
@@ -57,6 +59,9 @@ import { defineService } from 'dsh-tauri'
 | **长任务** | 异步无法同步等待[cite: 1] | `start` / `lookup` / `unsettled`[cite: 1] | 维护内存状态机 (`pending`/`running`...)；禁止同步阻塞[cite: 1]。 |
 | **领域编排** | 主流程组合编排[cite: 1] | 领域动词 (`create` / `checkout` / `attach` / `inherit` ...)[cite: 1] | 组合调用其它服务与 `utils/`，自身不落盘、不调底层命令[cite: 1]。 |
 | **只读推演** | 从环境推导事实[cite: 1] | `resolve` / `peek`[cite: 1] | 必须无副作用，推导失败直接返回 `null`，**严禁猜测**[cite: 1]。 |
+
+* **领域聚合服务**：一个文件名 = 一个领域名词（`task` / `session` / `skills` / `mcp`），同一领域不再按角色拆成多个服务文件。方法名直接用该领域的动作动词：`list` / `get` / `getDir` / `removeDir` / `openDir` / `create` / `update` / `remove` / `toggle` / `advance` / `getCatalog` / `listSources` / `getSource` / `saveSource` / `removeSource` / `setPolicy`。已按此合并的旧拆分：`tasks.ts` + `task.ts` → `task.ts`；`session-files.ts` + `session-store.ts` → `session.ts`；`skill-catalog.ts` + `skill-root.ts` + `skill-policy.ts` + `skills.ts` → `skills.ts`；`mcp-toggle.ts` → `mcp.ts`。
+* **不暴露无消费者的方法**：原先为内部复用而挂在服务上的 `save` / `load` 等，若无外部消费者就下沉为模块级私有函数；模块专属的 utils / types / test 随模块改名（`session-files.utils.ts` → `session.utils.ts`）。
 
 ---
 
@@ -145,7 +150,9 @@ export const sessionContext = defineService({
 
 * ❌ **模糊命名**：文件名出现 `manager` / `helper` / `utils` / `common` / `base`[cite: 1]。
 * ❌ **冗余后缀**：使用 `xxxService` / `xxxManager` / `xxxHandler`（只允许领域名词裸名）[cite: 1]。
-* ❌ **自造动词**：使用白名单外的动作词汇或混用同义词（如 `get` / `fetch` / `read` / `query` 混用）[cite: 1]。
+* ❌ **同义词混用**：同一语义在同一服务里换词（如 `get` / `fetch` / `read` / `query` 混用）。领域动作动词（`getDir` / `getCatalog` / `setPolicy` 等）属于白名单放宽范围，但必须全仓一致[cite: 1]。
+* ❌ **常量错位**：单一消费方的常量登记进 `config/constants.ts`，或把模块私有常量放到文件末尾（触发 `ts/no-use-before-define`）[cite: 1]。
+* ❌ **类型错位**：在 `config/` 下建 `*.types.ts`；跨模块共享的宿主面类型散落在 `config/`[cite: 1]。
 * ❌ **非函数成员**：在服务对象上挂载变量、常量或类型[cite: 1]。
 * ❌ **杂物导出**：在 `service/` 文件中导出 `type`、`const` 或内部辅助函数[cite: 1]。
 * ❌ **透传宿主**：方法接收 `ctx` 或 `host` 参数[cite: 1]。
@@ -157,8 +164,8 @@ export const sessionContext = defineService({
 * [ ] 服务是否使用 `defineService` 声明，且未新增其它自定义服务宏[cite: 1]？
 * [ ] 文件是否有且仅有一个导出，且导出名等于文件名的驼峰形式[cite: 1]？
 * [ ] 服务对象是否全部由函数组成（无散装状态/常量）[cite: 1]？
-* [ ] 所有方法名是否**完全符合所属角色的动词白名单**[cite: 1]？
+* [ ] 所有方法名是否为该领域的动作动词、且全仓无同义词混用[cite: 1]？
 * [ ] 方法参数是否扁平，且未包含 `ctx`/`host` 形参[cite: 1]？
 * [ ] 是否仅在 `service/` 内部使用 `getCurrentHostInstance()`，其它层绝不接触宿主对象[cite: 1]？
-* [ ] 私有函数与常量是否收纳于 `// --- internal ---` 且未导出[cite: 1]？
-* [ ] 类型与常量是否已剥离至 `types/` 与 `config/constants.ts`[cite: 1]？
+* [ ] 私有函数是否收纳于 `// --- internal ---` 且未导出；单一消费方的常量是否直接定义在消费方文件的 import 之后[cite: 1]？
+* [ ] 类型是否落在模块同名 `.types.ts` 或共享的 `host/types/`；`config/` 下是否已无 `*.types.ts`；`config/constants.ts` 是否只剩多消费方常量[cite: 1]？

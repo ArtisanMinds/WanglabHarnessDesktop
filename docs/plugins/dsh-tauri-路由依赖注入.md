@@ -92,12 +92,12 @@ import postWorktree from './post'
 import status from './status/get'
 
 export const routes = defineRoutes<WorktreeRouteDeps>((disposer) => {
-  disposer.post({ kind: 'exact', path: WORKTREE_API_PREFIX }, postWorktree)
-  disposer.delete({ kind: 'exact', path: WORKTREE_API_PREFIX }, deleteWorktree)
-  disposer.get({ kind: 'exact', path: `${WORKTREE_API_PREFIX}/bindings` }, bindings)
-  disposer.get({ kind: 'exact', path: `${WORKTREE_API_PREFIX}/status` }, status)
-  disposer.post({ kind: 'exact', path: `${WORKTREE_API_PREFIX}/attach` }, attach)
-  disposer.post({ kind: 'exact', path: `${WORKTREE_API_PREFIX}/checkout` }, checkout)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-worktree' }, postWorktree)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-worktree' }, deleteWorktree)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-worktree/bindings' }, bindings)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-worktree/status' }, status)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-worktree/bindings' }, attach)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-worktree/checkouts' }, checkout)
 })
 ```
 

@@ -29,10 +29,10 @@ $$\text{apply.ts (装配)} \longrightarrow \begin{bmatrix} \text{routes/} \\ \te
 | **`apply.ts`** | 装配入口 | 仅做声明式组装（工具/事件/提示词/路由），控制在 30~50 行以内，不含业务逻辑。 |
 | **`config/`** | 配置与单例 | `runtime.ts`: 导出内存单例及 `setCurrentHostInstance`/`getCurrentHostInstance` 宿主绑定。<br>
 
-<br>`constants.ts`: 静态常量与配置，严禁硬编码 Magic Number/String。 |
-| **`types/`** | 类型定义 | 导出领域模型、DTO、输入输出接口（纯类型定义）。单一模块专属的类型与所属模块**同目录同名**，命名为 `<module>.types.ts`（如 `service/worktree.types.ts`）；此目录仅保留被多个模块共享的类型（如 `index.ts`）。 |
+<br>`constants.ts`: 静态常量与配置，严禁硬编码 Magic Number/String；只登记**两个及以上模块**消费的常量（单一消费方的常量归属见 [AGENTS.plugins.md](./AGENTS.plugins.md) 的《通用协议：常量归属》），`config/` 下不允许出现 `*.types.ts`。 |
+| **`types/`** | 类型定义 | 导出领域模型、DTO、输入输出接口（纯类型定义）。单一模块专属的类型与所属模块**同目录同名**，命名为 `<module>.types.ts`（如 `service/worktree.types.ts`）；此目录仅保留被多个模块共享的类型（如 `index.ts`）——跨模块共享的**宿主面类型**（`SessionHost` / `PanelExtensionHost` 等）统一放 `types/index.ts`。 |
 | **`storage/`** | 持久化实例 | `index.ts` 纯粹导出持久化驱动实例，不包含任何业务读写逻辑。 |
-| **`routes/`** | HTTP 路由层 *(可选)* | 遵循“文件路径 = URL 路径”。仅做协议解析、DTO 校验与 Service 调用，不含业务实现。 |
+| **`routes/`** | HTTP 路由层 *(可选)* | 遵循“文件路径 = URL 路径”，且**目录层级 = URL 层级**（`routes/session/open/path/post.ts` → `<前缀>/session/open/path`）。仅做协议解析、DTO 校验与 Service 调用，不含业务实现。`disposer.*({ kind, path })` 的 `path` **一律直接写字面量**（统一前缀 `/api/desktop/<plugin-id>`），禁止为路由路径定义 `*_ROUTE` 常量，也不再使用 `API_PREFIX` 之类的拼接常量。 |
 | **`tools/`** | Agent 工具层 *(可选)* | 单工具单文件，包含声明、JSON Schema 与 execute 编排。 |
 | **`prompts/`** | 系统提示词层 *(可选)* | 拆分为常驻提示词 (`*-section.ts`) 与动态单次上下文注入 (`*-context.ts`)。 |
 | **`events/`** | 事件监听层 *(可选)* | 宿主生命周期事件处理（如 `turn/end`、工具前置拦截等）。 |
@@ -101,17 +101,25 @@ export function apply(ctx: HostContext): void {
 * 统一使用 `dsh-tauri` 的 `defineService` 宏声明，禁止自造宏。
 * `routes/`、`tools/`、`events/`、`prompts/` 严禁直接接触宿主对象或底层 `storage`，必须通过服务层间接访问。
 
+**5. 路由形态 (`routes/`)**
+
+* **默认 RESTful 资源化**：URL 只描述资源，动作由 HTTP 方法承担。文件按方法命名（`get.ts` → `GET`、`post.ts` → `POST`、`put.ts` → `PUT`、`delete.ts` → `DELETE`），同一资源路径的多个方法在 `routes/index.ts` 里分行声明、由 `defineRoutes` 收敛为一行注册（例：`tasks/get.ts` + `tasks/post.ts` + `tasks/put.ts` + `tasks/delete.ts` → `GET|POST|PUT|DELETE <前缀>/tasks`）。
+* **动作端点例外**：无法表达为资源状态迁移的操作，允许 `POST /<资源>/<动作>`（`/tasks/toggle`、`/tasks/run`、`/skills/refresh`、`/import/apply`、`/mcp/check`、`/restart` 等）。动作名必须是动词性领域词，且不得与标准方法语义重复；能用方法表达的写入一律不许写成动作端点。
+* **禁止**：用动作后缀表达 CRUD（`/create`、`/update`、`/delete`、`/save`、`/remove`）——一律改为标准方法 + 资源路径；同一 `(kind, path)` 不得重复声明。
+
 ---
 
 ## 五、 自检清单 (Checklist)
 
 * [ ] **装配精简**：`apply.ts` 是否仅包含声明式注册（无逻辑内联/过度嵌套）？
 * [ ] **状态收口**：内存 Map/Set 是否收拢于 `config/runtime.ts`？是否存在参数击穿透传？
-* [ ] **服务约束**：是否全员使用 `defineService`？文件名与导出标识符是否一致？动词是否符合白名单？
+* [ ] **服务约束**：是否全员使用 `defineService`？文件名与导出标识符是否一致？方法名是否为该领域的动作动词且全仓无同义词混用？
 * [ ] **签名收口**：服务方法参数是否按需声明且不含 `ctx`/`host`？是否仅 `service/` 内部使用 `getCurrentHostInstance()`？
 * [ ] **路由纯度**：`routes/` 是否仅负责协议解析与 DTO 校验？无直接操作 `storage`/宿主对象/系统命令行为？
+* [ ] **路由形态**：URL 是否为资源路径 + 标准方法（方法命名文件）；动作端点是否仅限 `POST /<资源>/<动作>`，且路径里没有 `/create`、`/update`、`/delete`、`/save`、`/remove` 这类 CRUD 动作后缀？
 * [ ] **存储抽象**：`storage/index.ts` 是否仅导出驱动实例？
 * [ ] **工具解耦**：`utils/` 是否无状态、脱离业务上下文且未引入契约宏？
 * [ ] **类型/工具归属**：单一模块专属的类型/工具是否与所属模块**同目录同名**（`<module>.types.ts` / `<module>.utils.ts`），`types/`、`utils/` 是否只留真正跨模块共享的文件？
+* [ ] **常量归属**：`config/constants.ts` 是否只剩多消费方常量，单一消费方的常量是否已直接定义在消费方文件（import 之后、不导出）？
 * [ ] **彻底清理**：废弃代码/兼容层/无用 `index.ts` 是否已清理？重命名是否使用 `git mv`？
 * [ ] **工程校验**：`pnpm --filter <pkg> typecheck` 与 `test` 是否全绿通过？
