@@ -13,7 +13,7 @@
 import type { LiveSnapshot, SnapshotStore, TurnFileChange, TurnRecord } from '../types'
 import type { ActiveTurn, BeginningTurn, CaptureLogger } from './capture.types'
 import { defineService } from 'dsh-tauri'
-import { LIVE_POLL_INTERVAL_MS, REASON_SNAPSHOT_FAILED, REASON_UNSAFE_WORKSPACE } from '../config/constants'
+import { REASON_SNAPSHOT_FAILED, REASON_UNSAFE_WORKSPACE } from '../config/constants'
 import {
   activeTurns,
   beginningTurns,
@@ -29,6 +29,8 @@ import { retention } from './retention'
 import { snapshot } from './snapshot'
 import { turns } from './turns'
 import { workspace } from './workspace'
+
+const LIVE_POLL_INTERVAL_MS = 1500
 
 export const capture = defineService({
   /** pre-step 屏障入口：登记在飞的 before 快照并等它落地。 */

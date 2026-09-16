@@ -1,18 +1,23 @@
 /**
- * GET /api/turnrewind/session/summary — 某会话的 turn 变更摘要（客户端卡片的数据面）。
+ * GET /api/desktop/dsh-tauri-turnrewind/session/summary — 某会话的 turn 变更摘要（客户端卡片的数据面）。
  *
  * 以**当前**资格为准（cwd 可能在会话中途切换），账本里的旧结论只作为兜底。
  * 200 时返回 SummaryPayload；参数/会话不成立时返回 `{ error }` 文案。
  */
 
-import type { SummaryPayload } from '../../../types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { SummaryPayload } from '../../types'
 import { defineEventHandler, getQuery } from 'dsh-tauri'
-import { MAX_SKIPPED_PATHS, MAX_SUMMARY_FILES, REASON_GIT_REQUIRED } from '../../../config/constants'
-import { ledger } from '../../../service/ledger'
-import { workspace } from '../../../service/workspace'
+import { REASON_GIT_REQUIRED } from '../../config/constants'
+import { ledger } from '../../service/ledger'
+import { workspace } from '../../service/workspace'
 
-export default defineEventHandler(async (event): Promise<SummaryPayload | { error: string }> => {
-  const query = getQuery(event) as { sessionId?: unknown }
+const MAX_SUMMARY_FILES = 200
+
+const MAX_SKIPPED_PATHS = 20
+
+export default defineEventHandler<EventHandlerRequest, Promise<SummaryPayload | { error: string }>>(async (event) => {
+  const query = getQuery(event) as { sessionId?: string }
   const sessionId = typeof query.sessionId === 'string' ? query.sessionId : ''
   if (sessionId.length === 0) {
     event.res.status = 400

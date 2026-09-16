@@ -24,7 +24,6 @@ import { createServer } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
 import { resetTestDshHome } from '../../../../.test/test-utils'
-import { TURNREWIND_API_PREFIX as P } from '../../shared/constants'
 import { clearHostRuntime } from '../config/runtime'
 import { capture } from '../service/capture'
 
@@ -58,11 +57,13 @@ vi.mock('../service/workspace', () => ({
   },
 }))
 
+const P = '/api/desktop/dsh-tauri-turnrewind'
+
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
-const SUMMARY_PATH = `${P}/session/summary`
-const LIVE_PATH = `${P}/session/live`
-const UNDO_PATH = `${P}/session/undo`
+const SUMMARY_PATH = `${P}/summary`
+const LIVE_PATH = `${P}/live`
+const UNDO_PATH = `${P}/turns/undo`
 
 /** 迁移后的路由表：3 条 (方法, 路径) 声明，逐条与迁移前的契约一一对应。 */
 const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [

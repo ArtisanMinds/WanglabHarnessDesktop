@@ -9,8 +9,8 @@ import type { ClientContext } from 'dsh-tauri/client'
 import { defineRegister } from 'dsh-tauri/client'
 import { RunningChangesChip } from '../components/running-changes-chip'
 import {
-  TURNREWIND_INPUT_DOCK_SLOT,
   PLUGIN_ID,
+  TURNREWIND_INPUT_DOCK_SLOT,
   TURNREWIND_RUNNING_CHIP_ID,
   TURNREWIND_RUNNING_CHIP_ORDER,
 } from '../constants'

@@ -9,15 +9,12 @@ import {
   PLUGIN_ID,
   TURNREWIND_REASON_EXPIRED,
   TURNREWIND_REASON_GIT_REQUIRED,
-  TURNREWIND_REASON_GIT_UNAVAILABLE,
   TURNREWIND_REASON_SNAPSHOT_FAILED,
   TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
 } from '../../shared/constants'
 
 /** 私有快照仓中快照 ref 的命名空间前缀。 */
-export const SNAPSHOT_REF_PREFIX = 'refs/turnrewind'
-
 /** 每个工作区私有快照仓与每会话账本的存放目录（DSH_HOME 下）。 */
 export const SNAPSHOT_FEATURE_DIR = PLUGIN_ID
 
@@ -40,56 +37,28 @@ export const MAX_TURN_RECORDS = 200
 export const MAX_FILE_BYTES = 64 * 1024 * 1024
 
 /** 单次快照的聚合字节上限；超过则该 turn 记 unavailable。 */
-export const MAX_SNAPSHOT_BYTES = 512 * 1024 * 1024
-
 /** 单 turn 允许纳入快照的最大文件数；超过即该 turn 记 unavailable。 */
-export const MAX_FILES_PER_SNAPSHOT = 5000
-
 /** 一次预扫最多排除多少个超限文件；超过则该 turn 记 unavailable（避免 argv 爆炸）。 */
-export const MAX_OVERSIZED_SKIPS = 200
-
 /** 私有快照仓容量上限（MB）；超过即整仓隔离重建（旧 turn 全部转过期）。 */
-export const MAX_SNAPSHOT_REPO_MB = 2048
-
 /** 单条 git 子进程的墙钟超时（快照/恢复等重活）。 */
 export const GIT_TIMEOUT_MS = 5 * 60 * 1000
 
 /** 资格探测的墙钟超时：探测结果挂在 pre-step 执行屏障上，不能用重活预算。 */
-export const GIT_PROBE_TIMEOUT_MS = 30 * 1000
-
 /** 工作区解析结果缓存 TTL（冷未命中才同步探测，过期先回缓存值再后台刷新）。 */
-export const WORKSPACE_CACHE_TTL_MS = 60 * 1000
-
 /** 工作区解析缓存的条目上限。 */
-export const WORKSPACE_CACHE_MAX = 64
-
 /** 摘要路由返回给客户端的文件明细上限（更大的会话只给汇总与截断标记）。 */
-export const MAX_SUMMARY_FILES = 200
-
 /** 摘要路由每条 turn 最多回传多少个「不在撤销范围内」的路径。 */
-export const MAX_SKIPPED_PATHS = 20
-
 /** 运行中实时读数的宿主端刷新间隔（客户端只读缓存值，轮询频率与 git 调用解耦）。 */
-export const LIVE_POLL_INTERVAL_MS = 1500
-
 /** 会话 cwd 不在 Git worktree 内：不做快照，撤销入口提示需要 Git 仓库。 */
 export const REASON_GIT_REQUIRED = TURNREWIND_REASON_GIT_REQUIRED
 
 /** PATH 上没有 git：必须与「不是 Git 仓库」区分，否则用户会去 git init 一个不存在的 git。 */
-export const REASON_GIT_UNAVAILABLE = TURNREWIND_REASON_GIT_UNAVAILABLE
-
 /** 会话 cwd 是家目录/家目录祖先/盘根等系统目录：拒绝快照。 */
 export const REASON_UNSAFE_WORKSPACE = 'TURNREWIND_UNSAFE_WORKSPACE'
 
 /** 快照文件数超限。 */
-export const REASON_TOO_MANY_FILES = 'TURNREWIND_TOO_MANY_FILES'
-
 /** 快照聚合字节超限。 */
-export const REASON_SNAPSHOT_TOO_LARGE = 'TURNREWIND_SNAPSHOT_TOO_LARGE'
-
 /** 超限文件太多，无法逐个排除（该轮不提供撤销）。 */
-export const REASON_TOO_MANY_OVERSIZED = 'TURNREWIND_TOO_MANY_OVERSIZED'
-
 /** 快照或统计过程失败（git 异常、仓库损坏等）。 */
 export const REASON_SNAPSHOT_FAILED = TURNREWIND_REASON_SNAPSHOT_FAILED
 
@@ -112,4 +81,3 @@ export const REASON_UNSAFE_PATH = TURNREWIND_REASON_UNSAFE_PATH
 export const REASON_NON_EMPTY_DIR = 'TURNREWIND_NON_EMPTY_DIR'
 
 /** 恢复路径丢失/损坏的 tmp 残骸后缀（崩溃清扫用；本插件不写这类文件，仅防御性识别）。 */
-export const RESTORE_DEBRIS_SUFFIX = '.turnrewind-restore.bak'

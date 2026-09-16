@@ -21,7 +21,7 @@ export async function fetchSummary(input: { sessionId: string | undefined, force
     return
   store.turnrewind.patch(sessionId, { status: 'loading', error: null })
   try {
-    const summary = await getSummary(sessionId)
+    const summary = await getSummary({ sessionId })
     store.turnrewind.patch(sessionId, { status: 'ready', summary, error: null })
   }
   catch (error) {

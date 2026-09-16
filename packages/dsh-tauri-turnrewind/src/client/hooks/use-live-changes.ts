@@ -48,7 +48,7 @@ export function useLiveChanges(sessionId: string | undefined, shouldPoll: boolea
     if (currentId === undefined)
       return
     try {
-      const next = await getLive(currentId)
+      const next = await getLive({ sessionId: currentId })
       if (generationRef.current !== generation)
         return
       setReading(next.active ? { sessionId: currentId, generation, live: next } : null)

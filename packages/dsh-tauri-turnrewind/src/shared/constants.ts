@@ -9,9 +9,6 @@
 /** 插件名（诊断元数据 / registrant / 存储目录名）。 */
 export const PLUGIN_ID = 'dsh-tauri-turnrewind'
 
-/** HTTP 路由前缀（host 注册 + client 同源 fetch）。 */
-export const TURNREWIND_API_PREFIX = '/api/turnrewind'
-
 /**
  * 会话 cwd 不在 Git worktree 内：不建快照。
  * 客户端据此把「撤销」按钮改为弹出「需要 Git 代码仓库」说明弹窗。

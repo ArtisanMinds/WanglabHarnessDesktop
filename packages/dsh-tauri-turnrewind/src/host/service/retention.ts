@@ -16,11 +16,13 @@ import { existsSync, lstatSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { defineService } from 'dsh-tauri'
 import { dirname, join } from 'pathe'
-import { MAX_FILE_BYTES, MAX_SNAPSHOT_REPO_MB } from '../config/constants'
+import { MAX_FILE_BYTES } from '../config/constants'
 import { retainedWorkspaces } from '../config/runtime'
 import { gitInSnapshot, pruneLooseObjects } from '../utils/git'
 import { resolveInsideWorkspace } from '../utils/paths'
 import { snapshot } from './snapshot'
+
+const MAX_SNAPSHOT_REPO_MB = 2048
 
 export const retention = defineService({
   /**

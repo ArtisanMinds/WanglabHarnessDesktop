@@ -23,24 +23,24 @@ import { existsSync, lstatSync, readdirSync, unlinkSync } from 'node:fs'
 import { mkdir, readFile, rmdir, writeFile } from 'node:fs/promises'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { dirname, isAbsolute, join, resolve } from 'pathe'
-import {
-  GIT_TIMEOUT_MS,
-  MAX_FILE_BYTES,
-  MAX_FILES_PER_SNAPSHOT,
-  MAX_OVERSIZED_SKIPS,
-  MAX_SNAPSHOT_BYTES,
-  REASON_NON_EMPTY_DIR,
-  REASON_SNAPSHOT_FAILED,
-  REASON_SNAPSHOT_TOO_LARGE,
-  REASON_TOO_MANY_FILES,
-  REASON_TOO_MANY_OVERSIZED,
-  REASON_UNSAFE_PATH,
-  SNAPSHOT_FEATURE_DIR,
-  SNAPSHOT_REF_PREFIX,
-} from '../config/constants'
+import { GIT_TIMEOUT_MS, MAX_FILE_BYTES, REASON_NON_EMPTY_DIR, REASON_SNAPSHOT_FAILED, REASON_UNSAFE_PATH, SNAPSHOT_FEATURE_DIR } from '../config/constants'
 import { gitInRepo, gitInSnapshot, resolveSourceCommonDir } from '../utils/git'
 import { assertSafeParents, removeCreatedPath, resolveInsideWorkspace } from '../utils/paths'
 import { workspaceHash } from '../utils/workspace'
+
+const SNAPSHOT_REF_PREFIX = 'refs/turnrewind'
+
+const MAX_SNAPSHOT_BYTES = 512 * 1024 * 1024
+
+const MAX_FILES_PER_SNAPSHOT = 5000
+
+const MAX_OVERSIZED_SKIPS = 200
+
+const REASON_TOO_MANY_FILES = 'TURNREWIND_TOO_MANY_FILES'
+
+const REASON_SNAPSHOT_TOO_LARGE = 'TURNREWIND_SNAPSHOT_TOO_LARGE'
+
+const REASON_TOO_MANY_OVERSIZED = 'TURNREWIND_TOO_MANY_OVERSIZED'
 
 /** commit-tree 的身份（私有仓的提交只做锚点，不代表用户，故用固定身份）。 */
 const SNAPSHOT_IDENTITY: Record<string, string> = {

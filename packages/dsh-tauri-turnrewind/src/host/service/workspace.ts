@@ -14,17 +14,17 @@
 import type { WorkspaceProbe } from '../types'
 import { defineService } from 'dsh-tauri'
 import { resolve } from 'pathe'
-import {
-  GIT_PROBE_TIMEOUT_MS,
-  REASON_GIT_REQUIRED,
-  REASON_GIT_UNAVAILABLE,
-  REASON_UNSAFE_WORKSPACE,
-  WORKSPACE_CACHE_MAX,
-  WORKSPACE_CACHE_TTL_MS,
-} from '../config/constants'
+import { TURNREWIND_REASON_GIT_UNAVAILABLE as REASON_GIT_UNAVAILABLE } from '../../shared/constants'
+import { REASON_GIT_REQUIRED, REASON_UNSAFE_WORKSPACE } from '../config/constants'
 import { getCurrentHostInstance, probeCache, probeRefreshing } from '../config/runtime'
 import { gitInRepo } from '../utils/git'
 import { canonicalWorkspacePath, isSystemSensitivePath, workspaceKey } from '../utils/workspace'
+
+const GIT_PROBE_TIMEOUT_MS = 30 * 1000
+
+const WORKSPACE_CACHE_TTL_MS = 60 * 1000
+
+const WORKSPACE_CACHE_MAX = 64
 
 export const workspace = defineService({
   /** 会话是否在宿主 SessionStore 中（路由据此区分 404 与「无法解析工作区」）。 */

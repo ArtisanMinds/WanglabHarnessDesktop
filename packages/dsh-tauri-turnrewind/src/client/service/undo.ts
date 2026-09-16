@@ -2,7 +2,7 @@
  * client/service/undo.ts — 撤销某个 turn 的 Action（乐观更新与失败回滚同处一地）。
  */
 
-import { postUndo } from '../apis'
+import { postTurnsUndo } from '../apis'
 import { store } from '../store'
 import { fetchSummary } from './summary'
 
@@ -16,13 +16,13 @@ export async function undoTurn(input: { sessionId: string | undefined, turn: num
     return { ok: false, error: 'missing session' }
   store.turnrewind.patch(sessionId, { undoing: true, undoError: null, undoConflicts: [] })
   try {
-    const { status, data } = await postUndo({ sessionId, turn })
-    if (status >= 200 && status < 300 && data.ok !== false) {
+    const data = await postTurnsUndo({ sessionId, turn }, { ignoreResponseError: true })
+    if (data.ok !== false && data.error === undefined) {
       store.turnrewind.patch(sessionId, { undoing: false, undoError: null, undoConflicts: [] })
       await fetchSummary({ sessionId, force: true })
       return { ok: true }
     }
-    const error = data.error ?? `HTTP ${status}`
+    const error = data.error ?? 'Failed to undo turn.'
     store.turnrewind.patch(sessionId, { undoing: false, undoError: error, undoConflicts: data.conflicts ?? [] })
     return { ok: false, error }
   }

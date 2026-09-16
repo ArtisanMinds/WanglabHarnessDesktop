@@ -71,11 +71,13 @@ export type WorkspaceProbe
     | { ok: false, reason: string }
 
 /** 一个 turn 内的单文件差异。 */
+export type TurnFileStatus = 'A' | 'M' | 'D'
+
 export interface TurnFileChange {
   /** 相对 worktree 根的路径。 */
   path: string
   /** A=本 turn 新增，M=修改，D=删除。 */
-  status: 'A' | 'M' | 'D'
+  status: TurnFileStatus
   /** 文本行新增数；二进制为 null。 */
   insertions: number | null
   /** 文本行删除数；二进制为 null。 */
