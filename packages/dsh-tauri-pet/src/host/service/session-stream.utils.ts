@@ -7,17 +7,22 @@ export const PET_REASONING_TAIL_WINDOW = 120
 export const PET_REASONING_PUSH_INTERVAL_MS = 500
 
 /**
- * service/session-stream.utils.ts — 纯函数「会话增量事件 → 桌宠展示态」reducer。
+ * service/session-stream.utils.ts — 纯函数「会话增量 → 桌宠展示态」reducer。
  *
- * 宿主只有 `session/event` 这个【增量】总线（没有客户端已合并的快照），因此必须把增量
- * 事件状态化重建成桌宠需要的展示态；与 dsh-dafeiyu 的 companion-reducer 同类，但只投影
- * 桌宠白名单字段。所有成员无副作用、可注入时钟，供 hermetic 单测。
+ * 宿主没有客户端已合并的快照，因此必须把增量状态化重建成桌宠需要的展示态；与 dsh-dafeiyu
+ * 的 companion-reducer 同类，但只投影桌宠白名单字段。所有成员无副作用、可注入时钟，供
+ * hermetic 单测。
+ *
+ * 增量有**两条**来源，缺一不可：
+ * - `session/event`（持久化事件总线）：turn/step/tool/approval/todo/title 等边界事件；
+ * - `agent/assistant-stream`（agent-scoped 活体帧）：逐 token 的 reasoning/text 增量。核心
+ *   0.1.6 起流式增量不再落成 `assistant/chunk` 会话事件，只走这条帧通道（见 `chunk()`）。
  */
 
 /**
  * 维持 per-session 累计态 + lastSent 去重，只在展示态真的变化时回调。
  *
- * 推理文本（assistant/chunk 的 reasoning-delta）按 `PET_REASONING_PUSH_INTERVAL_MS` 节流：
+ * 推理文本（流式 reasoning-delta）按 `PET_REASONING_PUSH_INTERVAL_MS` 节流：
  * 状态实时累积，但最多每 500ms 推送一次最新尾部，避免逐 token 洪泛。
  *
  * @param handle - 变化时回调 (action, payload)。
@@ -33,6 +38,37 @@ export function createPetSessionReducer(
   const lastSent = new Map<string, PetSessionPayload>()
   const lastReasoningPushAt = new Map<string, number>()
 
+  /** 增量事件驱动：更新态，变化才 push update。 */
+  const applyEvent = (peer: PetSessionPeer, event: PetSessionEvent): void => {
+    let state = states.get(peer.id)
+    if (state === undefined) {
+      state = createPetSessionState(peer.id, peer)
+      states.set(peer.id, state)
+    }
+    // 每次事件后用 peer 最新身份字段覆盖（title/origin/running 是权威来源）。
+    state.title = peer.title ?? state.title
+    state.displayTitle = peer.displayTitle ?? state.displayTitle
+    state.origin = peer.origin ?? state.origin
+    state.cwd = peer.cwd ?? state.cwd
+
+    const payload = reduceSessionEvent(state, event)
+    if (payload === null)
+      return
+    // 推理文本节流：仅对流式 reasoning-delta 生效，边界事件立即推送。
+    if (event.type === 'assistant/chunk' && payload.liveActivity?.kind === 'reasoning') {
+      const at = now()
+      const last = lastReasoningPushAt.get(peer.id) ?? 0
+      if (at - last < PET_REASONING_PUSH_INTERVAL_MS)
+        return
+      lastReasoningPushAt.set(peer.id, at)
+    }
+    const previous = lastSent.get(peer.id)
+    if (previous && payloadEqual(previous, payload))
+      return
+    lastSent.set(peer.id, payload)
+    handle('update', payload)
+  }
+
   return {
     /** 会话出生：建态并 push create。 */
     create(peer: PetSessionPeer): void {
@@ -43,35 +79,23 @@ export function createPetSessionReducer(
       handle('create', payload)
     },
 
-    /** 增量事件驱动：更新态，变化才 push update。 */
-    apply(peer: PetSessionPeer, event: PetSessionEvent): void {
-      let state = states.get(peer.id)
-      if (state === undefined) {
-        state = createPetSessionState(peer.id, peer)
-        states.set(peer.id, state)
-      }
-      // 每次事件后用 peer 最新身份字段覆盖（title/origin/running 是权威来源）。
-      state.title = peer.title ?? state.title
-      state.displayTitle = peer.displayTitle ?? state.displayTitle
-      state.origin = peer.origin ?? state.origin
-      state.cwd = peer.cwd ?? state.cwd
+    apply: applyEvent,
 
-      const payload = reduceSessionEvent(state, event)
-      if (payload === null)
-        return
-      // 推理文本节流：仅对流式 reasoning-delta 生效，边界事件立即推送。
-      if (event.type === 'assistant/chunk' && payload.liveActivity?.kind === 'reasoning') {
-        const at = now()
-        const last = lastReasoningPushAt.get(peer.id) ?? 0
-        if (at - last < PET_REASONING_PUSH_INTERVAL_MS)
-          return
-        lastReasoningPushAt.set(peer.id, at)
-      }
-      const previous = lastSent.get(peer.id)
-      if (previous && payloadEqual(previous, payload))
-        return
-      lastSent.set(peer.id, payload)
-      handle('update', payload)
+    /**
+     * 活体流式 chunk（核心 0.1.6 起流式增量走 agent-scoped 的
+     * `agent/assistant-stream` 帧，不再作为 `assistant/chunk` 会话事件发布）。
+     *
+     * 帧里的 `chunk` 与旧事件的 `data.chunk` 同形（`reasoning-delta` / `text-delta` / …），
+     * 因此这里折叠成一条合成 `assistant/chunk` 事件复用同一段增量语义 —— 推理尾部窗口、
+     * 500ms 节流、与 lastSent 的去重都只有一份实现。
+     */
+    chunk(peer: PetSessionPeer, chunk: unknown): void {
+      applyEvent(peer, {
+        type: 'assistant/chunk',
+        seq: 0,
+        time: now(),
+        data: { chunk },
+      })
     },
 
     /**

@@ -21,6 +21,43 @@
 
 ## 同步记录
 
+### 2026 —— 修复「气泡一直停在兜底文案（正在分析）、思考与工具文案一闪而过」（核心 0.1.6 流式通道迁移）
+
+不是上游同步，而是**核心事件通道变更**导致的回归，记录在此以免下次升级核心再踩。
+
+- **现象**（用户反馈）：桌宠气泡长时间只显示静态兜底文案（会话 id 使 `seedNumber(id) % 3 === 0`
+  时正好是「正在分析」），期间偶尔闪一下别的文案再切回去；真实会话里的思考文本与 Pwsh/工具
+  调用始终看不到「思考 · …」「Pwsh · 命令」。
+- **根因（有会话日志与 SSE 抓包证据）**：reducer 的活体文案只认 `session/event` 里的
+  `assistant/chunk` 事件（`data.chunk.type === 'reasoning-delta'`）。核心 0.1.6-alpha.1 起
+  逐 token 增量**不再是会话事件**：
+  - 实测会话日志（`session.v3.jsonl.zstd`，343 帧解压后 2.2 MB）里 `assistant/chunk` = **0 条**，
+    只有 76 条 `assistant/message` + 3 条 `assistant/attempt`（`data.stream` 是流结束后的紧凑记录）；
+  - 22 秒 SSE 抓包（含 agent 持续推理）里 `liveActivity.kind` 只有 `tool`，`reasoning` = 0 条；
+  - 活体增量改由 agent-scoped 通知 `agent/assistant-stream` 发布（载荷 `{ agent, frame }`，
+    `frame.type === 'chunk'` 时 `frame.chunk` 就是模型原始 StreamChunk，与旧 `data.chunk` 同形）。
+    核心自己的 `dsh-api-session-controller/lib/index.js` 就是靠 `ctx.on('agent/assistant-stream', …)`
+    把前端 `assistant/live-chunk` 渲染出来的。
+  - 于是思考阶段 `reasoningTail` 恒空 → `liveActivity` 缺失 → 气泡落到 `fallbackCopy`
+    （`use-bubble-tracker.helpers.ts` 的候选顺序里 fallbackCopy 在 `session.message` 之前）。
+- **修复**：
+  - `src/host/service/session-stream.ts`：与会话总线同生命周期订阅 `agent/assistant-stream`
+    （首个 SSE 消费者接入才挂、最后一个断开时一并注销），`frame.type === 'chunk'` 时按
+    `agent.session` 解析 id/首次建档，再交给 reducer；已建档的热路径只传 id，逐 token 帧不走
+    `peerOf`（投影标题解析）。
+  - `src/host/service/session-stream.utils.ts`：`apply` 抽成闭包 `applyEvent`，新增 `chunk(peer, chunk)`
+    折叠成一条合成 `assistant/chunk` 事件复用同一段增量语义（推理尾部窗口、500 ms 节流、去重只有一份），
+    同时保留旧 `assistant/chunk` 事件分支以兼容 0.1.5 核心。
+  - `src-tauri/src/bridge/pet.rs`：`consume_pet_session_stream` 的 reqwest 客户端加 `.no_proxy()`。
+    实测桌面进程唯一长期保持的 TCP 连接是本机 HTTP 代理（mihomo `127.0.0.1:7890`），代理再连
+    `127.0.0.1:3080` —— 本机 SSE 走了系统代理，日志里 `HTTP 502` / `HTTP 404` /
+    `error decoding response body` 反复重连即由此而来；代理缓冲还会把逐条帧攒成一批，
+    观感就是文案滞后抖动（与 `service/workflow/utils.rs` 的 `loopback_http_client` 同一理由）。
+  - 测试：`session-stream.utils.test.ts` 新增 2 条（`chunk()` 与事件路径同语义 + 节流；
+    text-delta/未知 chunk 不转发但进 `message`），`routes/index.test.ts` 新增 2 条
+    （活体帧折叠成 `liveActivity.kind='reasoning'` 并下发；非流式增量不逐 token 转发），
+    并把 `agent/assistant-stream` 的断开注销纳入既有生命周期用例。
+
 ### 2026 —— dsh-pet-component v0.2.1：气泡托管给组件（宿主只调 `pet.bubble`）
 
 不是上游同步，而是渲染层依赖升级（`dsh-pet-component@^0.1.1` → `^0.2.1`），

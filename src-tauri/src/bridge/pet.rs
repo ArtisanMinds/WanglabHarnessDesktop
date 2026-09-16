@@ -284,7 +284,12 @@ fn emit_pet_session(app: &AppHandle, action: &str, payload: &Value) {
 /// 方案 1（host → rust → pet）：Rust 不再依赖 iframe 的 invoke 桥转发（#396 根因），
 /// 而是作为宿主流的消费者。流中断（宿主未就绪/重启）时退避重连，幂等可恢复。
 async fn consume_pet_session_stream(app: &AppHandle, url: &str) -> Result<(), String> {
+    // 访问的是本机 dsh，不能继承 `HTTP_PROXY` / `ALL_PROXY`（与 `loopback_http_client`
+    // 同一理由）：部分代理不尊重回环地址直连，会把这条 SSE 转发到外部代理，表现为
+    // `HTTP 502` / `HTTP 404` / `error decoding response body` 的反复断线重连 ——
+    // 即便偶尔连上，代理缓冲也会把逐条帧攒成一批，气泡文案滞后且抖动。
     let client = reqwest::Client::builder()
+        .no_proxy()
         .build()
         .map_err(|error| error.to_string())?;
     let response = client

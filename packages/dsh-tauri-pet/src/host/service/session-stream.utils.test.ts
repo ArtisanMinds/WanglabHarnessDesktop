@@ -260,6 +260,44 @@ describe('petSessionReducer (host)', () => {
     expect(last.payload.origin).toBe('subagent')
   })
 
+  it('chunk()（agent/assistant-stream 活体帧）与 assistant/chunk 事件同语义：reasoning 累积 + 500ms 节流', () => {
+    // 时钟从 0 出发时首帧必被 500ms 窗口吃掉（`lastReasoningPushAt` 缺省 0），从窗口外起测。
+    let t = PET_REASONING_PUSH_INTERVAL_MS + 1
+    const { reducer, pushes } = collect({ now: () => t })
+    reducer.create(peer())
+    reducer.apply(peer(), ev('turn/start', { turn: 1 }, 1))
+    reducer.chunk(peer(), { type: 'reasoning-delta', text: '思考' })
+    const afterFirst = pushes.length
+    const last = pushes.at(-1)!
+    expect(last.payload).toMatchObject({ running: true, workStatus: 'thinking' })
+    expect(last.payload.liveActivity).toMatchObject({ kind: 'reasoning', text: '思考' })
+
+    // 窗口内的连续帧只累积不推送（与事件路径共用同一份节流时钟）。
+    t += 200
+    reducer.chunk(peer(), { type: 'reasoning-delta', text: '中' })
+    expect(pushes.length).toBe(afterFirst)
+    t += PET_REASONING_PUSH_INTERVAL_MS
+    reducer.chunk(peer(), { type: 'reasoning-delta', text: '尾巴' })
+    expect(pushes.length).toBe(afterFirst + 1)
+    const text = String((pushes.at(-1)!.payload.liveActivity as { text?: string }).text)
+    expect(text).toBe('思考中尾巴')
+  })
+
+  it('chunk() 只吃 assistant/chunk 认识的增量：text-delta 累积正文但不转发，未知 chunk 不报错', () => {
+    const { reducer, pushes } = collect()
+    reducer.create(peer())
+    reducer.apply(peer(), ev('turn/start', { turn: 1 }, 1))
+    const before = pushes.length
+    reducer.chunk(peer(), { type: 'text-delta', text: '正文' })
+    reducer.chunk(peer(), { type: 'usage', usage: { totalTokens: 1 } })
+    reducer.chunk(peer(), undefined)
+    reducer.chunk(peer(), null)
+    expect(pushes.length).toBe(before)
+    // 正文进 message，随下一个边界事件一起下发。
+    reducer.apply(peer(), ev('tool/call', { turn: 1, step: 1, callId: 'c1', name: 'pwsh', arguments: '{}' }, 2))
+    expect(pushes.at(-1)!.payload.message).toBe('正文')
+  })
+
   it('todo/write 更新当前任务：task 首次写入才转发（供气泡 taskCopy 文案），重复相同不转发', () => {
     const { reducer, pushes } = collect()
     reducer.create(peer())
