@@ -21,6 +21,42 @@
 
 ## 同步记录
 
+### 2026 —— dsh-pet-component v0.2.1：气泡托管给组件（宿主只调 `pet.bubble`）
+
+不是上游同步，而是渲染层依赖升级（`dsh-pet-component@^0.1.1` → `^0.2.1`），
+记录在此以便核对气泡与动作的命令面。v0.2.1 只有两个修复（拖动接管时作废未播完的
+一次性命令 `7c91d0d`、气泡度量下界抬到参考实现的固定值 `7ca0c3f`），
+`dist/index.d.mts` 与 0.2.0 逐字节相同（sha256 `FFC04031…`），宿主侧无需改动。
+
+- **气泡完全托管**：原三层拆分（`utils/bubble.ts` 文案 + `utils/bubble-tracker.ts` 603 行的
+  「会话 → HeroUI toast 状态机」+ `hooks/use-bubble.ts` 订阅）收敛为
+  `src/pet/hooks/use-bubble-tracker.ts`（React 壳）+ `.constants.ts`（文案库）+
+  `.helpers.ts`（纯函数）。宿主只把会话快照收敛成动作档位与标题/正文/加载态，经
+  `useControllablePet(petRef).bubble({ id, title, description, loading, motion })` 下发。
+  叠加、原地更新、定时收起（终态 failed/error 4000、review 2500、success 3000 —— 与旧常量同值）、
+  多会话动作优先级聚合（`BUBBLE_MOTION_PRIORITY`，与旧 `STATUS_PRIORITY` 同表）全在组件内。
+  宿主的 `statusOf` / `STATUS_COALESCE_MS` 合并窗口 / `failedUntil` 终态脉冲 / `scheduleHide` /
+  `dismissed` / 沉淀计时全部删除；桌宠窗口不再挂 `<ToastProvider custom>`。
+- **动作随气泡走**：常驻气泡（`timeout: 0`）驱动声明式 `motion` prop；限时气泡（终态）由组件用
+  命令面播一次，气泡收起不再掐断动画 —— 旧实现为绕开「成功动画被 3s 收起打断」而设的
+  `TERMINAL_PULSE_TTL(10000)` 因此整体删除。`app.tsx` 的 `motion` prop 只剩拖动方向。
+- **行为差异**：子代理会话此前「不弹 toast、但状态仍参与动作聚合」，v0.2.0 没有气泡就没有动作
+  载体，故子代理现在既不弹气泡也不驱动动作（父会话在子代理运行期间本身有常驻气泡，观感不变）。
+  另新增 `flush()`：`pet.bubble` 在 `<Pet>` 挂载前静默丢弃事件，宠物资源就绪后重放一次补齐。
+- **碎碎念不接入**：不传 `onMuttering` 即完全无副作用（组件内 `onMuttering === undefined` 直接 return）。
+- **唤醒锁入口随重构搬家**：桌宠窗口的 `useWakeLock()/useWatch/ release()` 抽成
+  `src/pet/hooks/use-wakelock-release.ts`，`test/wake-lock.test.ts` 的 `WAKE_LOCK_ENTRIES`
+  改指向该文件（issue #469 的不变量本身不变）。
+- 校验：`pnpm exec vite build`（`pet.html` 入口 65 KB）、`pnpm exec vitest run`（53 files / 456 tests）、
+  `pnpm exec eslint src/pet src/ui/pet test/wake-lock.test.ts vitest.config.ts --max-warnings=0`；
+  `pnpm typecheck` 在 `src/` 无错（`packages/dsh-tauri-worktree` 的 `Cannot find module 'dsh-tauri'`
+  一批是 worktree 未构建插件类型的既有问题，与本次改动无关）。
+- **遗留（未在本次处理）**：`src/components/toast-provider.tsx` 的 `custom` 分支已无调用方，但删除它
+  与「主窗口 toast 是否真的渲染」耦合 —— 该文件给主窗口传的是 `children = null`，而
+  `@heroui/react` 的 `ToastProvider` 只在 `children === undefined` 时回落到
+  `getDefaultChildren`（HeroUI `dist/components/toast/toast.js:398`），`null` 会原样渲染成空。
+  即 `7171082c` 引入 `custom` 时可能顺带关掉了主窗口的 toast 内容，需独立核实后再一并清理。
+
 ### 2026 —— 预设宠物改为 dsh-pet-component 直连远端（移除下载/解压链路）
 
 不是上游同步，而是渲染层换实现导致预设获取方式的整体变化，记录在此以便后续核对素材来源与命令面。

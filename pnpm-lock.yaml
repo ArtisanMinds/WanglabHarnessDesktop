@@ -181,8 +181,8 @@ catalogs:
       specifier: ^5.101.4
       version: 5.101.4
     dsh-pet-component:
-      specifier: ^0.1.1
-      version: 0.1.1
+      specifier: ^0.2.1
+      version: 0.2.1
     i18next:
       specifier: ^26.3.6
       version: 26.3.6
@@ -343,7 +343,7 @@ importers:
         version: 2.4.4
       dsh-pet-component:
         specifier: catalog:runtime
-        version: 0.1.1(change-case@5.4.4)(react@19.2.8)
+        version: 0.2.1(change-case@5.4.4)(react@19.2.8)
       i18next:
         specifier: catalog:runtime
         version: 26.3.6(typescript@5.8.3)
@@ -2483,11 +2483,6 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
 
-  '@reause/core@0.1.4':
-    resolution: {integrity: sha512-NkEzEvYyFpWND8H2yQ3e3iikifUqhMObdLXe1xNiGbfcZLDsExljt5SF/cCEgx9V4S/HLeNpcPnQU/yL7Y8Czw==}
-    peerDependencies:
-      react: '>=18'
-
   '@reause/core@0.1.7':
     resolution: {integrity: sha512-dw3p7M/Muz3QPDRlg6suaiGdHa2GLXzTzZBXG6P9M64B96r4e9pZ+8dw3hgLci1GyiM7Ht+GEpYF68cG+W+YFw==}
     peerDependencies:
@@ -3623,8 +3618,8 @@ packages:
     resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
 
-  dsh-pet-component@0.1.1:
-    resolution: {integrity: sha512-M2bDCPP3Nva2acdFgu1c8BD5UZ9v0rUfTVrUm7yhSDWUSsn+x1dLtgbU//65JiDHUwh9+r5HdRal0rIJZGyIWg==}
+  dsh-pet-component@0.2.1:
+    resolution: {integrity: sha512-rJwYiHOb8eFzi+XUGIVZ2tASnUPs4l1gVwtO1JFsyzTdlH1+dTxBWAAcRmeZtBuH4Q4I1jOWgc3Y7VGpuoqfPQ==}
     peerDependencies:
       react: ^19.0.0
 
@@ -6919,11 +6914,6 @@ snapshots:
     dependencies:
       react: 19.2.8
 
-  '@reause/core@0.1.4(react@19.2.8)':
-    dependencies:
-      '@reause/shared': 0.1.4(react@19.2.8)
-      react: 19.2.8
-
   '@reause/core@0.1.7(react@19.2.8)':
     dependencies:
       '@reause/shared': 0.1.7(react@19.2.8)
@@ -7882,9 +7872,10 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  dsh-pet-component@0.1.1(change-case@5.4.4)(react@19.2.8):
+  dsh-pet-component@0.2.1(change-case@5.4.4)(react@19.2.8):
     dependencies:
-      '@reause/core': 0.1.4(react@19.2.8)
+      '@gravity-ui/icons': 2.21.0(react@19.2.8)
+      '@reause/core': 0.1.7(react@19.2.8)
       '@reause/integrations': 0.1.4(change-case@5.4.4)(idb-keyval@6.3.0)(react@19.2.8)
       css-render: 0.15.14
       idb-keyval: 6.3.0

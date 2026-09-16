@@ -1,10 +1,10 @@
-import { IS_ZH } from '@/pet/utils/bubble'
+import { IS_ZH } from '@/pet/hooks/use-bubble-tracker.constants'
 
 /**
  * hint.tsx — 桌宠窗口里唯一会出现的文字提示。
  *
  * 桌宠窗口是透明置顶小窗，**没有任何其它 UI 或 i18n 基础设施**（气泡文案同样就地取
- * 单语），所以这里按窗口语言（`pet/utils/bubble` 的 `IS_ZH`，与气泡文案同源）就近给出
+ * 单语），所以这里按窗口语言（`pet/hooks/use-bubble-tracker` 的 `IS_ZH`，与气泡文案同源）就近给出
  * 单句提示。静默留空是不行的：用户看到的是「宠物加载不出来」，既不知道原因也不知道去哪修。
  */
 
