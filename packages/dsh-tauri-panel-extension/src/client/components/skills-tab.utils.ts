@@ -1,5 +1,5 @@
-import type { SkillRowView } from '../apis/index.type'
 import type { LocaleKey } from '../locales/index.types'
+import type { SkillRowView } from '../types'
 import { GITHUB_REPOSITORY_PATTERN } from '../constants'
 
 export function policyTag(skill: SkillRowView): { key?: LocaleKey, off: boolean } {

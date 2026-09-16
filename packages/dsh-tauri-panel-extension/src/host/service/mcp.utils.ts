@@ -5,7 +5,11 @@ import { DSH_HOME } from 'dsh-tauri'
 import { compact, every, isObject, isString, isUndefined, omitBy } from 'lodash-es'
 import { join } from 'pathe'
 import { Document, parseDocument } from 'yaml'
-import { EMPTY_PATCH, MCP_PLUGIN, PATCH_FILE_NAME, SERVER_NAME_RE } from '../config/constants'
+import { MCP_PLUGIN, PATCH_FILE_NAME } from '../config/constants'
+
+const SERVER_NAME_RE = /^[\w-]{1,32}$/
+
+const EMPTY_PATCH = '[]'
 
 export function normalizeMcpScope(value: unknown): McpScope {
   return value === 'global' ? 'global' : 'profile'

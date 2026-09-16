@@ -1,14 +1,16 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ActionResult, SkillOpenBody } from '../../index.types'
 import { mkdirSync } from 'node:fs'
 import { defineEventHandler, readBody } from 'dsh-tauri'
-import { SKILL_DOCUMENT_PATTERN, SKILL_FILE_PATTERN } from '../../config/constants'
-import { opener } from '../../service/opener'
-import { skillCatalog } from '../../service/skill-catalog'
-import { skillRoot } from '../../service/skill-root'
-import { skillsDataDir } from '../../utils/paths.utils'
+import { SKILLS_DATA_DIR } from '../../../config/constants'
+import { opener } from '../../../service/opener'
+import { skills } from '../../../service/skills'
 
-interface SkillOpenBody { target?: unknown, name?: unknown, id?: unknown }
+const SKILL_FILE_PATTERN = /[/\\]SKILL\.md$/
 
-export default defineEventHandler(async (event) => {
+const SKILL_DOCUMENT_PATTERN = /[/\\][^/\\]+\.md$/
+
+export default defineEventHandler<EventHandlerRequest, Promise<ActionResult | { error: string }>>(async (event) => {
   const body = await readBody<SkillOpenBody>(event, { type: 'json' })
   if (typeof body?.target !== 'string') {
     event.res.status = 400
@@ -17,7 +19,7 @@ export default defineEventHandler(async (event) => {
   try {
     let dir: string | undefined
     if (body.target === 'user-skills' || body.target === 'plugin-state') {
-      dir = skillsDataDir()
+      dir = SKILLS_DATA_DIR
       mkdirSync(dir, { recursive: true })
     }
     else if (body.target === 'skill') {
@@ -25,7 +27,7 @@ export default defineEventHandler(async (event) => {
         event.res.status = 400
         return { error: 'name is required' }
       }
-      const definition = await skillCatalog.peek(body.name)
+      const definition = await skills.get(body.name)
       if (definition === null) {
         event.res.status = 404
         return { error: 'skill not found' }
@@ -39,7 +41,7 @@ export default defineEventHandler(async (event) => {
         event.res.status = 400
         return { error: 'id is required' }
       }
-      const entry = (await skillRoot.list()).find(row => row.id === body.id)
+      const entry = (await skills.listSources()).find(row => row.id === body.id)
       if (entry === undefined) {
         event.res.status = 404
         return { error: 'repository not found' }

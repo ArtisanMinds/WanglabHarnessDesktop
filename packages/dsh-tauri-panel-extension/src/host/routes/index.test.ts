@@ -1,7 +1,7 @@
 import type { HostRoute, RoutesContext } from 'dsh-tauri'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import type { PanelExtensionHost } from '../config/runtime.types'
+import type { PanelExtensionHost } from '../types'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -9,7 +9,6 @@ import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
 import { resetTestDshHome } from '../../../../.test/test-utils'
-import { API_PREFIX as P } from '../../shared/constants'
 import { setCurrentHostInstance } from '../config/runtime'
 
 vi.mock('dsh-tauri', async (importOriginal) => {
@@ -18,29 +17,46 @@ vi.mock('dsh-tauri', async (importOriginal) => {
   return { ...actual, DSH_HOME: home }
 })
 
+const P = '/api/desktop/dsh-tauri-panel-extension'
+
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
 const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['GET', `${P}/skills`],
   ['POST', `${P}/skills/refresh`],
   ['GET', `${P}/skill`],
-  ['POST', `${P}/skill/save`],
-  ['POST', `${P}/skill/delete`],
+  ['POST', `${P}/skill`],
+  ['DELETE', `${P}/skill`],
   ['POST', `${P}/skill/policy`],
-  ['POST', `${P}/open`],
+  ['POST', `${P}/open/dir`],
   ['GET', `${P}/mcp`],
-  ['POST', `${P}/mcp/save`],
+  ['POST', `${P}/mcp`],
+  ['DELETE', `${P}/mcp`],
   ['POST', `${P}/mcp/toggle`],
-  ['POST', `${P}/mcp/remove`],
   ['POST', `${P}/mcp/check`],
   ['POST', `${P}/mcp/copy`],
   ['GET', `${P}/import/scan`],
   ['POST', `${P}/import/apply`],
   ['GET', `${P}/roots`],
-  ['POST', `${P}/roots/add`],
-  ['POST', `${P}/roots/remove`],
-  ['POST', `${P}/restart`],
+  ['POST', `${P}/roots`],
+  ['DELETE', `${P}/roots`],
+  ['POST', `${P}/host/restart`],
 ]
+
+/** 同一路径的多个方法由 defineRoutes 收敛为一行注册。 */
+const EXPECTED_PATHS: readonly string[] = [...new Set(EXPECTED_ROUTES.map(([, path]) => path))]
+
+const ALLOW_ORDER = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as const
+
+function allowFor(path: string): string {
+  const methods = new Set(EXPECTED_ROUTES.filter(([, candidate]) => candidate === path).map(([method]) => method))
+  if (methods.has('GET'))
+    methods.add('HEAD')
+  return ALLOW_ORDER.filter(method => method === 'OPTIONS' || methods.has(method)).join(', ')
+}
+
+/** 所有路径都未声明 PATCH，用于统一验证 405 + allow。 */
+const UNDECLARED_METHOD = 'PATCH'
 
 const SKILL = {
   name: 'demo-skill',
@@ -136,32 +152,26 @@ afterEach(async () => {
 })
 
 describe('能力管理器路由声明', () => {
-  it('按迁移前的路径与方法声明 19 条 exact 路由，卸载后清空注册', () => {
+  it('按资源化的路径与方法声明 exact 路由，卸载后清空注册', () => {
     const harness = createHarness()
     dirs.push(harness.dir)
     const dispose = mount(harness)
 
     expect([...harness.registered.keys()].sort())
-      .toEqual(EXPECTED_ROUTES.map(([, path]) => routeKey('exact', path)).sort())
-    expect(harness.registered.size).toBe(19)
+      .toEqual(EXPECTED_PATHS.map(path => routeKey('exact', path)).sort())
+    expect(harness.registered.size).toBe(EXPECTED_PATHS.length)
 
     dispose()
     expect(harness.registered.size).toBe(0)
   })
 
-  it('读路由拒绝变更方法，变更路由拒绝读方法（405 + allow 头）', async () => {
+  it('未声明的方法拒绝访问（405 + allow 头）', async () => {
     const { base, dispose } = await start()
 
-    const wrongMethodOnRead = await fetch(`${base}${P}/skills`, { method: 'POST' })
-    expect(wrongMethodOnRead.status).toBe(405)
-    expect(wrongMethodOnRead.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
-
-    const mutatePaths = EXPECTED_ROUTES.filter(([method]) => method === 'POST').map(([, path]) => path)
-    expect(mutatePaths).toHaveLength(14)
-    for (const path of mutatePaths) {
-      const response = await fetch(`${base}${path}`)
+    for (const path of EXPECTED_PATHS) {
+      const response = await fetch(`${base}${path}`, { method: UNDECLARED_METHOD })
       expect(response.status, path).toBe(405)
-      expect(response.headers.get('allow'), path).toBe('POST, OPTIONS')
+      expect(response.headers.get('allow'), path).toBe(allowFor(path))
     }
 
     dispose()
@@ -172,9 +182,9 @@ describe('能力管理器路由声明', () => {
 
     const read = await fetch(`${base}${P}/mcp`, { method: 'OPTIONS' })
     expect(read.status).toBe(204)
-    expect(read.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
+    expect(read.headers.get('allow')).toBe('GET, HEAD, POST, DELETE, OPTIONS')
 
-    const mutate = await fetch(`${base}${P}/mcp/save`, { method: 'OPTIONS' })
+    const mutate = await fetch(`${base}${P}/mcp/toggle`, { method: 'OPTIONS' })
     expect(mutate.status).toBe(204)
     expect(mutate.headers.get('allow')).toBe('POST, OPTIONS')
 
@@ -229,18 +239,18 @@ describe('能力管理器路由声明', () => {
   it('pOST 变更路由对缺失字段返回 400 领域错误', async () => {
     const { base, dispose } = await start()
 
-    const cases: ReadonlyArray<readonly [string, Record<string, unknown>, string]> = [
-      [`${P}/mcp/toggle`, {}, 'id and disabled are required'],
-      [`${P}/mcp/remove`, {}, 'id is required'],
-      [`${P}/mcp/check`, {}, 'id is required'],
-      [`${P}/mcp/copy`, {}, 'id is required'],
-      [`${P}/roots/remove`, {}, 'id is required'],
-      [`${P}/roots/add`, { kind: 'zip' }, 'kind must be local or git'],
-      [`${P}/open`, {}, 'target is required'],
+    const cases: ReadonlyArray<readonly [string, string, Record<string, unknown>, string]> = [
+      ['POST', `${P}/mcp/toggle`, {}, 'id and disabled are required'],
+      ['DELETE', `${P}/mcp`, {}, 'id is required'],
+      ['POST', `${P}/mcp/check`, {}, 'id is required'],
+      ['POST', `${P}/mcp/copy`, {}, 'id is required'],
+      ['DELETE', `${P}/roots`, {}, 'id is required'],
+      ['POST', `${P}/roots`, { kind: 'zip' }, 'kind must be local or git'],
+      ['POST', `${P}/open/dir`, {}, 'target is required'],
     ]
-    for (const [path, body, error] of cases) {
+    for (const [method, path, body, error] of cases) {
       const response = await fetch(`${base}${path}`, {
-        method: 'POST',
+        method,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       })
@@ -271,14 +281,14 @@ describe('能力管理器路由声明', () => {
     dispose()
   })
 
-  it('pOST /restart 拒绝无 Origin 或带转发痕迹的请求（403，不触达进程控制）', async () => {
+  it('pOST /host/restart 拒绝无 Origin 或带转发痕迹的请求（403，不触达进程控制）', async () => {
     const { base, dispose } = await start()
 
-    const noOrigin = await fetch(`${base}${P}/restart`, { method: 'POST' })
+    const noOrigin = await fetch(`${base}${P}/host/restart`, { method: 'POST' })
     expect(noOrigin.status).toBe(403)
     expect(await noOrigin.json()).toEqual({ error: 'untrusted origin' })
 
-    const forwarded = await fetch(`${base}${P}/restart`, {
+    const forwarded = await fetch(`${base}${P}/host/restart`, {
       method: 'POST',
       headers: { 'origin': base, 'x-forwarded-for': '127.0.0.1' },
     })
@@ -299,7 +309,7 @@ describe('能力管理器路由声明', () => {
     const firstBase = await listen(first.registered)
     const secondBase = await listen(second.registered)
 
-    const saved = await fetch(`${firstBase}${P}/mcp/save`, {
+    const saved = await fetch(`${firstBase}${P}/mcp`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ serverName: 'only-first', transport: 'http', url: 'http://127.0.0.1:9/mcp' }),

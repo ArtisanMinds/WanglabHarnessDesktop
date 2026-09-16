@@ -1,9 +1,9 @@
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { ExtensionRouteDeps, McpImportScanResponse } from '../../index.types'
 import { defineEventHandler, dshRouteDepsOf } from 'dsh-tauri'
 import { agents } from '../../../service/agents'
 import { mcp } from '../../../service/mcp'
 
-export default defineEventHandler((event) => {
+export default defineEventHandler((event): McpImportScanResponse | { error: string } => {
   const deps = dshRouteDepsOf<ExtensionRouteDeps>(event)!
   try {
     return {

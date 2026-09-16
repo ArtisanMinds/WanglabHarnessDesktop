@@ -2,7 +2,8 @@ import type { Dirent } from 'node:fs'
 import { chmodSync, readdirSync, rmSync } from 'node:fs'
 import { defineService } from 'dsh-tauri'
 import { join } from 'pathe'
-import { RMTREE_RETRIES } from '../config/constants'
+
+const RMTREE_RETRIES = { maxRetries: 10, retryDelay: 200 } as const
 
 export const rmtree = defineService({
   remove(path: string): void {

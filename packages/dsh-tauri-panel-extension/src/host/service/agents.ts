@@ -5,13 +5,16 @@ import { defineService } from 'dsh-tauri'
 import { compact, filter, isEmpty, isObject, isString, pickBy, uniqBy } from 'lodash-es'
 import { join } from 'pathe'
 import { parse as parseToml } from 'smol-toml'
-import {
-  AGENT_SKILL_DIRECTORIES,
-  CLAUDE_MCP_FILES,
-  CODEX_MCP_FILE,
-  CURSOR_MCP_FILE,
-  GEMINI_MCP_FILE,
-} from '../config/constants'
+
+const CLAUDE_MCP_FILES = ['.claude/settings.json', '.claude.json'] as const
+
+const CURSOR_MCP_FILE = '.cursor/mcp.json'
+
+const GEMINI_MCP_FILE = '.gemini/settings.json'
+
+const CODEX_MCP_FILE = '.codex/config.toml'
+
+const AGENT_SKILL_DIRECTORIES = ['.claude/skills', '.codex/skills'] as const
 
 export const agents = defineService({
   resolve(home: string = homedir()): ImportedServer[] {

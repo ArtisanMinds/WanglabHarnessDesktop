@@ -1,9 +1,11 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { SkillsResponse } from '../index.types'
 import { defineEventHandler } from 'dsh-tauri'
-import { skillCatalog } from '../../service/skill-catalog'
+import { skills } from '../../service/skills'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<SkillsResponse | { error: string }>>(async (event) => {
   try {
-    return { skills: await skillCatalog.resolve() }
+    return { skills: await skills.getCatalog() }
   }
   catch (error) {
     event.res.status = 500

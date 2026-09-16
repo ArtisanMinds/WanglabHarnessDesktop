@@ -1,11 +1,10 @@
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ExtensionRouteDeps, McpActionResult, McpRemoveBody } from '../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { mcp } from '../../../service/mcp'
-import { mcpScopeDir, normalizeMcpScope } from '../../../service/mcp.utils'
+import { mcp } from '../../service/mcp'
+import { mcpScopeDir, normalizeMcpScope } from '../../service/mcp.utils'
 
-interface McpRemoveBody { id?: unknown, scope?: unknown }
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<McpActionResult | { error: string }>>(async (event) => {
   const deps = dshRouteDepsOf<ExtensionRouteDeps>(event)!
   const body = await readBody<McpRemoveBody>(event, { type: 'json' })
   if (typeof body?.id !== 'string') {

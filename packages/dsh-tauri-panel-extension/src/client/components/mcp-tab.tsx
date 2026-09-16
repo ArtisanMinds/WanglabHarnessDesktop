@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react'
-import type { McpRow } from '../apis/index.type'
+import type { McpSaveBody } from '../apis/index.type'
+import type { McpRow } from '../types'
 import type { McpEditorMode, McpEditorState, McpImportItem, McpTabProps } from './mcp-tab.types'
 import { Button, Modal, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ArrowRotateRight, Icon, PlugConnection, useMountStyle } from 'dsh-tauri-ui/client'
 import { compact } from 'dsh-tauri/client'
 import { useEffect, useState } from 'react'
-import { getMcp, getMcpImportScan, postMcpCheck, postMcpImportApply, postMcpRemove, postMcpSave, postMcpToggle } from '../apis'
+import { deleteMcp, getImportScan, getMcp, postImportApply, postMcp, postMcpCheck, postMcpToggle } from '../apis'
 import { MCP_RESTART_INITIAL_DELAY_MS, MCP_RESTART_POLL_INTERVAL_MS, MCP_RESTART_TIMEOUT_MS, MCP_TAB_STYLE_ID } from '../constants'
 import { useTimers } from '../hooks/use-timers'
 import { restartHost } from '../service/restart'
@@ -34,14 +35,17 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   const [pasteError, setPasteError] = useState<string | null>(null)
   const [scope, setScope] = useState<'all' | 'global' | 'profile'>('all')
   const [checking, setChecking] = useState<string | null>(null)
+  const [globalError, setGlobalError] = useState('')
   const { later } = useTimers()
 
   useEffect(() => {
     let current = true
     void getMcp().then(
       (body) => {
-        if (current)
+        if (current) {
           setServers(body.servers)
+          setGlobalError(body.globalError ?? '')
+        }
       },
       (error: Error) => {
         if (current) {
@@ -59,7 +63,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     setImportOpen(true)
     setImportItems(null)
     try {
-      const body = await getMcpImportScan()
+      const body = await getImportScan()
       const existing = new Set(body.existing)
       setImportItems(body.servers.map(server => ({
         server,
@@ -79,7 +83,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     const items = importItems.filter(item => item.checked && !item.existing).map(item => ({ agent: item.server.agent, name: item.server.name }))
     setBusy(true)
     try {
-      const body = await postMcpImportApply({ items })
+      const body = await postImportApply({ items })
       const failed = body.results.filter(item => !item.ok)
       setOutcome(failed.length === 0
         ? null
@@ -100,7 +104,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     setChecking(row.id)
     try {
       const result = await postMcpCheck({ id: row.id })
-      setOutcome({ ok: result.ok, text: result.ok ? `${t('connectivityOk')}${result.latencyMs ? ` (${result.latencyMs}ms)` : ''}` : `${t('connectivityFailed')}: ${result.error ?? ''}` })
+      setOutcome({ ok: result.ok, text: result.ok ? `${t('connectivityOk')}${result.detail ? ` (${result.detail})` : ''}` : `${t('connectivityFailed')}: ${result.detail ?? ''}` })
     }
     catch (error) {
       setOutcome({ ok: false, text: `${t('connectivityFailed')}: ${String(error)}` })
@@ -175,7 +179,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   const doSave = async (): Promise<void> => {
     if (editor === null)
       return
-    let input: Record<string, unknown>
+    let input: McpSaveBody
     if (editorMode === 'json') {
       const parsed = parseMcpJson(pasteJson)
       if ('error' in parsed) {
@@ -212,7 +216,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     setFormError(null)
     setPasteError(null)
     try {
-      await postMcpSave(input)
+      await postMcp(input)
       setEditor(null)
       setOutcome(null)
       reloadList(true)
@@ -245,7 +249,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
       return
     setBusy(true)
     try {
-      await postMcpRemove({ id: confirmId })
+      await deleteMcp({ id: confirmId })
       setOutcome(null)
       reloadList(true)
     }
@@ -350,7 +354,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
                 {row.transport === 'stdio' ? `${row.command ?? ''} ${(row.args ?? []).join(' ')}` : row.url ?? ''}
               </p>
               {row.shadowed === true && <p className="dshp-extension__form-error">{t('shadowedByGlobal')}</p>}
-              {row.globalError !== undefined && <p className="dshp-extension__form-error">{row.globalError}</p>}
+              {globalError !== '' && <p className="dshp-extension__form-error">{globalError}</p>}
               <div className="dshp-extension__card-row">
                 <span className="dshp-extension__spacer" />
                 <Button variant="ghost" size="sm" disabled={busy || checking === row.id} onClick={() => void checkConnectivity(row)}>{checking === row.id ? t('checkRunning') : t('checkLabel')}</Button>

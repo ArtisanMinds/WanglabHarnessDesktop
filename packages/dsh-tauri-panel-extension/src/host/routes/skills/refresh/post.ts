@@ -1,11 +1,12 @@
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ExtensionRouteDeps, SkillsResponse } from '../../index.types'
 import { defineEventHandler, dshRouteDepsOf } from 'dsh-tauri'
-import { skillCatalog } from '../../../service/skill-catalog'
+import { skills } from '../../../service/skills'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<SkillsResponse | { error: string }>>(async (event) => {
   try {
     await dshRouteDepsOf<ExtensionRouteDeps>(event)!.remountProvider()
-    return { skills: await skillCatalog.resolve() }
+    return { skills: await skills.getCatalog() }
   }
   catch (error) {
     event.res.status = 500

@@ -55,7 +55,7 @@
 
 ## 有意保留的差异
 
-- 侧栏扩展继续使用自身 API 前缀 `/dsh-tauri-panel-extension/*`，不改为上游的 `/dsh-plugin-capabilities/*`。
+- 侧栏扩展的路由前缀随桌面统一为 `/api/desktop/dsh-tauri-panel-extension/*`，不改为上游的 `/dsh-plugin-capabilities/*`。
 - MCP 管理继续写入当前扩展约定的 profile / DSH home 路径。
 - 不移植上游设置页的“技能与 MCP”一级标题。
 - 不移植上游 Market（技能市场 / MCP 市场）模块。

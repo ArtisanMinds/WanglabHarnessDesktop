@@ -1,9 +1,13 @@
 import type { DetectedRoots, GitHubSource } from './repos.types'
-import type { SkillRootEntry } from './skill-root.types'
+import type { SkillSourceEntry } from './skills.types'
 import { randomBytes } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'pathe'
-import { GITHUB_SHORT_RE, GITHUB_URL_RE, SKILL_FILE_NAME } from '../config/constants'
+import { SKILL_FILE_NAME } from '../config/constants'
+
+const GITHUB_URL_RE = /^(?:https?:\/\/)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/(?:tree|archive)\/([^/#?]+?)(?:\.tar\.gz)?)?(?:#([^/?#]+))?(?:[/?#].*)?$/
+
+const GITHUB_SHORT_RE = /^([\w.-]+)\/([\w.-]+)$/
 
 export function parseGitHubSource(input: string): GitHubSource | null {
   const trimmed = input.trim()
@@ -66,7 +70,7 @@ export function detectSkillRoots(checkout: string): DetectedRoots {
   return { roots, single: false }
 }
 
-export function newEntryId(kind: SkillRootEntry['kind']): string {
+export function newEntryId(kind: SkillSourceEntry['kind']): string {
   return `${kind}-${randomBytes(4).toString('hex')}`
 }
 

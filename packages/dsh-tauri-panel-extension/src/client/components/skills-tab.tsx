@@ -1,11 +1,11 @@
 import type { ReactElement } from 'react'
-import type { SkillRowView } from '../apis/index.type'
+import type { SkillRowView } from '../types'
 import type { OpenTarget, SkillEditorState, SkillsTabProps } from './skills-tab.types'
 import { Button, Modal, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ArrowRotateRight, GraduationCap, Icon, LogoGithub, useMountStyle } from 'dsh-tauri-ui/client'
 import { orderBy, uniq } from 'dsh-tauri/client'
 import { useEffect, useMemo, useState } from 'react'
-import { getSkill, getSkills, postOpen, postRootsAdd, postSkillDelete, postSkillPolicy, postSkillSave, postSkillsRefresh } from '../apis'
+import { deleteSkill, getSkill, getSkills, postOpenDir, postRoots, postSkill, postSkillPolicy, postSkillsRefresh } from '../apis'
 import { MarkdownPreview } from '../components/markdown'
 import { IMPORT_REFRESH_DELAYS_MS, SKILL_REFRESH_INTERVAL_MS, SKILL_REFRESH_TIMEOUT_MS, SKILLS_TAB_STYLE_ID, SOURCE_LOCALE_KEYS } from '../constants'
 import { useTimers } from '../hooks/use-timers'
@@ -79,7 +79,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
   const openExisting = async (skill: SkillRowView): Promise<void> => {
     setBusy(true)
     try {
-      const body = await getSkill(skill.name)
+      const body = await getSkill({ name: skill.name })
       setPreview(!skill.editable)
       setEditor({ mode: skill.editable ? 'edit' : 'view', name: skill.name, description: skill.description, whenToUse: skill.whenToUse ?? '', modelInvocable: skill.invocation.modelInvocable, userInvocable: skill.invocation.userInvocable, content: body.content })
     }
@@ -94,7 +94,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
     setBusy(true)
     setFormError(null)
     try {
-      await postSkillSave({ name: editor.name.trim(), description: editor.description, whenToUse: editor.whenToUse.trim() || undefined, modelInvocable: editor.modelInvocable, userInvocable: editor.userInvocable, content: editor.content })
+      await postSkill({ name: editor.name.trim(), description: editor.description, whenToUse: editor.whenToUse.trim() || undefined, modelInvocable: editor.modelInvocable, userInvocable: editor.userInvocable, content: editor.content })
       setEditor(null)
       setOutcome({ ok: true, text: t('saved') })
       refreshUntil(rows => rows.some(row => row.name === name))
@@ -109,7 +109,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
     const name = confirmName
     setBusy(true)
     try {
-      await postSkillDelete({ name })
+      await deleteSkill({ name })
       setOutcome({ ok: true, text: t('saved') })
       refreshUntil(rows => !rows.some(row => row.name === name))
     }
@@ -137,7 +137,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
 
   const doOpen = async (target: OpenTarget): Promise<void> => {
     try {
-      await postOpen(target)
+      await postOpenDir(target)
     }
     catch (error) { setOutcome({ ok: false, text: `${t('failed')}: ${error instanceof Error ? error.message : String(error)}` }) }
   }
@@ -163,7 +163,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
     setBusy(true)
     setFormError(null)
     try {
-      await postRootsAdd(url)
+      await postRoots({ kind: 'git', url })
       setOutcome({ ok: true, text: t('importRepositorySuccess') })
       setImportOpen(false)
       setRepositoryUrl('')

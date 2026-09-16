@@ -5,7 +5,7 @@ import process from 'node:process'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { compact, isEmpty } from 'lodash-es'
 import { join } from 'pathe'
-import { MCP_CHECK_TIMEOUT_MS, MCP_PLUGIN, PATCH_FILE_NAME } from '../config/constants'
+import { MCP_PLUGIN, PATCH_FILE_NAME } from '../config/constants'
 import {
   insertListOf,
   loadPatch,
@@ -17,6 +17,8 @@ import {
   takenIds,
   toNode,
 } from './mcp.utils'
+
+const MCP_CHECK_TIMEOUT_MS = 5_000
 
 export const mcp = defineService({
   list(profileDirPath: string): McpListResult {
@@ -111,6 +113,20 @@ export const mcp = defineService({
     if (owner !== undefined && hit.list.items.length === 0 && owner.items.length === 1)
       seq.items.splice(seq.items.indexOf(owner), 1)
 
+    savePatch(dirPath, doc)
+    return true
+  },
+
+  toggle(dirPath: string, id: string, disabled: boolean): boolean {
+    const doc = loadPatch(dirPath)
+    managedInsert(doc)
+    const hit = mcpRowItems(doc).find(({ node }) => String(node.get('id') ?? '') === id)
+    if (hit === undefined)
+      return false
+    if (disabled)
+      hit.node.set('disabled', true)
+    else
+      hit.node.delete('disabled')
     savePatch(dirPath, doc)
     return true
   },

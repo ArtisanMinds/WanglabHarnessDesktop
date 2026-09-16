@@ -6,7 +6,8 @@ import process from 'node:process'
 import { defineService } from 'dsh-tauri'
 import { dirname, resolve } from 'pathe'
 import { PLUGIN_ID } from '../../shared/constants'
-import { RESTART_KILL_DELAY_MS } from '../config/constants'
+
+const RESTART_KILL_DELAY_MS = 500
 
 export const restart = defineService({
   start(): RestartOutcome {

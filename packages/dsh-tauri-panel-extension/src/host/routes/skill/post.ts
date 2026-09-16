@@ -1,13 +1,14 @@
-import type { SkillInput } from '../../../service/skills.types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { SkillInput } from '../../service/skills.types'
+import type { ActionResult, SkillSaveBody } from '../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { join } from 'pathe'
-import { SKILL_FILE_NAME } from '../../../config/constants'
-import { skillCatalog } from '../../../service/skill-catalog'
-import { skills } from '../../../service/skills'
-import { validateSkillInput } from '../../../service/skills.utils'
+import { SKILL_FILE_NAME } from '../../config/constants'
+import { skills } from '../../service/skills'
+import { validateSkillInput } from '../../service/skills.utils'
 
-export default defineEventHandler(async (event) => {
-  const body = await readBody<Partial<SkillInput>>(event, { type: 'json' })
+export default defineEventHandler<EventHandlerRequest, Promise<ActionResult | { error: string }>>(async (event) => {
+  const body = await readBody<SkillSaveBody>(event, { type: 'json' })
   const input: SkillInput = {
     name: typeof body?.name === 'string' ? body.name : '',
     description: typeof body?.description === 'string' ? body.description : '',
@@ -22,7 +23,7 @@ export default defineEventHandler(async (event) => {
       event.res.status = 400
       return { error: invalid }
     }
-    const existing = (await skillCatalog.resolve()).find(skill => skill.name === input.name)
+    const existing = (await skills.getCatalog()).find(skill => skill.name === input.name)
     if (existing !== undefined) {
       if (existing.dir === undefined || !existing.editable) {
         event.res.status = 403

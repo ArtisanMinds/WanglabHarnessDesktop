@@ -1,11 +1,10 @@
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ActionResult, ExtensionRouteDeps, RootRemoveBody } from '../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { rmtree } from '../../../service/rmtree'
-import { skillRoot } from '../../../service/skill-root'
+import { rmtree } from '../../service/rmtree'
+import { skills } from '../../service/skills'
 
-interface RootRemoveBody { id?: unknown }
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<ActionResult | { error: string }>>(async (event) => {
   const body = await readBody<RootRemoveBody>(event, { type: 'json' })
   if (typeof body?.id !== 'string') {
     event.res.status = 400
@@ -13,7 +12,7 @@ export default defineEventHandler(async (event) => {
   }
   const id = body.id
   try {
-    const removed = await skillRoot.remove(id)
+    const removed = await skills.removeSource(id)
     if (removed === null) {
       event.res.status = 404
       return { error: 'repository not found' }

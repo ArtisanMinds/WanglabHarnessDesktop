@@ -4,7 +4,7 @@ import { getCurrentHostInstance, providerRuntime } from '../config/runtime'
 import { providerHooks } from '../events'
 import { agents } from './agents'
 import { loadFilesystemSkillPlugin } from './provider.utils'
-import { skillRoot } from './skill-root'
+import { skills } from './skills'
 
 export const provider = defineService({
   start(packagedDir: string): Promise<void> {
@@ -39,7 +39,7 @@ async function remount(packagedDir: string): Promise<void> {
     return
   const roots = [
     packagedDir,
-    ...(await skillRoot.list()).flatMap(entry => entry.roots),
+    ...(await skills.listSources()).flatMap(entry => entry.roots),
     ...agents.peek(),
   ].filter(dir => existsSync(dir))
   try {

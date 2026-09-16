@@ -1,19 +1,22 @@
-import type { SkillRootEntry } from './skill-root.types'
+import type { SkillSourceEntry } from './skills.types'
 import { Buffer } from 'node:buffer'
 import { existsSync, mkdirSync, statSync, symlinkSync } from 'node:fs'
 import process from 'node:process'
 import { defineService } from 'dsh-tauri'
 import { $fetch } from 'ofetch'
 import { basename, join, resolve } from 'pathe'
-import { GITHUB_FETCH_TIMEOUT_MS, TARBALL_MAX_BYTES } from '../config/constants'
 import { materialDirFor } from '../utils/paths.utils'
 import { detectSkillRoots, newEntryId, parseGitHubSource } from './repos.utils'
 import { rmtree } from './rmtree'
-import { skillRoot } from './skill-root'
+import { skills } from './skills'
 import { tar } from './tar'
 
+const GITHUB_FETCH_TIMEOUT_MS = 60_000
+
+const TARBALL_MAX_BYTES = 256 * 1024 * 1024
+
 export const repos = defineService({
-  async create(path: string): Promise<SkillRootEntry> {
+  async create(path: string): Promise<SkillSourceEntry> {
     const resolved = resolve(path.trim().replace(/^"|"$/g, ''))
     if (!existsSync(resolved) || !statSync(resolved).isDirectory())
       throw new Error(`not a directory: ${resolved}`)
@@ -32,16 +35,16 @@ export const repos = defineService({
         rmtree.remove(material)
         throw new Error('single-skill local folders need a directory link; try adding their parent folder instead')
       }
-      return skillRoot.save({ id, kind: 'local', label: basename(resolved), path: resolved, roots: [material], materialDir: material })
+      return skills.saveSource({ id, kind: 'local', label: basename(resolved), path: resolved, roots: [material], materialDir: material })
     }
-    return skillRoot.save({ id: newEntryId('local'), kind: 'local', label: basename(resolved), path: resolved, roots: detected.roots })
+    return skills.saveSource({ id: newEntryId('local'), kind: 'local', label: basename(resolved), path: resolved, roots: detected.roots })
   },
 
-  async import(url: string): Promise<SkillRootEntry> {
+  async import(url: string): Promise<SkillSourceEntry> {
     const source = parseGitHubSource(url)
     if (source === null)
       throw new Error('expected a GitHub repository URL or owner/repo')
-    const existing = await skillRoot.load(source.githubUrl) ?? await skillRoot.load(source.label)
+    const existing = await skills.getSource(source.githubUrl) ?? await skills.getSource(source.label)
     if (existing !== null)
       throw new Error(`${source.label} is already registered`)
 
@@ -60,7 +63,7 @@ export const repos = defineService({
       if (!detected.single && detected.roots.length === 0)
         throw new Error('no SKILL.md found in that repository')
       const roots = detected.single ? [material] : detected.roots
-      return await skillRoot.save(
+      return await skills.saveSource(
         { id, kind: 'git', label: source.label, url: source.githubUrl, ref: source.ref, roots, materialDir: material },
       )
     }

@@ -1,11 +1,10 @@
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ExtensionRouteDeps, RootAddBody, RootAddResponse } from '../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { repos } from '../../../service/repos'
-import { rootView } from '../../../service/skill-catalog.utils'
+import { repos } from '../../service/repos'
+import { rootView } from '../../service/skills.utils'
 
-interface RootAddBody { kind?: unknown, path?: unknown, url?: unknown }
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<RootAddResponse | { error: string }>>(async (event) => {
   const body = await readBody<RootAddBody>(event, { type: 'json' })
   if (body?.kind !== 'local' && body?.kind !== 'git') {
     event.res.status = 400

@@ -1,5 +1,5 @@
-import type { ImportedServerView } from '../apis/index.type'
 import type { Translate } from '../locales/index.types'
+import type { ImportedServerView } from '../types'
 
 export type McpEditorMode = 'json' | 'form'
 

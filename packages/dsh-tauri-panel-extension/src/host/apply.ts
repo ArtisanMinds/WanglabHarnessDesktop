@@ -1,14 +1,15 @@
 import type { HostContext } from 'dsh-tauri'
 import type { Config } from './apply.types'
-import type { PanelExtensionHost } from './config/runtime.types'
+import type { PanelExtensionHost } from './types'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'pathe'
 import { PLUGIN_ID } from '../shared/constants'
-import { DEFAULT_PROFILE } from './config/constants'
 import { clearHostRuntime, resetProviderRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'
 import { profile } from './service/profile'
 import { provider } from './service/provider'
+
+const DEFAULT_PROFILE = 'web'
 
 export type { Config } from './apply.types'
 

@@ -1,11 +1,10 @@
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ExtensionRouteDeps, McpActionResult, McpToggleBody } from '../../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
-import { mcpToggle } from '../../../service/mcp-toggle'
+import { mcp } from '../../../service/mcp'
 import { mcpScopeDir, normalizeMcpScope } from '../../../service/mcp.utils'
 
-interface McpToggleBody { id?: unknown, disabled?: unknown, scope?: unknown }
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<McpActionResult | { error: string }>>(async (event) => {
   const deps = dshRouteDepsOf<ExtensionRouteDeps>(event)!
   const body = await readBody<McpToggleBody>(event, { type: 'json' })
   if (typeof body?.id !== 'string' || typeof body.disabled !== 'boolean') {
@@ -15,7 +14,7 @@ export default defineEventHandler(async (event) => {
   const id = body.id
   const disabled = body.disabled
   try {
-    const ok = mcpToggle.save(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath), id, disabled)
+    const ok = mcp.toggle(mcpScopeDir(normalizeMcpScope(body.scope), deps.profileDirPath), id, disabled)
     if (!ok) {
       event.res.status = 404
       return { error: 'server row not found' }

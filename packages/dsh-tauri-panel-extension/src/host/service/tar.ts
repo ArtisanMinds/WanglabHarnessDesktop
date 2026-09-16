@@ -4,7 +4,12 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { defineService } from 'dsh-tauri'
 import { dirname, join } from 'pathe'
-import { TAR_LIMITS } from '../config/constants'
+
+const TAR_LIMITS = {
+  entryBytes: 64 * 1024 * 1024,
+  totalBytes: 256 * 1024 * 1024,
+  entries: 20_000,
+} as const
 
 export const tar = defineService({
   save(archive: Buffer, target: string, options: ExtractOptions = {}): number {

@@ -28,3 +28,36 @@ export interface SkillInput {
   userInvocable: boolean
   content: string
 }
+
+export interface SkillRepositoryMetadata {
+  id: string
+  label: string
+  kind: 'local' | 'git'
+  githubUrl?: string
+}
+
+export type SkillRow = HostSkill & {
+  editable: boolean
+  removable: boolean
+  dir?: string
+  policyEditable: boolean
+  repository?: SkillRepositoryMetadata
+}
+
+export interface SkillSourceEntry {
+  id: string
+  kind: 'local' | 'git'
+  label: string
+  url?: string
+  ref?: string
+  path?: string
+  roots: string[]
+  materialDir?: string
+  addedAt: number
+}
+
+export interface PluginState {
+  skillRoots: SkillSourceEntry[]
+}
+
+export type SkillSourceView = SkillSourceEntry & { live: boolean }

@@ -1,9 +1,9 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ActionResult, SkillDeleteBody } from '../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
-import { skills } from '../../../service/skills'
+import { skills } from '../../service/skills'
 
-interface SkillDeleteBody { name?: unknown }
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<ActionResult | { error: string }>>(async (event) => {
   const body = await readBody<SkillDeleteBody>(event, { type: 'json' })
   const name = typeof body?.name === 'string' ? body.name : ''
   try {

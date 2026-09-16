@@ -1,11 +1,24 @@
-import type { SkillInput } from './skills.types'
+import type { SkillInput, SkillSourceEntry, SkillSourceView } from './skills.types'
 import { isEmpty } from 'lodash-es'
-import {
-  SKILL_CONTENT_MAX_BYTES,
-  SKILL_DESCRIPTION_MAX_LENGTH,
-  SKILL_NAME_RE,
-  SKILL_WHEN_TO_USE_MAX_LENGTH,
-} from '../config/constants'
+import { SKILL_NAME_RE } from '../config/constants'
+import { directoryExists } from '../utils/filesystem.utils'
+
+const SKILL_DESCRIPTION_MAX_LENGTH = 1024
+
+const SKILL_WHEN_TO_USE_MAX_LENGTH = 2048
+
+const SKILL_CONTENT_MAX_BYTES = 256 * 1024
+
+export function rootView(entry: SkillSourceEntry): SkillSourceView {
+  return { ...entry, live: entry.roots.every(root => directoryExists(root)) }
+}
+
+export function isSkillSourceEntry(entry: unknown): entry is SkillSourceEntry {
+  if (typeof entry !== 'object' || entry === null)
+    return false
+  const candidate = entry as Record<string, unknown>
+  return typeof candidate.id === 'string' && Array.isArray(candidate.roots)
+}
 
 export function serializeSkill(input: SkillInput): string {
   const lines = [

@@ -1,7 +1,7 @@
 import type { LocaleKey } from '../locales/index.types'
 import { PLUGIN_ID } from '../../shared/constants'
 
-export { API_PREFIX, PLUGIN_ID as PLUGIN_ID } from '../../shared/constants'
+export { PLUGIN_ID } from '../../shared/constants'
 
 export const CONVERSATION_INPUT_LEFT_SLOT = 'conversation.input.left'
 export const PANEL_ID = PLUGIN_ID

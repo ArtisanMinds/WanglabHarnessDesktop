@@ -1,5 +1,5 @@
 import { defineEventHandler } from 'dsh-tauri'
-import { restart } from '../../service/restart'
+import { restart } from '../../../service/restart'
 
 export default defineEventHandler((event) => {
   const headers = event.req.headers

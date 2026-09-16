@@ -1,13 +1,12 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
 import type { McpInput } from '../../../service/mcp.types'
-import type { ExtensionRouteDeps } from '../../index.types'
+import type { ExtensionRouteDeps, McpApplyImportResponse, McpImportApplyBody } from '../../index.types'
 import { defineEventHandler, dshRouteDepsOf, readBody } from 'dsh-tauri'
 import { agents } from '../../../service/agents'
 import { mcp } from '../../../service/mcp'
 import { mcpScopeDir, normalizeMcpScope, validateMcpInput } from '../../../service/mcp.utils'
 
-interface McpImportApplyBody { items?: unknown, scope?: unknown }
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<McpApplyImportResponse | { error: string }>>(async (event) => {
   const deps = dshRouteDepsOf<ExtensionRouteDeps>(event)!
   const body = await readBody<McpImportApplyBody>(event, { type: 'json' })
   try {

@@ -1,5 +1,5 @@
 import type { ProviderRuntime } from '../service/provider.types'
-import type { PanelExtensionHost } from './runtime.types'
+import type { PanelExtensionHost } from '../types'
 import { defineHostRuntime } from 'dsh-tauri'
 
 export const { setCurrentHostInstance, getCurrentHostInstance } = defineHostRuntime<PanelExtensionHost>()
