@@ -111,7 +111,9 @@ export function defineDshConfig(options: DshConfigOptions = {}) {
       // publint's ESM/CJS default-export heuristic is inapplicable.
       publint: false,
       dts: false,
-      sourcemap: true,
+      // 客户端 sourcemap 只在 watch 下产出：它会随 `files: ["dist"]` 一起进入
+      // `resources/node_modules`（9 个插件合计约 2.5 MB），而运行期从不加载。
+      sourcemap: !isWatchMode,
       minify: !isWatchMode,
       clean: false,
       ...clientOptions,
