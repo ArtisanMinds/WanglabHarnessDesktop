@@ -1,7 +1,11 @@
 import type { HostContext } from './types'
-import { HOST_RUNTIME_EFFECT, ROUTES_EFFECT } from './config/constants'
+import { PLUGIN_ID } from '../shared/constants'
 import { clearHostRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'
+
+const ROUTES_EFFECT = `${PLUGIN_ID}: routes`
+
+const HOST_RUNTIME_EFFECT = `${PLUGIN_ID}: host runtime`
 
 export function apply(ctx: HostContext): void {
   setCurrentHostInstance(ctx)

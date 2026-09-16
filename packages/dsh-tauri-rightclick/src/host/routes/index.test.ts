@@ -2,7 +2,7 @@
  * host/routes/index.test.ts — 右键菜单路由声明的协议回归。
  *
  * 覆盖（迁移契约）：2 条路由的 (kind, path) 与声明方法、方法不符时 405 + allow 头、
- * OPTIONS 预检 204、非 JSON 内容类型 415、以及 open-url / open-path 的参数校验 400 领域错误。
+ * OPTIONS 预检 204、非 JSON 内容类型 415、以及 open/url / open/path 的参数校验 400 领域错误。
  *
  * 走真实 node:http 服务（h3 的 toNodeHandler 依赖真实 req/res 流），并在测试内复刻
  * 宿主 webserver 的 exact 匹配契约；连接鉴权 / 回环 / 跨源 / 体积边界由 dsh-tauri 的
@@ -17,14 +17,15 @@ import type { AddressInfo } from 'node:net'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { routes } from '.'
-import { OPEN_PATH_ROUTE, OPEN_URL_ROUTE } from '../../shared/constants'
+
+const P = '/api/desktop/dsh-tauri-rightclick'
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
 /** 迁移前的路由表（路径 + 方法），防止声明漂移。 */
 const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
-  ['POST', OPEN_URL_ROUTE],
-  ['POST', OPEN_PATH_ROUTE],
+  ['POST', `${P}/open/url`],
+  ['POST', `${P}/open/path`],
 ]
 
 interface Harness {
@@ -127,7 +128,7 @@ describe('右键菜单路由声明', () => {
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
-    const response = await fetch(`${base}${OPEN_URL_ROUTE}`, { method: 'OPTIONS' })
+    const response = await fetch(`${base}${P}/open/url`, { method: 'OPTIONS' })
     expect(response.status).toBe(204)
     expect(response.headers.get('allow')).toBe('POST, OPTIONS')
 
@@ -148,13 +149,13 @@ describe('右键菜单路由声明', () => {
     dispose()
   })
 
-  it('open-url 只放行 http/https（其余 400 invalid-url）', async () => {
+  it('open/url 只放行 http/https（其余 400 invalid-url）', async () => {
     const harness = createHarness()
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
     for (const url of ['', 'file:///etc/passwd', 'javascript:alert(1)', 42, undefined]) {
-      const response = await post(base, OPEN_URL_ROUTE, { url })
+      const response = await post(base, `${P}/open/url`, { url })
       expect(response.status, String(url)).toBe(400)
       expect(await response.json(), String(url)).toEqual({ ok: false, error: 'invalid-url' })
     }
@@ -162,13 +163,13 @@ describe('右键菜单路由声明', () => {
     dispose()
   })
 
-  it('open-path 只放行本地路径（空值与 URL scheme 一律 400 invalid-path）', async () => {
+  it('open/path 只放行本地路径（空值与 URL scheme 一律 400 invalid-path）', async () => {
     const harness = createHarness()
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
     for (const path of ['', '   ', 'https://example.com', 'file:///C:/workspace', 42, undefined]) {
-      const response = await post(base, OPEN_PATH_ROUTE, { path })
+      const response = await post(base, `${P}/open/path`, { path })
       expect(response.status, String(path)).toBe(400)
       expect(await response.json(), String(path)).toEqual({ ok: false, error: 'invalid-path' })
     }

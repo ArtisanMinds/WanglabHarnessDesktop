@@ -1,16 +1,21 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { OperationResult } from '../../../types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { isEmpty, isString, trim } from 'lodash-es'
-import { JSON_CONTENT_TYPE, URL_SCHEME_PATTERN } from '../../config/constants'
-import { opener } from '../../service/opener'
+import { JSON_CONTENT_TYPE } from '../../../config/constants'
+import { opener } from '../../../service/opener'
 
-export default defineEventHandler(async (event) => {
+/** 带 URL scheme 的值不是本地路径（外链走 open/url）。 */
+const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:\/\//i
+
+export default defineEventHandler<EventHandlerRequest, Promise<OperationResult>>(async (event) => {
   const contentType = event.req.headers.get('content-type') ?? ''
   if (!JSON_CONTENT_TYPE.test(contentType)) {
     event.res.status = 415
     return { ok: false as const, error: 'unsupported-media-type' }
   }
 
-  const body = await readBody<{ path?: unknown }>(event, { type: 'json' })
+  const body = await readBody<{ path?: string }>(event, { type: 'json' })
   const raw = body?.path
   const path = isString(raw) ? trim(raw) : ''
   if (isEmpty(path) || URL_SCHEME_PATTERN.test(path)) {

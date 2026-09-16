@@ -1,11 +1,6 @@
 import { PLUGIN_ID } from '../../shared/constants'
 
-export {
-  OPEN_PATH_ROUTE,
-  OPEN_URL_ROUTE,
-  RIGHTCLICK_API_PREFIX,
-  PLUGIN_ID,
-} from '../../shared/constants'
+export { PLUGIN_ID } from '../../shared/constants'
 
 export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
 export const STYLES_EFFECT = `${PLUGIN_ID}: styles`

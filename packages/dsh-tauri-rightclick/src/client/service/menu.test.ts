@@ -25,7 +25,7 @@ vi.mock('dsh-tauri/client', async () => {
 const postOpenPathMock = vi.mocked(postOpenPath)
 
 describe('openInExplorer', () => {
-  it('posts the directory to the plugin-owned open-path route', async () => {
+  it('posts the directory to the plugin-owned open/path route', async () => {
     postOpenPathMock.mockResolvedValue({ ok: true })
 
     await expect(openInExplorer({ path: 'C:\\workspace' })).resolves.toEqual({ ok: true })
