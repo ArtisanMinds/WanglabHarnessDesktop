@@ -1106,6 +1106,13 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
         crate::utils::show_main_window(app);
     }));
 
+    // Windows/WebView2 上 wry 忽略 `for_main_frame_only`、把每个初始化脚本注入所有子 frame，
+    // 而 Tauri 只在 main frame 定义 `window.__TAURI_INTERNALS__`；dsh GUI 所在的跨源 iframe
+    // 因此每次加载都抛 `path` 插件脚本的 "reading 'plugins'"。垫片注册在最前面，保证排在
+    // core 插件（path 在其中）之前执行，只补骨架、不碰 isTauri（见 desktop::tauri_internals）。
+    #[cfg(windows)]
+    let builder = builder.plugin(crate::desktop::tauri_internals::shim());
+
     builder
         // 官方跨平台登录启动实现：Windows HKCU Run、macOS LaunchAgent、Linux XDG。
         .plugin(
