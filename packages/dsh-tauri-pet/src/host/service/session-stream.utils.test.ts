@@ -7,8 +7,7 @@ import type { PetSessionEvent, PetSessionPeer } from './session-stream.types'
  * 一致。重点覆盖：running 生命周期翻转、展示态去重、子代理 origin 透传。
  */
 import { describe, expect, it } from 'vitest'
-import { PET_REASONING_PUSH_INTERVAL_MS, PET_REASONING_TAIL_WINDOW } from '../config/constants'
-import { createPetSessionReducer } from './session-stream.utils'
+import { createPetSessionReducer, PET_REASONING_PUSH_INTERVAL_MS, PET_REASONING_TAIL_WINDOW } from './session-stream.utils'
 
 function ev(type: string, data: Record<string, unknown>, seq: number): PetSessionEvent {
   return { type, seq, time: Date.now(), data }

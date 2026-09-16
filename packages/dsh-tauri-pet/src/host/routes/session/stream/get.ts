@@ -1,10 +1,12 @@
-import type { SessionStreamSink } from '../../types'
+import type { SessionStreamSink } from '../../../types'
 import { defineEventHandler, EventStream } from 'dsh-tauri'
-import { SSE_KEEPALIVE_COMMENT, SSE_KEEPALIVE_MS, SSE_RETRY_MS } from '../../../shared/constants'
-import { sessionStream } from '../../service/session-stream'
+import { SSE_KEEPALIVE_MS, SSE_RETRY_MS } from '../../../../shared/constants'
+import { sessionStream } from '../../../service/session-stream'
+
+const SSE_KEEPALIVE_COMMENT = 'keepalive'
 
 /**
- * GET /api/dsh-pet/session-stream — 桌宠会话增量 SSE 流。
+ * GET /api/desktop/dsh-tauri-pet/session-stream — 桌宠会话增量 SSE 流。
  *
  * 帧格式与 Rust 消费端（`src-tauri/src/bridge/pet.rs`）逐字对齐：
  *   - 数据帧 `data: {"action":…,"payload":…}\n\n`；

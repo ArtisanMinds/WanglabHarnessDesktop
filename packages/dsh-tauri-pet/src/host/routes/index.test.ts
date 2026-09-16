@@ -246,7 +246,7 @@ afterEach(async () => {
 })
 
 describe('pet host apply()', () => {
-  it('注册会话流路由：GET /api/dsh-pet/session-stream 是 exact 路由，非 GET 一律 405', async () => {
+  it('注册会话流路由：GET /api/desktop/dsh-tauri-pet/session-stream 是 exact 路由，非 GET 一律 405', async () => {
     const host = createHost()
     apply(host.ctx)
     expect(host.routes).toEqual([{ kind: 'exact', path: SESSION_STREAM_PATH }])

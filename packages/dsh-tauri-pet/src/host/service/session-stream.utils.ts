@@ -1,6 +1,10 @@
 import type { PetSessionPayload, PetToolActivity } from '../types'
 import type { PetSessionEvent, PetSessionPeer, PetSessionState } from './session-stream.types'
-import { PET_REASONING_PUSH_INTERVAL_MS, PET_REASONING_TAIL_WINDOW } from '../config/constants'
+
+/** 推理文本滚动尾部窗口字符数：超出后丢弃最早内容，供气泡「思考 · text」实时滚动展示。 */
+export const PET_REASONING_TAIL_WINDOW = 120
+/** 推理文本推送间隔（毫秒）：状态实时累积，最多每 500ms 推送一次最新尾部，避免逐 token 洪泛。 */
+export const PET_REASONING_PUSH_INTERVAL_MS = 500
 
 /**
  * service/session-stream.utils.ts — 纯函数「会话增量事件 → 桌宠展示态」reducer。

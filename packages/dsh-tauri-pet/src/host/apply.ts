@@ -1,7 +1,10 @@
 import type { HostContext } from 'dsh-tauri'
-import { PET_HOST_RUNTIME_EFFECT, PET_ROUTES_EFFECT } from './config/constants'
 import { clearHostRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'
+
+const PET_ROUTES_EFFECT = 'dsh-tauri-pet: routes'
+
+const PET_HOST_RUNTIME_EFFECT = 'dsh-tauri-pet: host runtime'
 
 /**
  * host/apply.ts — 桌宠宿主侧装配。
