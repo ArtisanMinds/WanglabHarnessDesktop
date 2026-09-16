@@ -39,4 +39,14 @@ export default c([
   c('[class$="_panelRow"], [class*="_panelRow "]', {
     color: 'var(--dsw-alias-label-primary) !important',
   }),
+  c('[class$="logoRow"]', {
+    color: 'var(--dsw-alias-label-primary) !important',
+  }, [
+    c('[class$="toggle"]', {
+      justifyContent: 'center !important',
+    }),
+    c('[class$="brand"]', {
+      display: 'none !important',
+    })
+  ]),
 ])
