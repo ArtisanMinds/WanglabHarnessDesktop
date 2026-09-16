@@ -1,26 +1,20 @@
-/**
- * components/mcp-tab.tsx — Settings → Plugins “MCP” tab：管理 profile 的
- * mcp-client 行。Mutations 改写 profile patch 并需要 dsh 重启——banner 在有
- * 桌面壳时把重启交给壳层。
- *
- * 职责拆分：纯解析/分组逻辑在 lib/mcp.ts，受控表单/导入弹窗在
- * components/mcp-editor-form.tsx 与 mcp-import-dialog.tsx，定时器管理在
- * hooks/use-timers.ts；本组件只保留列表状态与业务编排。
- */
-
 import type { ReactElement } from 'react'
-import type { McpEditorMode, McpEditorState, McpImportItem, McpRow, McpTabProps } from '../types'
+import type { McpSaveBody } from '../apis/index.type'
+import type { McpRow } from '../types'
+import type { McpEditorMode, McpEditorState, McpImportItem, McpTabProps } from './mcp-tab.types'
 import { Button, Modal, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ArrowRotateRight, Icon, PlugConnection, useMountStyle } from 'dsh-tauri-ui/client'
+import { compact } from 'dsh-tauri/client'
 import { useEffect, useState } from 'react'
-import { getMcp, getMcpImportScan, postMcpCheck, postMcpImportApply, postMcpRemove, postMcpSave, postMcpToggle } from '../apis'
+import { deleteMcp, getImportScan, getMcp, postImportApply, postMcp, postMcpCheck, postMcpToggle } from '../apis'
 import { MCP_RESTART_INITIAL_DELAY_MS, MCP_RESTART_POLL_INTERVAL_MS, MCP_RESTART_TIMEOUT_MS, MCP_TAB_STYLE_ID } from '../constants'
 import { useTimers } from '../hooks/use-timers'
-import { handlePostMcpRestart, isMcpDesktop } from '../service/handle-post-mcp-restart'
-import { mapToPairs, parseMcpJson, parsePairs } from '../utils/mcp'
+import { restartHost } from '../service/restart'
+import { isDesktopHost } from '../service/restart.utils'
 import { McpEditorForm } from './mcp-editor-form'
 import { McpImportDialog } from './mcp-import-dialog'
 import mcpTabStyle from './mcp-tab.cssr'
+import { mapToPairs, parseMcpJson, parsePairs } from './mcp-tab.utils'
 
 export function McpTab({ t }: McpTabProps): ReactElement {
   useMountStyle(mcpTabStyle, MCP_TAB_STYLE_ID)
@@ -41,14 +35,17 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   const [pasteError, setPasteError] = useState<string | null>(null)
   const [scope, setScope] = useState<'all' | 'global' | 'profile'>('all')
   const [checking, setChecking] = useState<string | null>(null)
+  const [globalError, setGlobalError] = useState('')
   const { later } = useTimers()
 
   useEffect(() => {
     let current = true
     void getMcp().then(
       (body) => {
-        if (current)
+        if (current) {
           setServers(body.servers)
+          setGlobalError(body.globalError ?? '')
+        }
       },
       (error: Error) => {
         if (current) {
@@ -66,7 +63,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     setImportOpen(true)
     setImportItems(null)
     try {
-      const body = await getMcpImportScan()
+      const body = await getImportScan()
       const existing = new Set(body.existing)
       setImportItems(body.servers.map(server => ({
         server,
@@ -86,7 +83,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     const items = importItems.filter(item => item.checked && !item.existing).map(item => ({ agent: item.server.agent, name: item.server.name }))
     setBusy(true)
     try {
-      const body = await postMcpImportApply({ items })
+      const body = await postImportApply({ items })
       const failed = body.results.filter(item => !item.ok)
       setOutcome(failed.length === 0
         ? null
@@ -107,7 +104,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     setChecking(row.id)
     try {
       const result = await postMcpCheck({ id: row.id })
-      setOutcome({ ok: result.ok, text: result.ok ? `${t('connectivityOk')}${result.latencyMs ? ` (${result.latencyMs}ms)` : ''}` : `${t('connectivityFailed')}: ${result.error ?? ''}` })
+      setOutcome({ ok: result.ok, text: result.ok ? `${t('connectivityOk')}${result.detail ? ` (${result.detail})` : ''}` : `${t('connectivityFailed')}: ${result.detail ?? ''}` })
     }
     catch (error) {
       setOutcome({ ok: false, text: `${t('connectivityFailed')}: ${String(error)}` })
@@ -146,7 +143,6 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     })
   }
 
-  /** Fill the form from pasted JSON (mcpServers wrapper, bare entry, dsh row). */
   const doPasteFill = (): void => {
     if (editor === null || pasteJson.trim() === '')
       return
@@ -155,8 +151,6 @@ export function McpTab({ t }: McpTabProps): ReactElement {
       setPasteError(parsed.error)
       return
     }
-    // Existing rows keep their identity (serverName + transport); a pasted
-    // config of the other transport cannot apply to them.
     const lockIdentity = editor.id !== ''
     if (lockIdentity && parsed.transport !== editor.transport) {
       setPasteError(t('pasteTransportMismatch'))
@@ -185,7 +179,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   const doSave = async (): Promise<void> => {
     if (editor === null)
       return
-    let input: Record<string, unknown>
+    let input: McpSaveBody
     if (editorMode === 'json') {
       const parsed = parseMcpJson(pasteJson)
       if ('error' in parsed) {
@@ -209,7 +203,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
         ...(editor.transport === 'stdio'
           ? {
               command: editor.command.trim(),
-              args: editor.args.split(/\r?\n/).map(line => line.trim()).filter(line => line !== ''),
+              args: compact(editor.args.split(/\r?\n/).map(line => line.trim())),
               env: parsePairs(editor.env, '='),
             }
           : {
@@ -222,7 +216,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
     setFormError(null)
     setPasteError(null)
     try {
-      await postMcpSave(input)
+      await postMcp(input)
       setEditor(null)
       setOutcome(null)
       reloadList(true)
@@ -255,7 +249,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
       return
     setBusy(true)
     try {
-      await postMcpRemove({ id: confirmId })
+      await deleteMcp({ id: confirmId })
       setOutcome(null)
       reloadList(true)
     }
@@ -271,9 +265,8 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   const doRestart = (): void => {
     setRestartConfirm(false)
     setRestarting(true)
-    void handlePostMcpRestart()
-    // 桌面模式：壳层重启完成后会重载窗口。独立模式：轮询本源，恢复即刷新。
-    if (isMcpDesktop())
+    void restartHost()
+    if (isDesktopHost())
       return
     const deadline = Date.now() + MCP_RESTART_TIMEOUT_MS
     const poll = (): void => {
@@ -296,8 +289,8 @@ export function McpTab({ t }: McpTabProps): ReactElement {
         <span>{restarting ? t('restarting') : t('restartNeeded')}</span>
         <span className="dshp-extension__banner-hint">
           {restarting
-            ? (!isMcpDesktop() && t('restartPortHint'))
-            : isMcpDesktop()
+            ? (!isDesktopHost() && t('restartPortHint'))
+            : isDesktopHost()
               ? (
                   <>
                     {t('restartDesktopHint')}
@@ -312,7 +305,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   )
 
   return (
-    <div className="dshp-extension__section">
+    <div className="dshp-extension__section" style={{ margin: '0' }}>
       <div className="dshp-extension__head">
         <Icon as={PlugConnection} />
         <h3>{t('mcpTitle')}</h3>
@@ -361,7 +354,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
                 {row.transport === 'stdio' ? `${row.command ?? ''} ${(row.args ?? []).join(' ')}` : row.url ?? ''}
               </p>
               {row.shadowed === true && <p className="dshp-extension__form-error">{t('shadowedByGlobal')}</p>}
-              {row.globalError !== undefined && <p className="dshp-extension__form-error">{row.globalError}</p>}
+              {globalError !== '' && <p className="dshp-extension__form-error">{globalError}</p>}
               <div className="dshp-extension__card-row">
                 <span className="dshp-extension__spacer" />
                 <Button variant="ghost" size="sm" disabled={busy || checking === row.id} onClick={() => void checkConnectivity(row)}>{checking === row.id ? t('checkRunning') : t('checkLabel')}</Button>

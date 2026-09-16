@@ -259,7 +259,7 @@ pub fn push_pet_session(app: AppHandle, action: String, session: Value) -> Resul
 
 /// DSH 宿主会话增量 SSE 流路径（与 packages/dsh-tauri-pet/src/index.ts 的
 /// SESSION_STREAM_PATH 保持一致）。
-const SESSION_STREAM_PATH: &str = "/api/dsh-pet/session-stream";
+const SESSION_STREAM_PATH: &str = "/api/desktop/dsh-tauri-pet/session/stream";
 
 /// 会话增量「动作 → 桌宠窗口事件名」映射（与 push_pet_session 共用）。
 fn session_event_of(action: &str) -> Option<&'static str> {
@@ -279,7 +279,7 @@ fn emit_pet_session(app: &AppHandle, action: &str, payload: &Value) {
     let _ = app.emit_to(pet_window::PET_WINDOW_LABEL, event, payload.clone());
 }
 
-/// 消费宿主会话增量 SSE 流：读取 `http://127.0.0.1:<port>/api/dsh-pet/session-stream`，
+/// 消费宿主会话增量 SSE 流：读取 `http://127.0.0.1:<port>/api/desktop/dsh-tauri-pet/session/stream`，
 /// 每个 `data:` 帧（`{"action":...,"payload":...}`）解析后经 emit_to 直达桌宠 WebView。
 ///
 /// 方案 1（host → rust → pet）：Rust 不再依赖 iframe 的 invoke 桥转发（#396 根因），

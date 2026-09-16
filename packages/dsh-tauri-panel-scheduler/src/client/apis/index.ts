@@ -1,55 +1,61 @@
-import type * as Types from './index.type'
-import { fetch } from 'dsh-tauri/client'
-import { API_PREFIX } from '../constants'
+/*
+ * @title dsh-tauri-panel-scheduler
+ * @swagger 2.0
+ * @version 0.0.0
+ */
 
-export const baseURL = API_PREFIX
+import type { FetchOptions } from "dsh-tauri/client";
+import { ofetch } from "dsh-tauri/client";
+import type * as Types from "./index.type";
 
-/** @method get 查询任务列表。 */
-export function getTasks(query?: Types.GetTasksQuery): Promise<Types.TasksResponse> {
-  return fetch(`${baseURL}/tasks${query?.search ? `?search=${encodeURIComponent(query.search)}` : ''}`)
+export const baseURL = "/api/desktop/dsh-tauri-panel-scheduler";
+
+/** @method get */
+export function getHistory(params?: Types.GetHistoryQuery, options?: FetchOptions) {
+  return ofetch<Types.RunListResponse>("/history", { baseURL, method: "get", params, ...options });
 }
 
-/** @method post 新建任务。 */
-export function postTasksCreate(body: Types.PostTasksCreateBody): Promise<Types.TaskActionResult> {
-  return fetch(`${baseURL}/tasks/create`, { method: 'POST', body })
+/** @method delete */
+export function deleteHistory(body: Types.IdBody, options?: FetchOptions) {
+  return ofetch<Types.ActionResult>("/history", { baseURL, method: "delete", body, ...options });
 }
 
-/** @method post 更新任务。 */
-export function postTasksUpdate(body: Types.PostTasksUpdateBody): Promise<Types.TaskActionResult> {
-  return fetch(`${baseURL}/tasks/update`, { method: 'POST', body: { id: body.id, ...body.input } })
+/** @method get */
+export function getOptions(options?: FetchOptions) {
+  return ofetch<Types.SchedulerOptions>("/options", { baseURL, method: "get", ...options });
 }
 
-/** @method post 暂停/恢复任务。 */
-export function postTasksToggle(body: Types.PostTasksToggleBody): Promise<Types.TaskActionResult> {
-  return fetch(`${baseURL}/tasks/toggle`, { method: 'POST', body })
+/** @method post */
+export function postRunsRecover(options?: FetchOptions) {
+  return ofetch<Types.ActionResult>("/runs/recover", { baseURL, method: "post", ...options });
 }
 
-/** @method post 删除任务。 */
-export function postTasksDelete(body: Types.PostIdBody): Promise<Types.SimpleActionResult> {
-  return fetch(`${baseURL}/tasks/delete`, { method: 'POST', body })
+/** @method get */
+export function getTasks(params?: Types.GetTasksQuery, options?: FetchOptions) {
+  return ofetch<Types.TaskListResponse>("/tasks", { baseURL, method: "get", params, ...options });
 }
 
-/** @method post 立即运行任务。 */
-export function postTasksRun(body: Types.PostIdBody): Promise<Types.SimpleActionResult> {
-  return fetch(`${baseURL}/tasks/run`, { method: 'POST', body })
+/** @method put */
+export function putTasks(body: Types.TaskUpdateBody, options?: FetchOptions) {
+  return ofetch<Types.TaskActionResult>("/tasks", { baseURL, method: "put", body, ...options });
 }
 
-/** @method get 查询执行记录。 */
-export function getHistory(query?: Types.GetHistoryQuery): Promise<Types.RunsResponse> {
-  return fetch(`${baseURL}/history${query?.taskId ? `?taskId=${encodeURIComponent(query.taskId)}` : ''}`)
+/** @method post */
+export function postTasks(body: Types.TaskCreateBody, options?: FetchOptions) {
+  return ofetch<Types.TaskActionResult>("/tasks", { baseURL, method: "post", body, ...options });
 }
 
-/** @method post 删除执行记录。 */
-export function postHistoryDelete(body: Types.PostIdBody): Promise<Types.SimpleActionResult> {
-  return fetch(`${baseURL}/history/delete`, { method: 'POST', body })
+/** @method delete */
+export function deleteTasks(body: Types.IdBody, options?: FetchOptions) {
+  return ofetch<Types.ActionResult>("/tasks", { baseURL, method: "delete", body, ...options });
 }
 
-/** @method get 查询面板选项。 */
-export function getOptions(): Promise<Types.SchedulerOptions> {
-  return fetch(`${baseURL}/options`)
+/** @method post */
+export function postTasksRun(body: Types.IdBody, options?: FetchOptions) {
+  return ofetch<Types.ActionResult>("/tasks/run", { baseURL, method: "post", body, ...options });
 }
 
-/** @method post 触发宿主自愈恢复。 */
-export function postRecover(): Promise<unknown> {
-  return fetch(`${baseURL}/recover`, { method: 'POST', body: {} })
+/** @method post */
+export function postTasksToggle(body: Types.TaskToggleBody, options?: FetchOptions) {
+  return ofetch<Types.TaskActionResult>("/tasks/toggle", { baseURL, method: "post", body, ...options });
 }

@@ -6,7 +6,7 @@
 ## 当前状态
 
 - 最后对照上游版本：`0.3.10`
-- 上游仓库路径：`source/dsh-automation`
+- 上游仓库路径：`source/dsh-plugin-capabilities`（`git submodule`，HEAD 与基线一致）
 - 上游 HEAD：`e5e3596`（`mcp: card actions align right and wrap as a block; compact labels (0.3.10)`）
 - 当前扩展版本：`0.6.7`
 - 本次同步 PR：[#413](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/pull/413)
@@ -55,7 +55,7 @@
 
 ## 有意保留的差异
 
-- 侧栏扩展继续使用自身 API 前缀 `/dsh-tauri-panel-extension/*`，不改为上游的 `/dsh-plugin-capabilities/*`。
+- 侧栏扩展的路由前缀随桌面统一为 `/api/desktop/dsh-tauri-panel-extension/*`，不改为上游的 `/dsh-plugin-capabilities/*`。
 - MCP 管理继续写入当前扩展约定的 profile / DSH home 路径。
 - 不移植上游设置页的“技能与 MCP”一级标题。
 - 不移植上游 Market（技能市场 / MCP 市场）模块。
@@ -64,17 +64,18 @@
 
 ## 后续同步流程
 
-1. 更新 `source/dsh-automation`：
+1. 更新 `source/dsh-plugin-capabilities`：
 
    ```sh
-   git -C source/dsh-automation fetch --all --tags
-   git -C source/dsh-automation pull --ff-only
+   git -C source/dsh-plugin-capabilities fetch --all --tags
    ```
+
+   （工作区 HEAD 停在已采纳基线 `e5e3596`，不要 `pull` / `checkout` 推进它。）
 
 2. 查看上次同步之后的提交：
 
    ```sh
-   git -C source/dsh-automation log --oneline e5e3596..HEAD
+   git -C source/dsh-plugin-capabilities log --oneline e5e3596..origin/main
    ```
 
 3. 重点对照：
