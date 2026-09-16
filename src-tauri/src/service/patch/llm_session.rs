@@ -1,32 +1,59 @@
-//! OpenCode Go 会话标识头补丁：让 pi-ai 适配器把当前会话 ID 发到 provider 请求头。
+//! OpenCode Go 会话标识头补丁（仅限 OpenCode 路由）。
 //!
-//! OpenCode Go 要求客户端为每段对话发送稳定的会话 ID，否则直接拒绝请求
-//! （`400 MissingSessionID`）；官方认可 Harness 原生头 `x-deepseek-harness-session-id`。
-//! 上游 `@deepseek-ai/dsh-llm-deepseek` 直连适配器已会发送该头，但 pi-ai 适配器的
-//! `requestHeaders(headers)` 把调用里的 `sessionId` 丢掉了，只有透传给 SDK、不落成头，
-//! 于是走 pi-ai 的 OpenCode Go 一律 400。本补丁把请求头生成改为接收并使用当前会话 ID，
-//! 与 DeepSeek 适配器及 OpenCode Go 识别的头对齐。
+//! OpenCode Go 要求客户端为每段对话发送稳定的会话 ID，缺失时请求被拒绝
+//! （`400 MissingSessionID`），它认可 Harness 原生头 `x-deepseek-harness-session-id`。
+//! 上游 `@deepseek-ai/dsh-llm-deepseek` 直连适配器已发送该头，但 pi-ai 适配器的
+//! `requestHeaders(headers)` 只把 `sessionId` 透传给 SDK、不写成请求头，因此走 pi-ai
+//! 的 OpenCode Go 请求全部失败。本补丁让 `requestHeaders` 接收并使用当前会话 ID。
 //!
-//! 幂等与容错：锚点是带 tab 的两处压缩产物片段；上游补上该头后第二处调用点会变化，
-//! 锚点缺失即安全跳过（`patch_dsh` 静默降级），不阻断启动。
+//! 作用范围限定为 OpenCode 路由：provider id 以 `opencode` 开头（内置 `opencode-go`
+//! 与 `opencode`），或其生效 baseURL 的主机为 `opencode.ai` 或 `*.opencode.ai`（自定义
+//! 路由显式指向 OpenCode 的情形）。其它 provider 的请求头逐字节不变；没有会话 ID 的
+//! 调用（例如模型发现）不发送该头。判定按 URL 主机名解析而非子串匹配，`opencode.ai`
+//! 之外的域名（包括 `opencode.ai.evil.com` 这类前缀伪装）不会被误判。
+//!
+//! 幂等与容错：目标已含补丁标记（包括上一发布版本注入的同一标记）或锚点缺失时
+//! `patch_dsh` 安全跳过、不回写文件，不阻断启动。补丁只改写打包内核中
+//! `dsh-llm-pi-ai` 的 `lib/index.js` 一个文件；内核升级重新解压后会在干净文件上重新
+//! 应用。已被上一发布版本改写过的内核保持原状，待核心重装或升级后自动切换到本版本。
 
 use crate::utils::{patch_dsh, PatchOutcome};
 
+/// 补丁标记：写入注入内容首行的注释，用于幂等判定。与上一发布版本保持一致，因此已经
+/// 被上一版补丁改写过的内核会命中该标记并跳过（保持原状，直到核心重装或升级）。
 const PATCH_MARKER: &str = "dsh-tauri-desktop: OpenCode Go session header";
 
 /// 相对活动核心安装目录的 pi-ai 适配器包内路径。
 const PI_AI_INDEX_JS: &str = "node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js";
 
-/// `requestHeaders` 定义：单参数 + 直接取 attribution。
+/// 原始 `requestHeaders` 定义：单参数、直接取 attribution。
 const HEADERS_ANCHOR: &str =
     "function requestHeaders(headers) {\n\tconst attribution = attributionHeaders();";
-/// 改为接收 `sessionId`，并把会话头并入 attribution（reserved 集合据此覆盖配置里的同名头）。
-const HEADERS_PATCHED: &str = "/* dsh-tauri-desktop: OpenCode Go session header */\nfunction requestHeaders(headers, sessionId) {\n\tconst attribution = {\n\t\t...attributionHeaders(),\n\t\t...sessionId === void 0 ? {} : { \"x-deepseek-harness-session-id\": String(sessionId) }\n\t};";
+/// 门控注入：新增 `isOpenCodeRoute` 判定，仅 OpenCode 路由把会话头并入 attribution。
+/// `reserved` 集合由 attribution 的键推导，因此命中路由上配置的同名头会被会话值覆盖；
+/// 未命中路由不含该键，配置里的同名头原样透传。
+const HEADERS_PATCHED: &str = r#"/* dsh-tauri-desktop: OpenCode Go session header */
+function isOpenCodeRoute(provider, baseURL) {
+	if (typeof provider === "string" && provider.toLowerCase().startsWith("opencode")) return true;
+	if (typeof baseURL !== "string") return false;
+	try {
+		const host = new URL(baseURL).hostname.toLowerCase();
+		return host === "opencode.ai" || host.endsWith(".opencode.ai");
+	} catch {
+		return false;
+	}
+}
+function requestHeaders(headers, sessionId, provider, baseURL) {
+	const attribution = {
+		...attributionHeaders(),
+		...(sessionId === void 0 || !isOpenCodeRoute(provider, baseURL) ? {} : { "x-deepseek-harness-session-id": String(sessionId) })
+	};"#;
 
-/// 适配器调用点：只透传 profile 配置头。
+/// 原始调用点：只透传 profile 配置头。
 const CALL_ANCHOR: &str = "headers: requestHeaders(profile.headers)";
-/// 把当前调用的 sessionId 一并传入。
-const CALL_PATCHED: &str = "headers: requestHeaders(profile.headers, options.sessionId)";
+/// 门控调用点：把路由 id 与生效 baseUrl 一并传入，供 `isOpenCodeRoute` 判定。
+const CALL_PATCHED: &str =
+    "headers: requestHeaders(profile.headers, options.sessionId, profile.provider, model.baseUrl)";
 
 fn patch_source(source: &str) -> PatchOutcome {
     if source.contains(PATCH_MARKER) {
@@ -51,19 +78,27 @@ pub fn apply(app_handle: &tauri::AppHandle) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// 最小可打补丁样本：保留两处锚点所需的精确形式，其余内容无关紧要。
     fn fixture() -> String {
-        format!("{HEADERS_ANCHOR}\n\tconst reserved = 1;\n\treturn headers;\n}}\n\t\t\t\t\t{CALL_ANCHOR}\n")
+        format!(
+            "{HEADERS_ANCHOR}\n\tconst reserved = new Set(Object.keys(attribution).map((name) => name.toLowerCase()));\n\treturn {{ ...headers }};\n}}\n\t\t\t\t\t{CALL_ANCHOR}\n"
+        )
     }
 
     #[test]
-    fn sends_session_header_and_passes_session_id() {
+    fn patches_pristine_source_with_scoped_injection() {
         let PatchOutcome::Patched(patched) = patch_source(&fixture()) else {
             panic!("expected patch")
         };
-        assert!(patched.contains("\"x-deepseek-harness-session-id\": String(sessionId)"));
-        assert!(patched.contains("function requestHeaders(headers, sessionId) {"));
-        assert!(patched.contains("requestHeaders(profile.headers, options.sessionId)"));
         assert!(patched.contains(PATCH_MARKER));
+        assert!(patched.contains("function isOpenCodeRoute(provider, baseURL)"));
+        assert!(patched.contains("provider.toLowerCase().startsWith(\"opencode\")"));
+        assert!(patched.contains("host === \"opencode.ai\" || host.endsWith(\".opencode.ai\")"));
+        assert!(patched.contains("!isOpenCodeRoute(provider, baseURL)"));
+        assert!(patched.contains(
+            "requestHeaders(profile.headers, options.sessionId, profile.provider, model.baseUrl)"
+        ));
+        assert!(!patched.contains(CALL_ANCHOR));
     }
 
     #[test]
