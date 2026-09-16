@@ -1,3 +1,7 @@
+import { PLUGIN_ID } from './constants'
+
+export { apply } from './apply'
+
 export * from './controller'
 
 export * from './hooks/use-invoke'
@@ -29,7 +33,7 @@ export type * from './types/harness'
 export type * from './types/iframe'
 export type * from './types/tauri'
 
-export const name = 'dsh-tauri'
+export const name = PLUGIN_ID
 
-// 纯库形态的客户端入口同样必须导出插件条目：DSH web loader 只接受函数或带 `apply` 的对象。
-export function apply(): void {}
+/** 客户端服务依赖：layout（侧边栏切换）。 */
+export const inject = ['layout']

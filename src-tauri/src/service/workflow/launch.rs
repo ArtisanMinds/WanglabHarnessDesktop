@@ -440,6 +440,14 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::service::patch::workspace::apply(&app_handle) {
         log::warn!("workspace worktree membership patch failed: {e}");
     }
+    // 0.1.6-alpha.1 起 dsh-client-ui-workspace 的浏览视图 store 去掉了
+    // `sessionUpdatedAtByAccount`（persist key 仍是 dsh.workspace.view.v5）：先跑过新核心
+    // 再切回 0.1.5-rc.1 / rc.2 时，旧核心的 retainAccountKeys 会
+    // Object.entries(undefined) 抛错，sidebar.workspaces 整条槽崩掉且不会自愈。
+    // 补丁把该 action 的三处取值放宽为 `?? {}`；锚点缺失（新核心已删字段）安全跳过。
+    if let Err(e) = crate::service::patch::workspace_view::apply(&app_handle) {
+        log::warn!("workspace view state patch failed: {e}");
+    }
     // 当前 DSH client-HMR 会卸载第三方插件却不重新挂载。debug 直接联接本地
     // 插件源码，故将 rebuilt 降级为自动刷新页面；release 保持上游行为。
     if let Err(e) = crate::service::patch::client_hmr::apply(&app_handle) {
