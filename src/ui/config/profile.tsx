@@ -272,6 +272,7 @@ export function ConfigProfile() {
                   <Checkbox
                     isSelected={profile.active}
                     isDisabled={busy}
+                    onChange={() => onActivate(profile.id)}
                     aria-label={profile.name}
                     className="shrink-0"
                   >
@@ -303,21 +304,20 @@ export function ConfigProfile() {
                   >
                     {t('profiles.clone')}
                   </Chip>
-                  <If cond={!profile.default}>
-                    <Chip
-                      className={`rounded-md${busy ? ' cursor-not-allowed opacity-50' : ' cursor-pointer'}`}
-                      variant="primary"
-                      color="danger"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        if (!busy)
-                          onRemove(profile.id)
-                      }}
-                    >
-                      {t('profiles.remove')}
-                    </Chip>
-                  </If>
+                  <Chip
+                    className={`rounded-md${profile.default || busy ? ' cursor-not-allowed opacity-50' : ' cursor-pointer'}`}
+                    variant={profile.default ? 'soft' : 'primary'}
+                    color={profile.default ? 'default' : 'danger'}
+                    size="sm"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (profile.default || busy)
+                        return
+                      onRemove(profile.id)
+                    }}
+                  >
+                    {t('profiles.remove')}
+                  </Chip>
                 </>
               )}
             />
