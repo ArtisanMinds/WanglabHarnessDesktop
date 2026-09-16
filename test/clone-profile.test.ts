@@ -39,7 +39,9 @@ describe('clone Chip + naming dialog in ConfigProfile', () => {
     const source = readFileSync(new URL('../src/ui/config/profile.tsx', import.meta.url), 'utf8')
 
     expect(source).toMatch(/profiles\.clone['"]/)
-    expect(source).toMatch(/cond=\{!profile\.default\}/)
+    // 删除按钮常驻所有行：默认档案渲染为灰色不可用，而非整体隐藏
+    expect(source).toMatch(/profiles\.remove['"]/)
+    expect(source).toMatch(/profile\.default \|\| busy \? ' cursor-not-allowed opacity-50'/)
     // Chip positioned before delete Chip
     const cloneIdx = source.indexOf('profiles.clone')
     const removeIdx = source.indexOf('profiles.remove')
