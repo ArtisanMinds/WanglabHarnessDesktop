@@ -369,6 +369,7 @@ export function ConfigCore() {
                       <Checkbox
                         isSelected={core.active}
                         isDisabled={busy}
+                        onChange={() => onActivate(core)}
                         aria-label={core.version || core.id}
                         className="shrink-0"
                       >
