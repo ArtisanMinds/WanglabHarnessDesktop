@@ -1,6 +1,6 @@
 import { PLUGIN_ID } from '../../shared/constants'
 
-export { SCHEDULER_API_PREFIX as API_PREFIX, PLUGIN_ID as PLUGIN_ID } from '../../shared/constants'
+export { PLUGIN_ID } from '../../shared/constants'
 
 export const PANEL_ID = PLUGIN_ID
 export const PANEL_ACTION_ORDER = 30

@@ -1,9 +1,10 @@
-import type { TaskInput } from '../../../types'
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { TaskActionResult, TaskCreateBody } from '../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
-import { task } from '../../../service/task'
+import { task } from '../../service/task'
 
-export default defineEventHandler(async (event) => {
-  const body = await readBody<TaskInput>(event)
+export default defineEventHandler<EventHandlerRequest, Promise<TaskActionResult>>(async (event) => {
+  const body = await readBody<TaskCreateBody>(event)
   if (body === undefined) {
     event.res.status = 400
     return { error: '请求体必须是对象' }

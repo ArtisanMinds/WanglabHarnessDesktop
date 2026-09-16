@@ -1,10 +1,10 @@
-import type { SCHEDULE_KINDS, WEEKDAYS } from '../../shared/constants'
+import type { SCHEDULE_KINDS } from '../../shared/constants'
 
 export type HostContext = any
 
 export type ScheduleKind = (typeof SCHEDULE_KINDS)[number]
 
-export type Weekday = (typeof WEEKDAYS)[number]
+export type Weekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
 
 export interface OnceSchedule {
   kind: 'once'
@@ -65,6 +65,16 @@ export type RunTrigger = 'schedule' | 'manual'
 
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'interrupted' | 'skipped' | 'cancelled'
 
+export type SchedulerScheduleInput
+  = | { kind: 'once', at: string, timeZone?: string }
+    | { kind: 'hourly', minute: number, timeZone?: string }
+    | { kind: 'daily', time: string, timeZone?: string }
+    | { kind: 'interval', everyMinutes: number, anchor?: string, timeZone?: string }
+    | { kind: 'workdays', time: string, timeZone?: string }
+    | { kind: 'weekly', weekdays: readonly Weekday[], time: string, timeZone?: string }
+    | { kind: 'monthly', day: number, time: string, timeZone?: string }
+    | { kind: 'custom', everyDays: number, anchor?: string, time: string, timeZone?: string }
+
 export interface SchedulerTask {
   id: string
   name: string
@@ -100,7 +110,7 @@ export interface SchedulerRun {
 
 export interface TaskInput {
   name: string
-  schedule: SchedulerSchedule
+  schedule: SchedulerScheduleInput
   prompt: string
   recommendationId?: string
   workspaceId?: string

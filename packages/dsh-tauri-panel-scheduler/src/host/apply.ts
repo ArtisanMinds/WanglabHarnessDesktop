@@ -1,11 +1,5 @@
 import type { HostContext } from './types'
-import {
-  SCHEDULER_RECOVER_EFFECT,
-  SCHEDULER_ROUTES_EFFECT,
-  SCHEDULER_RUNTIME_EFFECT,
-  SCHEDULER_TICK_EFFECT,
-  SCHEDULER_TICK_MS,
-} from './config/constants'
+import { PLUGIN_ID } from '../shared/constants'
 import { clearHostRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'
 import { recovery } from './service/recovery'
@@ -15,6 +9,16 @@ import { deleteTaskTool } from './tools/delete-task'
 import { listTasksTool } from './tools/list-tasks'
 import { runTaskTool } from './tools/run-task'
 import { toggleTaskTool } from './tools/toggle-task'
+
+const SCHEDULER_TICK_MS = 1_000
+
+const SCHEDULER_ROUTES_EFFECT = `${PLUGIN_ID}: routes`
+
+const SCHEDULER_RECOVER_EFFECT = `${PLUGIN_ID}: recover interrupted runs`
+
+const SCHEDULER_TICK_EFFECT = `${PLUGIN_ID}: tick`
+
+const SCHEDULER_RUNTIME_EFFECT = `${PLUGIN_ID}: host runtime`
 
 export interface Config {
   tickMs?: number

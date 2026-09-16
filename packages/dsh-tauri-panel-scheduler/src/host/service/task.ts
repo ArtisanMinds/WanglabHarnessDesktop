@@ -1,23 +1,39 @@
 import type { OperationResult, SchedulerSchedule, SchedulerTask, TaskInput } from '../types'
 import { randomUUID } from 'node:crypto'
 import { defineService } from 'dsh-tauri'
-import { defaults, isEmpty, isNil, isObject, omitBy, pick } from 'lodash-es'
-import { SCHEDULER_NAME_MAX_LENGTH, SCHEDULER_PROMPT_MAX_LENGTH } from '../config/constants'
+import { conformsTo, defaults, filter, find, findIndex, isArray, isBoolean, isEmpty, isNil, isObject, isString, omitBy, pick, reject } from 'lodash-es'
+import { withWriteQueue } from '../config/runtime'
+import { storage } from '../storage'
 import { localTimeZone, nextOccurrence, validateSchedule } from '../utils/schedule'
-import { tasks } from './tasks'
+
+const SCHEDULER_TASKS_KEY = 'tasks'
+
+const SCHEDULER_PROMPT_MAX_LENGTH = 64_000
+
+const SCHEDULER_NAME_MAX_LENGTH = 120
 
 export const task = defineService({
+  async list(search?: string): Promise<SchedulerTask[]> {
+    const all = await readAll()
+    const needle = search?.trim().toLowerCase() ?? ''
+    return needle === '' ? all : filter(all, item => item.name.toLowerCase().includes(needle))
+  },
+
+  async get(id: string): Promise<SchedulerTask | null> {
+    return find(await readAll(), { id }) ?? null
+  },
+
   async create(input: TaskInput): Promise<OperationResult<{ task: SchedulerTask }>> {
     const invalid = validateInput(input)
     if (invalid !== null)
       return { ok: false, error: invalid }
     const created = build(input)
-    await tasks.save(created)
+    await saveTask(created)
     return { ok: true, task: created }
   },
 
   async update(id: string, patch: Partial<TaskInput>): Promise<OperationResult<{ task: SchedulerTask }>> {
-    const current = await tasks.load(id)
+    const current = await findTask(id)
     if (current === null)
       return { ok: false, error: '任务不存在' }
     const merged = merge(current, patch)
@@ -25,12 +41,16 @@ export const task = defineService({
     if (invalid !== null)
       return { ok: false, error: invalid }
     const updated = { ...build(merged), id: current.id }
-    await tasks.save(updated)
+    await saveTask(updated)
     return { ok: true, task: updated }
   },
 
+  async remove(id: string): Promise<OperationResult> {
+    return await removeTask(id) ? { ok: true } : { ok: false, error: '任务不存在' }
+  },
+
   async toggle(id: string, enabled: boolean): Promise<OperationResult<{ task: SchedulerTask }>> {
-    const current = await tasks.load(id)
+    const current = await findTask(id)
     if (current === null)
       return { ok: false, error: '任务不存在' }
     const next: SchedulerTask = { ...current, enabled, updatedAt: new Date().toISOString() }
@@ -39,19 +59,15 @@ export const task = defineService({
       if (occurrence !== undefined)
         next.nextRunAt = new Date(occurrence).toISOString()
     }
-    await tasks.save(next)
+    await saveTask(next)
     return { ok: true, task: next }
   },
 
-  async remove(id: string): Promise<OperationResult> {
-    return await tasks.remove(id) ? { ok: true } : { ok: false, error: '任务不存在' }
-  },
-
-  async advance(id: string, lastRunAt: string | undefined, nextRunAt: string | undefined): Promise<void> {
-    const current = await tasks.load(id)
+  async advance(id: string, lastRunAt?: string, nextRunAt?: string): Promise<void> {
+    const current = await findTask(id)
     if (current === null)
       return
-    await tasks.save({
+    await saveTask({
       ...current,
       lastRunAt,
       nextRunAt,
@@ -61,6 +77,52 @@ export const task = defineService({
 })
 
 // --- internal ---
+
+async function readAll(): Promise<SchedulerTask[]> {
+  const raw = await storage.getItem<{ tasks?: unknown[] }>(SCHEDULER_TASKS_KEY)
+  return filter(isArray(raw?.tasks) ? raw.tasks : [], isTask)
+}
+
+async function findTask(id: string): Promise<SchedulerTask | null> {
+  return find(await readAll(), { id }) ?? null
+}
+
+async function saveTask(next: SchedulerTask): Promise<void> {
+  await withWriteQueue(async () => {
+    const all = await readAll()
+    const at = findIndex(all, { id: next.id })
+    if (at === -1)
+      all.push(next)
+    else
+      all[at] = next
+    await writeTasks(all)
+  })
+}
+
+async function removeTask(id: string): Promise<boolean> {
+  return withWriteQueue(async () => {
+    const all = await readAll()
+    const remaining = reject(all, { id })
+    if (remaining.length === all.length)
+      return false
+    await writeTasks(remaining)
+    return true
+  })
+}
+
+function isTask(value: unknown): value is SchedulerTask {
+  return conformsTo(value, {
+    id: isString,
+    name: isString,
+    prompt: isString,
+    enabled: isBoolean,
+    schedule: validateSchedule,
+  })
+}
+
+async function writeTasks(all: SchedulerTask[]): Promise<void> {
+  await storage.setItem(SCHEDULER_TASKS_KEY, `${JSON.stringify({ version: 1, tasks: all }, null, 2)}\n`)
+}
 
 const OPTIONAL_FIELDS = ['recommendationId', 'workspaceId', 'permission', 'provider', 'model', 'reasoningEffort'] as const
 

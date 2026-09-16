@@ -1,8 +1,10 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { ActionResult, IdBody } from '../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
-import { task } from '../../../service/task'
+import { task } from '../../service/task'
 
-export default defineEventHandler(async (event) => {
-  const body = await readBody<{ id?: unknown }>(event)
+export default defineEventHandler<EventHandlerRequest, Promise<ActionResult>>(async (event) => {
+  const body = await readBody<IdBody>(event)
   const id = typeof body?.id === 'string' ? body.id : ''
   if (id.length === 0) {
     event.res.status = 400

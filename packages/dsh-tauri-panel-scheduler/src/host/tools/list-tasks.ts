@@ -1,4 +1,4 @@
-import { tasks } from '../service/tasks'
+import { task } from '../service/task'
 import { textBlock } from '../utils/tool'
 
 export function listTasksTool(): any {
@@ -17,7 +17,7 @@ export function listTasksTool(): any {
       },
     },
     async execute() {
-      return { ok: true, tasks: await tasks.list() }
+      return { ok: true, tasks: await task.list() }
     },
   }
 }

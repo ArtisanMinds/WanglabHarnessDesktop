@@ -1,15 +1,15 @@
 import type { TaskInput } from '../types'
 import {
+  deleteHistory,
+  deleteTasks,
   getHistory,
   getOptions,
   getTasks,
-  postHistoryDelete,
-  postRecover,
-  postTasksCreate,
-  postTasksDelete,
+  postRunsRecover,
+  postTasks,
   postTasksRun,
   postTasksToggle,
-  postTasksUpdate,
+  putTasks,
 } from '../apis'
 import { store } from '../store'
 
@@ -37,7 +37,7 @@ export async function loadScheduler(withOptions = false): Promise<void> {
 
 export async function recoverScheduler(): Promise<{ ok: boolean, error?: string }> {
   try {
-    await postRecover()
+    await postRunsRecover()
   }
   catch (error) {
     return { ok: false, error: messageOf(error) }
@@ -47,7 +47,7 @@ export async function recoverScheduler(): Promise<{ ok: boolean, error?: string 
 }
 
 export async function createTask(input: TaskInput): Promise<{ ok: boolean, error?: string }> {
-  const result = await postTasksCreate(input)
+  const result = await postTasks(input)
   if (!result.ok)
     return { ok: false, error: result.error }
   await loadScheduler()
@@ -55,7 +55,7 @@ export async function createTask(input: TaskInput): Promise<{ ok: boolean, error
 }
 
 export async function updateTask(id: string, input: TaskInput): Promise<{ ok: boolean, error?: string }> {
-  const result = await postTasksUpdate({ id, input })
+  const result = await putTasks({ id, ...input })
   if (!result.ok)
     return { ok: false, error: result.error }
   await loadScheduler()
@@ -71,7 +71,7 @@ export async function toggleTask(id: string, enabled: boolean): Promise<{ ok: bo
 }
 
 export async function deleteTask(id: string): Promise<{ ok: boolean, error?: string }> {
-  const result = await postTasksDelete({ id })
+  const result = await deleteTasks({ id })
   if (!result.ok)
     return { ok: false, error: result.error }
   await loadScheduler()
@@ -87,7 +87,7 @@ export async function runTask(id: string): Promise<{ ok: boolean, error?: string
 }
 
 export async function deleteRun(id: string): Promise<{ ok: boolean, error?: string }> {
-  const result = await postHistoryDelete({ id })
+  const result = await deleteHistory({ id })
   if (!result.ok)
     return { ok: false, error: result.error }
   await loadScheduler()

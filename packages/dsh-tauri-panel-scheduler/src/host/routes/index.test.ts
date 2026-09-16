@@ -18,42 +18,39 @@ import type { AddressInfo } from 'node:net'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it } from 'vitest'
 import { routes } from '.'
-import { SCHEDULER_API_PREFIX as P } from '../../shared/constants'
+
+const P = '/api/desktop/dsh-tauri-panel-scheduler'
 
 const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
 /** 迁移后的路由表：10 条 (方法, 路径) 声明，逐条与迁移前的契约一一对应。 */
 const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['GET', `${P}/tasks`],
-  ['POST', `${P}/tasks/create`],
-  ['POST', `${P}/tasks/update`],
+  ['POST', `${P}/tasks`],
+  ['PUT', `${P}/tasks`],
+  ['DELETE', `${P}/tasks`],
   ['POST', `${P}/tasks/toggle`],
-  ['POST', `${P}/tasks/delete`],
   ['POST', `${P}/tasks/run`],
-  ['POST', `${P}/history/delete`],
   ['GET', `${P}/history`],
+  ['DELETE', `${P}/history`],
   ['GET', `${P}/options`],
-  ['POST', `${P}/recover`],
+  ['POST', `${P}/runs/recover`],
 ]
 
 const EXPECTED_PATHS: readonly string[] = [...new Set(EXPECTED_ROUTES.map(([, path]) => path))]
 
 /** 每条路径的 allow 头（规范顺序：GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS；声明 GET 即隐含 HEAD）。 */
 const ALLOW_BY_PATH: Readonly<Record<string, string>> = {
-  [`${P}/tasks`]: 'GET, HEAD, OPTIONS',
-  [`${P}/tasks/create`]: 'POST, OPTIONS',
-  [`${P}/tasks/update`]: 'POST, OPTIONS',
+  [`${P}/tasks`]: 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
   [`${P}/tasks/toggle`]: 'POST, OPTIONS',
-  [`${P}/tasks/delete`]: 'POST, OPTIONS',
   [`${P}/tasks/run`]: 'POST, OPTIONS',
-  [`${P}/history/delete`]: 'POST, OPTIONS',
-  [`${P}/history`]: 'GET, HEAD, OPTIONS',
+  [`${P}/history`]: 'GET, HEAD, DELETE, OPTIONS',
   [`${P}/options`]: 'GET, HEAD, OPTIONS',
-  [`${P}/recover`]: 'POST, OPTIONS',
+  [`${P}/runs/recover`]: 'POST, OPTIONS',
 }
 
-/** 所有路径都未声明 PUT，用于统一验证 405 + allow。 */
-const UNDECLARED_METHOD = 'PUT'
+/** 所有路径都未声明 PATCH，用于统一验证 405 + allow。 */
+const UNDECLARED_METHOD = 'PATCH'
 
 interface Harness {
   registered: Map<string, HostRoute>
@@ -107,9 +104,9 @@ async function listen(registered: Map<string, HostRoute>): Promise<string> {
 }
 
 /** 发一个 JSON 请求（body 为原始字符串，便于构造非法体）。 */
-function postJson(base: string, path: string, body: string): Promise<Response> {
+function sendJson(base: string, method: string, path: string, body: string): Promise<Response> {
   return fetch(`${base}${path}`, {
-    method: 'POST',
+    method,
     headers: { 'content-type': 'application/json' },
     body,
   })
@@ -132,7 +129,7 @@ describe('调度器路由声明', () => {
     expect([...harness.registered.keys()].sort())
       .toEqual(EXPECTED_PATHS.map(path => routeKey('exact', path)).sort())
     expect(EXPECTED_ROUTES).toHaveLength(10)
-    expect(harness.registered.size).toBe(10)
+    expect(harness.registered.size).toBe(EXPECTED_PATHS.length)
 
     dispose()
     expect(harness.registered.size).toBe(0)
@@ -159,7 +156,7 @@ describe('调度器路由声明', () => {
 
     const tasks = await fetch(`${base}${P}/tasks`, { method: 'OPTIONS' })
     expect(tasks.status).toBe(204)
-    expect(tasks.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
+    expect(tasks.headers.get('allow')).toBe('GET, HEAD, POST, PUT, DELETE, OPTIONS')
 
     const run = await fetch(`${base}${P}/tasks/run`, { method: 'OPTIONS' })
     expect(run.status).toBe(204)
@@ -173,21 +170,21 @@ describe('调度器路由声明', () => {
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
-    const cases: ReadonlyArray<readonly [string, string]> = [
-      [`${P}/tasks/update`, '缺少任务 id'],
-      [`${P}/tasks/toggle`, '缺少任务 id'],
-      [`${P}/tasks/delete`, '缺少任务 id'],
-      [`${P}/tasks/run`, '缺少任务 id'],
-      [`${P}/history/delete`, '缺少执行记录 id'],
+    const cases: ReadonlyArray<readonly [string, string, string]> = [
+      ['PUT', `${P}/tasks`, '缺少任务 id'],
+      ['DELETE', `${P}/tasks`, '缺少任务 id'],
+      ['POST', `${P}/tasks/toggle`, '缺少任务 id'],
+      ['POST', `${P}/tasks/run`, '缺少任务 id'],
+      ['DELETE', `${P}/history`, '缺少执行记录 id'],
     ]
-    for (const [path, error] of cases) {
-      const response = await postJson(base, path, '{}')
+    for (const [method, path, error] of cases) {
+      const response = await sendJson(base, method, path, '{}')
       expect(response.status, path).toBe(400)
       expect(await response.json(), path).toEqual({ error })
     }
 
     // id 类型不符（数字）同样按缺省处理，不被当作合法 id 放行。
-    const wrongType = await postJson(base, `${P}/tasks/delete`, JSON.stringify({ id: 42 }))
+    const wrongType = await sendJson(base, 'DELETE', `${P}/tasks`, JSON.stringify({ id: 42 }))
     expect(wrongType.status).toBe(400)
     expect(await wrongType.json()).toEqual({ error: '缺少任务 id' })
 
@@ -199,10 +196,10 @@ describe('调度器路由声明', () => {
     const dispose = mount(harness)
     const base = await listen(harness.registered)
 
-    const empty = await postJson(base, `${P}/tasks/create`, JSON.stringify({}))
+    const empty = await sendJson(base, 'POST', `${P}/tasks`, JSON.stringify({}))
     expect(empty.status).toBe(400)
 
-    const invalidJson = await postJson(base, `${P}/tasks/create`, 'not-json')
+    const invalidJson = await sendJson(base, 'POST', `${P}/tasks`, 'not-json')
     expect(invalidJson.status).toBe(400)
 
     dispose()

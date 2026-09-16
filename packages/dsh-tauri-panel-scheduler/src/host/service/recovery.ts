@@ -1,7 +1,8 @@
 import { defineService } from 'dsh-tauri'
 import { filter } from 'lodash-es'
-import { SCHEDULER_INTERRUPTED_ERROR } from '../config/constants'
 import { runs } from './runs'
+
+const SCHEDULER_INTERRUPTED_ERROR = 'host_interrupted'
 
 export const recovery = defineService({
   async recover(): Promise<void> {

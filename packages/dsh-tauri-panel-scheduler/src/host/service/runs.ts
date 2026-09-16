@@ -1,9 +1,12 @@
 import type { SchedulerRun } from '../types'
 import { defineService } from 'dsh-tauri'
 import { conformsTo, filter, find, findIndex, isArray, isString, orderBy, reject, takeRight } from 'lodash-es'
-import { SCHEDULER_RUNS_HISTORY_LIMIT, SCHEDULER_RUNS_KEY } from '../config/constants'
 import { withWriteQueue } from '../config/runtime'
 import { storage } from '../storage'
+
+const SCHEDULER_RUNS_KEY = 'runs'
+
+const SCHEDULER_RUNS_HISTORY_LIMIT = 200
 
 export const runs = defineService({
   async list(taskId?: string): Promise<SchedulerRun[]> {

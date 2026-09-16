@@ -1,12 +1,12 @@
 import type { OperationResult, SchedulerTask } from '../types'
 import { defineService } from 'dsh-tauri'
 import { filter, isEmpty, isNil, take } from 'lodash-es'
-import { SCHEDULER_MAX_CONCURRENT_RUNS } from '../config/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import { nextOccurrence } from '../utils/schedule'
 import { executor } from './executor'
 import { task } from './task'
-import { tasks } from './tasks'
+
+const SCHEDULER_MAX_CONCURRENT_RUNS = 4
 
 const running = new Set<string>()
 
@@ -21,7 +21,7 @@ export const scheduler = defineService({
   async trigger(id: string): Promise<OperationResult> {
     if (running.has(id))
       return { ok: false, error: '任务正在执行中' }
-    const target = await tasks.load(id)
+    const target = await task.get(id)
     if (target === null)
       return { ok: false, error: '任务不存在' }
     void fire(target, 'manual').catch((error: unknown) => warn('manual run failed', error))
@@ -29,7 +29,7 @@ export const scheduler = defineService({
   },
 
   async tick(): Promise<void> {
-    const all = await tasks.list()
+    const all = await task.list()
     if (isEmpty(all))
       return
     const now = Date.now()

@@ -1,25 +1,24 @@
 import { defineRoutes } from 'dsh-tauri'
-import { SCHEDULER_API_PREFIX } from '../../shared/constants'
-import historyDelete from './history/delete/post'
+import historyDelete from './history/delete'
 import history from './history/get'
 import options from './options/get'
-import recover from './recover/post'
-import tasksCreate from './tasks/create/post'
-import tasksDelete from './tasks/delete/post'
+import recover from './runs/recover/post'
+import tasksDelete from './tasks/delete'
 import tasks from './tasks/get'
+import tasksCreate from './tasks/post'
+import tasksUpdate from './tasks/put'
 import tasksRun from './tasks/run/post'
 import tasksToggle from './tasks/toggle/post'
-import tasksUpdate from './tasks/update/post'
 
 export const routes = defineRoutes((disposer) => {
-  disposer.get({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks` }, tasks)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/create` }, tasksCreate)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/update` }, tasksUpdate)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/toggle` }, tasksToggle)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/delete` }, tasksDelete)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/tasks/run` }, tasksRun)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/history/delete` }, historyDelete)
-  disposer.get({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/history` }, history)
-  disposer.get({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/options` }, options)
-  disposer.post({ kind: 'exact', path: `${SCHEDULER_API_PREFIX}/recover` }, recover)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasks)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasksCreate)
+  disposer.put({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasksUpdate)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasksDelete)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks/toggle' }, tasksToggle)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks/run' }, tasksRun)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/history' }, history)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/history' }, historyDelete)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/options' }, options)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/runs/recover' }, recover)
 })

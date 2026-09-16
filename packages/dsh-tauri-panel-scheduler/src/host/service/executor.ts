@@ -12,17 +12,20 @@ import process from 'node:process'
 import { defineService } from 'dsh-tauri'
 import { compact, filter, findLast, last, map } from 'lodash-es'
 import { join } from 'pathe'
-import {
-  SCHEDULER_AGENT_PRESET,
-  SCHEDULER_CANCEL_TIMEOUT_MS,
-  SCHEDULER_RUN_TIMEOUT_MS,
-  SCHEDULER_UNGROUPED_DIRECTORY,
-} from '../config/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import { loadSchedulerRuntimeModules, resolveSetupAgent } from '../utils/agent-runtime'
 import { applyUnattendedPermission } from '../utils/permission'
 import { schedulerSessionTitle } from '../utils/session-title'
+import { decideRunOutcome, waitForTurnStart } from './executor.utils'
 import { runs } from './runs'
+
+const SCHEDULER_RUN_TIMEOUT_MS = 30 * 60 * 1000
+
+const SCHEDULER_CANCEL_TIMEOUT_MS = 10_000
+
+const SCHEDULER_AGENT_PRESET = 'standard'
+
+const SCHEDULER_UNGROUPED_DIRECTORY = 'automations'
 
 interface ExecuteOutcome {
   ok: boolean
@@ -90,6 +93,8 @@ export const executor = defineService({
           source: { kind: 'scheduler', taskId: task.id, runId, scheduledFor },
         }))
 
+        const started = await waitForTurnStart(handle.agent.session, firstSeq)
+
         let timedOut = false
         const idle = handle.agent.whenIdle()
         const deadline = new Promise<void>((resolve) => {
@@ -109,12 +114,8 @@ export const executor = defineService({
           await (ctx.sessions as { flush: (session: unknown) => Promise<unknown> }).flush(handle.agent.session)
           const outcome = summarizeRun(handle.agent.session.events, firstSeq)
 
-          if (timedOut)
-            result = { status: 'failed', error: { code: 'timeout', message: '定时任务超过最大运行时限。' } }
-          else if (outcome.reason?.kind === 'completed')
-            result = { status: 'succeeded' }
-          else
-            result = { status: 'failed', error: describeFailure(outcome.reason) }
+          const decision = decideRunOutcome({ started, timedOut, reason: outcome.reason })
+          result = decision.error ? { status: 'failed', error: decision.error } : { status: 'succeeded' }
         }
       }
       finally {
@@ -247,18 +248,6 @@ async function settle(id: string, status: RunStatus, outcome: ExecuteOutcome): P
     error: outcome.error,
     sessionId: outcome.sessionId ?? current.sessionId,
   })
-}
-
-function describeFailure(reason: Record<string, any> | undefined): { code: string, message: string } {
-  if (!reason)
-    return { code: 'no_turn_result', message: '本次定时任务没有产生完整 turn。' }
-  if (reason.kind === 'error') {
-    return {
-      code: typeof reason.error?.code === 'string' ? reason.error.code : 'agent_error',
-      message: typeof reason.error?.message === 'string' ? reason.error.message : '定时任务 Agent 执行失败。',
-    }
-  }
-  return { code: `turn_${String(reason.kind)}`, message: `定时任务以 ${String(reason.kind)} 结束。` }
 }
 
 function summarizeRun(events: readonly SessionEventLike[], firstSeq: number): {
