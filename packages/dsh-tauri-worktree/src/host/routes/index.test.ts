@@ -9,9 +9,10 @@ import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routes } from '.'
 import { resetTestDshHome } from '../../../../.test/test-utils'
-import { WORKTREE_API_PREFIX as P } from '../../shared/constants'
 import { clearHostRuntime } from '../config/runtime'
 import { ledger } from '../service/ledger'
+
+const P = '/api/desktop/dsh-tauri-worktree'
 
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
@@ -25,16 +26,14 @@ const EXPECTED_PATHS: readonly string[] = [
   P,
   `${P}/bindings`,
   `${P}/status`,
-  `${P}/attach`,
-  `${P}/checkout`,
+  `${P}/checkouts`,
 ]
 
 const ALLOW_BY_PATH: Readonly<Record<string, string>> = {
   [P]: 'POST, DELETE, OPTIONS',
-  [`${P}/bindings`]: 'GET, HEAD, OPTIONS',
+  [`${P}/bindings`]: 'GET, HEAD, POST, OPTIONS',
   [`${P}/status`]: 'GET, HEAD, OPTIONS',
-  [`${P}/attach`]: 'POST, OPTIONS',
-  [`${P}/checkout`]: 'POST, OPTIONS',
+  [`${P}/checkouts`]: 'POST, OPTIONS',
 }
 
 const UNDECLARED_METHOD = 'PUT'
@@ -172,7 +171,7 @@ describe('工作树路由声明', () => {
     const dispose = routes(harness.ctx)
     const base = await listen(harness.registered)
 
-    for (const path of [P, `${P}/attach`]) {
+    for (const path of [P, `${P}/bindings`]) {
       const response = await sendJson(base, path, 'POST', '{}')
       expect(response.status, path).toBe(400)
       expect(await response.json(), path).toEqual({ error: '缺少 sessionId' })

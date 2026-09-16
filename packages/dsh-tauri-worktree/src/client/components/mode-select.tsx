@@ -104,11 +104,14 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
         if (!created.ok || !created.result)
           throw new Error(created.error ?? 'Failed to create worktree.')
         const result = created.result
+        const worktreePath = result.worktreePath
+        if (!worktreePath)
+          throw new Error('Failed to create worktree.')
         if (result.inherited) {
           await waitForSessionListed({ sessions: sessionsRuntime, sessionId: targetSessionId, wait })
         }
         else {
-          await sessionsRuntime.create({ cwd: result.worktreePath, sessionId: targetSessionId })
+          await sessionsRuntime.create({ cwd: worktreePath, sessionId: targetSessionId })
         }
         await attach({ sessionId: targetSessionId })
         const nextActions = await waitForInputActions({ sessions: sessionsRuntime, sessionId: targetSessionId, wait })

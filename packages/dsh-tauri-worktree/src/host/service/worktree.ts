@@ -12,7 +12,7 @@ import process from 'node:process'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { compact, filter, find, get, isEmpty, map, reject, some } from 'lodash-es'
 import { join, resolve } from 'pathe'
-import { LINK_DEPENDENCIES, TRASH_DIR, WORKTREE_BRANCH_NAME_PATTERN, WORKTREES_DIR } from '../config/constants'
+import { TRASH_DIR, WORKTREES_DIR } from '../config/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import {
   isDependencyInstallCommand,
@@ -37,6 +37,10 @@ import { computeHash, parseWorktreeKey, worktreeKey, worktreePath, worktreeTrash
 import { cleaner } from './cleaner'
 import { ledger } from './ledger'
 import { workspace } from './workspace'
+
+const WORKTREE_BRANCH_NAME_PATTERN = /^[\w./-]+$/
+
+const LINK_DEPENDENCIES = true
 
 export const worktree = defineService({
   async create(

@@ -1,6 +1,6 @@
 import { PLUGIN_ID } from '../../shared/constants'
 
-export { WORKTREE_API_PREFIX, PLUGIN_ID } from '../../shared/constants'
+export { PLUGIN_ID } from '../../shared/constants'
 
 export const INPUT_DOCK_SLOT = 'conversation.input.dock'
 export const SHELL_OVERLAY_SLOT = 'shell.overlay'

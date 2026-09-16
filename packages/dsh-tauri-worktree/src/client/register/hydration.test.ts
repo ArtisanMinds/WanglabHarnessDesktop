@@ -1,11 +1,13 @@
 import type { WorktreeBindings } from '../apis/index.type'
 import { createLifecycleController } from 'dsh-tauri/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DISCARD_POLL_DELAY_MS, HYDRATION_RETRY_BUDGET_PER_SECOND, HYDRATION_RETRY_WINDOW_MS, SESSION_RECONCILE_MIN_INTERVAL_MS, WORKTREE_API_PREFIX } from '../constants'
+import { DISCARD_POLL_DELAY_MS, HYDRATION_RETRY_BUDGET_PER_SECOND, HYDRATION_RETRY_WINDOW_MS, SESSION_RECONCILE_MIN_INTERVAL_MS } from '../constants'
 import { registerWorktreeHydration } from './hydration'
 
+const BASE_URL = '/api/desktop/dsh-tauri-worktree'
+
 const mocks = vi.hoisted(() => ({
-  fetch: vi.fn<(url: string, options?: { method?: string, body?: unknown }) => Promise<unknown>>(),
+  fetch: vi.fn<(url: string, options?: { method?: string, body?: unknown, baseURL?: string, params?: Record<string, string> }) => Promise<unknown>>(),
 }))
 
 vi.mock('dsh-tauri/client', async () => {
@@ -84,6 +86,7 @@ vi.mock('dsh-tauri/client', async () => {
 
   return {
     fetch: mocks.fetch,
+    ofetch: mocks.fetch,
     createStorage: () => ({ getItem: async () => null, setItem: async () => {} }),
     localStorageDriver: () => ({}),
     defineLocale: (namespace: string) => ({
@@ -190,14 +193,14 @@ function harness(
   const list = snapshotSource<{ ids: string[], current?: string }>({ ids, current })
   const workspaces = snapshotSource({ archivedSessionIds: [...(options.archived ?? [])] as string[] })
 
-  mocks.fetch.mockImplementation(async (url: string) => {
+  mocks.fetch.mockImplementation(async (url: string, request?: { params?: Record<string, string> }) => {
     const target = String(url)
     if (target.includes('/bindings'))
       return options.bindings ?? EMPTY_BINDINGS
-    const matched = /sessionId=([^&]+)/.exec(target)
-    if (!target.includes('/status') || !matched)
+    const sessionId = request?.params?.sessionId
+    if (!target.includes('/status') || typeof sessionId !== 'string')
       return { ok: true }
-    const payload = statusFor(decodeURIComponent(matched[1]))
+    const payload = statusFor(sessionId)
     if (options.holdStatus)
       await new Promise<void>((resolve) => { releaseHeld = resolve })
     return payload
@@ -241,7 +244,7 @@ function harness(
 
   const urls = (): string[] => mocks.fetch.mock.calls.map(call => String(call[0]))
   const deleteCalls = (): number => mocks.fetch.mock.calls
-    .filter(call => String(call[0]) === WORKTREE_API_PREFIX && call[1]?.method === 'DELETE')
+    .filter(call => call[1]?.baseURL === BASE_URL && call[1]?.method?.toUpperCase() === 'DELETE')
     .length
   const controller = createLifecycleController()
   registerWorktreeHydration(controller as never, ctx.sessions as never, ctx.workspaces as never)
@@ -266,10 +269,9 @@ function harness(
     discardCalls: deleteCalls,
     publishWorkspaces: () => workspaces.publish({ archivedSessionIds: [...(workspaces.getSnapshot().archivedSessionIds)] }),
     setArchived: (next: string[]) => workspaces.publish({ archivedSessionIds: [...next] }),
-    callsFor: (sessionId: string) => {
-      const pattern = new RegExp(`sessionId=${sessionId}(?:&|$)`)
-      return urls().filter(url => url.includes('/status') && pattern.test(url)).length
-    },
+    callsFor: (sessionId: string) => mocks.fetch.mock.calls
+      .filter(call => String(call[0]).includes('/status') && call[1]?.params?.sessionId === sessionId)
+      .length,
     subscribeCount: (sessionId: string) => subscribeCalls.get(sessionId) ?? 0,
     releaseStatus: () => {
       const release = releaseHeld

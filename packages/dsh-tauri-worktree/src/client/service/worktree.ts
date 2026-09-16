@@ -1,7 +1,7 @@
 import type { WorktreeStatus } from '../apis/index.type'
 import type { ActionResult, CheckoutOutcome, CreateOutcome, DiscardOutcome, DiscardProgress } from './worktree.types'
 import { get } from 'dsh-tauri/client'
-import { deleteDiscard, getStatus, postAttach, postCheckout, postCreate } from '../apis'
+import { deleteWorktree, getStatus, postBindings, postCheckouts, postWorktree } from '../apis'
 import { locale } from '../locales'
 import { store } from '../store'
 
@@ -24,7 +24,7 @@ export async function create(input: {
   inherit: boolean
 }): Promise<CreateOutcome> {
   try {
-    const created = await postCreate(input)
+    const created = await postWorktree(input)
     store.worktree.patch(input.sessionId, {
       mode: 'worktree',
       phase: 'created',
@@ -45,7 +45,7 @@ export async function create(input: {
 
 export async function attach(input: { sessionId: string }): Promise<ActionResult> {
   try {
-    await postAttach(input)
+    await postBindings(input)
     return { ok: true }
   }
   catch (error) {
@@ -59,7 +59,7 @@ export async function checkout(input: {
   branchName: string
 }): Promise<CheckoutOutcome> {
   try {
-    const result = await postCheckout({
+    const result = await postCheckouts({
       sessionId: input.sessionId,
       worktreeHashDirname: input.worktreeKey,
       branchName: input.branchName,
@@ -87,7 +87,7 @@ export async function discard(input: {
 }): Promise<DiscardOutcome> {
   store.worktree.patch(input.sessionId, { phase: 'deleting', abandonOpen: false, error: '' })
   try {
-    const result = await deleteDiscard({
+    const result = await deleteWorktree({
       sessionId: input.sessionId,
       worktreeHashDirname: input.worktreeKey,
     })

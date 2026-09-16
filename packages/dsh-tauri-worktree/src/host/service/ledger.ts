@@ -3,8 +3,9 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { compact, filter, isPlainObject } from 'lodash-es'
 import { join } from 'pathe'
-import { LEDGER_DIR } from '../config/constants'
 import { storage } from '../storage'
+
+const LEDGER_DIR = 'ledger'
 
 export const ledger = defineService({
   load(sessionId: string): Binding | null {

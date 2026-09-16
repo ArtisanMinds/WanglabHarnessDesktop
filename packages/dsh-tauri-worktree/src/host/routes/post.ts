@@ -1,16 +1,11 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { CreateBody, WorktreeCreate } from './index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { handoff } from '../service/handoff'
 import { sessionContext } from '../service/session-context'
 import { worktree } from '../service/worktree'
 
-interface CreateBody {
-  sessionId?: unknown
-  sourceSessionId?: unknown
-  carryStaged?: unknown
-  inherit?: unknown
-}
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<WorktreeCreate>>(async (event) => {
   const body = (await readBody<CreateBody>(event)) ?? {}
   const sessionId = String(body.sessionId ?? '')
   const sourceSessionId = String(body.sourceSessionId ?? sessionId)

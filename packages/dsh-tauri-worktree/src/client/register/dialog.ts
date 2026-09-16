@@ -2,7 +2,7 @@ import type { ClientContext } from 'dsh-tauri/client'
 import type { WorktreeDialogProps } from '../components/dialog.types'
 import { defineRegister } from 'dsh-tauri/client'
 import { WorktreeDialog } from '../components/dialog'
-import { DIALOG_ID, SHELL_OVERLAY_SLOT, PLUGIN_ID } from '../constants'
+import { DIALOG_ID, PLUGIN_ID, SHELL_OVERLAY_SLOT } from '../constants'
 
 export const dialogFeature = defineRegister<ClientContext>((controller, ctx, adapter) => {
   controller.add(ctx.slots.inject(SHELL_OVERLAY_SLOT, () =>

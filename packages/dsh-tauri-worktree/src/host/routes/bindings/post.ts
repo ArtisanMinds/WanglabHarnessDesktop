@@ -1,11 +1,9 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { AttachBody, WorktreeAttach } from '../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { workspace } from '../../service/workspace'
 
-interface AttachBody {
-  sessionId?: unknown
-}
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<WorktreeAttach>>(async (event) => {
   const body = (await readBody<AttachBody>(event)) ?? {}
   const sessionId = String(body.sessionId ?? '')
   if (!sessionId) {

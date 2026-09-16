@@ -2,8 +2,9 @@ import type { CheckoutContext } from '../types'
 import { readFileSync } from 'node:fs'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { join } from 'pathe'
-import { CHECKOUT_CONTEXT_DIR } from '../config/constants'
 import { storage } from '../storage'
+
+const CHECKOUT_CONTEXT_DIR = 'checkout-context'
 
 export const checkoutContext = defineService({
   load(sessionId: string): CheckoutContext | null {

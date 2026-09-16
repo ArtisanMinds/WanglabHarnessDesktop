@@ -1,6 +1,6 @@
 import type { WorktreeNewSessionMode } from '../store/modules/worktree.types'
 import { createStorage, get, localStorageDriver } from 'dsh-tauri/client'
-import { PREFERRED_MODE_STORAGE_KEY, PLUGIN_ID } from '../constants'
+import { PLUGIN_ID, PREFERRED_MODE_STORAGE_KEY } from '../constants'
 import { store } from '../store'
 
 const storage = createStorage({ driver: localStorageDriver({ base: PLUGIN_ID }) })

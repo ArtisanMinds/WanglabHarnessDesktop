@@ -1,9 +1,11 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { WorktreeBindings } from '../index.types'
 import { existsSync } from 'node:fs'
 import { defineEventHandler } from 'dsh-tauri'
 import { cleaner } from '../../service/cleaner'
 import { ledger } from '../../service/ledger'
 
-export default defineEventHandler(async () => ({
+export default defineEventHandler<EventHandlerRequest, Promise<WorktreeBindings>>(async () => ({
   bindings: ledger.list()
     .filter(binding => binding.worktreePath && existsSync(binding.worktreePath))
     .map(binding => ({

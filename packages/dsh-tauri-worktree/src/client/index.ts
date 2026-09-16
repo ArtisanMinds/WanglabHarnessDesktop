@@ -4,11 +4,11 @@ import {
   HYDRATION_EFFECT,
   LOCALE_EFFECT,
   MODE_SELECT_EFFECT,
+  PLUGIN_ID,
   PREFERENCES_EFFECT,
   SESSION_ICONS_EFFECT,
   STYLES_EFFECT,
   SURFACE_EFFECT,
-  PLUGIN_ID,
 } from './constants'
 import { locale } from './locales'
 import { dialogFeature } from './register/dialog'
@@ -19,7 +19,6 @@ import { sessionIconsFeature } from './register/session-icons'
 import { stylesFeature } from './register/styles'
 import { surfaceFeature } from './register/surface'
 
-export { WORKTREE_API_PREFIX } from '../shared/constants'
 export type * from './apis/index.type'
 export type * from './store/modules/worktree.types'
 

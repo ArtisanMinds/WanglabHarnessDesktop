@@ -1,12 +1,9 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { DiscardBody, WorktreeDiscard } from './index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { worktree } from '../service/worktree'
 
-interface DiscardBody {
-  sessionId?: unknown
-  worktreeHashDirname?: unknown
-}
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<WorktreeDiscard>>(async (event) => {
   const body = (await readBody<DiscardBody>(event, { type: 'json' })) ?? {}
   const result = await worktree.discard(
     String(body.sessionId ?? ''),

@@ -2,7 +2,12 @@ import type { DiscardJob, OperationResult } from '../types'
 import { randomUUID } from 'node:crypto'
 import { defineService } from 'dsh-tauri'
 import { filter, find, findLast, get, take } from 'lodash-es'
-import { DISCARD_JOB_RETENTION, DISCARD_RETRY_ATTEMPTS, DISCARD_RETRY_DELAY_MS } from '../config/constants'
+
+const DISCARD_JOB_RETENTION = 64
+
+const DISCARD_RETRY_ATTEMPTS = 3
+
+const DISCARD_RETRY_DELAY_MS = 2_000
 
 const jobs = new Map<string, DiscardJob>()
 const inFlight = new Map<string, Promise<DiscardJob>>()

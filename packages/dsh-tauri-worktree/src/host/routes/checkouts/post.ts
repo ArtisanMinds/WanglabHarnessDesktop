@@ -1,14 +1,9 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { CheckoutBody, WorktreeCheckout } from '../index.types'
 import { defineEventHandler, readBody } from 'dsh-tauri'
 import { handoff } from '../../service/handoff'
 
-interface CheckoutBody {
-  sessionId?: unknown
-  worktreeHashDirname?: unknown
-  branchName?: unknown
-  carryStaged?: unknown
-}
-
-export default defineEventHandler(async (event) => {
+export default defineEventHandler<EventHandlerRequest, Promise<WorktreeCheckout>>(async (event) => {
   const body = (await readBody<CheckoutBody>(event)) ?? {}
   const result = await handoff.checkout(
     String(body.sessionId ?? ''),

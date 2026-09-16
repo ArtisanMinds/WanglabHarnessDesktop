@@ -1,8 +1,10 @@
+import type { EventHandlerRequest } from 'dsh-tauri'
+import type { GetStatusQuery, WorktreeStatus } from '../index.types'
 import { defineEventHandler, getQuery } from 'dsh-tauri'
 import { status } from '../../service/status'
 
-export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
+export default defineEventHandler<EventHandlerRequest, Promise<WorktreeStatus>>(async (event) => {
+  const query = getQuery<GetStatusQuery>(event)
   const sessionId = typeof query.sessionId === 'string' ? query.sessionId : ''
   const jobId = typeof query.jobId === 'string' ? query.jobId : ''
   const facts = await status.resolve(sessionId, jobId)
