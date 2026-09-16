@@ -32,6 +32,9 @@ export default defineConfig({
       'test/patch-layer.test.ts',
       // issue #539：旧版 WebKit 缺全局 Iterator 导致插件加载失败，壳层兼容垫片回归。
       'test/compat-iterator.test.ts',
+      // 桌宠素材响应头：GitHub 对中文动画名回 `content-disposition`，插件版 fetch 会因
+      // 非 ISO-8859-1 抛错并静默不落 IndexedDB（pnpm patch 过滤该头，这里锁住契约）。
+      'test/pet-asset-headers.test.ts',
     ],
     maxWorkers: 4,
     testTimeout: 30_000,
