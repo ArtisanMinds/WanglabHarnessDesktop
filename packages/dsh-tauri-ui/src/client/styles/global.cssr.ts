@@ -47,6 +47,6 @@ export default c([
     }),
     c('[class$="brand"]', {
       display: 'none !important',
-    })
+    }),
   ]),
 ])
