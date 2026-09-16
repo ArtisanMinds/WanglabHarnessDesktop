@@ -67,7 +67,6 @@ Plugins propios incluidos con el instalador:
 - [DSH Tauri](https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri) — provee el canal de comunicación con el shell Tauri 2
 - [DSH Tauri UI](https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-ui) — provee una barra lateral de ajustes personalizada para el shell Tauri 2
 - [DSH Tauri Worktree](https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-worktree) — crea un Git worktree aislado por sesión, con checkout a rama local o flujos de archivar-y-abandonar
-- [DSH Tauri Panel](https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-panel) — shell de barra lateral: fila de logo compacta, área de paneles (New Session + ítems de terceros vía `sidebar.panel.action`) y el servicio `panel.protocol`
 - [DSH Tauri Panel Extension](https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-panel-extension) — gestión de Skills y MCP con importación de repositorios de skills
 - [DSH Tauri Panel Scheduler](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/tree/main/packages/dsh-tauri-panel-scheduler) — crea tareas programadas diarias, por intervalo, días hábiles y semanales; las ejecuta en sesiones Agent independientes y conserva el historial
 - [DSH Tauri Turn Rewind](https://github.com/dsh-tauri-desk/deepseek-harness-desktop/tree/main/packages/dsh-tauri-turnrewind) — registra snapshots Git privados por turno del Agent, muestra tarjetas de cambios y revierte un turno de forma segura con protección de conflictos
@@ -88,7 +87,7 @@ brew install dsh-tauri-desk/desktop/deepseek-harness
 
 El primer arranque descarga el runtime de Node y el núcleo Harness (si `dsh` ya está instalado, se usa la versión instalada), y te lleva directo al harness en `http://127.0.0.1:3080`; después todo corre local, sin red.
 
-**Requisitos:** Windows 10+ · macOS 10.15+ · Linux (AppImage / .deb) · red en el primer arranque
+**Requisitos:** Windows 10+ · macOS 10.15+ · Linux (AppImage / .deb) · red en el primer arranque · núcleo Harness **0.1.5-rc.1** o superior
 
 > **Nota Wayland en Linux (PikaOS / GNOME Wayland / Ubuntu 22.04+):** el AppImage puede crashear o verse negro en Wayland por WebKitGTK; la app corrige sola el caso común. <details><summary>Si igual crashea / se ve negro:</summary><br>**Preferí el `.deb`** (verificado en PikaOS 4 Wayland), o ejecutá a mano `WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 ./AppImage`. Si no aparecen los iconos, copiá los iconos `hicolor` de la app a `~/.local/share/icons` y ejecutá `update-desktop-database`.<br></details>
 
