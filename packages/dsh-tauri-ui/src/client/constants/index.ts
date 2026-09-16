@@ -32,7 +32,7 @@ export const TURN_NAVIGATION_NARROW_SELECTOR = `[data-sidebar-collapsed] ${TURN_
 
 export const SETTINGS_TRIGGER_PRIORITY = -1
 
-export const SETTINGS_UNDERLAY_SLOT_KEYS = ['sidebar', 'conversation', 'details'] as const
+export const SETTINGS_UNDERLAY_SLOT_KEYS = ['sidebar', 'main', 'rightbar'] as const
 export const SETTINGS_EXTERNAL_OVERLAY_SELECTORS = ['[data-dsh-better-sidebar]', '[data-dsh-panel]'] as const
 export const SIDEBAR_WIDTH_PROPERTY = '--dsh-sidebar-width'
 
