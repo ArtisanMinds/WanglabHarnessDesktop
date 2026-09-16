@@ -67,6 +67,8 @@ interface FakeHost {
   listenerCount: (name: string) => number
   emitEvent: (session: unknown, event: unknown) => void
   emitDisposed: (session: unknown) => void
+  /** 发一帧 agent-scoped 活体助手流帧（`agent/assistant-stream` 的 chunk 帧）。 */
+  emitAssistantStream: (session: unknown, chunk: unknown) => void
   /** 启动真实 http server 并接入一个 SSE 消费者。 */
   connect: () => Promise<SseConnection>
 }
@@ -161,6 +163,10 @@ function createHost(options: FakeHostOptions = {}): FakeHost {
     emitDisposed: (session) => {
       for (const handler of listeners.get('session/disposed') ?? [])
         handler(session)
+    },
+    emitAssistantStream: (session, chunk) => {
+      for (const handler of listeners.get('agent/assistant-stream') ?? [])
+        handler({ agent: { session }, frame: { type: 'chunk', attemptId: 'a1', revision: 1, index: 0, time: 0, chunk } })
     },
     connect: async () => {
       const server = createServer((request, response) => {
@@ -318,6 +324,7 @@ describe('pet host apply()', () => {
     await connection.disconnect()
     await waitUntil(() => host.listenerCount('session/event') === 0, '断开后注销监听')
     expect(host.listenerCount('session/disposed')).toBe(0)
+    expect(host.listenerCount('agent/assistant-stream')).toBe(0)
 
     // 断开期间的会话事件不再产生任何工作（也不读标题）。
     host.emitEvent(session, chunk(1))
@@ -346,6 +353,48 @@ describe('pet host apply()', () => {
     expect(last.action).toBe('update')
     expect(last.payload).toMatchObject({ id: 's1', title: '新标题', displayTitle: '新标题' })
     expect(host.titleLookups()).toBe(1)
+  })
+
+  it('活体助手流帧（agent/assistant-stream）折叠成 reasoning 展示态并下发（0.1.6 起流式增量不再是会话事件）', async () => {
+    const host = createHost()
+    apply(host.ctx)
+    const connection = await host.connect()
+    const session = { id: 's1' }
+
+    expect(host.listenerCount('agent/assistant-stream')).toBe(1)
+    host.emitEvent(session, { type: 'turn/start', seq: 0, time: 0, data: {} })
+    host.emitAssistantStream(session, { type: 'reasoning-delta', index: 0, text: '正在想' })
+
+    const frame = await connection.waitFor(
+      () => connection.payloads.find(item => (item.payload.liveActivity as { kind?: string } | undefined)?.kind === 'reasoning'),
+      'reasoning 活体帧',
+    )
+    expect(frame.action).toBe('update')
+    expect(frame.payload).toMatchObject({ id: 's1', workStatus: 'thinking' })
+    expect(frame.payload.liveActivity).toMatchObject({ kind: 'reasoning', text: '正在想' })
+  })
+
+  it('活动帧里的非流式增量（text-delta / 空 chunk）不逐 token 转发', async () => {
+    const host = createHost()
+    apply(host.ctx)
+    const connection = await host.connect()
+    const session = { id: 's1' }
+
+    host.emitEvent(session, { type: 'turn/start', seq: 0, time: 0, data: {} })
+    // 等 turn/start 的 update 帧真的被读到再取基线（帧到达是异步的）。
+    await connection.waitFor(
+      () => connection.payloads.find(item => item.payload.workStatus === 'thinking'),
+      'turn/start 帧',
+    )
+    const before = connection.payloads.length
+    host.emitAssistantStream(session, { type: 'text-delta', index: 0, text: '正文' })
+    host.emitAssistantStream(session, { type: 'usage', usage: { totalTokens: 1 } })
+    host.emitAssistantStream(session, undefined)
+    host.emitAssistantStream(session, null)
+
+    // 静默一小段时间确认没有新帧（正文只累积到 message，不逐 token 转发）。
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(connection.payloads.length).toBe(before)
   })
 
   it('心跳：接入即刷一帧注释，并按 SSE_KEEPALIVE_MS 周期续心跳、断开时清除', async () => {

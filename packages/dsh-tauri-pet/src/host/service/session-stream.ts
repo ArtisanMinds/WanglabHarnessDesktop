@@ -12,12 +12,12 @@ import {
 import { createPetSessionReducer } from './session-stream.utils'
 
 /**
- * service/session-stream.ts — 桌宠会话增量投影：订阅宿主会话总线，经 reducer 投影成
- * 桌宠展示态后广播给所有已接入的 SSE 消费者。
+ * service/session-stream.ts — 桌宠会话增量投影：订阅宿主会话总线 + 活体助手流帧，经 reducer
+ * 投影成桌宠展示态后广播给所有已接入的 SSE 消费者。
  *
  * 消费模型（性能约定）：**没有消费者就没有监听**。桌宠停用/隐藏后 Rust 会主动断开订阅，
- * 宿主侧最后一个消费者断开时注销 `session/event` + `session/disposed` + `agent/status`
- * 并丢弃累计态；下次有消费者接入再挂载。
+ * 宿主侧最后一个消费者断开时注销 `session/event` + `session/disposed` + `agent/status` +
+ * `agent/assistant-stream` 并丢弃累计态；下次有消费者接入再挂载。
  */
 
 /** 会话总线 → 展示态帧的累计态机器（per-session Map 由 reducer 闭包持有）。 */
@@ -68,10 +68,13 @@ function attachSessionBus(): void {
   const disposeDisposed = ctx.on('session/disposed', handleSessionDisposed) as () => void
   // idle 兜底与 session/event 同生命周期：没有消费者时同样不订阅（热路径彻底退出）。
   const disposeStatus = ctx.on('agent/status', handleAgentStatus) as () => void
+  // 活体流式帧：0.1.6 起流式增量只在这条 agent-scoped 通知上，是「思考 · …」的唯一来源。
+  const disposeFrame = ctx.on('agent/assistant-stream', handleAssistantStream) as () => void
   setSessionBusDispose(() => {
     disposeEvent()
     disposeDisposed()
     disposeStatus()
+    disposeFrame()
     titleService = undefined
     projections = undefined
   })
@@ -199,4 +202,36 @@ function handleAgentStatus(payload: unknown): void {
   if (typeof id !== 'string' || id.length === 0)
     return
   reducer.idle(id)
+}
+
+/** 帧路径的占位事件：只借它走同一套 id/peer 推导（流式帧本身不是会话事件）。 */
+const FRAME_EVENT: PetSessionEvent = { type: '', seq: 0, time: 0, data: {} }
+
+/**
+ * 活体助手流帧（`agent/assistant-stream`，载荷 `{ agent, frame }`）。
+ *
+ * `frame.type === 'chunk'` 时 `frame.chunk` 就是模型原始 StreamChunk
+ * （`reasoning-delta` / `text-delta` / …），与核心 0.1.6 之前 `assistant/chunk` 事件的
+ * `data.chunk` 同形，因此直接喂给 reducer 的 `chunk()`。
+ *
+ * 【为什么必须订阅】0.1.6 起逐 token 增量不再是会话事件：`assistant/attempt` 只在流结束时
+ * 落日志（带整段紧凑 stream），活体增量只在这条 agent-scoped 通知上。只订阅 `session/event`
+ * 时 reasoning 恒为空，气泡在整个思考阶段只能显示兜底文案（「正在分析」）。
+ */
+function handleAssistantStream(payload: unknown): void {
+  const event = payload as { agent?: { session?: unknown }, frame?: { type?: unknown, chunk?: unknown } } | undefined
+  const chunk = event?.frame?.chunk
+  if (event?.frame?.type !== 'chunk' || chunk === undefined || chunk === null)
+    return
+  const session = event.agent?.session
+  const id = sessionIdOf(session, FRAME_EVENT)
+  if (!id)
+    return
+  // 首次出现的会话在这里建档（带上 origin/title 身份，子代理仍然只靠 origin 静默）；
+  // 已建档的热路径只传 id —— 逐 token 帧不得再走 peerOf（投影标题解析）。
+  if (!knownSessions.has(id)) {
+    knownSessions.add(id)
+    reducer.create(peerOf(session, FRAME_EVENT, titleOnFirstSight))
+  }
+  reducer.chunk({ id }, chunk)
 }
