@@ -8,7 +8,7 @@ import {
   SESSION_ICONS_EFFECT,
   STYLES_EFFECT,
   SURFACE_EFFECT,
-  WORKTREE_PLUGIN_NAME,
+  PLUGIN_ID,
 } from './constants'
 import { locale } from './locales'
 import { dialogFeature } from './register/dialog'
@@ -23,7 +23,7 @@ export { WORKTREE_API_PREFIX } from '../shared/constants'
 export type * from './apis/index.type'
 export type * from './store/modules/worktree.types'
 
-export const name = WORKTREE_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 export const inject = ['slots', 'layout', 'locale', 'sessions', 'workspaces']
 

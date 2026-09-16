@@ -1,5 +1,5 @@
 import type { ClientContext } from 'dsh-tauri/client'
-import { PET_PLUGIN_NAME } from '../shared/constants'
+import { PLUGIN_ID } from '../shared/constants'
 import {
   PET_ICON_PATCH_EFFECT,
   PET_LOCALE_EFFECT,
@@ -14,7 +14,7 @@ import { sidebarIconFeature } from './register/sidebar-icon'
 import { stylesFeature } from './register/styles'
 
 /** 插件显示名（诊断元数据）。 */
-export const name = PET_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 /** 需要的客户端服务：slots（槽位注册）、locale（双语文案）、sessions/workspaces（新建会话）。 */
 export const inject = ['slots', 'locale', 'sessions', 'workspaces']

@@ -7,7 +7,7 @@
  *
  * ```ts
  * // locales/index.ts
- * export const locale = defineLocale(PLUGIN_NAME, { zh: {...}, en: {...} })
+ * export const locale = defineLocale(PLUGIN_ID, { zh: {...}, en: {...} })
  * export const { NS } = locale
  *
  * // index.ts（二选一，副作用都必须由 controller / effect 托管）

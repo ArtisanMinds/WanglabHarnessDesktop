@@ -1,4 +1,4 @@
-export const RIGHTCLICK_PLUGIN_NAME = 'dsh-tauri-rightclick'
+export const PLUGIN_ID = 'dsh-tauri-rightclick'
 
 export const RIGHTCLICK_API_PREFIX = '/api/dsh-rightclick-menu'
 

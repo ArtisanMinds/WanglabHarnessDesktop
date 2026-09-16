@@ -1,4 +1,4 @@
-import { SCHEDULER_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
 export const SCHEDULER_TASKS_KEY = 'tasks'
 export const SCHEDULER_RUNS_KEY = 'runs'
@@ -13,7 +13,7 @@ export const SCHEDULER_AGENT_PRESET = 'standard'
 export const SCHEDULER_UNGROUPED_DIRECTORY = 'automations'
 export const SCHEDULER_INTERRUPTED_ERROR = 'host_interrupted'
 
-export const SCHEDULER_ROUTES_EFFECT = `${SCHEDULER_PLUGIN_NAME}: routes`
-export const SCHEDULER_RECOVER_EFFECT = `${SCHEDULER_PLUGIN_NAME}: recover interrupted runs`
-export const SCHEDULER_TICK_EFFECT = `${SCHEDULER_PLUGIN_NAME}: tick`
-export const SCHEDULER_RUNTIME_EFFECT = `${SCHEDULER_PLUGIN_NAME}: host runtime`
+export const SCHEDULER_ROUTES_EFFECT = `${PLUGIN_ID}: routes`
+export const SCHEDULER_RECOVER_EFFECT = `${PLUGIN_ID}: recover interrupted runs`
+export const SCHEDULER_TICK_EFFECT = `${PLUGIN_ID}: tick`
+export const SCHEDULER_RUNTIME_EFFECT = `${PLUGIN_ID}: host runtime`

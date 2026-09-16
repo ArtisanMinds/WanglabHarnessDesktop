@@ -10,9 +10,9 @@
  * 该服务必须进 inject，否则 cordis 在请求期抛 `cannot get property without inject`）。
  */
 
-import { TURNREWIND_API_PREFIX, TURNREWIND_PLUGIN_NAME } from './shared/constants'
+import { TURNREWIND_API_PREFIX, PLUGIN_ID } from './shared/constants'
 
-export const name = TURNREWIND_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 export const inject = ['webServer', 'sessions', 'agents', 'connection']
 

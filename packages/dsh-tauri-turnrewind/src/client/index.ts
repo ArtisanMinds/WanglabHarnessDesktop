@@ -11,7 +11,7 @@
 import type { ClientContext } from 'dsh-tauri/client'
 import {
   TURNREWIND_LOCALE_EFFECT,
-  TURNREWIND_PLUGIN_NAME,
+  PLUGIN_ID,
   TURNREWIND_RUNNING_CHIP_EFFECT,
   TURNREWIND_SUMMARY_EFFECT,
   TURNREWIND_TURN_TAIL_EFFECT,
@@ -24,7 +24,7 @@ import { turnTailFeature } from './register/turn-tail'
 export type * from './types'
 
 /** 插件显示名（诊断元数据）。 */
-export const name = TURNREWIND_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 /** 需要的客户端服务：slots（槽位注册）、locale（双语文案）。 */
 export const inject = ['slots', 'locale']

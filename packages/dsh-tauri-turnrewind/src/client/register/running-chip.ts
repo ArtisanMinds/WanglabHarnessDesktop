@@ -10,7 +10,7 @@ import { defineRegister } from 'dsh-tauri/client'
 import { RunningChangesChip } from '../components/running-changes-chip'
 import {
   TURNREWIND_INPUT_DOCK_SLOT,
-  TURNREWIND_PLUGIN_NAME,
+  PLUGIN_ID,
   TURNREWIND_RUNNING_CHIP_ID,
   TURNREWIND_RUNNING_CHIP_ORDER,
 } from '../constants'
@@ -24,7 +24,7 @@ export const runningChipFeature = defineRegister<ClientContext>((controller, ctx
           name: TURNREWIND_INPUT_DOCK_SLOT,
           id: TURNREWIND_RUNNING_CHIP_ID,
           order: TURNREWIND_RUNNING_CHIP_ORDER,
-          registrant: TURNREWIND_PLUGIN_NAME,
+          registrant: PLUGIN_ID,
           inject: (sessionId?: string) => ({ sessionId }),
         } as never,
         RunningChangesChip as never,

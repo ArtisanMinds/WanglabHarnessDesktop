@@ -6,7 +6,7 @@
  */
 
 /** 插件名（诊断元数据、locale 命名空间与注册标识）。 */
-export const PET_PLUGIN_NAME = 'dsh-tauri-pet'
+export const PLUGIN_ID = 'dsh-tauri-pet'
 
 /** 桌宠会话增量 SSE 流路径（Rust 按 `http://127.0.0.1:<DSH_WEB_PORT>` + 此路径订阅）。 */
 export const SESSION_STREAM_PATH = '/api/dsh-pet/session-stream'

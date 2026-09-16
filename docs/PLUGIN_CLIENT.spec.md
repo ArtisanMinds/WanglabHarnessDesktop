@@ -115,7 +115,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 
 ### 7. 依赖与本地化 (`locales/`, 依赖关系)
 
-* 使用 `defineLocale(PLUGIN_NAME, { zh, en })` 声明语言包，通过 `ctx.effect(locale.registerLocale, LOCALE_EFFECT)` 安装。
+* 使用 `defineLocale(PLUGIN_ID, { zh, en })` 声明语言包，通过 `ctx.effect(locale.registerLocale, LOCALE_EFFECT)` 安装。
 * 禁止自建 locale store、`let activeLocale` 或在 DOM 选择器中使用文案[cite: 1]。通用动词直接复用 `common` 命名空间。
 * **依赖隔离**：第三方库（`unstorage` / `ofetch` / `valtio-define` / `@reause/core` / `lodash-es`）统一由 `dsh-tauri/client` 转出，严禁插件直接 import；需要白名单外的 `lodash-es` 方法时，先补进 `packages/dsh-tauri/src/client/modules/lodash-es.ts`。
 

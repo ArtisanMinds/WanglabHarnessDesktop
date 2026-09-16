@@ -5,7 +5,7 @@
  */
 
 import type { HostContext } from './types'
-import { TURNREWIND_PLUGIN_NAME } from '../shared/constants'
+import { PLUGIN_ID } from '../shared/constants'
 import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance } from './config/runtime'
 import { handleAgentStatus } from './events/agent-status'
 import { handlePreStep } from './events/pre-step'
@@ -23,7 +23,7 @@ export function apply(ctx: HostContext): void {
   ctx.on('agent/status', handleAgentStatus)
   ctx.on('session/disposed', handleSessionDisposed)
 
-  ctx.effect(() => routes(ctx), `${TURNREWIND_PLUGIN_NAME}: routes`)
-  ctx.effect(() => () => capture.dispose(), `${TURNREWIND_PLUGIN_NAME}: turn capture`)
-  ctx.effect(() => () => clearHostRuntime(), `${TURNREWIND_PLUGIN_NAME}: host runtime`)
+  ctx.effect(() => routes(ctx), `${PLUGIN_ID}: routes`)
+  ctx.effect(() => () => capture.dispose(), `${PLUGIN_ID}: turn capture`)
+  ctx.effect(() => () => clearHostRuntime(), `${PLUGIN_ID}: host runtime`)
 }

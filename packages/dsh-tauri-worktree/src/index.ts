@@ -1,6 +1,6 @@
-import { WORKTREE_API_PREFIX, WORKTREE_PLUGIN_NAME } from './shared/constants'
+import { WORKTREE_API_PREFIX, PLUGIN_ID } from './shared/constants'
 
-export const name = WORKTREE_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 export const inject = ['tools', 'systemPrompt', 'webServer', 'sessions', 'workspaceRegistry', 'agents', 'connection']
 

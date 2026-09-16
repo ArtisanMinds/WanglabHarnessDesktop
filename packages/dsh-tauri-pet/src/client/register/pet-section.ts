@@ -1,6 +1,6 @@
 import type { ClientContext } from 'dsh-tauri/client'
 import { defineRegister } from 'dsh-tauri/client'
-import { PET_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { PetSettings } from '../components/pet-settings'
 import { PET_SECTION_ID, PET_SECTION_ORDER } from '../constants'
 import { locale } from '../locales'
@@ -12,7 +12,7 @@ export const petSectionFeature = defineRegister<ClientContext>((controller, ctx,
     name: 'settings.section',
     id: PET_SECTION_ID,
     order: PET_SECTION_ORDER,
-    registrant: PET_PLUGIN_NAME,
+    registrant: PLUGIN_ID,
     label: () => locale.text('name'),
     inject: () => ({ onCreate: (close?: () => void) => createPetSession({ adapter, close }) }),
   } as never, PetSettings as never)))

@@ -1,5 +1,5 @@
 import { defineLocale } from 'dsh-tauri/client'
-import { SESSION_PLUGIN_NAME } from '../constants'
+import { PLUGIN_ID } from '../constants'
 
 const zh = {
   section: '归档',
@@ -75,4 +75,4 @@ const en: Record<keyof typeof zh, string> = {
   openFailed: 'Failed to open directory: {reason}',
 }
 
-export const locale = defineLocale(SESSION_PLUGIN_NAME, { zh, en })
+export const locale = defineLocale(PLUGIN_ID, { zh, en })

@@ -6,7 +6,7 @@
  */
 
 import {
-  TURNREWIND_PLUGIN_NAME,
+  PLUGIN_ID,
   TURNREWIND_REASON_EXPIRED,
   TURNREWIND_REASON_GIT_REQUIRED,
   TURNREWIND_REASON_GIT_UNAVAILABLE,
@@ -19,7 +19,7 @@ import {
 export const SNAPSHOT_REF_PREFIX = 'refs/turnrewind'
 
 /** 每个工作区私有快照仓与每会话账本的存放目录（DSH_HOME 下）。 */
-export const SNAPSHOT_FEATURE_DIR = TURNREWIND_PLUGIN_NAME
+export const SNAPSHOT_FEATURE_DIR = PLUGIN_ID
 
 /** 账本子目录（`$DSH_HOME/<feature>/sessions`）。 */
 export const LEDGER_SUBDIR = 'sessions'

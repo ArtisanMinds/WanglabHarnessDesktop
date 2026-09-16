@@ -1,18 +1,18 @@
-import { SESSION_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
-export { SESSION_API_PREFIX, SESSION_PLUGIN_NAME, SESSION_SECTION_ORDER } from '../../shared/constants'
+export { SESSION_API_PREFIX, PLUGIN_ID, SESSION_SECTION_ORDER } from '../../shared/constants'
 
 export const SETTINGS_SECTION_SLOT = 'settings.section'
-export const SESSION_REGISTRANT = SESSION_PLUGIN_NAME
-export const SESSION_SECTION_ID = `${SESSION_PLUGIN_NAME}-archive`
+export const SESSION_REGISTRANT = PLUGIN_ID
+export const SESSION_SECTION_ID = `${PLUGIN_ID}-archive`
 
-export const SESSION_STYLE_ID = `${SESSION_PLUGIN_NAME}-styles`
-export const SESSION_MENU_STYLE_ID = `${SESSION_PLUGIN_NAME}-menu-styles`
+export const SESSION_STYLE_ID = `${PLUGIN_ID}-styles`
+export const SESSION_MENU_STYLE_ID = `${PLUGIN_ID}-menu-styles`
 
-export const LOCALE_EFFECT = `${SESSION_PLUGIN_NAME}: locale`
-export const STYLES_EFFECT = `${SESSION_PLUGIN_NAME}: styles`
-export const ARCHIVE_SECTION_EFFECT = `${SESSION_PLUGIN_NAME}: archive section`
-export const WORKSPACE_PATCH_EFFECT = `${SESSION_PLUGIN_NAME}: workspace archive patch`
+export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
+export const STYLES_EFFECT = `${PLUGIN_ID}: styles`
+export const ARCHIVE_SECTION_EFFECT = `${PLUGIN_ID}: archive section`
+export const WORKSPACE_PATCH_EFFECT = `${PLUGIN_ID}: workspace archive patch`
 
 export const ARCHIVE_RESYNC_TIMEOUT_MS = 2_000
 export const SIDEBAR_ATTACH_POLL_MS = 500

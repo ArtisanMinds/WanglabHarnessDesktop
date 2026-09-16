@@ -8,7 +8,7 @@
 
 import type { LocaleKey } from '../types'
 import { defineLocale } from 'dsh-tauri/client'
-import { TURNREWIND_PLUGIN_NAME } from '../constants'
+import { PLUGIN_ID } from '../constants'
 
 /** zh 字典（键集合的权威）。 */
 const zh = {
@@ -66,4 +66,4 @@ const en: Record<LocaleKey, string> = {
   openFile: 'Open {name}',
 }
 
-export const locale = defineLocale(TURNREWIND_PLUGIN_NAME, { zh, en })
+export const locale = defineLocale(PLUGIN_ID, { zh, en })

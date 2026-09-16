@@ -14,7 +14,7 @@ import type { ClientContext } from 'dsh-tauri/client'
 import { defineRegister } from 'dsh-tauri/client'
 import { TurnChangesCard } from '../components/turn-changes-card'
 import {
-  TURNREWIND_PLUGIN_NAME,
+  PLUGIN_ID,
   TURNREWIND_TURN_TAIL_PRIORITY,
   TURNREWIND_TURN_TAIL_SLOT,
 } from '../constants'
@@ -32,7 +32,7 @@ export const turnTailFeature = defineRegister<ClientContext>((controller, ctx) =
       ctx.slots.register(
         {
           name: TURNREWIND_TURN_TAIL_SLOT,
-          registrant: TURNREWIND_PLUGIN_NAME,
+          registrant: PLUGIN_ID,
           priority: TURNREWIND_TURN_TAIL_PRIORITY,
           select: (owner: TurnTailOwnerLike) => ({ turn: owner?.turn?.turn ?? 0 }),
           inject: (sessionId?: string) => ({ sessionId, capabilities: readCapabilities(ctx) }),

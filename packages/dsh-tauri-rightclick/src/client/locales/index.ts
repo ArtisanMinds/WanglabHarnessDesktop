@@ -1,5 +1,5 @@
 import { defineLocale } from 'dsh-tauri/client'
-import { RIGHTCLICK_PLUGIN_NAME } from '../constants'
+import { PLUGIN_ID } from '../constants'
 
 const zh = {
   renameSession: '重命名会话',
@@ -133,4 +133,4 @@ const en: Record<keyof typeof zh, string> = {
   editPositionUnknown: 'Could not determine the editing position',
 }
 
-export const locale = defineLocale(RIGHTCLICK_PLUGIN_NAME, { zh, en })
+export const locale = defineLocale(PLUGIN_ID, { zh, en })

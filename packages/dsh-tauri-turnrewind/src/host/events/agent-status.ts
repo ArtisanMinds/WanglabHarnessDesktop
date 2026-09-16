@@ -1,4 +1,4 @@
-import { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { capture } from '../service/capture'
 
 /**
@@ -13,6 +13,6 @@ export function handleAgentStatus(payload: any): void {
     return
   capture.resetLive(sessionId)
   void capture.settleIdle(sessionId).catch((error: unknown) => {
-    console.warn(`${TURNREWIND_PLUGIN_NAME}: idle settle failed: ${String(error)}`)
+    console.warn(`${PLUGIN_ID}: idle settle failed: ${String(error)}`)
   })
 }

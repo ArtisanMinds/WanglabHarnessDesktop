@@ -1,6 +1,6 @@
 import type { OperationResult } from '../types'
 import { defineService, openDirectory, openUrl } from 'dsh-tauri'
-import { RIGHTCLICK_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import { mutationQueue } from './mutation-queue'
 
@@ -37,7 +37,7 @@ export const opener = defineService({
 
 function warn(message: string, error: unknown): void {
   try {
-    getCurrentHostInstance().logger?.warn?.(`[${RIGHTCLICK_PLUGIN_NAME}] ${message}:`, error)
+    getCurrentHostInstance().logger?.warn?.(`[${PLUGIN_ID}] ${message}:`, error)
   }
   catch {}
 }

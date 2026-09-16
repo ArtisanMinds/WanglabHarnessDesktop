@@ -6,7 +6,7 @@
  */
 
 /** 插件名（诊断元数据 / registrant / storage key 前缀）。 */
-export const SCHEDULER_PLUGIN_NAME = 'dsh-tauri-panel-scheduler'
+export const PLUGIN_ID = 'dsh-tauri-panel-scheduler'
 
 /** HTTP 路由前缀（host route + client rpc 同源 fetch）。 */
 export const SCHEDULER_API_PREFIX = '/api/dsh-scheduler'

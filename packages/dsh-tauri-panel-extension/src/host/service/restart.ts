@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import process from 'node:process'
 import { defineService } from 'dsh-tauri'
 import { dirname, resolve } from 'pathe'
-import { PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { RESTART_KILL_DELAY_MS } from '../config/constants'
 
 export const restart = defineService({
@@ -34,7 +34,7 @@ function scheduleRestart(
   launch: ReturnType<typeof dshLaunch>,
 ): { pid: number, replacementPid: number | undefined, logOut: string } {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  const logOut = `${tmpdir()}${tmpdir().endsWith('/') ? '' : '\\'}${PLUGIN_NAME}-restart-${stamp}.out.log`
+  const logOut = `${tmpdir()}${tmpdir().endsWith('/') ? '' : '\\'}${PLUGIN_ID}-restart-${stamp}.out.log`
   const logErr = logOut.replace('.out.log', '.err.log')
   const child = spawn(launch.file, launch.args, {
     cwd: launch.cwd,

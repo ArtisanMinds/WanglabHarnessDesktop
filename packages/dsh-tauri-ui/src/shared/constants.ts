@@ -1,1 +1,1 @@
-export const PLUGIN_NAME = 'dsh-tauri-ui'
+export const PLUGIN_ID = 'dsh-tauri-ui'

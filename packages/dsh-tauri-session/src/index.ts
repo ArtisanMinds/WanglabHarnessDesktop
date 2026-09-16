@@ -1,6 +1,6 @@
-import { SESSION_API_PREFIX, SESSION_PLUGIN_NAME } from './shared/constants'
+import { SESSION_API_PREFIX, PLUGIN_ID } from './shared/constants'
 
-export const name = SESSION_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 export const inject = ['webServer', 'sessions', 'workspaceRegistry', 'connection']
 

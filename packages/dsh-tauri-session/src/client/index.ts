@@ -2,7 +2,7 @@ import type { ClientContext } from 'dsh-tauri/client'
 import {
   ARCHIVE_SECTION_EFFECT,
   LOCALE_EFFECT,
-  SESSION_PLUGIN_NAME,
+  PLUGIN_ID,
   STYLES_EFFECT,
   WORKSPACE_PATCH_EFFECT,
 } from './constants'
@@ -11,7 +11,7 @@ import { archiveSectionFeature } from './register/archive-section'
 import { stylesFeature } from './register/styles'
 import { workspacePatchFeature } from './register/workspace-patch'
 
-export const name = SESSION_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 export const inject = ['slots', 'locale', 'sessions', 'workspaces']
 

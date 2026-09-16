@@ -2,9 +2,9 @@
  * client/constants/index.ts — 客户端静态常量（跨 half 协议常量见 shared/constants.ts）。
  */
 
-import { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
-export { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+export { PLUGIN_ID } from '../../shared/constants'
 
 /**
  * 完成一轮对话的尾部槽位（chain 型）。
@@ -24,22 +24,22 @@ export const TURNREWIND_TURN_TAIL_PRIORITY = -1
  */
 export const TURNREWIND_INPUT_DOCK_SLOT = 'conversation.input.dock'
 
-export const TURNREWIND_RUNNING_CHIP_ID = `${TURNREWIND_PLUGIN_NAME}-running-changes`
+export const TURNREWIND_RUNNING_CHIP_ID = `${PLUGIN_ID}-running-changes`
 export const TURNREWIND_RUNNING_CHIP_ORDER = -30
 
 /** 运行中提示条的客户端轮询间隔；宿主端另有 1.5s 的 git 刷新节奏。 */
 export const TURNREWIND_LIVE_POLL_INTERVAL_MS = 1200
 
 /** 卡片与提示条的 css-render style id。 */
-export const TURNREWIND_CARD_STYLE_ID = `${TURNREWIND_PLUGIN_NAME}/TurnChangesCard.module.css`
-export const TURNREWIND_CHIP_STYLE_ID = `${TURNREWIND_PLUGIN_NAME}/RunningChangesChip.module.css`
-export const TURNREWIND_COUNTS_STYLE_ID = `${TURNREWIND_PLUGIN_NAME}/ChangeCounts.module.css`
+export const TURNREWIND_CARD_STYLE_ID = `${PLUGIN_ID}/TurnChangesCard.module.css`
+export const TURNREWIND_CHIP_STYLE_ID = `${PLUGIN_ID}/RunningChangesChip.module.css`
+export const TURNREWIND_COUNTS_STYLE_ID = `${PLUGIN_ID}/ChangeCounts.module.css`
 
 /** effect 标签（诊断/日志）。 */
-export const TURNREWIND_LOCALE_EFFECT = `${TURNREWIND_PLUGIN_NAME}: locale`
-export const TURNREWIND_SUMMARY_EFFECT = `${TURNREWIND_PLUGIN_NAME}: summary retry`
-export const TURNREWIND_TURN_TAIL_EFFECT = `${TURNREWIND_PLUGIN_NAME}: turn tail`
-export const TURNREWIND_RUNNING_CHIP_EFFECT = `${TURNREWIND_PLUGIN_NAME}: running chip`
+export const TURNREWIND_LOCALE_EFFECT = `${PLUGIN_ID}: locale`
+export const TURNREWIND_SUMMARY_EFFECT = `${PLUGIN_ID}: summary retry`
+export const TURNREWIND_TURN_TAIL_EFFECT = `${PLUGIN_ID}: turn tail`
+export const TURNREWIND_RUNNING_CHIP_EFFECT = `${PLUGIN_ID}: running chip`
 
 /**
  * 「应用内右侧边栏」服务名（新内核由 `dsh-client-ui-sidebar-right` 发布）。

@@ -1,9 +1,9 @@
 import type { WorktreeNewSessionMode } from '../store/modules/worktree.types'
 import { createStorage, get, localStorageDriver } from 'dsh-tauri/client'
-import { PREFERRED_MODE_STORAGE_KEY, WORKTREE_PLUGIN_NAME } from '../constants'
+import { PREFERRED_MODE_STORAGE_KEY, PLUGIN_ID } from '../constants'
 import { store } from '../store'
 
-const storage = createStorage({ driver: localStorageDriver({ base: WORKTREE_PLUGIN_NAME }) })
+const storage = createStorage({ driver: localStorageDriver({ base: PLUGIN_ID }) })
 
 export async function loadPreferredMode(): Promise<WorktreeNewSessionMode> {
   if (store.preferences.hydrated)

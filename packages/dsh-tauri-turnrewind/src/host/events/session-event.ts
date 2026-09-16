@@ -1,4 +1,4 @@
-import { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { capture } from '../service/capture'
 
 /**
@@ -13,6 +13,6 @@ export function handleSessionEvent(session: any, event: any): void {
     return
   capture.resetLive(session.id, turn)
   void capture.settle(session.id, turn).catch((error: unknown) => {
-    console.warn(`${TURNREWIND_PLUGIN_NAME}: settle turn failed: ${String(error)}`)
+    console.warn(`${PLUGIN_ID}: settle turn failed: ${String(error)}`)
   })
 }

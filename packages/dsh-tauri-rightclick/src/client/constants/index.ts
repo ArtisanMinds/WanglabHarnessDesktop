@@ -1,17 +1,17 @@
-import { RIGHTCLICK_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
 export {
   OPEN_PATH_ROUTE,
   OPEN_URL_ROUTE,
   RIGHTCLICK_API_PREFIX,
-  RIGHTCLICK_PLUGIN_NAME,
+  PLUGIN_ID,
 } from '../../shared/constants'
 
-export const LOCALE_EFFECT = `${RIGHTCLICK_PLUGIN_NAME}: locale`
-export const STYLES_EFFECT = `${RIGHTCLICK_PLUGIN_NAME}: styles`
-export const CONTEXT_MENU_EFFECT = `${RIGHTCLICK_PLUGIN_NAME}: context menu`
+export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
+export const STYLES_EFFECT = `${PLUGIN_ID}: styles`
+export const CONTEXT_MENU_EFFECT = `${PLUGIN_ID}: context menu`
 
-export const MENU_STYLE_ID = `${RIGHTCLICK_PLUGIN_NAME}-menu-styles`
+export const MENU_STYLE_ID = `${PLUGIN_ID}-menu-styles`
 
 export const MENU_BLOCK = 'dshp-menu'
 export const MENU_ITEM_CLASS = `${MENU_BLOCK}__item`

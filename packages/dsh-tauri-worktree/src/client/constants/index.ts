@@ -1,23 +1,23 @@
-import { WORKTREE_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
-export { WORKTREE_API_PREFIX, WORKTREE_PLUGIN_NAME } from '../../shared/constants'
+export { WORKTREE_API_PREFIX, PLUGIN_ID } from '../../shared/constants'
 
 export const INPUT_DOCK_SLOT = 'conversation.input.dock'
 export const SHELL_OVERLAY_SLOT = 'shell.overlay'
-export const MODE_SELECT_ID = `${WORKTREE_PLUGIN_NAME}-mode`
+export const MODE_SELECT_ID = `${PLUGIN_ID}-mode`
 export const MODE_SELECT_ORDER = -20
-export const SURFACE_ID = `${WORKTREE_PLUGIN_NAME}-surface`
+export const SURFACE_ID = `${PLUGIN_ID}-surface`
 export const SURFACE_ORDER = -10
-export const DIALOG_ID = `${WORKTREE_PLUGIN_NAME}-dialog`
+export const DIALOG_ID = `${PLUGIN_ID}-dialog`
 
-export const STYLES_EFFECT = `${WORKTREE_PLUGIN_NAME}: styles`
-export const LOCALE_EFFECT = `${WORKTREE_PLUGIN_NAME}: locale`
-export const PREFERENCES_EFFECT = `${WORKTREE_PLUGIN_NAME}: preferred mode`
-export const MODE_SELECT_EFFECT = `${WORKTREE_PLUGIN_NAME}: mode select slot`
-export const SURFACE_EFFECT = `${WORKTREE_PLUGIN_NAME}: surface slot`
-export const DIALOG_EFFECT = `${WORKTREE_PLUGIN_NAME}: dialog`
-export const HYDRATION_EFFECT = `${WORKTREE_PLUGIN_NAME}: hydrate session bindings`
-export const SESSION_ICONS_EFFECT = `${WORKTREE_PLUGIN_NAME}: session branch icons`
+export const STYLES_EFFECT = `${PLUGIN_ID}: styles`
+export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
+export const PREFERENCES_EFFECT = `${PLUGIN_ID}: preferred mode`
+export const MODE_SELECT_EFFECT = `${PLUGIN_ID}: mode select slot`
+export const SURFACE_EFFECT = `${PLUGIN_ID}: surface slot`
+export const DIALOG_EFFECT = `${PLUGIN_ID}: dialog`
+export const HYDRATION_EFFECT = `${PLUGIN_ID}: hydrate session bindings`
+export const SESSION_ICONS_EFFECT = `${PLUGIN_ID}: session branch icons`
 
 export const SESSION_SWITCH_RETRY_DELAY_MS = 100
 export const SESSION_SWITCH_MAX_ATTEMPTS = 30

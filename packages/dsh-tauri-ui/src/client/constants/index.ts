@@ -1,7 +1,7 @@
-import { PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
-export const SETTINGS_REGISTRANT = PLUGIN_NAME
-export const SETTINGS_SHELL_SEAT_ID = PLUGIN_NAME
+export const SETTINGS_REGISTRANT = PLUGIN_ID
+export const SETTINGS_SHELL_SEAT_ID = PLUGIN_ID
 
 export const SETTINGS_SHELL_OVERLAY_SLOT = 'shell.overlay'
 export const SETTINGS_SIDEBAR_SLOT = 'sidebar.settings'
@@ -18,12 +18,12 @@ export const MENU_SELECT_STYLE_ID = 'dsh-tauri-ui-menu-select-styles'
 export const TURN_NAVIGATION_STYLE_ID = 'dsh-tauri-ui-turn-navigation-styles'
 export const GLOBAL_STYLE_ID = 'dsh-tauri-ui-global-styles'
 
-export const STYLES_EFFECT = `${PLUGIN_NAME}: styles`
-export const LOCALE_EFFECT = `${PLUGIN_NAME}: locale`
-export const SEAT_EFFECT = `${PLUGIN_NAME}: shell.overlay seat`
-export const SECTIONS_EFFECT = `${PLUGIN_NAME}: settings sections projection`
-export const SETTINGS_EFFECT = `${PLUGIN_NAME}: settings panel`
-export const OBSTRUCTIONS_EFFECT = `${PLUGIN_NAME}: settings obstructions`
+export const STYLES_EFFECT = `${PLUGIN_ID}: styles`
+export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
+export const SEAT_EFFECT = `${PLUGIN_ID}: shell.overlay seat`
+export const SECTIONS_EFFECT = `${PLUGIN_ID}: settings sections projection`
+export const SETTINGS_EFFECT = `${PLUGIN_ID}: settings panel`
+export const OBSTRUCTIONS_EFFECT = `${PLUGIN_ID}: settings obstructions`
 
 export const TURN_NAVIGATION_LABEL_ZH = '轮次导航'
 export const TURN_NAVIGATION_LABEL_EN = 'Turn navigation'

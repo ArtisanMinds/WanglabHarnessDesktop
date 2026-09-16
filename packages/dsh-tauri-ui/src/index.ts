@@ -1,5 +1,5 @@
-import { PLUGIN_NAME } from './shared/constants'
+import { PLUGIN_ID } from './shared/constants'
 
 export { apply } from './host/apply'
 
-export const name = PLUGIN_NAME
+export const name = PLUGIN_ID

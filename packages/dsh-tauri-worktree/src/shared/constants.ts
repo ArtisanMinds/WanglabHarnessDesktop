@@ -1,4 +1,4 @@
-export const WORKTREE_PLUGIN_NAME = 'dsh-tauri-worktree'
+export const PLUGIN_ID = 'dsh-tauri-worktree'
 
 export const WORKTREE_API_PREFIX = '/api/dsh-worktree'
 

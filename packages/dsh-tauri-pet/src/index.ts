@@ -1,6 +1,6 @@
-import { PET_PLUGIN_NAME } from './shared/constants'
+import { PLUGIN_ID } from './shared/constants'
 
-export const name = PET_PLUGIN_NAME
+export const name = PLUGIN_ID
 
 /** 需要的宿主服务：webServer（SSE 路由）、sessions（session/event 总线）、connection（路由工具的连接信任边界）。 */
 export const inject = ['webServer', 'sessions', 'connection']

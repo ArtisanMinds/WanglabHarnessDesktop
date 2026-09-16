@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
-import { TURNREWIND_PLUGIN_NAME, TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
+import { PLUGIN_ID, TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
 import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance, workspaceQueue } from '../config/runtime'
 import { turnrewindHooks } from '../events'
 import { capture } from './capture'
@@ -51,7 +51,7 @@ async function fixture(): Promise<{ worktree: string }> {
 beforeEach(() => {
   resetTestDshHome()
   // 账本与私有快照仓都在 <DSH_HOME>/<feature> 下，resetTestDshHome 不清这个目录。
-  rmSync(join(testDshHome, TURNREWIND_PLUGIN_NAME), { recursive: true, force: true })
+  rmSync(join(testDshHome, PLUGIN_ID), { recursive: true, force: true })
   resetHostRuntime()
 })
 

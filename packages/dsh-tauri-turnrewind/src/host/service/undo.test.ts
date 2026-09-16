@@ -7,7 +7,7 @@ import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
-import { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { REASON_ALREADY_UNDONE, REASON_CONFLICT, REASON_EXPIRED, REASON_GIT_REQUIRED, REASON_TURN_ACTIVE } from '../config/constants'
 import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance } from '../config/runtime'
 import { capture } from './capture'
@@ -102,7 +102,7 @@ async function fixture(): Promise<Fixture> {
 beforeEach(() => {
   resetTestDshHome()
   // 账本与私有快照仓都在 <DSH_HOME>/<feature> 下，resetTestDshHome 不清这个目录。
-  rmSync(join(testDshHome, TURNREWIND_PLUGIN_NAME), { recursive: true, force: true })
+  rmSync(join(testDshHome, PLUGIN_ID), { recursive: true, force: true })
   resetHostRuntime()
 })
 

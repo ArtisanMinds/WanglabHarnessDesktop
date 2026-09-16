@@ -1,6 +1,6 @@
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ClientContext } from 'dsh-tauri/client'
-import { PLUGIN_NAME } from '../shared/constants'
+import { PLUGIN_ID } from '../shared/constants'
 import {
   LOCALE_EFFECT,
   OBSTRUCTIONS_EFFECT,
@@ -29,7 +29,7 @@ export type * from './types/selector'
 export * from './utils/cssr'
 export * from './utils/style'
 
-export const name = PLUGIN_NAME
+export const name = PLUGIN_ID
 export const inject = ['slots', 'layout', 'locale']
 
 export function apply(ctx: ClientContext): void {

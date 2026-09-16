@@ -1,7 +1,7 @@
 import { defineLocale } from 'dsh-tauri/client'
-import { PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
-export const locale = defineLocale(PLUGIN_NAME, {
+export const locale = defineLocale(PLUGIN_ID, {
   zh: {
     back: '返回应用',
     search: '搜索设置…',

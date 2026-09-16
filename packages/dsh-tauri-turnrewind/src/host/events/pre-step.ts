@@ -1,4 +1,4 @@
-import { TURNREWIND_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { capture } from '../service/capture'
 
 /**
@@ -12,7 +12,7 @@ export async function handlePreStep(payload: any, next: () => Promise<any>): Pro
       await capture.begin(sessionId, payload.turn)
   }
   catch (error) {
-    console.warn(`${TURNREWIND_PLUGIN_NAME}: before snapshot failed: ${String(error)}`)
+    console.warn(`${PLUGIN_ID}: before snapshot failed: ${String(error)}`)
   }
   return next()
 }

@@ -3,7 +3,7 @@ import type { Config } from './apply.types'
 import type { PanelExtensionHost } from './config/runtime.types'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'pathe'
-import { PLUGIN_NAME } from '../shared/constants'
+import { PLUGIN_ID } from '../shared/constants'
 import { DEFAULT_PROFILE } from './config/constants'
 import { clearHostRuntime, resetProviderRuntime, setCurrentHostInstance } from './config/runtime'
 import { routes } from './routes'
@@ -12,7 +12,7 @@ import { provider } from './service/provider'
 
 export type { Config } from './apply.types'
 
-export const name = PLUGIN_NAME
+export const name = PLUGIN_ID
 
 export const inject = ['webServer', 'skills', 'connection']
 

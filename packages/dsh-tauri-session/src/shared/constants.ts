@@ -1,7 +1,7 @@
 /** shared/constants.ts — 跨 host/client 的稳定协议常量（session 归档管理）。 */
 
 /** 插件名（诊断元数据 / registrant）。 */
-export const SESSION_PLUGIN_NAME = 'dsh-tauri-session'
+export const PLUGIN_ID = 'dsh-tauri-session'
 
 /** HTTP 路由前缀（host route + client rpc 同源 fetch）。 */
 export const SESSION_API_PREFIX = '/api/dsh-session'

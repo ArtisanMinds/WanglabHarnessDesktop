@@ -1,5 +1,5 @@
 import { defineLocale } from 'dsh-tauri/client'
-import { PET_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
 /** 桌宠设置分区的双语文案（`zh` 键集合为权威，`en` 缺键即编译错误）。 */
 const zh = {
@@ -50,4 +50,4 @@ const en: Record<keyof typeof zh, string> = {
   toggleFailed: 'Failed to toggle the pet',
 }
 
-export const locale = defineLocale(PET_PLUGIN_NAME, { zh, en })
+export const locale = defineLocale(PLUGIN_ID, { zh, en })

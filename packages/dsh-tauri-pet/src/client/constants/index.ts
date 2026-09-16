@@ -1,4 +1,4 @@
-import { PET_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 
 /** settings.section 槽位里的桌宠分区标识与排序权重。 */
 export const PET_SECTION_ID = 'dsh-tauri-pet-settings'
@@ -8,11 +8,11 @@ export const PET_SECTION_ORDER = 230
 export const PET_STYLES_ID = 'dsh-tauri-pet-styles'
 export const PET_SETTINGS_STYLES_ID = 'dsh-tauri-pet-settings-styles'
 export const PET_CARD_STYLES_ID = 'dsh-tauri-pet-card-styles'
-export const PET_LOCALE_EFFECT = `${PET_PLUGIN_NAME}: locale`
-export const PET_STYLES_EFFECT = `${PET_PLUGIN_NAME}: styles`
-export const PET_SECTION_EFFECT = `${PET_PLUGIN_NAME}: settings section`
-export const PET_ICON_PATCH_EFFECT = `${PET_PLUGIN_NAME}: sidebar icon patch`
-export const PET_PREFILL_EFFECT = `${PET_PLUGIN_NAME}: conversation prefill`
+export const PET_LOCALE_EFFECT = `${PLUGIN_ID}: locale`
+export const PET_STYLES_EFFECT = `${PLUGIN_ID}: styles`
+export const PET_SECTION_EFFECT = `${PLUGIN_ID}: settings section`
+export const PET_ICON_PATCH_EFFECT = `${PLUGIN_ID}: sidebar icon patch`
+export const PET_PREFILL_EFFECT = `${PLUGIN_ID}: conversation prefill`
 
 /** conversation.input.left 槽位里的一次性草稿注入。 */
 export const CONVERSATION_INPUT_LEFT_SLOT = 'conversation.input.left'

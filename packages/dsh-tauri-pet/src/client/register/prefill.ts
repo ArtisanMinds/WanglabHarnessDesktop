@@ -1,6 +1,6 @@
 import type { ClientContext } from 'dsh-tauri/client'
 import { defineRegister } from 'dsh-tauri/client'
-import { PET_PLUGIN_NAME } from '../../shared/constants'
+import { PLUGIN_ID } from '../../shared/constants'
 import { PetPrefill } from '../components/prefill'
 import {
   CONVERSATION_INPUT_LEFT_SLOT,
@@ -16,7 +16,7 @@ export const prefillFeature = defineRegister<ClientContext>((controller, ctx) =>
     id: PET_PREFILL_ID,
     order: PET_PREFILL_ORDER,
     priority: PET_PREFILL_PRIORITY,
-    registrant: PET_PLUGIN_NAME,
+    registrant: PLUGIN_ID,
     inject: (sessionId: string) => ({ sessionId }),
   } as never, PetPrefill)))
 })
