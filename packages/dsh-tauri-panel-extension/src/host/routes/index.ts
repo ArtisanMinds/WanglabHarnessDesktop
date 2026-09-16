@@ -1,47 +1,47 @@
-/**
- * host/routes/index.ts — HTTP 路由装配：按业务领域把路由分派给 routes/ 下的四个模块
- * （skills / mcp / repositories / restart），统一做连接鉴权包装。
- *
- * 选型（antfu 平铺范式）：skills.ts（技能路由 + 打开目录）、mcp.ts（MCP 行 +
- * 跨目录导入）、repositories.ts（自定义技能仓库）、restart.ts（进程自重启）；
- * 每个模块导出一个 `registerXxxRoutes(register, ...)` 注册器，本文件只做组合。
- */
+import type { ExtensionRouteDeps } from './index.types'
+import { defineRoutes } from 'dsh-tauri'
+import restart from './host/restart/post'
+import importApply from './import/apply/post'
+import importScan from './import/scan/get'
+import mcpCheck from './mcp/check/post'
+import mcpCopy from './mcp/copy/post'
+import mcpRemove from './mcp/delete'
+import mcp from './mcp/get'
+import mcpSave from './mcp/post'
+import mcpToggle from './mcp/toggle/post'
+import openDir from './open/dir/post'
+import rootsRemove from './roots/delete'
+import roots from './roots/get'
+import rootsAdd from './roots/post'
+import skillDelete from './skill/delete'
+import skill from './skill/get'
+import skillPolicy from './skill/policy/post'
+import skillSave from './skill/post'
+import skills from './skills/get'
+import skillsRefresh from './skills/refresh/post'
 
-import type { PanelExtensionHost, RouteRegistrar } from '../types/index.ts'
-import { withConnectionAuth } from 'dsh-tauri'
-import { dirname } from 'pathe'
-import { PLUGIN_NAME } from '../../shared/constants.ts'
-import { registerMcpRoutes } from './mcp.ts'
-import { registerRepositoryRoutes } from './repositories.ts'
-import { registerRestartRoute } from './restart.ts'
-import { registerSkillRoutes } from './skills.ts'
+export const routes = defineRoutes<ExtensionRouteDeps>((disposer) => {
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/skills' }, skills)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/skills/refresh' }, skillsRefresh)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/skill' }, skill)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/skill' }, skillSave)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/skill' }, skillDelete)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/skill/policy' }, skillPolicy)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/open/dir' }, openDir)
 
-export interface PanelExtensionRoutesConfig {
-  profileDirPath: string
-  /** Remount the host-plane skill provider after root-set changes. */
-  remountProvider: () => Promise<void>
-}
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/mcp' }, mcp)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/mcp' }, mcpSave)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/mcp' }, mcpRemove)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/mcp/toggle' }, mcpToggle)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/mcp/check' }, mcpCheck)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/mcp/copy' }, mcpCopy)
 
-/** Register the manager's routes; returns the disposer removing them all. */
-export function mountPanelExtensionRoutes(host: PanelExtensionHost, config: PanelExtensionRoutesConfig): () => void {
-  const register: RouteRegistrar = route => host.webServer.register({
-    ...route,
-    handler: withConnectionAuth(host.connection, route.handler, PLUGIN_NAME),
-  })
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/import/scan' }, importScan)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/import/apply' }, importApply)
 
-  const disposers = [
-    ...registerSkillRoutes(register, host, { remountProvider: config.remountProvider }),
-    ...registerMcpRoutes(register, {
-      profileDirPath: config.profileDirPath,
-      // profileDirPath is always <DSH_HOME>/profiles/<profile>.
-      dshHomePath: dirname(dirname(config.profileDirPath)),
-    }),
-    ...registerRepositoryRoutes(register, { remountProvider: config.remountProvider }),
-    ...registerRestartRoute(register),
-  ]
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/roots' }, roots)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/roots' }, rootsAdd)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/roots' }, rootsRemove)
 
-  return () => {
-    for (const dispose of disposers)
-      dispose()
-  }
-}
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-extension/host/restart' }, restart)
+})

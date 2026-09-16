@@ -7,10 +7,7 @@
  */
 
 /** 插件名（诊断元数据 / registrant / 存储目录名）。 */
-export const TURNREWIND_PLUGIN_NAME = 'dsh-tauri-turnrewind'
-
-/** HTTP 路由前缀（host 注册 + client 同源 fetch）。 */
-export const TURNREWIND_API_PREFIX = '/api/turnrewind'
+export const PLUGIN_ID = 'dsh-tauri-turnrewind'
 
 /**
  * 会话 cwd 不在 Git worktree 内：不建快照。
