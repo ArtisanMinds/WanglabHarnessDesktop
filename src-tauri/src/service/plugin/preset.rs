@@ -670,6 +670,18 @@ mod tests {
     }
 
     #[test]
+    fn deprecated_manifest_lists_absorbed_panel() {
+        // 0.15.0 把 dsh-tauri-panel 并入核心，并从 internal-plugins.json 移除了条目，
+        // 升级用户只能靠弃用清单兜底卸载（残留 bundle 会导致无法进入软件页面）。
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join(DEPRECATED_PLUGINS_FILE);
+        let raw = std::fs::read_to_string(path).expect("deprecated manifest should exist");
+        let ids = parse_deprecated_ids(&raw).expect("deprecated manifest should be valid JSON");
+        assert!(ids.contains("dsh-tauri-panel"));
+    }
+
+    #[test]
     fn manifest_source_overrides_internal_field() {
         let raw =
             r#"[{"id":"x","spec":"y","internal":true,"name":"X","description":"","repoUrl":"u"}]"#;

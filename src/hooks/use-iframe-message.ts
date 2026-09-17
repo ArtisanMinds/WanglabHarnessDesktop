@@ -25,6 +25,7 @@ export interface IframeMessageContext {
 export function useIframeMessage<T>(
   iframeRef: RefObject<HTMLIFrameElement | null>,
   handler: (message: T, context: IframeMessageContext) => any,
+  types?: string[],
 ): void {
   useEventListener('message', (event: MessageEvent<unknown>) => {
     const data = event.data
@@ -35,6 +36,9 @@ export function useIframeMessage<T>(
 
     const origin = getIframeOrigin(iframeRef)
     if (!origin || event.origin !== origin)
+      return
+
+    if (types && !types.includes((data as any)?.type as string))
       return
 
     handler(data as T, { origin, event })

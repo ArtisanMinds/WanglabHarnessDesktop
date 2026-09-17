@@ -15,4 +15,5 @@ export default c([
   c('.dshp-scheduler__card-meta', { display: 'flex', alignItems: 'center', gap: '10px', minWidth: '0' }),
   c('.dshp-scheduler__card-meta-text', { flex: '1', minWidth: '0', color: tertiary, fontSize: '12px', lineHeight: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
   c('.dshp-scheduler__card-meta-text strong', { color: secondary, fontWeight: '600' }),
+  c('.dshp-scheduler__card-waiting', { flex: 'none', display: 'inline-flex', alignItems: 'center', height: '18px', padding: '0 6px', borderRadius: '6px', background: hover, color: 'var(--dsw-alias-state-business-primary)', fontSize: '11px', lineHeight: '18px', whiteSpace: 'nowrap' }),
 ])

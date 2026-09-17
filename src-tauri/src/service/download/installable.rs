@@ -10,6 +10,8 @@ pub enum InstallKind {
     Node,
     Dsh,
     Pnpm,
+    /// 仅 Windows 构造：`Git` 安装任务按 `#[cfg(windows)]` 加入任务列表。
+    #[cfg_attr(not(windows), allow(dead_code))]
     Git,
 }
 

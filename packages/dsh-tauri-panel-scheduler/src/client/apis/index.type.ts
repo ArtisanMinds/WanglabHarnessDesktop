@@ -1,56 +1,171 @@
-import type { RunView, SchedulerOptions, TaskView } from '../types'
+export type ActionResult = {
+  ok?: boolean;
+  error?: string;
+};
+export type RunListResponse = {
+  runs: SchedulerRun[];
+};
+export type SchedulerRun = {
+  id: string;
+  taskId: string;
+  taskName: string;
+  trigger: RunTrigger;
+  status: RunStatus;
+  scheduledFor: string;
+  startedAt: string;
+  finishedAt?: string;
+  sessionId?: string;
+  error?: string;
+};
+export type RunTrigger = "schedule" | "manual";
+export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "interrupted" | "skipped" | "cancelled";
+export type SchedulerOptions = {
+  workspaces: Array<{ id: string; path: string; title: string }>;
+  permissions: Array<PermissionOption>;
+  defaultPermission: string;
+  models: Array<ModelOption>;
+  failures: Array<ModelCatalogFailure>;
+  defaultModel: ModelOption | null;
+};
+export type PermissionOption = {
+  value: string;
+  name: string;
+  description?: string;
+};
+export type ModelOption = {
+  provider: string;
+  providerLabel: string;
+  model: string;
+  label: string;
+  description?: string;
+  reasoning?: ModelReasoning;
+};
+export type ModelReasoning = {
+  efforts: Array<ModelReasoningEffort>;
+  defaultEffort?: string;
+};
+export type ModelReasoningEffort = {
+  id: string;
+  name: string;
+  description?: string;
+};
+export type ModelCatalogFailure = {
+  provider: string;
+  providerLabel: string;
+  message: string;
+};
+export type TaskListResponse = {
+  tasks: SchedulerTask[];
+};
+export type SchedulerTask = {
+  id: string;
+  name: string;
+  schedule: SchedulerSchedule;
+  prompt: string;
+  recommendationId?: string;
+  workspaceId?: string;
+  permission?: string;
+  provider?: string;
+  model?: string;
+  reasoningEffort?: string;
+  module?: string;
+  agentPreset?: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  waiting?: boolean;
+};
+export type SchedulerSchedule = OnceSchedule | HourlySchedule | DailySchedule | IntervalSchedule | WorkdaysSchedule | WeeklySchedule | MonthlySchedule | CustomSchedule;
+export type OnceSchedule = {
+  kind: "once";
+  at: string;
+  timeZone: string;
+};
+export type HourlySchedule = {
+  kind: "hourly";
+  minute: number;
+  timeZone: string;
+};
+export type DailySchedule = {
+  kind: "daily";
+  time: string;
+  timeZone: string;
+};
+export type IntervalSchedule = {
+  kind: "interval";
+  everyMinutes: number;
+  anchor?: string;
+  timeZone: string;
+};
+export type WorkdaysSchedule = {
+  kind: "workdays";
+  time: string;
+  timeZone: string;
+};
+export type WeeklySchedule = {
+  kind: "weekly";
+  weekdays: Weekday[];
+  time: string;
+  timeZone: string;
+};
+export type Weekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
+export type MonthlySchedule = {
+  kind: "monthly";
+  day: number;
+  time: string;
+  timeZone: string;
+};
+export type CustomSchedule = {
+  kind: "custom";
+  everyDays: number;
+  anchor: string;
+  time: string;
+  timeZone: string;
+};
+export type SchedulerScheduleInput = { kind: "once"; at: string; timeZone?: string } | { kind: "hourly"; minute: number; timeZone?: string } | { kind: "daily"; time: string; timeZone?: string } | { kind: "interval"; everyMinutes: number; anchor?: string; timeZone?: string } | { kind: "workdays"; time: string; timeZone?: string } | { kind: "weekly"; weekdays: readonly Weekday[]; time: string; timeZone?: string } | { kind: "monthly"; day: number; time: string; timeZone?: string } | { kind: "custom"; everyDays: number; anchor?: string; time: string; timeZone?: string };
+export type TaskActionResult = {
+  ok?: boolean;
+  task?: SchedulerTask;
+  error?: string;
+};
 
-export type { RunView, SchedulerOptions, TaskView }
-
-/** GET /tasks 响应。 */
-export interface TasksResponse {
-  tasks: TaskView[]
+export interface IdBody {
+  id: string;
 }
-
-/** GET /history 响应。 */
-export interface RunsResponse {
-  runs: RunView[]
+export interface TaskCreateBody {
+  name: string;
+  schedule: SchedulerScheduleInput;
+  prompt: string;
+  recommendationId?: string;
+  workspaceId?: string;
+  permission?: string;
+  provider?: string;
+  model?: string;
+  reasoningEffort?: string;
+  enabled?: boolean;
 }
-
-/** 任务变更结果（create/update/toggle 携带最新任务视图）。 */
-export interface TaskActionResult {
-  ok: boolean
-  task?: TaskView
-  error?: string
+export interface TaskUpdateBody {
+  id: string;
+  name?: string;
+  schedule?: SchedulerScheduleInput;
+  prompt?: string;
+  recommendationId?: string;
+  workspaceId?: string;
+  permission?: string;
+  provider?: string;
+  model?: string;
+  reasoningEffort?: string;
+  enabled?: boolean;
 }
-
-/** 简单动作结果（delete/run/history delete）。 */
-export interface SimpleActionResult {
-  ok: boolean
-  error?: string
+export interface TaskToggleBody {
+  id: string;
+  enabled: boolean;
 }
-
-/** GET /tasks 查询参数。 */
-export interface GetTasksQuery {
-  search?: string
-}
-
-/** GET /history 查询参数。 */
 export interface GetHistoryQuery {
-  taskId?: string
+  taskId?: string;
 }
-
-/** POST /tasks/create 请求体（宿主任务表单字段平铺）。 */
-export type PostTasksCreateBody = Record<string, unknown>
-
-/** POST /tasks/update 请求体（id 不可被 input 覆盖）。 */
-export interface PostTasksUpdateBody {
-  id: string
-  input: Record<string, unknown>
-}
-
-/** POST /tasks/toggle 请求体。 */
-export interface PostTasksToggleBody {
-  id: string
-  enabled: boolean
-}
-
-/** POST /tasks/delete、/tasks/run、/history/delete 请求体。 */
-export interface PostIdBody {
-  id: string
+export interface GetTasksQuery {
+  search?: string;
 }

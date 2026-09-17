@@ -1,22 +1,16 @@
-/**
- * components/skills-tab.tsx — Settings → Plugins “Skills” tab：查看/编辑技能、
- * 导入 GitHub 技能仓库、切换加载策略。
- *
- * 职责拆分：policyTag / normalizeRepository 在 lib/skills.ts，定时器与挂载守卫
- * 在 hooks/use-timers.ts；本组件只保留列表状态与业务编排。
- */
-
 import type { ReactElement } from 'react'
-import type { OpenTarget, SkillEditorState, SkillRowView, SkillsTabProps } from '../types'
+import type { SkillRowView } from '../types'
+import type { OpenTarget, SkillEditorState, SkillsTabProps } from './skills-tab.types'
 import { Button, Modal, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ArrowRotateRight, GraduationCap, Icon, LogoGithub, useMountStyle } from 'dsh-tauri-ui/client'
+import { orderBy, uniq } from 'dsh-tauri/client'
 import { useEffect, useMemo, useState } from 'react'
-import { getSkill, getSkills, postOpen, postRootsAdd, postSkillDelete, postSkillPolicy, postSkillSave, postSkillsRefresh } from '../apis'
+import { deleteSkill, getSkill, getSkills, postOpenDir, postRoots, postSkill, postSkillPolicy, postSkillsRefresh } from '../apis'
 import { MarkdownPreview } from '../components/markdown'
 import { IMPORT_REFRESH_DELAYS_MS, SKILL_REFRESH_INTERVAL_MS, SKILL_REFRESH_TIMEOUT_MS, SKILLS_TAB_STYLE_ID, SOURCE_LOCALE_KEYS } from '../constants'
 import { useTimers } from '../hooks/use-timers'
-import { normalizeRepository, policyTag } from '../utils/skills'
 import skillsTabStyle from './skills-tab.cssr'
+import { normalizeRepository, policyTag } from './skills-tab.utils'
 
 export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
   useMountStyle(skillsTabStyle, SKILLS_TAB_STYLE_ID)
@@ -61,8 +55,6 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
       setOutcome({ ok: true, text: t('refreshed') })
     }
     catch {
-      // A transient rescan failure (e.g. a locked provider) should still let
-      // the user see the last-good catalog without restarting the page.
       setReload(value => value + 1)
     }
     finally { setBusy(false) }
@@ -87,7 +79,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
   const openExisting = async (skill: SkillRowView): Promise<void> => {
     setBusy(true)
     try {
-      const body = await getSkill(skill.name)
+      const body = await getSkill({ name: skill.name })
       setPreview(!skill.editable)
       setEditor({ mode: skill.editable ? 'edit' : 'view', name: skill.name, description: skill.description, whenToUse: skill.whenToUse ?? '', modelInvocable: skill.invocation.modelInvocable, userInvocable: skill.invocation.userInvocable, content: body.content })
     }
@@ -102,7 +94,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
     setBusy(true)
     setFormError(null)
     try {
-      await postSkillSave({ name: editor.name.trim(), description: editor.description, whenToUse: editor.whenToUse.trim() || undefined, modelInvocable: editor.modelInvocable, userInvocable: editor.userInvocable, content: editor.content })
+      await postSkill({ name: editor.name.trim(), description: editor.description, whenToUse: editor.whenToUse.trim() || undefined, modelInvocable: editor.modelInvocable, userInvocable: editor.userInvocable, content: editor.content })
       setEditor(null)
       setOutcome({ ok: true, text: t('saved') })
       refreshUntil(rows => rows.some(row => row.name === name))
@@ -117,7 +109,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
     const name = confirmName
     setBusy(true)
     try {
-      await postSkillDelete({ name })
+      await deleteSkill({ name })
       setOutcome({ ok: true, text: t('saved') })
       refreshUntil(rows => !rows.some(row => row.name === name))
     }
@@ -145,7 +137,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
 
   const doOpen = async (target: OpenTarget): Promise<void> => {
     try {
-      await postOpen(target)
+      await postOpenDir(target)
     }
     catch (error) { setOutcome({ ok: false, text: `${t('failed')}: ${error instanceof Error ? error.message : String(error)}` }) }
   }
@@ -171,7 +163,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
     setBusy(true)
     setFormError(null)
     try {
-      await postRootsAdd(url)
+      await postRoots({ kind: 'git', url })
       setOutcome({ ok: true, text: t('importRepositorySuccess') })
       setImportOpen(false)
       setRepositoryUrl('')
@@ -190,12 +182,12 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
   }
 
   const needle = query.trim().toLowerCase()
-  const filtered = useMemo(() => (skills ?? []).map((skill, index) => ({ skill, index })).filter(({ skill }) => (sourceFilter === 'all' || skill.source === sourceFilter) && (needle === '' || skill.name.toLowerCase().includes(needle) || skill.description.toLowerCase().includes(needle))).sort((a, b) => Number(b.skill.repository !== undefined) - Number(a.skill.repository !== undefined) || a.index - b.index).map(({ skill }) => skill), [needle, skills, sourceFilter])
-  const sources = skills === null ? [] : [...new Set(skills.map(skill => skill.source))]
+  const filtered = useMemo(() => orderBy((skills ?? []).filter(skill => (sourceFilter === 'all' || skill.source === sourceFilter) && (needle === '' || skill.name.toLowerCase().includes(needle) || skill.description.toLowerCase().includes(needle))), [skill => skill.repository === undefined]), [needle, skills, sourceFilter])
+  const sources = skills === null ? [] : uniq(skills.map(skill => skill.source))
   const readOnly = editor?.mode === 'view'
 
   return (
-    <div className="dshp-extension__section">
+    <div className="dshp-extension__section" style={{ margin: '0' }}>
       <div className="dshp-extension__head">
         <Icon as={GraduationCap} />
         <h3>{t('skillsTitle')}</h3>

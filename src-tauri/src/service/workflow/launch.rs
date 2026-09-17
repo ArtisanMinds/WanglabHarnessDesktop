@@ -357,18 +357,19 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     crate::service::perm::ensure_dir_writable(&dsh_home, "DSH_HOME_MKDIR_FAILED")?;
     // 当前档案目录同样必须在 spawn 前可写：`$DSH_HOME` 可写不代表档案可写——属主
     // 错位可能只落在 `profiles` 或 `profiles/<id>` 上（安全模式要新建 `profiles/safe`，
-    // 因此 `profiles` 不可写同样是致命状态）。预检不创建目录，避免抢先建出半初始化
-    // 档案（issue #452）。
+    // 因此 `profiles` 不可写同样是致命状态）。
+    //
+    // 先跑一次档案迁移 + 首装引导（幂等）：desktop::setup 的引导若失败（磁盘/权限
+    // 抖动）或本进程没进过 setup，这里兜底；改名必须早于可写性预检，否则预检拿到的
+    // 还是改名前的档案目录。最佳努力：失败只告警，不阻断启动。
+    crate::service::profile::migrate_desktop_profile_name(&app_handle);
+
+    // 预检不创建目录，避免抢先建出半初始化档案（issue #452）。
     crate::service::perm::ensure_writable_path(
         &crate::service::plugin::profile_dir(&app_handle),
         &dsh_home,
         "PROFILE_NOT_WRITABLE",
     )?;
-
-    // 首装档案引导重试：desktop::setup 的引导若失败（磁盘/权限抖动），在真正
-    // spawn dsh 前再补一次；幂等，已就绪时直接跳过。最佳努力：失败只告警，
-    // 不阻断启动（回落 web 档案的老行为）。
-    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
 
     // 核心 bundle 层自愈（issue #452）：当前档案的 `dsh.profile.bundles` 必须带
     // 桌面端内嵌 web UI 依赖的 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`
@@ -427,10 +428,25 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::service::patch::session::apply(&app_handle) {
         log::warn!("SessionStore.remove patch failed: {e}");
     }
+    // OpenCode Go 需要稳定的会话 ID 头，否则返回 400 MissingSessionID；上游 pi-ai
+    // 适配器把 sessionId 只透传给 SDK、不落成请求头，这里补上原生会话头，并限定到
+    // OpenCode 路由（provider id 前缀或生效 baseUrl 主机为 opencode.ai），其它 provider
+    // 的请求头保持不变。最佳努力且幂等：目标已含标记或锚点缺失时 patch_dsh 安全跳过。
+    if let Err(e) = crate::service::patch::llm_session::apply(&app_handle) {
+        log::warn!("pi-ai session header patch failed: {e}");
+    }
     // worktree 会话以隔离 cwd 执行，但产品归属仍是源 Workspace；放宽上游显式
     // attach 的 cwd 相等约束，其他 cwd 有效性校验保持不变。最佳努力且幂等。
     if let Err(e) = crate::service::patch::workspace::apply(&app_handle) {
         log::warn!("workspace worktree membership patch failed: {e}");
+    }
+    // 0.1.6-alpha.1 起 dsh-client-ui-workspace 的浏览视图 store 去掉了
+    // `sessionUpdatedAtByAccount`（persist key 仍是 dsh.workspace.view.v5）：先跑过新核心
+    // 再切回 0.1.5-rc.1 / rc.2 时，旧核心的 retainAccountKeys 会
+    // Object.entries(undefined) 抛错，sidebar.workspaces 整条槽崩掉且不会自愈。
+    // 补丁把该 action 的三处取值放宽为 `?? {}`；锚点缺失（新核心已删字段）安全跳过。
+    if let Err(e) = crate::service::patch::workspace_view::apply(&app_handle) {
+        log::warn!("workspace view state patch failed: {e}");
     }
     // 当前 DSH client-HMR 会卸载第三方插件却不重新挂载。debug 直接联接本地
     // 插件源码，故将 rebuilt 降级为自动刷新页面；release 保持上游行为。

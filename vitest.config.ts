@@ -28,6 +28,15 @@ export default defineConfig({
       'test/wake-lock.test.ts',
       // issue #469：收起桌宠必须是销毁窗口（隐藏窗口里的视频仍在播放并持锁）。
       'test/pet-window-lifecycle.test.ts',
+      // issue #525：补丁层 YAML 语法错误的识别与信息提取（纯函数回归）。
+      'test/patch-layer.test.ts',
+      // issue #539：旧版 WebKit 缺全局 Iterator 导致插件加载失败，壳层兼容垫片回归。
+      'test/compat-iterator.test.ts',
+      // v0.2.0：气泡托管给 dsh-pet-component，宿主侧只剩「会话快照 → pet.bubble」的映射。
+      'src/pet/hooks/use-bubble-tracker.test.ts',
+      // 桌宠素材响应头：GitHub 对中文动画名回 `content-disposition`，插件版 fetch 会因
+      // 非 ISO-8859-1 抛错并静默不落 IndexedDB（pnpm patch 过滤该头，这里锁住契约）。
+      'test/pet-asset-headers.test.ts',
     ],
     maxWorkers: 4,
     testTimeout: 30_000,

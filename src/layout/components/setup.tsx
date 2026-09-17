@@ -8,6 +8,7 @@ import { useStore } from 'valtio-define'
 import { button } from '@/components/primitives'
 import { store } from '@/store'
 import { writeClipboardText } from '@/utils/clipboard'
+import { toast } from '@/utils/toast'
 import { Loadable } from './loadable'
 
 // 各阶段对应不同图标，保持与 logo 一致的黑白中性色调
@@ -21,14 +22,20 @@ const STATUS_ICONS: Record<SetupStatus, IconComponent> = {
 }
 
 async function copyLogsHandler(t: (key: string) => string) {
+  let logs: string
   try {
-    const logs = await invoke<string>('read_run_logs')
-    // 成功/失败提示由 writeClipboardText 统一给出，这里只记录日志
-    await writeClipboardText(logs, t('messages.logs_copied'))
+    logs = await invoke<string>('read_run_logs')
   }
   catch (err) {
-    console.error('[Setup] failed to copy logs:', err)
+    // 读取失败必须可见：静默 catch 会让「复制日志」看起来毫无反应
+    console.error('[Setup] failed to read logs:', err)
+    toast(t('messages.logs_read_failed'), { variant: 'danger' })
+    return
   }
+  // 成功/失败提示由 writeClipboardText 统一给出，这里只记录日志
+  await writeClipboardText(logs, t('messages.logs_copied')).catch((err) => {
+    console.error('[Setup] failed to copy logs:', err)
+  })
 }
 
 /**
@@ -45,6 +52,7 @@ export function Setup() {
     errorLogs,
     pluginConflictHint,
     inotifyLimitHint,
+    patchLayerHint,
   } = useStore(store.harness)
   const error = status === 'error'
   const installing = status === 'installing'
@@ -55,8 +63,11 @@ export function Setup() {
   const logs = installing
     ? installer.logs
     : (error && errorLogs.length > 0 ? errorLogs : undefined)
-  // 错误态的针对性提示：插件路由冲突 / Linux inotify 文件监视上限，二选一优先展示
-  const hint = error ? (pluginConflictHint || inotifyLimitHint) : undefined
+  // 错误态的针对性提示：插件路由冲突 / Linux inotify 文件监视上限 / 补丁层语法错误，
+  // 三者互斥（由各自的失败特征识别），优先展示最具体的一条。
+  const hint = error ? (patchLayerHint || pluginConflictHint || inotifyLimitHint) : undefined
+  // 补丁层语法错误：提供「隔离损坏的补丁文件」恢复入口（改名备份后重启，不删文件）
+  const patchLayerBroken = error && patchLayerHint !== ''
 
   return (
     <Loadable
@@ -82,6 +93,16 @@ export function Setup() {
             >
               {t('app.retry')}
             </button>
+            <If cond={patchLayerBroken}>
+              <button
+                className={button({ tone: 'primary', size: 'sm' })}
+                onClick={() => {
+                  void store.harness.quarantineBrokenPatchLayers()
+                }}
+              >
+                {t('buttons.quarantine_patch')}
+              </button>
+            </If>
             <button
               className={button({ tone: 'ghost', size: 'sm' })}
               onClick={() => copyLogsHandler(t)}

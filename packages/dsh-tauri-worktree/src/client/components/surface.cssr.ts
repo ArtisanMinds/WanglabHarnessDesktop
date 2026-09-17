@@ -2,7 +2,6 @@ import { cssr } from 'dsh-tauri-ui/client'
 
 const { bem: { b, e, m } } = cssr
 
-/** 工作树状态条（surface.tsx）：会话下方状态条 + 折叠日志。 */
 export default b('worktree', [
   e('surface', {
     boxSizing: 'border-box',
@@ -53,7 +52,7 @@ export default b('worktree', [
   }, [
     m('open', { gridTemplateRows: '1fr', opacity: 1 }),
   ]),
-  e('logs-inner', { minHeight: 0, overflow: 'hidden' }),
+  e('logs-inner', { minHeight: 0, overflow: 'hidden', marginTop: '6px' }),
   e('logs-panel', {
     maxHeight: '180px',
     overflowY: 'auto',

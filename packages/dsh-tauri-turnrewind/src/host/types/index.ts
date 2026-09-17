@@ -1,20 +1,17 @@
 /**
- * host/types/index.ts — 宿主侧共享类型。
+ * host/types/index.ts — 宿主侧跨模块共享的领域模型与线协议。
  *
- * HostContext 保持结构化 any（与 dsh-tauri-worktree 同口径）：宿主服务的完整类型由
- * 各内核版本自带，本插件只消费已核实存在的成员，避免把某一版的类型钉进构建。
+ * HostContext 保持结构化 any（与 dsh-tauri-worktree 同口径）：宿主服务的完整类型由各内核
+ * 版本自带，本插件只消费已核实存在的成员，避免把某一版的类型钉进构建。
  */
 
 export type HostContext = any
-
-export type JsonBody = Record<string, unknown>
 
 /**
  * 一次 git 子进程的结果；捕获/撤销路径从不抛异常，失败一律走该联合。
  *
  * 失败分支同样带 `out`：`git check-ignore` 这类命令**用退出码表达否定答案**
- * （exit 1 = 没有路径被忽略），stdout 才是真正的结果，丢弃它会把「没有命中」
- * 误判成「命令失败」。
+ * （exit 1 = 没有路径被忽略），stdout 才是真正的结果。
  */
 export type GitResult
   = | { ok: true, out: string }
@@ -34,51 +31,7 @@ export interface SnapshotStore {
   rebuiltReason?: string
 }
 
-/** 一次路径安全校验的结果。 */
-export type PathSafety = { ok: true } | { ok: false, reason: string }
-
-/** 跨进程工作区锁文件里的持有者信息（写进锁文件，供别的进程判断这把锁还算不算数）。 */
-export interface WorkspaceLockHolder {
-  /** 持有者进程 id：决定「持有者是否还活着」。 */
-  pid: number
-  /** 本次获取生成的随机令牌：释放时据此确认「删的是不是自己的锁」。 */
-  token: string
-  /** 获取时间（毫秒时间戳，诊断用）。 */
-  acquiredAt: number
-}
-
-/**
- * 工作区级**跨进程**互斥锁（实现见 host/service/lock.ts）。
- *
- * 与进程内的 {@link WorkspaceQueue} 是两件事：队列只能串行化**本进程**里的任务，
- * 而同一个 `$DSH_HOME` 下可能有多个宿主进程（桌面端重启交叠、手动再起的 `dsh web`、
- * 离线维护脚本）——它们各有一份自己的内存队列，却共用同一份私有快照仓。
- */
-export interface WorkspaceLock {
-  /**
-   * 在跨进程互斥区内执行任务（获取 → 执行 → 释放；失败原样透出）。
-   * @param key - 工作区键。
-   * @param task - 要执行的异步任务。
-   * @param lockTimeoutMs - 本次获取锁的等待上限（毫秒）；缺省用构造时的 `timeoutMs`。
-   *   屏障上的调用会传一个更短的值：等不到的代价只是「这一轮没有快照」，
-   *   不该让它拖住用户的对话（见 host/constants 的 LOCK_BARRIER_TIMEOUT_MS）。
-   */
-  run: <T>(key: string, task: () => Promise<T>, lockTimeoutMs?: number) => Promise<T>
-  /** 某个工作区对应的锁文件路径（诊断与测试用）。 */
-  lockPath: (key: string) => string
-}
-
-/** 跨进程工作区锁的构造选项（缺省值见 host/constants）。 */
-export interface WorkspaceLockOptions {
-  /** 宿主数据根目录（`$DSH_HOME`）。 */
-  dshHome: string
-  /** 等待上限（毫秒）；超时抛 WorkspaceLockTimeoutError。 */
-  timeoutMs?: number
-  /** 竞争时的重试间隔（毫秒）。 */
-  retryMs?: number
-}
-
-/** 单次捕获的用量上限（默认取宿主常量；宿主插件行配置/测试可覆盖）。 */
+/** 单次捕获的用量上限（默认取宿主常量；宿主配置/测试可覆盖）。 */
 export interface CaptureLimits {
   /** 单个文件超过此值即排除并标注。 */
   maxFileBytes: number
@@ -118,17 +71,26 @@ export type WorkspaceProbe
     | { ok: false, reason: string }
 
 /** 一个 turn 内的单文件差异。 */
+export type TurnFileStatus = 'A' | 'M' | 'D'
+
 export interface TurnFileChange {
   /** 相对 worktree 根的路径。 */
   path: string
   /** A=本 turn 新增，M=修改，D=删除。 */
-  status: 'A' | 'M' | 'D'
+  status: TurnFileStatus
   /** 文本行新增数；二进制为 null。 */
   insertions: number | null
   /** 文本行删除数；二进制为 null。 */
   deletions: number | null
   /** 是否为二进制差异。 */
   binary: boolean
+}
+
+/** 一次恢复的执行结果。 */
+export interface RestoreReport {
+  restored: string[]
+  removed: string[]
+  failed: Array<{ path: string, reason: string }>
 }
 
 /** 一个 turn 的变更记录（账本行）。 */
@@ -168,9 +130,7 @@ export interface SessionLedger {
 
 /** 运行中实时读数的线协议形态（客户端「运行中」提示条）。 */
 export interface LiveSnapshot {
-  /** 是否有正在进行的 turn（false 时其余字段为占位 0）。 */
   active: boolean
-  /** 正在进行的 turn 号；无活动 turn 时为 null。 */
   turn: number | null
   fileCount: number
   insertions: number
@@ -180,7 +140,6 @@ export interface LiveSnapshot {
 /** 撤销前的冲突明细。 */
 export interface UndoConflict {
   path: string
-  /** 冲突原因（人类可读，用于卡片展示）。 */
   reason: string
 }
 
@@ -203,18 +162,23 @@ export interface SummaryPayload {
     undoneAt: number | null
     unavailable: string | null
     /**
-     * 该轮是否建立过 before/after 快照（refs 是否留下）。
-     *
-     * 与 `unavailable` 配合区分两种失败：连基线都没有 = 这一轮从没有过可撤销的东西
-     * （客户端对通用失败保持沉默）；基线在而 after 结算失败 = 承诺过的撤销落空了
-     * （客户端必须告警）。
+     * 该轮是否建立过 before/after 快照（refs 是否留下）。与 `unavailable` 配合区分两种失败：
+     * 连基线都没有 = 这一轮从没有过可撤销的东西；基线在而 after 结算失败 = 承诺过的撤销落空了。
      */
     hasBaseline: boolean
     truncated: boolean
     files: TurnFileChange[]
-    /** 因超过单文件上限而未纳入快照的路径（不在撤销范围内）。 */
     skippedOversized: string[]
-    /** 被跳过的嵌套 Git 仓库路径（其内部改动不受撤销保护）。 */
     skippedNestedRepos: string[]
   }>
+}
+
+/** 撤销路由的响应体（客户端持有同形状的镜像，host 与 client 互不导入）。 */
+export interface UndoResponse {
+  ok?: boolean
+  restored?: string[]
+  removed?: string[]
+  failed?: Array<{ path: string, reason: string }>
+  error?: string
+  conflicts?: Array<{ path: string, reason: string }>
 }

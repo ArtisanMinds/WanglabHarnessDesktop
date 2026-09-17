@@ -9,6 +9,7 @@ import type {
   SidebarBusyAction,
   StartupError,
 } from './types'
+import type { PatchQuarantineReport } from '@/types/plugin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import i18next from 'i18next'
@@ -36,6 +37,7 @@ import {
   checkHealthViaProxy,
   generateTimestampedUrl,
   internalPluginReason,
+  notifyPatchQuarantine,
   pollHarnessReadiness,
   startupError,
 } from './utils'
@@ -87,6 +89,8 @@ export const harness = defineStore({
     pluginConflictHint: '',
     /** 识别到 Linux inotify 文件监视上限（ENOSPC）时的针对性提示（Loadable children 展示） */
     inotifyLimitHint: '',
+    /** 识别到补丁层 YAML 语法错误时的针对性提示（含文件与行列号，Loadable children 展示） */
+    patchLayerHint: '',
     serviceUrl: 'http://127.0.0.1:3080',
     /** 带时间戳的 iframe 地址（boot 时生成一次，避免缓存） */
     iframeSrc: '',
@@ -205,6 +209,8 @@ export const harness = defineStore({
         error.logs,
         error.pluginConflictHint,
         error.inotifyLimitHint,
+        undefined,
+        error.patchLayerHint,
       )
     },
 
@@ -319,6 +325,7 @@ export const harness = defineStore({
         error.pluginConflictHint,
         error.inotifyLimitHint,
         this.serviceRunning,
+        error.patchLayerHint,
       )
     },
 
@@ -372,6 +379,7 @@ export const harness = defineStore({
       this.errorLogs = []
       this.pluginConflictHint = ''
       this.inotifyLimitHint = ''
+      this.patchLayerHint = ''
       preinstall.error = ''
       // 服务（重）启动成功：清空插件异常修复态（若曾进入），并重置已「暂不处理」的插件
       recovery.reset()
@@ -400,6 +408,7 @@ export const harness = defineStore({
       this.errorLogs = []
       this.pluginConflictHint = ''
       this.inotifyLimitHint = ''
+      this.patchLayerHint = ''
       recovery.reset()
       this.serviceHealthy = false
       this.iframeLoaded = false
@@ -480,6 +489,7 @@ export const harness = defineStore({
       this.errorLogs = []
       this.pluginConflictHint = ''
       this.inotifyLimitHint = ''
+      this.patchLayerHint = ''
       recovery.clear()
       this.status = 'ready'
       let unlistenInstall: UnlistenFn | null = null
@@ -604,11 +614,12 @@ export const harness = defineStore({
     },
 
     /** 进入错误态（供本模块与 harness-updater 模块共用） */
-    fail(message: string, logs?: string[], pluginConflictHint?: string, inotifyLimitHint?: string, keepServiceRunning = false) {
+    fail(message: string, logs?: string[], pluginConflictHint?: string, inotifyLimitHint?: string, keepServiceRunning = false, patchLayerHint?: string) {
       this.errorMsg = message
       this.errorLogs = logs ?? []
       this.pluginConflictHint = pluginConflictHint ?? ''
       this.inotifyLimitHint = inotifyLimitHint ?? ''
+      this.patchLayerHint = patchLayerHint ?? ''
       this.status = 'error'
       this.serviceRunning = keepServiceRunning
     },
@@ -648,17 +659,57 @@ export const harness = defineStore({
      * 进入安全模式：切到 safe 档案（仅核心 bundles、无用户插件）并重启服务。
      * 启动失败的插件（如 pending waiting for service）被隔离，应用先恢复可用；
      * 用户在档案列表切回原档案即退出安全模式。
+     *
+     * 后端同时会隔离「解析不了的补丁层」（安全档案层 + home 层，见
+     * `service::plugin::patch_guard`）：home 层作用于所有档案，不隔离的话一处
+     * 手写笔误会让安全模式也起不来（issue #525）。结果用 toast 告知备份路径。
      */
     async enterSafeMode() {
       if (this.busyAction)
         return
       try {
-        await invoke('enter_safe_mode')
+        const report = await invoke<PatchQuarantineReport>('enter_safe_mode')
+        notifyPatchQuarantine(report)
       }
       catch (err) {
         console.error('[Harness] enter safe mode failed:', err)
         const error = await attachStartupDiagnostics(err)
-        this.fail(error.message, error.logs, error.pluginConflictHint, error.inotifyLimitHint)
+        this.fail(
+          error.message,
+          error.logs,
+          error.pluginConflictHint,
+          error.inotifyLimitHint,
+          undefined,
+          error.patchLayerHint,
+        )
+        return
+      }
+      await this.restart()
+    },
+
+    /**
+     * 隔离解析不了的补丁层（当前档案层 + home 层）并重启：错误页在补丁层语法
+     * 错误时的专用恢复入口，让用户留在自己的档案里恢复，不切档案、不动插件。
+     * 补丁文件只改名保存为 `.broken-<时间戳>` 备份，修好语法后改回原名即可恢复。
+     */
+    async quarantineBrokenPatchLayers() {
+      if (this.busyAction)
+        return
+      try {
+        const report = await invoke<PatchQuarantineReport>('quarantine_broken_patch_layers')
+        notifyPatchQuarantine(report)
+      }
+      catch (err) {
+        console.error('[Harness] quarantine broken patch layers failed:', err)
+        const error = await attachStartupDiagnostics(err)
+        this.fail(
+          error.message,
+          error.logs,
+          error.pluginConflictHint,
+          error.inotifyLimitHint,
+          undefined,
+          error.patchLayerHint,
+        )
         return
       }
       await this.restart()
@@ -686,6 +737,7 @@ export const harness = defineStore({
       this.errorLogs = []
       this.pluginConflictHint = ''
       this.inotifyLimitHint = ''
+      this.patchLayerHint = ''
       recovery.reset()
     },
 
