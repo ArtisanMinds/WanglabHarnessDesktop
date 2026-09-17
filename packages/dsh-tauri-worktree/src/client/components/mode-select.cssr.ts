@@ -29,8 +29,9 @@ export default c([
   ]),
   c('.dshp-mode-select__trigger.dshp-mode-select__trigger--open', { background: 'var(--dsw-alias-interactive-bg-hover)' }),
   c('.dshp-mode-select__label', { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
-  c('.dshp-mode-select__icon', { color: 'var(--dsw-alias-label-primary)', display: 'inline-flex', flex: 'none' }),
-  c('.dshp-mode-select__chevron', { color: 'var(--dsw-alias-label-caption)', flex: 'none' }),
+  c('.dshp-mode-select__icon', { color: 'var(--dsw-alias-label-secondary)', display: 'inline-flex', flex: 'none' }),
+  c('.dshp-mode-select__chevron', { color: 'var(--dsw-alias-label-caption)', flex: 'none', transition: 'transform 0.12s' }),
+  c('.dshp-mode-select__chevron.dshp-mode-select__chevron--open', { transform: 'rotate(180deg)' }),
   c('.dshp-mode-select__host', { display: 'inline-flex', alignItems: 'center', flex: 'none' }),
   c('.dshp-mode-select__anchor', { display: 'none' }),
 ])

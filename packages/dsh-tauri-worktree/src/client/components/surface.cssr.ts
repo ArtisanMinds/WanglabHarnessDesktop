@@ -52,7 +52,7 @@ export default b('worktree', [
   }, [
     m('open', { gridTemplateRows: '1fr', opacity: 1 }),
   ]),
-  e('logs-inner', { minHeight: 0, overflow: 'hidden' }),
+  e('logs-inner', { minHeight: 0, overflow: 'hidden', marginTop: '6px' }),
   e('logs-panel', {
     maxHeight: '180px',
     overflowY: 'auto',

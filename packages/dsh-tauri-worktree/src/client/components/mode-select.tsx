@@ -185,13 +185,13 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
       aria-haspopup="menu"
       aria-expanded={open}
       onClick={() => setOpen(value => !value)}
-      className={open ? `${'dshp-mode-select__trigger'} ${'dshp-mode-select__trigger--open'}` : 'dshp-mode-select__trigger'}
+      className={open ? 'dshp-mode-select__trigger dshp-mode-select__trigger--open' : 'dshp-mode-select__trigger'}
     >
       <span className="dshp-mode-select__icon">
         <Icon as={CircleTree} size={13} />
       </span>
       <span className="dshp-mode-select__label">{activeLabel}</span>
-      <Icon as={ChevronDown} className="dshp-mode-select__chevron" />
+      <Icon as={ChevronDown} className={open ? 'dshp-mode-select__chevron dshp-mode-select__chevron--open' : 'dshp-mode-select__chevron'} />
     </button>
   )
 
@@ -215,7 +215,7 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
           error: '',
         })
       }}
-      side="bottom"
+      side="top"
       align="start"
       portal
       anchor={trigger}
