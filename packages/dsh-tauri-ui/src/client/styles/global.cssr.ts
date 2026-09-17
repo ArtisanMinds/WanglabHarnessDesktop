@@ -7,6 +7,9 @@ export default c([
     c('[class$="guide"]', {
       gap: '8px',
     }),
+    c('[class$="entry"]:has(> button)', {
+      padding: '0',
+    }),
     c('[class$="entry"]', {
       border: 'none',
       padding: '8px 16px',
@@ -14,15 +17,22 @@ export default c([
       minHeight: 'auto',
       alignItems: 'start',
     }),
-    c('[class$="entryIcon"]', {
+    c('[class$="entry"]>button', {
+      border: 'none',
+      padding: '8px 16px',
+      gap: '12px',
+      minHeight: 'auto',
+      alignItems: 'start',
+    }),
+    c('[class$="entryIcon"], [class$="icon"]', {
       marginTop: '2px',
       width: '18px',
       height: '18px',
     }),
-    c('[class$="entryTitle"]', {
+    c('[class$="entryTitle"], [class$="title"]', {
       fontSize: '14px',
     }),
-    c('[class$="entryDescription"]', {
+    c('[class$="entryDescription"], [class$="description"]', {
       fontSize: '12px',
     }),
   ]),
