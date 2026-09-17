@@ -2,7 +2,7 @@ import { defineLocale } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../constants'
 
 const zh = {
-  section: '归档',
+  section: '已归档会话',
   archiveTitle: '已归档的聊天',
   deleteAll: '全部删除',
   searchPlaceholder: '搜索已归档的聊天',
