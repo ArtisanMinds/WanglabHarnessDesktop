@@ -158,7 +158,6 @@ export default c([
   c(`.dshp-session__row-title`, {
     fontSize: '13px',
     lineHeight: '22px',
-    fontWeight: 600,
     color: 'var(--dsw-alias-label-primary)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
