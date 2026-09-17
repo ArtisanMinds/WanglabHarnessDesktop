@@ -21,9 +21,9 @@ function toRows(input: Record<string, readonly number[]> | undefined): Record<st
   return rows
 }
 
-async function load(force: boolean): Promise<PresetsLoad> {
+async function load(): Promise<PresetsLoad> {
   try {
-    const response = await getPresets(force ? { force: 'true' } : undefined)
+    const response = await getPresets()
     if (response.error !== undefined)
       return { ok: false, error: response.error }
     const rows = toRows(response.presets)
@@ -41,15 +41,14 @@ async function load(force: boolean): Promise<PresetsLoad> {
 /**
  * 确保能力预设表已装入。
  *
- * 表是自动配置图片与思考档位的唯一来源，第一次点击时才去取（上游数据集约 2.5 MB，压缩后
- * 落盘）。取过一次就复用同一个 Promise；失败后不缓存结果，下次点击会重试。
- * @param force - 忽略宿主缓存的有效期，重新下载。
+ * 表是自动配置填入图片与思考档位的唯一来源：进模型设置页时预取一次，之后同一会话复用同一个
+ * Promise。失败后不缓存结果，下一次调用会重新尝试（宿主侧还有自己的缓存与降级）。
  * @returns 装入的条目数，或失败文案（此时家族规则仍然生效）。
  */
-export async function ensurePresets(force = false): Promise<PresetsLoad> {
+export async function ensurePresets(): Promise<PresetsLoad> {
   if (pending !== undefined)
     return pending
-  const attempt = load(force)
+  const attempt = load()
   pending = attempt
   const result = await attempt
   if (!result.ok)
