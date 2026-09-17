@@ -29,6 +29,39 @@ export function imageInputValue(next: boolean): string[] {
   return next ? ['text', 'image'] : ['text']
 }
 
+/**
+ * 打开「思考模式」时写入的档位声明。
+ *
+ * 键是档位，值是分发给端点时使用的线值（只有 `off` 允许为空）。这一组与官方 pi-ai 目录
+ * 给自建路由的默认档位一致，也是参考实现（dsh-llm-capabilities）的默认值：声明 off/low/
+ * medium/high 四档，端点按自己的语义解释。
+ */
+export const DEFAULT_THINKING_EFFORTS: Readonly<Record<string, string | null>> = {
+  off: null,
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+}
+
+/**
+ * 该条目是否已声明提供思考档位。
+ *
+ * `reasoningEfforts` 为 `false` 表示显式「不支持思考」，缺席表示「继承默认」，两者在
+ * 开关上都读为关；只有含 `off` 以外档位的对象才算打开——只声明 `off` 的条目在 schema
+ * 校验里本就不合法，等于没有可用的思考档位。
+ */
+export function supportsThinking(model: DeepSeekModelDraft): boolean {
+  const efforts = model.reasoningEfforts
+  if (typeof efforts !== 'object' || efforts === null || Array.isArray(efforts))
+    return false
+  return Object.keys(efforts).some(level => level !== 'off')
+}
+
+/** 开关状态对应的 `reasoningEfforts` 声明值。 */
+export function thinkingEffortsValue(next: boolean): Record<string, string | null> | false {
+  return next ? { ...DEFAULT_THINKING_EFFORTS } : false
+}
+
 export interface ModelConfigMerge {
   models: DeepSeekModelDraft[]
   /** 至少补齐了一个字段的条目数。 */

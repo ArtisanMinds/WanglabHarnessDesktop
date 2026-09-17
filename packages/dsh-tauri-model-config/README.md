@@ -22,7 +22,9 @@
 | 面板标题右侧（`.zGbnIq_title`） | **打开配置文件**：用系统默认程序打开 `$DSH_HOME/settings.yaml`；文件尚未创建时改为打开它所在目录 |
 | 单个模型行（`.zGbnIq_modelRow`） | **获取配置**：仅在该条目只有 `id`/`name`/`description` 时出现，按 `id` 从提供方端点读取该模型的上下文与输出上限 |
 | 模型目录标题（`.zGbnIq_modelCatalogHeading`） | 追加 `flex: 1`（按钮集中到右侧），并在右侧加入 **自动配置所有模型**：对列表内每个模型执行同样的读取 |
-| 单个模型高级区（`.zGbnIq_modelAdvanced`） | **支持图片输入** 开关：写入/清除 `input` 声明 |
+| 单个模型高级区（`.zGbnIq_modelAdvanced`） | **支持图片输入** 开关：写入/清除 `input` 声明；**思考模式** 开关：写入/清除 `reasoningEfforts` 声明 |
+
+高级区里的开关统一由 `.zGbnIq_modelSwitchRow` 包裹（`display: flex` + `height: 32px` + 垂直居中），与相邻的 32px 文本输入框对齐。
 
 ## 配置从哪里来
 
@@ -43,6 +45,16 @@
 | POST | `/api/desktop/dsh-tauri-model-config/config/open` | 用系统默认程序打开模型配置文件 |
 
 已接入 `genapi.config.ts`，客户端 `apis/` 为生成产物。
+
+## 思考模式
+
+**思考模式** 开关写入 `reasoningEfforts`：打开时声明 `{ off: null, low: 'low', medium: 'medium', high: 'high' }`，
+关闭时写入 `false`（显式「不支持思考」）。这组档位与官方 pi-ai 目录给自建路由的默认档位、
+以及参考实现 `dsh-llm-capabilities` 的 `DEFAULT_REASONING_EFFORTS` 一致——键是档位，值是分发给端点时使用的线值，
+只有 `off` 允许为空。需要为某个模型改线值时，直接在设置文档里改这一项即可。
+
+开关只表达两种**显式声明**：`false`（不支持）与档位对象（支持）。`reasoningEfforts` 缺席表示「继承默认」，
+此时开关读为关，与图片开关同一口径。只声明 `off` 的条目在 schema 校验里本就不合法，同样读为关。
 
 ## 已知约束
 

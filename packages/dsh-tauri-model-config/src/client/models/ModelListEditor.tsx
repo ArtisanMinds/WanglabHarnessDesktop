@@ -5,7 +5,7 @@ import type { en } from './locales.ts'
 import type { ModelsOperations } from './operations.ts'
 import { Button, Modal, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState } from 'react'
-import { hasModelConfig, imageInputValue, supportsImageInput } from '../service/model-config.utils.ts'
+import { hasModelConfig, imageInputValue, supportsImageInput, supportsThinking, thinkingEffortsValue } from '../service/model-config.utils.ts'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import { modelStyles as styles } from './styles.ts'
 
@@ -400,14 +400,27 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                   </label>
                   <div className={styles.modelField}>
                     <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
-                    <Switch
-                      checked={supportsImageInput(model)}
-                      disabled={disabled}
-                      label={`${t('imageInput')} ${index + 1}`}
-                      title={t('imageInputHint')}
-                      className={styles.modelSwitch}
-                      onChange={(next) => { patch(index, { input: imageInputValue(next) }) }}
-                    />
+                    <div className={styles.modelSwitchRow}>
+                      <Switch
+                        checked={supportsImageInput(model)}
+                        disabled={disabled}
+                        label={`${t('imageInput')} ${index + 1}`}
+                        title={t('imageInputHint')}
+                        onChange={(next) => { patch(index, { input: imageInputValue(next) }) }}
+                      />
+                    </div>
+                  </div>
+                  <div className={styles.modelField}>
+                    <span className={styles.modelFieldLabel} title={t('thinkingModeHint')}>{t('thinkingMode')}</span>
+                    <div className={styles.modelSwitchRow}>
+                      <Switch
+                        checked={supportsThinking(model)}
+                        disabled={disabled}
+                        label={`${t('thinkingMode')} ${index + 1}`}
+                        title={t('thinkingModeHint')}
+                        onChange={(next) => { patch(index, { reasoningEfforts: thinkingEffortsValue(next) }) }}
+                      />
+                    </div>
                   </div>
                 </div>
               )

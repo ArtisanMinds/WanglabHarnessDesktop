@@ -6,6 +6,8 @@ import {
   mergeModelCards,
   modelConfigNotice,
   supportsImageInput,
+  supportsThinking,
+  thinkingEffortsValue,
   withCount,
   withDetail,
   withPath,
@@ -40,6 +42,33 @@ describe('supportsImageInput', () => {
   it('encodes both switch positions as explicit declarations', () => {
     expect(imageInputValue(true)).toEqual(['text', 'image'])
     expect(imageInputValue(false)).toEqual(['text'])
+  })
+})
+
+describe('supportsThinking', () => {
+  it('reads a graded declaration as on', () => {
+    expect(supportsThinking({ id: 'm', reasoningEfforts: { off: null, low: 'low', high: 'high' } })).toBe(true)
+  })
+
+  it('reads an explicit refusal and inheritance as off', () => {
+    expect(supportsThinking({ id: 'm', reasoningEfforts: false })).toBe(false)
+    expect(supportsThinking({ id: 'm' })).toBe(false)
+    expect(supportsThinking({ id: 'm', reasoningEfforts: 'low' })).toBe(false)
+    expect(supportsThinking({ id: 'm', reasoningEfforts: ['low'] })).toBe(false)
+  })
+
+  it('reads an off-only declaration as off', () => {
+    expect(supportsThinking({ id: 'm', reasoningEfforts: { off: null } })).toBe(false)
+  })
+
+  it('encodes both switch positions as explicit declarations', () => {
+    expect(thinkingEffortsValue(true)).toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
+    expect(thinkingEffortsValue(false)).toBe(false)
+  })
+
+  it('hands out a fresh effort map so one row cannot mutate another', () => {
+    const first = thinkingEffortsValue(true)
+    expect(first).not.toBe(thinkingEffortsValue(true))
   })
 })
 
