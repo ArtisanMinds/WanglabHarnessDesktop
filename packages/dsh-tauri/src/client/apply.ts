@@ -25,6 +25,10 @@ const SIDEBAR_TWEAKS_EFFECT = 'dsh-tauri: sidebar tweaks (hide collapse toggle, 
 const STYLE_EFFECT = 'dsh-tauri: style (sidebar background)'
 /** 插件体：注册侧边栏桥、导航命令、缩放快捷键与侧边栏 UI 微调。 */
 export function apply(ctx: ClientContext): void {
+  // issue #573：独立浏览器没有桌面宿主，保留原生侧栏控件与缩放快捷键。
+  if (typeof window === 'undefined' || typeof document === 'undefined' || window.parent === window)
+    return
+
   ctx.effect(registerStyle, STYLE_EFFECT)
   ctx.effect(sidebarFeature, SIDEBAR_TOGGLE_EFFECT)
   ctx.effect(navigationFeature, NAVIGATION_EFFECT)
