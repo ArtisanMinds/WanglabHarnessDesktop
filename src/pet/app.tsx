@@ -6,12 +6,12 @@ import { If } from 'react-if-lite'
 import { useOmitIgnoreCursorEvents } from '@/hooks/use-omit-ignore-cursor-events'
 import { useWindowDraggable } from '@/hooks/use-window-draggable'
 import { Hint } from '@/ui/pet/hint'
+import { useWakelockRelease } from '../hooks/use-wakelock-release'
 import { PET_BASE_WIDTH, PET_DSH_ASPECT } from './constants'
 import { useBubbleTracker } from './hooks/use-bubble-tracker'
 import { usePetSource } from './hooks/use-pet-source'
 import { normalizeSizePercent, usePetStatus } from './hooks/use-pet-status'
 import { usePetWindowSize } from './hooks/use-pet-window'
-import { useWakelockRelease } from './hooks/use-wakelock-release'
 import { reportPetIssue } from './utils/log'
 
 /**
