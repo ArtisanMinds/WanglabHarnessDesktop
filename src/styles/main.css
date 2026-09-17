@@ -5,6 +5,16 @@
 
 @import "./components/scrollbar.css";
 
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    /* background: #fff; */
+  }
+}
+
+
 /* WebView2 123+ 的原生拖拽区域支持触摸屏；Windows runtime 110+ 通过
    msWebView2EnableDraggableRegions 参数启用。按钮不在该区域内，故无需 no-drag。 */
 [data-tauri-drag-region] {
@@ -121,7 +131,7 @@ html[data-theme="light"] {
   }
 
   body {
-    @apply overflow-hidden bg-canvas text-ink;
+    @apply overflow-hidden text-ink;
     /* 字体栈与官方 web shell（--dsw-font-family）保持一致 */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 14px;

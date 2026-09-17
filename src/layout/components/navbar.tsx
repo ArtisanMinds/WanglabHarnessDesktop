@@ -17,6 +17,7 @@ import { If } from 'react-if-lite'
 import { cn } from 'tailwind-variants'
 import { useStore } from 'valtio-define'
 import { queryKeys } from '@/config/query-keys'
+import { useDshStyle } from '@/hooks/use-dsh-style'
 import { useListen } from '@/hooks/use-listen'
 import { store } from '@/store'
 import { DesktopAboutDialog } from '@/ui/dialog/about'
@@ -151,10 +152,12 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     queryFn: () => invoke<DshPlugin[]>('get_dsh_plugins'),
   })
   const { updateInfo } = useStore(store.desktopUpdater)
+  const [dshStyle] = useDshStyle()
 
   const openConfigDialog = useOverlay(ConfigDialog)
   const openAboutDialog = useOverlay(DesktopAboutDialog)
   const openUpdateDialog = useOverlay(DesktopUpdateDialog)
+
   // 仅当 dsh-tauri 插件启用（已安装）时显示左侧导航控件
   const tauriEnabled = plugins.some(plugin => plugin.id === TAURI_PLUGIN_ID)
   function handleWindowAction(action: 'minimize' | 'maximize' | 'background') {
@@ -173,13 +176,13 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     }
   }
 
-  function handleDragRegionDoubleClick() {
+  function onDragRegionDoubleClick() {
     // macOS 的双击标题栏行为由系统偏好决定，不用网页强制覆盖。
     if (!IS_MACOS)
       void getCurrentWindow().toggleMaximize()
   }
 
-  function handleDragRegionPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+  function onDragRegionPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     // data-tauri-drag-region 原生只监听鼠标事件（mousedown/mouseup），
     // 触摸屏/笔输入不会触发原生拖拽（见 tauri#13762）。
     // 这里对非鼠标输入手动调用 startDragging 进入系统边拖边跟随。
@@ -190,7 +193,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     void getCurrentWindow().startDragging()
   }
 
-  function handleHelpAction(key: HelpAction) {
+  function onHelpAction(key: HelpAction) {
     if (key === 'check-update')
       void handleCheckUpdate()
     else if (key === 'about')
@@ -337,6 +340,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
           'px-1.5': !IS_MACOS || isFullscreen,
         },
       )}
+      style={{ background: dshStyle.sidebar?.background }}
     >
       <If cond={onToggleSidebar != null && tauriEnabled}>
         <Button
@@ -438,7 +442,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                   className="rounded-md"
                   id="copy-run-logs"
                   textValue={t('menu.run_logs')}
-                  onAction={() => handleHelpAction('copy-run-logs')}
+                  onAction={() => onHelpAction('copy-run-logs')}
                 >
                   <Label>{t('menu.run_logs')}</Label>
                 </Dropdown.Item>
@@ -446,7 +450,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                   className="rounded-md"
                   id="check-update"
                   textValue={t('menu.check_update')}
-                  onAction={() => handleHelpAction('check-update')}
+                  onAction={() => onHelpAction('check-update')}
                 >
                   <span className="flex w-full items-center justify-between gap-3">
                     <Label>{t('menu.check_update')}</Label>
@@ -459,7 +463,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                   className="rounded-md"
                   id="about"
                   textValue={t('menu.about')}
-                  onAction={() => handleHelpAction('about')}
+                  onAction={() => onHelpAction('about')}
                 >
                   <Label>{t('menu.about')}</Label>
                 </Dropdown.Item>
@@ -467,7 +471,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                   className="rounded-md"
                   id="documentation"
                   textValue={t('menu.documentation')}
-                  onAction={() => handleHelpAction('documentation')}
+                  onAction={() => onHelpAction('documentation')}
                 >
                   <Label>{t('menu.documentation')}</Label>
                 </Dropdown.Item>
@@ -500,9 +504,11 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
       <div
         className="min-w-0 flex-1 self-stretch touch-none"
         data-tauri-drag-region
-        onPointerDown={handleDragRegionPointerDown}
-        onDoubleClick={handleDragRegionDoubleClick}
+        onPointerDown={onDragRegionPointerDown}
+        onDoubleClick={onDragRegionDoubleClick}
       />
+
+      <div className="absolute" style={dshStyle.marked || {}} />
 
       <If cond={!IS_MACOS}>
         <Button

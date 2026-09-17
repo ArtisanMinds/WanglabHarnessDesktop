@@ -14,6 +14,7 @@ import type { ClientContext } from './types'
 import { navigationFeature } from './register/navigation'
 import { sidebarFeature } from './register/sidebar'
 import { sidebarTweaksFeature } from './register/sidebar-tweaks'
+import { registerStyle } from './register/style'
 import { zoomShortcutFeature } from './register/zoom-shortcut'
 
 /** effect 标签（只有本文件消费，按常量归属规则留在消费方）。 */
@@ -21,13 +22,14 @@ const SIDEBAR_TOGGLE_EFFECT = 'dsh-tauri: sidebar (toggle command + collapsed re
 const NAVIGATION_EFFECT = 'dsh-tauri: navigation (new session, add workspace)'
 const ZOOM_SHORTCUT_EFFECT = 'dsh-tauri: zoom shortcuts (ctrl/cmd +/-/0)'
 const SIDEBAR_TWEAKS_EFFECT = 'dsh-tauri: sidebar tweaks (hide collapse toggle, center brand)'
-
+const STYLE_EFFECT = 'dsh-tauri: style (sidebar background)'
 /** 插件体：注册侧边栏桥、导航命令、缩放快捷键与侧边栏 UI 微调。 */
 export function apply(ctx: ClientContext): void {
   // issue #573：独立浏览器没有桌面宿主，保留原生侧栏控件与缩放快捷键。
   if (typeof window === 'undefined' || typeof document === 'undefined' || window.parent === window)
     return
 
+  ctx.effect(registerStyle, STYLE_EFFECT)
   ctx.effect(sidebarFeature, SIDEBAR_TOGGLE_EFFECT)
   ctx.effect(navigationFeature, NAVIGATION_EFFECT)
   ctx.effect(zoomShortcutFeature, ZOOM_SHORTCUT_EFFECT)
