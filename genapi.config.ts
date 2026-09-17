@@ -7,6 +7,7 @@ const plugins = [
   'dsh-tauri-rightclick',
   'dsh-tauri-session',
   'dsh-tauri-turnrewind',
+  'dsh-tauri-ui',
   'dsh-tauri-worktree',
 ]
 
