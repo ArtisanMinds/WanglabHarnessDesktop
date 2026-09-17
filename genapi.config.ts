@@ -2,6 +2,7 @@ import { defineConfig } from '@genapi/core'
 import { pluginPipeline } from './genapi.pipeline'
 
 const plugins = [
+  'dsh-tauri-model-config',
   'dsh-tauri-panel-extension',
   'dsh-tauri-panel-scheduler',
   'dsh-tauri-rightclick',
