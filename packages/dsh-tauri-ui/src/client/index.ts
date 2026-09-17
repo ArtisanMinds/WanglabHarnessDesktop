@@ -1,15 +1,9 @@
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ClientContext } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../shared/constants'
-import {
-  LOCALE_EFFECT,
-  OBSTRUCTIONS_EFFECT,
-  SEAT_EFFECT,
-  SECTIONS_EFFECT,
-  SETTINGS_EFFECT,
-  STYLES_EFFECT,
-} from './constants'
+import { LOCALE_EFFECT, OBSTRUCTIONS_EFFECT, SEAT_EFFECT, SECTIONS_EFFECT, SETTINGS_EFFECT, STYLES_EFFECT } from './constants'
 import { locale } from './locales'
+import { composerResumeFeature } from './register/composer-resume'
 import { registerSettingsObstructions } from './register/obstructions'
 import { registerShellSeat } from './register/seat'
 import { registerSettingsSections } from './register/sections'
@@ -30,7 +24,9 @@ export * from './utils/cssr'
 export * from './utils/style'
 
 export const name = PLUGIN_ID
-export const inject = ['slots', 'layout', 'locale']
+export const inject = ['slots', 'layout', 'locale', 'sessions']
+
+const COMPOSER_RESUME_EFFECT = `${PLUGIN_ID}: composer resume`
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(locale.registerLocale, LOCALE_EFFECT)
@@ -39,4 +35,5 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(registerSettingsSections, SECTIONS_EFFECT)
   ctx.effect(registerSettings, SETTINGS_EFFECT)
   ctx.effect(registerSettingsObstructions, OBSTRUCTIONS_EFFECT)
+  ctx.effect(composerResumeFeature, COMPOSER_RESUME_EFFECT)
 }

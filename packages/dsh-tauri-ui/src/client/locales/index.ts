@@ -7,11 +7,13 @@ export const locale = defineLocale(PLUGIN_ID, {
     search: '搜索设置…',
     settings: '设置',
     noResults: '没有匹配的设置项',
+    resumeTask: '继续任务',
   },
   en: {
     back: 'Back to app',
     search: 'Search settings…',
     settings: 'Settings',
     noResults: 'No matching settings',
+    resumeTask: 'Resume task',
   },
 })
