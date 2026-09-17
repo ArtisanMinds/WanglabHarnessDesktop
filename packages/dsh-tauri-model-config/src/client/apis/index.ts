@@ -14,8 +14,3 @@ export const baseURL = "/api/desktop/dsh-tauri-model-config";
 export function postConfigOpen(options?: FetchOptions) {
   return ofetch<Types.OpenModelsConfigResponse>("/config/open", { baseURL, method: "post", ...options });
 }
-
-/** @method get */
-export function getRapidMlxModels(params?: Types.GetRapidMlxModelsQuery, options?: FetchOptions) {
-  return ofetch<Types.RapidMlxModelsResponse>("/rapid-mlx/models", { baseURL, method: "get", params, ...options });
-}

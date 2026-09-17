@@ -1,6 +1,6 @@
 # dsh-tauri-model-config
 
-内置插件：接管 DSH 的「模型」设置页，在官方页面的基础上补齐官方不支持的配置项，并接入 Rapid-MLX 自动配置。
+内置插件：接管 DSH 的「模型」设置页，在官方页面的基础上补齐官方不支持的配置项，并让模型上限可以从提供方端点直接读取。
 
 ## 为什么是 fork
 
@@ -20,34 +20,32 @@
 | 位置 | 能力 |
 | --- | --- |
 | 面板标题右侧（`.zGbnIq_title`） | **打开配置文件**：用系统默认程序打开 `$DSH_HOME/settings.yaml`；文件尚未创建时改为打开它所在目录 |
-| 单个模型行（`.zGbnIq_modelRow`） | **获取配置**：仅在该条目只有 `id`/`name`/`description` 时出现，按 `id` 从端点读取该模型的配置 |
+| 单个模型行（`.zGbnIq_modelRow`） | **获取配置**：仅在该条目只有 `id`/`name`/`description` 时出现，按 `id` 从提供方端点读取该模型的上下文与输出上限 |
 | 模型目录标题（`.zGbnIq_modelCatalogHeading`） | 追加 `flex: 1`（按钮集中到右侧），并在右侧加入 **自动配置所有模型**：对列表内每个模型执行同样的读取 |
 | 单个模型高级区（`.zGbnIq_modelAdvanced`） | **支持图片输入** 开关：写入/清除 `input` 声明 |
 
-## 自动配置的数据来源
+## 配置从哪里来
 
-宿主侧代理 `GET {baseURL}/models`（默认 `http://localhost:8000/v1`）。走宿主而不是浏览器是必须的：
-内核 Web 源与模型端点不同源，而 Rapid-MLX 不带 CORS 头。
+与官方页面已有的「获取模型」按钮走**同一个通道**：`remote.llm.discoverModels(settingsNs, probe)`。
 
-字段口径与官方 Rapid-MLX 适配器（`raullenchai/rapid-mlx-dsh-provider`）一致：
+`probe` 就是表单当前显示的端点事实（`provider` / `baseURL` / `api`，以及已输入但尚未保存的 `apiKey`），
+因此对自建端点、网关、本地推理服务一视同仁——插件不认识任何具体部署，也不为此新增宿主路由或对端点做额外假设。
+凭据走类型化参数交给宿主解析，不会出现在 URL 里。这与 `dsh-llm-capabilities`、`dsh-thinking-effort` 的取数方式一致：
+能用官方发现通道回答的（容量）就不自己发请求；官方通道不提供的（视觉能力）由用户用手动开关声明。
 
-| 端点字段 | 写入的设置字段 | 说明 |
-| --- | --- | --- |
-| `max_model_len` → `context_window` → `context_length` → `max_input_tokens` → `limit.context` | `contextWindow` | 优先取按本机内存拟合的上限，旧服务端缺该字段时回落到原生窗口 |
-| `max_output_tokens` / `max_tokens` / `max_completion_tokens` / `limit.output` | `maxTokens` | 端点没披露则留空 |
-| `capabilities` 含 `vision` | `input: ['text', 'image']` | `capabilities` 缺席表示服务端没回答，此时不写 `input`，绝不臆测 |
-| `capabilities` 不含 `vision` | `input: ['text']` | |
-
-**只补空缺字段**：已有值不会被覆盖——自动配置是「配置」而不是「重置」。
+**只补空缺字段**：`contextWindow` / `maxTokens` 只在条目为空时写入，已有值不会被一次点击抹掉——这是「配置」而不是「重置」。
+端点没有披露的条目留在原地，并在界面上给出计数与未披露数量。
 
 ## 宿主路由
 
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
-| GET | `/api/desktop/dsh-tauri-model-config/rapid-mlx/models` | 代理模型端点清单，返回归一化后的条目（`baseURL` 查询参数可选） |
 | POST | `/api/desktop/dsh-tauri-model-config/config/open` | 用系统默认程序打开模型配置文件 |
+
+已接入 `genapi.config.ts`，客户端 `apis/` 为生成产物。
 
 ## 已知约束
 
 - 模型配置文件按 `$DSH_HOME`（非空白）→ `~/.dsh` 解析后取 `settings.yaml`，与官方 `resolveDshHome` 及桌面壳一致；如果 profile 的 `cordis.yml` 为 `settings-file` 配了自定义 `path`，这里无法感知。
 - 文件不存在时打开的是它所在的目录，而不是替用户创建一个空文档。
+- 图片能力不在官方发现通道的返回里（`LlmDiscoveredModel` 只有 id / name / 容量），因此由手动开关声明，不做猜测。

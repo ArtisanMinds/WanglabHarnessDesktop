@@ -1,5 +1,5 @@
-import type { RapidMlxModelCard } from '../apis/index.type'
 import type { DeepSeekModelDraft } from '../models/DeepSeekModelsEditor.tsx'
+import type { LlmDiscoveredModel } from '../types/remotes.ts'
 
 /** 一个模型条目除身份字段外还带有的配置字段。 */
 const CONFIG_FIELDS = ['contextWindow', 'maxTokens', 'input', 'reasoningEfforts'] as const
@@ -43,16 +43,16 @@ export interface ModelConfigMerge {
  * 只补空缺字段，不覆盖已有值：这是「配置」而不是「重置」，用户手写或上次拉取的
  * 结果不会被一次点击抹掉；`targets` 限定参与并入的条目 id，缺省表示列表里的全部。
  * @param models - 当前草稿条目。
- * @param cards - 端点披露的模型条目。
+ * @param discovered - 端点披露的模型条目。
  * @param targets - 参与并入的条目 id；缺省为全部。
  * @returns 并入后的条目、补齐计数与端点未披露的 id。
  */
 export function mergeModelCards(
   models: readonly DeepSeekModelDraft[],
-  cards: readonly RapidMlxModelCard[],
+  discovered: readonly LlmDiscoveredModel[],
   targets?: readonly string[],
 ): ModelConfigMerge {
-  const byId = new Map(cards.map(card => [card.id, card]))
+  const byId = new Map(discovered.map(model => [model.id, model]))
   const selected = targets === undefined ? undefined : new Set(targets)
   let applied = 0
   const undisclosed: string[] = []
@@ -60,19 +60,17 @@ export function mergeModelCards(
     const id = typeof model.id === 'string' ? model.id : ''
     if (selected !== undefined && !selected.has(id))
       return model
-    const card = byId.get(id)
-    if (card === undefined) {
+    const found = byId.get(id)
+    if (found === undefined) {
       if (id.length > 0)
         undisclosed.push(id)
       return model
     }
     const patch: Record<string, unknown> = {}
-    if (model.contextWindow === undefined && card.contextWindow !== undefined)
-      patch.contextWindow = card.contextWindow
-    if (model.maxTokens === undefined && card.maxTokens !== undefined)
-      patch.maxTokens = card.maxTokens
-    if (model.input === undefined && card.input !== undefined)
-      patch.input = [...card.input]
+    if (model.contextWindow === undefined && found.contextWindow !== undefined)
+      patch.contextWindow = found.contextWindow
+    if (model.maxTokens === undefined && found.maxTokens !== undefined)
+      patch.maxTokens = found.maxTokens
     if (Object.keys(patch).length === 0)
       return model
     applied += 1
@@ -94,4 +92,27 @@ export function withPath(template: string, path: string): string {
 /** 填入文案里 `{n}` 占位符。 */
 export function withCount(template: string, count: number): string {
   return template.replace('{n}', () => String(count))
+}
+
+/**
+ * 组合一次端点读取的结果文案：填了多少、有多少条目端点没披露。
+ * @param merge - {@link mergeModelCards} 的结果。
+ * @param templates - 三段的文案模板（已本地化）。
+ * @param templates.applied - 已填入若干条目时的模板。
+ * @param templates.none - 一个字段都没补上时的模板。
+ * @param templates.undisclosed - 端点未披露若干条目时的模板。
+ * @returns 可直接渲染的一行结果。
+ */
+export function modelConfigNotice(
+  merge: Pick<ModelConfigMerge, 'applied' | 'undisclosed'>,
+  templates: { applied: string, none: string, undisclosed: string },
+): string {
+  if (merge.applied === 0 && merge.undisclosed.length === 0)
+    return templates.none
+  const parts: string[] = []
+  if (merge.applied > 0)
+    parts.push(withCount(templates.applied, merge.applied))
+  if (merge.undisclosed.length > 0)
+    parts.push(withCount(templates.undisclosed, merge.undisclosed.length))
+  return parts.join(' ')
 }

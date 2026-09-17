@@ -9,8 +9,7 @@ import type { en } from './locales.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchModelCards } from '../service/model-config.ts'
-import { mergeModelCards, withCount, withDetail } from '../service/model-config.utils.ts'
+import { mergeModelCards, modelConfigNotice, withDetail } from '../service/model-config.utils.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import {
   DeepSeekModelsEditor,
@@ -297,19 +296,20 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         setConfigBusy(true)
         setConfigNotice(undefined)
         setConfigFailure(undefined)
-        const result = await fetchModelCards(probeBaseURL)
+        const outcome = await operations.discoverModels(probe.settingsNs, probe)
         setConfigBusy(false)
-        if (!result.ok) {
-          setConfigFailure(withDetail(t('configUnreachable'), result.error))
+        if (outcome.kind === 'refused') {
+          setConfigFailure(withDetail(t('configUnreachable'), outcome.message))
           return
         }
-        const merged = mergeModelCards(models, result.cards, targets)
-        if (merged.applied === 0) {
-          setConfigNotice(t('configNoneApplied'))
-          return
-        }
-        catalogProps.onChange(merged.models)
-        setConfigNotice(withCount(t('configApplied'), merged.applied))
+        const merged = mergeModelCards(models, outcome.models, targets)
+        if (merged.applied > 0)
+          catalogProps.onChange(merged.models)
+        setConfigNotice(modelConfigNotice(merged, {
+          applied: t('configApplied'),
+          none: t('configNoneApplied'),
+          undisclosed: t('configUndisclosed'),
+        }))
       })()
     }
     return (

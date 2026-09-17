@@ -1,16 +1,17 @@
-import type { RapidMlxModelCard } from '../apis/index.type'
+import type { LlmDiscoveredModel } from '../types/remotes.ts'
 import { describe, expect, it } from 'vitest'
 import {
   hasModelConfig,
   imageInputValue,
   mergeModelCards,
+  modelConfigNotice,
   supportsImageInput,
   withCount,
   withDetail,
   withPath,
 } from './model-config.utils'
 
-const card = (id: string, extra: Partial<RapidMlxModelCard> = {}): RapidMlxModelCard => ({ id, ...extra })
+const found = (id: string, extra: Partial<LlmDiscoveredModel> = {}): LlmDiscoveredModel => ({ id, ...extra })
 
 describe('hasModelConfig', () => {
   it('treats an identity-only row as unconfigured', () => {
@@ -46,22 +47,22 @@ describe('mergeModelCards', () => {
   it('fills only the fields the row leaves empty', () => {
     const merged = mergeModelCards(
       [{ id: 'm', contextWindow: 4096 }],
-      [card('m', { contextWindow: 262144, maxTokens: 8192, input: ['text', 'image'] })],
+      [found('m', { contextWindow: 262144, maxTokens: 8192 })],
     )
-    expect(merged.models).toEqual([{ id: 'm', contextWindow: 4096, maxTokens: 8192, input: ['text', 'image'] }])
+    expect(merged.models).toEqual([{ id: 'm', contextWindow: 4096, maxTokens: 8192 }])
     expect(merged.applied).toBe(1)
   })
 
   it('never rewrites a value the user already holds', () => {
-    const merged = mergeModelCards([{ id: 'm', input: ['text'] }], [card('m', { input: ['text', 'image'] })])
-    expect(merged.models[0]?.input).toEqual(['text'])
+    const merged = mergeModelCards([{ id: 'm', maxTokens: 512 }], [found('m', { maxTokens: 8192 })])
+    expect(merged.models[0]?.maxTokens).toBe(512)
     expect(merged.applied).toBe(0)
   })
 
   it('limits the merge to the requested targets', () => {
     const merged = mergeModelCards(
       [{ id: 'a' }, { id: 'b' }],
-      [card('a', { contextWindow: 1 }), card('b', { contextWindow: 2 })],
+      [found('a', { contextWindow: 1 }), found('b', { contextWindow: 2 })],
       ['b'],
     )
     expect(merged.models).toEqual([{ id: 'a' }, { id: 'b', contextWindow: 2 }])
@@ -69,21 +70,27 @@ describe('mergeModelCards', () => {
   })
 
   it('reports rows the endpoint did not disclose', () => {
-    const merged = mergeModelCards([{ id: 'a' }, { id: 'missing' }], [card('a', { contextWindow: 1 })])
+    const merged = mergeModelCards([{ id: 'a' }, { id: 'missing' }], [found('a', { contextWindow: 1 })])
     expect(merged.undisclosed).toEqual(['missing'])
     expect(merged.models[1]).toEqual({ id: 'missing' })
   })
 
   it('ignores a row whose id is still blank', () => {
-    const merged = mergeModelCards([{ id: '' }], [card('a', { contextWindow: 1 })])
+    const merged = mergeModelCards([{ id: '' }], [found('a', { contextWindow: 1 })])
     expect(merged.applied).toBe(0)
     expect(merged.undisclosed).toEqual([])
   })
 
   it('carries every listed row when no target is named', () => {
-    const merged = mergeModelCards([{ id: 'a' }, { id: 'b' }], [card('a', { maxTokens: 4 })])
+    const merged = mergeModelCards([{ id: 'a' }, { id: 'b' }], [found('a', { maxTokens: 4 })])
     expect(merged.models).toEqual([{ id: 'a', maxTokens: 4 }, { id: 'b' }])
     expect(merged.applied).toBe(1)
+  })
+
+  it('leaves a row untouched when the endpoint disclosed no capacity', () => {
+    const merged = mergeModelCards([{ id: 'a' }], [found('a')])
+    expect(merged.applied).toBe(0)
+    expect(merged.models[0]).toEqual({ id: 'a' })
   })
 })
 
@@ -92,5 +99,25 @@ describe('copy placeholders', () => {
     expect(withDetail('failed: {detail}', '$&')).toBe('failed: $&')
     expect(withPath('opened {path}', 'C:\\a\\b')).toBe('opened C:\\a\\b')
     expect(withCount('applied to {n} models', 3)).toBe('applied to 3 models')
+  })
+})
+
+describe('modelConfigNotice', () => {
+  const templates = { applied: 'filled {n}', none: 'nothing', undisclosed: 'missing {n}' }
+
+  it('reports the fill count', () => {
+    expect(modelConfigNotice({ applied: 2, undisclosed: [] }, templates)).toBe('filled 2')
+  })
+
+  it('reports both halves when some rows were not disclosed', () => {
+    expect(modelConfigNotice({ applied: 1, undisclosed: ['a', 'b'] }, templates)).toBe('filled 1 missing 2')
+  })
+
+  it('reports only the undisclosed half when nothing could be filled', () => {
+    expect(modelConfigNotice({ applied: 0, undisclosed: ['a'] }, templates)).toBe('missing 1')
+  })
+
+  it('falls back to the empty-result copy', () => {
+    expect(modelConfigNotice({ applied: 0, undisclosed: [] }, templates)).toBe('nothing')
   })
 })

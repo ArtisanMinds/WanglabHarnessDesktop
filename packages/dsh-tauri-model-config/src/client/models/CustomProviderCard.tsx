@@ -4,8 +4,7 @@ import type { en } from './locales.ts'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import type { ModelsOperations } from './operations.ts'
 import { useState } from 'react'
-import { fetchModelCards } from '../service/model-config.ts'
-import { mergeModelCards, withCount, withDetail } from '../service/model-config.utils.ts'
+import { mergeModelCards, modelConfigNotice, withDetail } from '../service/model-config.utils.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { EditorFooter } from './EditorFooter.tsx'
@@ -144,19 +143,24 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       setConfigBusy(true)
       setConfigNotice(undefined)
       setConfigFailure(undefined)
-      const result = await fetchModelCards(normalizedBaseURL)
+      const outcome = await operations.discoverModels(NS, {
+        baseURL: normalizedBaseURL,
+        api: protocol,
+        ...keyValue.length === 0 ? {} : { apiKey: keyValue },
+      })
       setConfigBusy(false)
-      if (!result.ok) {
-        setConfigFailure(withDetail(t('configUnreachable'), result.error))
+      if (outcome.kind === 'refused') {
+        setConfigFailure(withDetail(t('configUnreachable'), outcome.message))
         return
       }
-      const merged = mergeModelCards(models, result.cards, targets)
-      if (merged.applied === 0) {
-        setConfigNotice(t('configNoneApplied'))
-        return
-      }
-      setModels(merged.models)
-      setConfigNotice(withCount(t('configApplied'), merged.applied))
+      const merged = mergeModelCards(models, outcome.models, targets)
+      if (merged.applied > 0)
+        setModels(merged.models)
+      setConfigNotice(modelConfigNotice(merged, {
+        applied: t('configApplied'),
+        none: t('configNoneApplied'),
+        undisclosed: t('configUndisclosed'),
+      }))
     })()
   }
 
