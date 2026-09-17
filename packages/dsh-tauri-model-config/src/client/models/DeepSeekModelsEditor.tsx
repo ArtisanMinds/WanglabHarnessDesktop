@@ -113,6 +113,14 @@ export interface DeepSeekModelsEditorProps {
   onChange: (models: DeepSeekModelDraft[]) => void
 
   onReset: () => void
+
+  onFetchConfig: (targets?: readonly string[]) => void
+
+  configBusy: boolean
+
+  configNotice?: string | undefined
+
+  configFailure?: string | undefined
 }
 
 export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNode {
@@ -244,7 +252,18 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
               </button>
             )
           : null}
+        <button
+          type="button"
+          className={styles.linkButton}
+          disabled={props.disabled || props.configBusy || props.models.length === 0}
+          title={props.t('autoConfigureModelsHint')}
+          onClick={() => { props.onFetchConfig() }}
+        >
+          {props.configBusy ? props.t('fetchingConfig') : props.t('autoConfigureModels')}
+        </button>
       </div>
+      {props.configFailure === undefined ? null : <p className={styles.error}>{props.configFailure}</p>}
+      {props.configNotice === undefined ? null : <p className={styles.advancedHint}>{props.configNotice}</p>}
       {props.models.length === 0
         ? <p className={styles.modelEmpty}>{props.t('modelsEmpty')}</p>
         : (

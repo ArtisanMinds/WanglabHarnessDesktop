@@ -4,6 +4,7 @@ import type { en } from './locales.ts'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import type { ModelsOperations } from './operations.ts'
 import { useState } from 'react'
+import { loadModelCapacities } from '../service/model-config.ts'
 import { mergeModelCards, modelConfigNotice, withDetail } from '../service/model-config.utils.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
@@ -143,17 +144,19 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       setConfigBusy(true)
       setConfigNotice(undefined)
       setConfigFailure(undefined)
-      const outcome = await operations.discoverModels(NS, {
+      const found = await loadModelCapacities({
+        settingsNs: NS,
+        profilePath: ['providers', route.trim()],
         baseURL: normalizedBaseURL,
         api: protocol,
         ...keyValue.length === 0 ? {} : { apiKey: keyValue },
-      })
+      }, operations)
       setConfigBusy(false)
-      if (outcome.kind === 'refused') {
-        setConfigFailure(withDetail(t('configUnreachable'), outcome.message))
+      if (!found.ok) {
+        setConfigFailure(withDetail(t('configUnreachable'), found.error))
         return
       }
-      const merged = mergeModelCards(models, outcome.models, targets)
+      const merged = mergeModelCards(models, found.models, { targets, overwrite: targets === undefined })
       if (merged.applied > 0)
         setModels(merged.models)
       setConfigNotice(modelConfigNotice(merged, {

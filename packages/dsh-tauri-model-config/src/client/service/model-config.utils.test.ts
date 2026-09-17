@@ -1,13 +1,17 @@
 import type { LlmDiscoveredModel } from '../types/remotes.ts'
 import { describe, expect, it } from 'vitest'
 import {
+  declaredThinkingLevels,
+  enableThinking,
   hasModelConfig,
   imageInputValue,
   mergeModelCards,
   modelConfigNotice,
   supportsImageInput,
   supportsThinking,
-  thinkingEffortsValue,
+  THINKING_LEVELS,
+  thinkingEffortsOf,
+  toggleThinkingLevel,
   withCount,
   withDetail,
   withPath,
@@ -47,7 +51,7 @@ describe('supportsImageInput', () => {
 
 describe('supportsThinking', () => {
   it('reads a graded declaration as on', () => {
-    expect(supportsThinking({ id: 'm', reasoningEfforts: { off: null, low: 'low', high: 'high' } })).toBe(true)
+    expect(supportsThinking({ id: 'm', reasoningEfforts: { off: null, low: 'low' } })).toBe(true)
   })
 
   it('reads an explicit refusal and inheritance as off', () => {
@@ -60,15 +64,56 @@ describe('supportsThinking', () => {
   it('reads an off-only declaration as off', () => {
     expect(supportsThinking({ id: 'm', reasoningEfforts: { off: null } })).toBe(false)
   })
+})
 
-  it('encodes both switch positions as explicit declarations', () => {
-    expect(thinkingEffortsValue(true)).toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
-    expect(thinkingEffortsValue(false)).toBe(false)
+describe('thinking levels', () => {
+  it('offers the whole official vocabulary, off through max', () => {
+    expect([...THINKING_LEVELS]).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
   })
 
-  it('hands out a fresh effort map so one row cannot mutate another', () => {
-    const first = thinkingEffortsValue(true)
-    expect(first).not.toBe(thinkingEffortsValue(true))
+  it('seeds a default graded set when enabling an unconfigured row', () => {
+    expect(enableThinking({ id: 'm' })).toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
+  })
+
+  it('replaces an off-only declaration, which offers nothing to turn on', () => {
+    expect(enableThinking({ id: 'm', reasoningEfforts: { off: null } }))
+      .toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
+  })
+
+  it('keeps the levels a row already declares', () => {
+    const declared = { off: null, minimal: 'minimal', max: 'max' }
+    expect(enableThinking({ id: 'm', reasoningEfforts: declared })).toBe(declared)
+  })
+
+  it('reads the declared levels in vocabulary order for the checkboxes', () => {
+    expect(declaredThinkingLevels({ id: 'm', reasoningEfforts: { max: 'max', off: null } })).toEqual(['max', 'off'])
+    expect(declaredThinkingLevels({ id: 'm', reasoningEfforts: false })).toEqual([])
+  })
+
+  it('adds a level with its wire value and drops it again', () => {
+    const added = toggleThinkingLevel({ off: null }, 'low', true)
+    expect(added).toEqual({ off: null, low: 'low' })
+    const removed = toggleThinkingLevel({ off: null, low: 'low' }, 'low', false)
+    expect(removed).toEqual({ off: null })
+  })
+
+  it('leaves off without a wire value', () => {
+    expect(toggleThinkingLevel({}, 'off', true)).toEqual({ off: null })
+  })
+
+  it('falls back to an explicit refusal when the last level is cleared', () => {
+    expect(toggleThinkingLevel({ low: 'low' }, 'low', false)).toBe(false)
+  })
+
+  it('does not mutate the declaration it was handed', () => {
+    const current = { off: null }
+    toggleThinkingLevel(current, 'high', true)
+    expect(current).toEqual({ off: null })
+  })
+
+  it('reads a foreign declaration as an empty map', () => {
+    expect(thinkingEffortsOf({ id: 'm', reasoningEfforts: ['low'] })).toEqual({})
+    expect(thinkingEffortsOf({ id: 'm', reasoningEfforts: null })).toEqual({})
   })
 })
 
@@ -82,17 +127,32 @@ describe('mergeModelCards', () => {
     expect(merged.applied).toBe(1)
   })
 
-  it('never rewrites a value the user already holds', () => {
+  it('never rewrites a value the user already holds when filling', () => {
     const merged = mergeModelCards([{ id: 'm', maxTokens: 512 }], [found('m', { maxTokens: 8192 })])
     expect(merged.models[0]?.maxTokens).toBe(512)
     expect(merged.applied).toBe(0)
+  })
+
+  it('rewrites the disclosed capacities when the caller asks to reconfigure', () => {
+    const merged = mergeModelCards(
+      [{ id: 'm', contextWindow: 4096, maxTokens: 512 }],
+      [found('m', { contextWindow: 262144, maxTokens: 8192 })],
+      { overwrite: true },
+    )
+    expect(merged.models[0]).toEqual({ id: 'm', contextWindow: 262144, maxTokens: 8192 })
+    expect(merged.applied).toBe(1)
+  })
+
+  it('keeps a field the endpoint did not disclose even when overwriting', () => {
+    const merged = mergeModelCards([{ id: 'm', maxTokens: 512 }], [found('m', { contextWindow: 262144 })], { overwrite: true })
+    expect(merged.models[0]).toEqual({ id: 'm', maxTokens: 512, contextWindow: 262144 })
   })
 
   it('limits the merge to the requested targets', () => {
     const merged = mergeModelCards(
       [{ id: 'a' }, { id: 'b' }],
       [found('a', { contextWindow: 1 }), found('b', { contextWindow: 2 })],
-      ['b'],
+      { targets: ['b'] },
     )
     expect(merged.models).toEqual([{ id: 'a' }, { id: 'b', contextWindow: 2 }])
     expect(merged.applied).toBe(1)

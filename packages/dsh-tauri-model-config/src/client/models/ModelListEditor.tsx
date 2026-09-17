@@ -5,7 +5,17 @@ import type { en } from './locales.ts'
 import type { ModelsOperations } from './operations.ts'
 import { Button, Modal, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useState } from 'react'
-import { hasModelConfig, imageInputValue, supportsImageInput, supportsThinking, thinkingEffortsValue } from '../service/model-config.utils.ts'
+import {
+  declaredThinkingLevels,
+  enableThinking,
+  hasModelConfig,
+  imageInputValue,
+  supportsImageInput,
+  supportsThinking,
+  THINKING_LEVELS,
+  thinkingEffortsOf,
+  toggleThinkingLevel,
+} from '../service/model-config.utils.ts'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import { modelStyles as styles } from './styles.ts'
 
@@ -398,30 +408,59 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                       onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
                     />
                   </label>
-                  <div className={styles.modelField}>
-                    <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
-                    <div className={styles.modelSwitchRow}>
-                      <Switch
-                        checked={supportsImageInput(model)}
-                        disabled={disabled}
-                        label={`${t('imageInput')} ${index + 1}`}
-                        title={t('imageInputHint')}
-                        onChange={(next) => { patch(index, { input: imageInputValue(next) }) }}
-                      />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div className={styles.modelField}>
+                      <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
+                      <div className={styles.modelSwitchRow}>
+                        <Switch
+                          checked={supportsImageInput(model)}
+                          disabled={disabled}
+                          label={`${t('imageInput')} ${index + 1}`}
+                          title={t('imageInputHint')}
+                          onChange={(next) => { patch(index, { input: imageInputValue(next) }) }}
+                        />
+                      </div>
+                    </div>
+                    <div className={styles.modelField}>
+                      <span className={styles.modelFieldLabel} title={t('thinkingModeHint')}>{t('thinkingMode')}</span>
+                      <div className={styles.modelSwitchRow}>
+                        <Switch
+                          checked={supportsThinking(model)}
+                          disabled={disabled}
+                          label={`${t('thinkingMode')} ${index + 1}`}
+                          title={t('thinkingModeHint')}
+                          onChange={(next) => {
+                            patch(index, { reasoningEfforts: next ? enableThinking(model) : false })
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className={styles.modelField}>
-                    <span className={styles.modelFieldLabel} title={t('thinkingModeHint')}>{t('thinkingMode')}</span>
-                    <div className={styles.modelSwitchRow}>
-                      <Switch
-                        checked={supportsThinking(model)}
-                        disabled={disabled}
-                        label={`${t('thinkingMode')} ${index + 1}`}
-                        title={t('thinkingModeHint')}
-                        onChange={(next) => { patch(index, { reasoningEfforts: thinkingEffortsValue(next) }) }}
-                      />
-                    </div>
-                  </div>
+                  {supportsThinking(model)
+                    ? (
+                        <div className={styles.modelEfforts} role="group" aria-label={`${t('thinkingLevels')} ${index + 1}`}>
+                          {THINKING_LEVELS.map(level => (
+                            <label key={level} className={styles.modelEffortChip}>
+                              <input
+                                type="checkbox"
+                                checked={declaredThinkingLevels(model).includes(level)}
+                                disabled={disabled}
+                                onChange={(event) => {
+                                  patch(index, {
+                                    reasoningEfforts: toggleThinkingLevel(
+                                      thinkingEffortsOf(model),
+                                      level,
+                                      event.target.checked,
+                                    ),
+                                  })
+                                }}
+                              />
+                              {level}
+                            </label>
+                          ))}
+                        </div>
+                      )
+                    : null}
                 </div>
               )
             : null}

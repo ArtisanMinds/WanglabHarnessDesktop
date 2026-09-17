@@ -4,6 +4,17 @@ import type { LlmDiscoveredModel } from '../types/remotes.ts'
 /** 一个模型条目除身份字段外还带有的配置字段。 */
 const CONFIG_FIELDS = ['contextWindow', 'maxTokens', 'input', 'reasoningEfforts'] as const
 
+/** 官方 pi-ai 档位词表；`off` 之外的每个档位都必须带上分发用的线值。 */
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+
+/** 打开「思考模式」时的初始档位，与官方 pi-ai 目录给自建路由的默认档位一致。 */
+export const DEFAULT_THINKING_EFFORTS: Readonly<Record<string, string | null>> = {
+  off: null,
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+}
+
 /**
  * 该条目是否还只是「身份」——只有 id/name/description，没有任何能力配置。
  * 「获取配置」按钮只在这种条目上出现：已经配置过的行不提供一个会把用户手写值
@@ -29,18 +40,17 @@ export function imageInputValue(next: boolean): string[] {
   return next ? ['text', 'image'] : ['text']
 }
 
-/**
- * 打开「思考模式」时写入的档位声明。
- *
- * 键是档位，值是分发给端点时使用的线值（只有 `off` 允许为空）。这一组与官方 pi-ai 目录
- * 给自建路由的默认档位一致，也是参考实现（dsh-llm-capabilities）的默认值：声明 off/low/
- * medium/high 四档，端点按自己的语义解释。
- */
-export const DEFAULT_THINKING_EFFORTS: Readonly<Record<string, string | null>> = {
-  off: null,
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
+/** 该条目当前的档位声明；缺席、`false` 或非对象都读作空表。 */
+export function thinkingEffortsOf(model: DeepSeekModelDraft): Record<string, string | null> {
+  const efforts = model.reasoningEfforts
+  if (typeof efforts !== 'object' || efforts === null || Array.isArray(efforts))
+    return {}
+  return efforts as Record<string, string | null>
+}
+
+/** 该条目已声明的档位名，用于渲染勾选态。 */
+export function declaredThinkingLevels(model: DeepSeekModelDraft): string[] {
+  return Object.keys(thinkingEffortsOf(model))
 }
 
 /**
@@ -51,42 +61,71 @@ export const DEFAULT_THINKING_EFFORTS: Readonly<Record<string, string | null>> =
  * 校验里本就不合法，等于没有可用的思考档位。
  */
 export function supportsThinking(model: DeepSeekModelDraft): boolean {
-  const efforts = model.reasoningEfforts
-  if (typeof efforts !== 'object' || efforts === null || Array.isArray(efforts))
-    return false
-  return Object.keys(efforts).some(level => level !== 'off')
+  return Object.keys(thinkingEffortsOf(model)).some(level => level !== 'off')
 }
 
-/** 开关状态对应的 `reasoningEfforts` 声明值。 */
-export function thinkingEffortsValue(next: boolean): Record<string, string | null> | false {
-  return next ? { ...DEFAULT_THINKING_EFFORTS } : false
+/** 打开思考模式：保留已有的可用档位（含自定义档位），一个都没有时给默认四档。 */
+export function enableThinking(model: DeepSeekModelDraft): Record<string, string | null> {
+  const current = thinkingEffortsOf(model)
+  const graded = Object.keys(current).filter(level => level !== 'off')
+  return graded.length === 0 ? { ...DEFAULT_THINKING_EFFORTS } : current
+}
+
+/**
+ * 勾选/取消一个档位的声明。
+ *
+ * 取消到空表时写 `false`（显式「不支持思考」）而不是空对象：空表会被 schema 判为非法声明。
+ * @param efforts - 当前的档位声明。
+ * @param level - 被切换的档位。
+ * @param enabled - 勾选为添加，取消为删除。
+ * @returns 新的声明值。
+ */
+export function toggleThinkingLevel(
+  efforts: Readonly<Record<string, string | null>>,
+  level: string,
+  enabled: boolean,
+): Record<string, string | null> | false {
+  const next = { ...efforts }
+  if (enabled)
+    next[level] = level === 'off' ? null : level
+  else
+    delete next[level]
+  return Object.keys(next).length === 0 ? false : next
 }
 
 export interface ModelConfigMerge {
   models: DeepSeekModelDraft[]
-  /** 至少补齐了一个字段的条目数。 */
+  /** 至少写入了一个字段的条目数。 */
   applied: number
-  /** 端点没有披露、因此没被补齐的条目 id。 */
+  /** 端点没有披露、因此没被补上的条目 id。 */
   undisclosed: string[]
 }
 
+export interface ModelConfigMergeOptions {
+  /** 参与并入的条目 id；缺省为列表里的全部。 */
+  targets?: readonly string[]
+  /**
+   * 是否改写已有值。批量「自动配置所有模型」为 true（按钮的语义就是重新配置），
+   * 单行的「获取配置」为 false（它只出现在没有任何配置的条目上）。
+   */
+  overwrite?: boolean
+}
+
 /**
- * 把端点披露的模型条目并入草稿。
- *
- * 只补空缺字段，不覆盖已有值：这是「配置」而不是「重置」，用户手写或上次拉取的
- * 结果不会被一次点击抹掉；`targets` 限定参与并入的条目 id，缺省表示列表里的全部。
+ * 把端点披露的模型容量并入草稿。
  * @param models - 当前草稿条目。
  * @param discovered - 端点披露的模型条目。
- * @param targets - 参与并入的条目 id；缺省为全部。
- * @returns 并入后的条目、补齐计数与端点未披露的 id。
+ * @param options - 参与并入的目标与是否改写已有值。
+ * @returns 并入后的条目、写入计数与端点未披露的 id。
  */
 export function mergeModelCards(
   models: readonly DeepSeekModelDraft[],
   discovered: readonly LlmDiscoveredModel[],
-  targets?: readonly string[],
+  options: ModelConfigMergeOptions = {},
 ): ModelConfigMerge {
   const byId = new Map(discovered.map(model => [model.id, model]))
-  const selected = targets === undefined ? undefined : new Set(targets)
+  const selected = options.targets === undefined ? undefined : new Set(options.targets)
+  const overwrite = options.overwrite === true
   let applied = 0
   const undisclosed: string[] = []
   const next = models.map((model) => {
@@ -100,9 +139,9 @@ export function mergeModelCards(
       return model
     }
     const patch: Record<string, unknown> = {}
-    if (model.contextWindow === undefined && found.contextWindow !== undefined)
+    if (found.contextWindow !== undefined && (overwrite || model.contextWindow === undefined))
       patch.contextWindow = found.contextWindow
-    if (model.maxTokens === undefined && found.maxTokens !== undefined)
+    if (found.maxTokens !== undefined && (overwrite || model.maxTokens === undefined))
       patch.maxTokens = found.maxTokens
     if (Object.keys(patch).length === 0)
       return model
@@ -128,11 +167,11 @@ export function withCount(template: string, count: number): string {
 }
 
 /**
- * 组合一次端点读取的结果文案：填了多少、有多少条目端点没披露。
+ * 组合一次端点读取的结果文案：写了多少、有多少条目端点没披露。
  * @param merge - {@link mergeModelCards} 的结果。
  * @param templates - 三段的文案模板（已本地化）。
- * @param templates.applied - 已填入若干条目时的模板。
- * @param templates.none - 一个字段都没补上时的模板。
+ * @param templates.applied - 已写入若干条目时的模板。
+ * @param templates.none - 一个字段都没写时的模板。
  * @param templates.undisclosed - 端点未披露若干条目时的模板。
  * @returns 可直接渲染的一行结果。
  */

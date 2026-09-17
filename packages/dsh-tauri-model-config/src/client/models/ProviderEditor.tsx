@@ -9,6 +9,7 @@ import type { en } from './locales.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { useEffect, useMemo, useState } from 'react'
+import { loadModelCapacities } from '../service/model-config.ts'
 import { mergeModelCards, modelConfigNotice, withDetail } from '../service/model-config.utils.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import {
@@ -296,13 +297,20 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         setConfigBusy(true)
         setConfigNotice(undefined)
         setConfigFailure(undefined)
-        const outcome = await operations.discoverModels(probe.settingsNs, probe)
+        const found = await loadModelCapacities({
+          settingsNs: namespace.ns,
+          profilePath: settingsPath,
+          provider: props.provider,
+          ...probeBaseURL === undefined ? {} : { baseURL: probeBaseURL },
+          ...probeApi === undefined ? {} : { api: probeApi },
+          ...keyValue.length === 0 ? {} : { apiKey: keyValue },
+        }, operations)
         setConfigBusy(false)
-        if (outcome.kind === 'refused') {
-          setConfigFailure(withDetail(t('configUnreachable'), outcome.message))
+        if (!found.ok) {
+          setConfigFailure(withDetail(t('configUnreachable'), found.error))
           return
         }
-        const merged = mergeModelCards(models, outcome.models, targets)
+        const merged = mergeModelCards(models, found.models, { targets, overwrite: targets === undefined })
         if (merged.applied > 0)
           catalogProps.onChange(merged.models)
         setConfigNotice(modelConfigNotice(merged, {
@@ -400,6 +408,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                             ? defaultContextWindow
                             : undefined}
                           defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
+                          onFetchConfig={fetchConfig}
+                          configBusy={configBusy}
+                          configNotice={configNotice}
+                          configFailure={configFailure}
                         />
                       )
                     : (

@@ -107,7 +107,8 @@ export const en = {
   imageInput: 'Image input',
   imageInputHint: 'Declare whether this model accepts image content',
   thinkingMode: 'Thinking mode',
-  thinkingModeHint: 'Declare the thinking levels this model offers (off, low, medium, high)',
+  thinkingLevels: 'Thinking levels',
+  thinkingModeHint: 'Declare whether this model thinks, then tick the levels it offers',
   fetchModelConfig: 'Fetch config',
   fetchModelConfigHint: 'Read this model\'s context and output limits from the endpoint',
   autoConfigureModels: 'Configure all models',
@@ -115,7 +116,7 @@ export const en = {
   fetchingConfig: 'Fetching…',
   configUnreachable: 'Could not read the model list: {detail}',
   configNoneApplied: 'The endpoint disclosed no context or output limit for these models.',
-  configApplied: 'Filled in limits for {n} model(s).',
+  configApplied: 'Wrote limits for {n} model(s).',
   configUndisclosed: '{n} model(s) were not disclosed by the endpoint.',
 }
 
@@ -230,7 +231,8 @@ export const zh: { [Key in keyof typeof en]: string } = {
   imageInput: '支持图片输入',
   imageInputHint: '声明该模型是否接受图片内容',
   thinkingMode: '思考模式',
-  thinkingModeHint: '声明该模型提供的思考档位（off / low / medium / high）',
+  thinkingLevels: '思考档位',
+  thinkingModeHint: '声明该模型是否支持思考，并勾选它提供的档位',
   fetchModelConfig: '获取配置',
   fetchModelConfigHint: '从提供方端点读取该模型的上下文与输出上限',
   autoConfigureModels: '自动配置所有模型',
@@ -238,6 +240,6 @@ export const zh: { [Key in keyof typeof en]: string } = {
   fetchingConfig: '获取中…',
   configUnreachable: '无法读取模型列表：{detail}',
   configNoneApplied: '端点没有为这些模型披露任何上下文或输出上限。',
-  configApplied: '已为 {n} 个模型填入上限。',
+  configApplied: '已写入 {n} 个模型的上限。',
   configUndisclosed: '{n} 个模型未被端点披露。',
 }
