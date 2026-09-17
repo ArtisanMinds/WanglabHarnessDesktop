@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PRESET_SOURCE_URLS } from '../../shared/model-presets'
+import { PRESET_SOURCE_URL } from '../../shared/model-presets'
 
 const UPSTREAM = {
   'openai/gpt-4o': { mode: 'chat', supports_vision: true, max_input_tokens: 128000 },
@@ -44,7 +44,7 @@ describe('modelPresets.resolve', () => {
     if (!first.ok)
       throw new Error(first.error)
     expect(first.stale).toBe(false)
-    expect(first.source).toBe(PRESET_SOURCE_URLS[0])
+    expect(first.source).toBe(PRESET_SOURCE_URL)
     expect(first.presets).toEqual({ 'gpt-4o': [1, 0, 128000, 0] })
     const cached = JSON.parse(readFileSync(join(home, CACHE_DIR, 'model-presets.json'), 'utf8'))
     expect(cached.presets).toEqual(first.presets)
@@ -109,30 +109,15 @@ describe('modelPresets.resolve', () => {
     expect(result.presets).toEqual({ 'gpt-4o': [0, 0, 1, 0] })
   })
 
-  it('reports every upstream failure when there is nothing cached', async () => {
+  it('reports the upstream failure when there is nothing cached', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 500)))
     const modelPresets = await loadService()
     const result = await modelPresets.resolve()
     expect(result.ok).toBe(false)
     if (result.ok)
       throw new Error('expected a failure')
-    for (const url of PRESET_SOURCE_URLS)
-      expect(result.error).toContain(url)
+    expect(result.error).toContain(PRESET_SOURCE_URL)
     expect(result.error).toContain('500')
-  })
-
-  it('falls back to the next source when the first one is unavailable', async () => {
-    const fetchMock = vi.fn(async (input: string | URL | Request) => {
-      const url = String(input)
-      return url === PRESET_SOURCE_URLS[0] ? jsonResponse({}, 502) : jsonResponse(UPSTREAM)
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    const modelPresets = await loadService()
-    const result = await modelPresets.resolve()
-    if (!result.ok)
-      throw new Error(result.error)
-    expect(result.source).toBe(PRESET_SOURCE_URLS[1])
-    expect(result.presets).toEqual({ 'gpt-4o': [1, 0, 128000, 0] })
   })
 
   it('treats a dataset without chat rows as unusable', async () => {

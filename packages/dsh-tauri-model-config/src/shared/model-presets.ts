@@ -10,16 +10,14 @@ export type PresetRow = readonly [number, number, number, number]
 export type PresetTable = Record<string, PresetRow>
 
 /**
- * 上游来源，按顺序尝试。
+ * 上游数据集：LiteLLM 维护的模型价目/容量表（MIT），与 <https://models.litellm.ai/> 同源。
  *
- * 首选 LiteLLM 代理的公开接口（Swagger 里的 `GET /public/litellm_model_cost_map`，无需密钥）；
- * 它不可达时回退到该接口背后的原始数据集（GitHub raw，与 <https://models.litellm.ai/> 同源）。
- * 两者给出同一份 JSON，只是 GitHub 那份是美化过的（约 2.6 MB）。
+ * 没有走 `litellm-api.up.railway.app` 的公开接口：那是 LiteLLM 的 demo 代理，固定在自己那份
+ * LiteLLM 版本上（实测 1.82.6），表比主干旧一截（1020 vs 1424 条 chat 模型），新模型会缺席。
+ * 该接口只提供全量，`/models/{model_id}` 之类又需要密钥、且只回答「代理自己部署了哪些模型」。
  */
-export const PRESET_SOURCE_URLS: readonly string[] = [
-  'https://litellm-api.up.railway.app/public/litellm_model_cost_map',
-  'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json',
-]
+export const PRESET_SOURCE_URL
+  = 'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json'
 
 export const PRESET_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 

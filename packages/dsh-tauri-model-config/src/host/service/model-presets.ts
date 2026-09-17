@@ -2,7 +2,7 @@ import type { PresetRow, PresetTable } from '../../shared/model-presets'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { defineService } from 'dsh-tauri'
-import { buildPresetTable, PRESET_CACHE_TTL_MS, PRESET_SOURCE_URLS } from '../../shared/model-presets'
+import { buildPresetTable, PRESET_CACHE_TTL_MS, PRESET_SOURCE_URL } from '../../shared/model-presets'
 import { resolvePresetCachePath } from '../utils/paths'
 
 export interface PresetTablePayload {
@@ -74,32 +74,18 @@ function isFresh(payload: CachedPayload): boolean {
   return Number.isFinite(fetchedAt) && Date.now() - fetchedAt < PRESET_CACHE_TTL_MS
 }
 
-async function fetchSource(url: string): Promise<PresetTable> {
-  const response = await fetch(url, {
+async function download(): Promise<CachedPayload> {
+  const response = await fetch(PRESET_SOURCE_URL, {
     method: 'GET',
     headers: { accept: 'application/json' },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
   if (!response.ok)
-    throw new Error(`answered ${response.status}`)
+    throw new Error(`${PRESET_SOURCE_URL} answered ${response.status}`)
   const presets = buildPresetTable(await response.json())
   if (Object.keys(presets).length === 0)
-    throw new Error('carried no chat models')
-  return presets
-}
-
-/** 按 {@link PRESET_SOURCE_URLS} 的顺序取第一份可用数据，失败原因全部带上以便排查。 */
-async function download(): Promise<CachedPayload> {
-  const failures: string[] = []
-  for (const url of PRESET_SOURCE_URLS) {
-    try {
-      return { source: url, fetchedAt: new Date().toISOString(), presets: await fetchSource(url) }
-    }
-    catch (error) {
-      failures.push(`${url} ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
-  throw new Error(failures.join('; '))
+    throw new Error(`${PRESET_SOURCE_URL} carried no chat models`)
+  return { source: PRESET_SOURCE_URL, fetchedAt: new Date().toISOString(), presets }
 }
 
 /**
