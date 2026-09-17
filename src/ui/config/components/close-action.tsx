@@ -1,7 +1,5 @@
-import type { AppSettingUpdate } from '@/store/modules/setting'
 import { Description, ListBox, Select } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
-import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { useStore } from 'valtio-define'
 import { store } from '@/store'
@@ -27,7 +25,7 @@ export function ConfigCloseAction() {
   const { mutate: setCloseAction, isPending } = useMutation({
     mutationFn: (next: string) =>
       // `satisfies` 用共享类型守住 camelCase 契约：字段名写错时后端会静默忽略
-      invoke('update_app_config', { closeAction: normalizeCloseAction(next) } satisfies AppSettingUpdate),
+      store.setting.update({ closeAction: normalizeCloseAction(next) }),
     onError: (error: unknown) => {
       console.error('[ConfigCloseAction] update failed:', error)
       toast(t('messages.close_action_failed'), { variant: 'danger' })
