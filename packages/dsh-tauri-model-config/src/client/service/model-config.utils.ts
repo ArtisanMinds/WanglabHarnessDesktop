@@ -1,5 +1,6 @@
 import type { DeepSeekModelDraft } from '../models/DeepSeekModelsEditor.tsx'
 import type { LlmDiscoveredModel } from '../types/remotes.ts'
+import { presetFor } from './model-presets.ts'
 
 /** 一个模型条目除身份字段外还带有的配置字段。 */
 const CONFIG_FIELDS = ['contextWindow', 'maxTokens', 'input', 'reasoningEfforts'] as const
@@ -112,11 +113,14 @@ export interface ModelConfigMergeOptions {
 }
 
 /**
- * 把端点披露的模型容量并入草稿。
+ * 把端点披露的模型容量与家族预设的能力并入草稿。
+ *
+ * 容量只能来自端点，能力只能来自预设——端点清单不含模态与档位。端点没披露的条目，
+ * 只要预设认得，也一样配置得上。
  * @param models - 当前草稿条目。
  * @param discovered - 端点披露的模型条目。
  * @param options - 参与并入的目标与是否改写已有值。
- * @returns 并入后的条目、写入计数与端点未披露的 id。
+ * @returns 并入后的条目、写入计数与既没被端点披露、预设也不认得的 id。
  */
 export function mergeModelCards(
   models: readonly DeepSeekModelDraft[],
@@ -133,18 +137,28 @@ export function mergeModelCards(
     if (selected !== undefined && !selected.has(id))
       return model
     const found = byId.get(id)
-    if (found === undefined) {
-      if (id.length > 0)
+    const preset = presetFor(id)
+    const patch: Record<string, unknown> = {}
+    if (found !== undefined) {
+      if (found.contextWindow !== undefined && (overwrite || model.contextWindow === undefined))
+        patch.contextWindow = found.contextWindow
+      if (found.maxTokens !== undefined && (overwrite || model.maxTokens === undefined))
+        patch.maxTokens = found.maxTokens
+    }
+    // 预设的容量只是「端点什么都没说」时的兜底：它是社区口径的近似值，永不覆盖已有值。
+    if (patch.contextWindow === undefined && model.contextWindow === undefined && preset?.contextWindow !== undefined)
+      patch.contextWindow = preset.contextWindow
+    if (patch.maxTokens === undefined && model.maxTokens === undefined && preset?.maxTokens !== undefined)
+      patch.maxTokens = preset.maxTokens
+    if (preset?.input !== undefined && (overwrite || model.input === undefined))
+      patch.input = [...preset.input]
+    if (preset?.efforts !== undefined && (overwrite || model.reasoningEfforts === undefined))
+      patch.reasoningEfforts = preset.efforts === false ? false : { ...preset.efforts }
+    if (Object.keys(patch).length === 0) {
+      if (found === undefined && id.length > 0)
         undisclosed.push(id)
       return model
     }
-    const patch: Record<string, unknown> = {}
-    if (found.contextWindow !== undefined && (overwrite || model.contextWindow === undefined))
-      patch.contextWindow = found.contextWindow
-    if (found.maxTokens !== undefined && (overwrite || model.maxTokens === undefined))
-      patch.maxTokens = found.maxTokens
-    if (Object.keys(patch).length === 0)
-      return model
     applied += 1
     return { ...model, ...patch }
   })

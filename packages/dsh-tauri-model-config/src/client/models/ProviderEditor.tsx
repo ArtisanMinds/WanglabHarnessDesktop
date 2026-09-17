@@ -11,6 +11,7 @@ import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { useEffect, useMemo, useState } from 'react'
 import { loadModelCapacities } from '../service/model-config.ts'
 import { mergeModelCards, modelConfigNotice, withDetail } from '../service/model-config.utils.ts'
+import { ensurePresets } from '../service/presets.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import {
   DeepSeekModelsEditor,
@@ -295,18 +296,21 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const fetchConfig = (targets?: readonly string[]): void => {
       void (async () => {
         setConfigBusy(true)
-        setConfigNotice(undefined)
         setConfigFailure(undefined)
-        const found = await loadModelCapacities({
-          settingsNs: namespace.ns,
-          profilePath: settingsPath,
-          provider: props.provider,
-          ...probeBaseURL === undefined ? {} : { baseURL: probeBaseURL },
-          ...probeApi === undefined ? {} : { api: probeApi },
-          ...keyValue.length === 0 ? {} : { apiKey: keyValue },
-        }, operations)
+        const [found] = await Promise.all([
+          loadModelCapacities({
+            settingsNs: namespace.ns,
+            profilePath: settingsPath,
+            provider: props.provider,
+            ...probeBaseURL === undefined ? {} : { baseURL: probeBaseURL },
+            ...probeApi === undefined ? {} : { api: probeApi },
+            ...keyValue.length === 0 ? {} : { apiKey: keyValue },
+          }, operations),
+          ensurePresets(),
+        ])
         setConfigBusy(false)
         if (!found.ok) {
+          setConfigNotice(undefined)
           setConfigFailure(withDetail(t('configUnreachable'), found.error))
           return
         }
@@ -408,10 +412,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                             ? defaultContextWindow
                             : undefined}
                           defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined}
-                          onFetchConfig={fetchConfig}
-                          configBusy={configBusy}
-                          configNotice={configNotice}
-                          configFailure={configFailure}
                         />
                       )
                     : (

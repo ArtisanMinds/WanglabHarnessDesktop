@@ -28,16 +28,27 @@
 
 ## 配置从哪里来
 
-两条通道，先直连再回退（与参考实现 `dsh-llm-capabilities` 的顺序一致）：
+三条通道，先直连再回退（前两条与参考实现 `dsh-llm-capabilities` 的顺序一致）：
 
 1. **宿主直连** `GET /endpoint/models`：宿主按 `settings` 服务里的 profile 解析端点与凭据，请求
    `{baseURL}/models` 并归一化容量。官方发现通道会把清单收窄，容量字段只有端点原始清单里才有。
 2. **官方发现通道** `remote.llm.discoverModels(settingsNs, probe)`：覆盖端点地址不在用户设置里的提供方
    （例如内置 DeepSeek 官方路由，它的地址只有适配器自己知道）。
+3. **模型能力表** `GET /presets`：端点清单只说容量，不说模态与档位，图片与思考能力来自 LiteLLM 维护的
+   模型价目/容量表（`model_prices_and_context_window.json`，MIT）。表**不进仓库**：宿主在第一次需要时
+   下载，压成 `模型 id → [支持图片, 支持思考, 最大输入, 最大输出]` 后缓存在
+   `$DSH_HOME/dsh-tauri-model-config/model-presets.json`，一天内直接用缓存；上游不可达时先用过期缓存，
+   完全没有缓存时退回家族规则（`claude` / `gemini` / `grok-N` / `-vl` / `-vision` / `-omni` /
+   `glm-Nv` / `glm-4.5+` / `seed-1.6+` / `-thinking` / `r1` / `qwq` / `minimax-m1|m2` / `qwen3` / `o1-o9`）。
 
 请求事实全部来自表单当前显示的值（`provider` / `baseURL` / `api`，以及已输入未保存的 `apiKey`），
 插件不认识任何具体部署；凭据只在宿主侧解析，响应里从不回显，也不进 URL。
 
+并入草稿时的优先级：
+
+- 容量以端点披露为准；端点什么都没说时用能力表的值，已有值永不被能力表覆盖。
+- 图片与思考先看能力表，表没给出「能」的结论时由家族规则按命名补一条（只做加法，不做减法：
+  把模型误判成只能读文字会让用户发不出图片，代价比多勾一个开关大）。
 - **单行「获取配置」**：只补空缺字段，不覆盖已有值。
 - **「自动配置所有模型」**：按按钮语义重新配置，端点披露的容量会覆盖行内旧值；端点没披露的字段保持不动。
 
@@ -48,6 +59,7 @@
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
 | GET | `/api/desktop/dsh-tauri-model-config/endpoint/models` | 读取提供方端点的 `/models` 清单并归一化容量 |
+| GET | `/api/desktop/dsh-tauri-model-config/presets` | 取模型能力表（`force=true` 忽略缓存有效期） |
 | POST | `/api/desktop/dsh-tauri-model-config/config/open` | 用系统默认程序打开模型配置文件 |
 
 已接入 `genapi.config.ts`，客户端 `apis/` 为生成产物。
@@ -68,5 +80,6 @@
 
 - 模型配置文件按 `$DSH_HOME`（非空白）→ `~/.dsh` 解析后取 `settings.yaml`，与官方 `resolveDshHome` 及桌面壳一致；如果 profile 的 `cordis.yml` 为 `settings-file` 配了自定义 `path`，这里无法感知。
 - 文件不存在时打开的是它所在的目录，而不是替用户创建一个空文档。
-- 图片能力既不在官方发现通道的返回里，也没有跨厂商的端点字段，因此只由手动开关声明，不做猜测。
+- 图片能力既不在官方发现通道的返回里，也没有跨厂商的端点字段：它来自模型能力表，表里没有的靠家族规则。两者都是社区口径的近似值，用户随时可以在高级区改；单行「获取配置」也不会覆盖手写值。
+- 能力表需要一次网络请求（约 2.5 MB，落盘后一天内不再请求）。离线且从未下载过时，只剩家族规则能补图片/思考，容量仍由端点清单提供。
 - 档位只提供官方词表内的勾选，线值固定等于档位名；端点要求特殊线值时改设置文档即可。

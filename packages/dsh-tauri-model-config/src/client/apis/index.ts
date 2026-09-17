@@ -19,3 +19,8 @@ export function postConfigOpen(options?: FetchOptions) {
 export function getEndpointModels(params?: Types.GetEndpointModelsQuery, options?: FetchOptions) {
   return ofetch<Types.EndpointModelsResponse>("/endpoint/models", { baseURL, method: "get", params, ...options });
 }
+
+/** @method get */
+export function getPresets(params?: Types.GetPresetsQuery, options?: FetchOptions) {
+  return ofetch<Types.PresetsResponse>("/presets", { baseURL, method: "get", params, ...options });
+}

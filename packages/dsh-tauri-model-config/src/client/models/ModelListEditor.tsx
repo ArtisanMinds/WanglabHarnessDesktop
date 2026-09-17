@@ -104,6 +104,12 @@ function IconTrash(): ReactNode {
 
 type CapacityField = 'contextWindow' | 'maxTokens'
 
+/** 一个容量字段正在输入的原文与它当时解析出的数字（解析不出时为 NaN/undefined）。 */
+interface CapacityBuffer {
+  text: string
+  value: number | undefined
+}
+
 const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
   contextWindow: '256K',
   maxTokens: '32K',
@@ -132,7 +138,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
 
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set())
 
-  const [editing, setEditing] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const [editing, setEditing] = useState<ReadonlyMap<string, CapacityBuffer>>(() => new Map())
 
   const bufferKey = (index: number, field: CapacityField): string => `${String(index)}:${field}`
 
@@ -150,18 +156,29 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   }
 
   const editCapacity = (index: number, field: CapacityField, text: string): void => {
-    setEditing(current => new Map(current).set(bufferKey(index, field), text))
-    patch(index, { [field]: parseCapacity(text) })
+    const value = parseCapacity(text)
+    setEditing(current => new Map(current).set(bufferKey(index, field), { text, value }))
+    patch(index, { [field]: value })
   }
 
-  const capacityText = (model: ModelDraft, index: number, field: CapacityField): string =>
-    editing.get(bufferKey(index, field)) ?? capacitySpelling(numberOf(model, field))
+  /**
+   * 输入框显示什么：打字期间用缓冲区，存量值被外部改写（端点配置）后立刻改读存量值。
+   *
+   * 只认「解析得出的数字与存量一致」的缓冲区，所以端点写回新容量时不会还被一行旧文本盖着；
+   * 解析不出数字（未写完的输入）时保留原文，好让保存期的报错能指着用户还看得见的那一行。
+   */
+  const capacityText = (model: ModelDraft, index: number, field: CapacityField): string => {
+    const buffer = editing.get(bufferKey(index, field))
+    if (buffer === undefined || buffer.value === undefined || Number.isNaN(buffer.value))
+      return buffer?.text ?? capacitySpelling(numberOf(model, field))
+    return buffer.value === numberOf(model, field) ? buffer.text : capacitySpelling(numberOf(model, field))
+  }
 
   const reindexOnRemove = (
-    current: ReadonlyMap<string, string>,
+    current: ReadonlyMap<string, CapacityBuffer>,
     index: number,
-  ): Map<string, string> => {
-    const next = new Map<string, string>()
+  ): Map<string, CapacityBuffer> => {
+    const next = new Map<string, CapacityBuffer>()
     for (const [key, value] of current) {
       const at = Number(key.slice(0, key.indexOf(':')))
       if (at === index)
@@ -304,7 +321,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           title={t('autoConfigureModelsHint')}
           onClick={() => { onFetchConfig() }}
         >
-          {configBusy ? t('fetchingConfig') : t('autoConfigureModels')}
+          {t('autoConfigureModels')}
         </button>
       </div>
       {configFailure === undefined ? null : <p className={styles.error}>{configFailure}</p>}
@@ -408,7 +425,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                       onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
                     />
                   </label>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
                     <div className={styles.modelField}>
                       <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
                       <div className={styles.modelSwitchRow}>

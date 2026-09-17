@@ -1,5 +1,5 @@
 import type { LlmDiscoveredModel } from '../types/remotes.ts'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   declaredThinkingLevels,
   enableThinking,
@@ -16,6 +16,8 @@ import {
   withDetail,
   withPath,
 } from './model-config.utils'
+import { PRESET_FIXTURE } from './model-preset-fixtures'
+import { setPresetTable } from './model-presets'
 
 const found = (id: string, extra: Partial<LlmDiscoveredModel> = {}): LlmDiscoveredModel => ({ id, ...extra })
 
@@ -180,6 +182,66 @@ describe('mergeModelCards', () => {
     const merged = mergeModelCards([{ id: 'a' }], [found('a')])
     expect(merged.applied).toBe(0)
     expect(merged.models[0]).toEqual({ id: 'a' })
+  })
+})
+
+describe('mergeModelCards with presets', () => {
+  beforeEach(() => setPresetTable(PRESET_FIXTURE))
+
+  it('adds the capability facts the endpoint cannot disclose', () => {
+    const merged = mergeModelCards([{ id: 'gpt-4o' }], [found('gpt-4o', { contextWindow: 200000 })])
+    expect(merged.models[0]).toEqual({
+      id: 'gpt-4o',
+      contextWindow: 200000,
+      maxTokens: 16384,
+      input: ['text', 'image'],
+      reasoningEfforts: false,
+    })
+  })
+
+  it('prefers the endpoint capacity over the preset one', () => {
+    const merged = mergeModelCards([{ id: 'gpt-4o' }], [found('gpt-4o', { contextWindow: 1 })])
+    expect(merged.models[0]?.contextWindow).toBe(1)
+  })
+
+  it('falls back to the preset capacity only when the endpoint said nothing', () => {
+    const merged = mergeModelCards([{ id: 'gpt-4o' }], [])
+    expect(merged.models[0]).toEqual({
+      id: 'gpt-4o',
+      contextWindow: 128000,
+      maxTokens: 16384,
+      input: ['text', 'image'],
+      reasoningEfforts: false,
+    })
+    expect(merged.undisclosed).toEqual([])
+  })
+
+  it('never lets a preset capacity overwrite a value the row already holds', () => {
+    const merged = mergeModelCards([{ id: 'gpt-4o', contextWindow: 4096 }], [], { overwrite: true })
+    expect(merged.models[0]?.contextWindow).toBe(4096)
+    expect(merged.models[0]?.input).toEqual(['text', 'image'])
+  })
+
+  it('leaves rows the preset does not know to the endpoint alone', () => {
+    const merged = mergeModelCards([{ id: 'acme-inhouse-7b' }], [])
+    expect(merged.applied).toBe(0)
+    expect(merged.undisclosed).toEqual(['acme-inhouse-7b'])
+    expect(merged.models[0]).toEqual({ id: 'acme-inhouse-7b' })
+  })
+
+  it('writes the graded levels for a reasoning model', () => {
+    const merged = mergeModelCards([{ id: 'o3' }], [found('o3', { contextWindow: 200000 })])
+    expect(merged.models[0]?.reasoningEfforts).toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
+  })
+
+  it('keeps the declared capabilities on a single-row fill and replaces them on a reconfigure', () => {
+    const row = { id: 'gpt-4o', input: ['text'], reasoningEfforts: { off: null, low: 'low' } }
+    const filled = mergeModelCards([row], [], { targets: ['gpt-4o'] }).models[0]
+    expect(filled?.input).toEqual(['text'])
+    expect(filled?.reasoningEfforts).toEqual({ off: null, low: 'low' })
+    const reconfigured = mergeModelCards([row], [], { targets: ['gpt-4o'], overwrite: true }).models[0]
+    expect(reconfigured?.input).toEqual(['text', 'image'])
+    expect(reconfigured?.reasoningEfforts).toBe(false)
   })
 })
 

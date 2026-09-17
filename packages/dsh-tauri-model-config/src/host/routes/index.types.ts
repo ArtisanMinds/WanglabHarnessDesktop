@@ -32,3 +32,19 @@ export interface OpenModelsConfigResponse {
   opened?: 'file' | 'directory'
   error?: string
 }
+
+export interface GetPresetsQuery {
+  /** `'true'` 表示忽略缓存有效期，重新下载预设表。 */
+  force?: string
+}
+
+export interface PresetsResponse {
+  ok?: boolean
+  source?: string
+  fetchedAt?: string
+  /** 上游不可达、回退到过期缓存时为 true。 */
+  stale?: boolean
+  count?: number
+  presets?: Record<string, readonly number[]>
+  error?: string
+}

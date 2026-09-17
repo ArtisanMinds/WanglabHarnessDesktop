@@ -16,10 +16,23 @@ export type EndpointModelCard = {
   contextWindow?: number;
   maxTokens?: number;
 };
+export type PresetsResponse = {
+  ok?: boolean;
+  source?: string;
+  fetchedAt?: string;
+  /** 上游不可达、回退到过期缓存时为 true。 */
+  stale?: boolean;
+  count?: number;
+  presets?: Record<string, readonly number[]>;
+  error?: string;
+};
 
 export interface GetEndpointModelsQuery {
   ns?: string;
   profilePath?: string;
   baseURL?: string;
   apiKey?: string;
+}
+export interface GetPresetsQuery {
+  force?: string;
 }

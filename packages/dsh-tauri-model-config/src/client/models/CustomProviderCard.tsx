@@ -6,6 +6,7 @@ import type { ModelsOperations } from './operations.ts'
 import { useState } from 'react'
 import { loadModelCapacities } from '../service/model-config.ts'
 import { mergeModelCards, modelConfigNotice, withDetail } from '../service/model-config.utils.ts'
+import { ensurePresets } from '../service/presets.ts'
 import { apiKeyFailure } from './apiKey.ts'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { EditorFooter } from './EditorFooter.tsx'
@@ -142,17 +143,20 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const fetchConfig = (targets?: readonly string[]): void => {
     void (async () => {
       setConfigBusy(true)
-      setConfigNotice(undefined)
       setConfigFailure(undefined)
-      const found = await loadModelCapacities({
-        settingsNs: NS,
-        profilePath: ['providers', route.trim()],
-        baseURL: normalizedBaseURL,
-        api: protocol,
-        ...keyValue.length === 0 ? {} : { apiKey: keyValue },
-      }, operations)
+      const [found] = await Promise.all([
+        loadModelCapacities({
+          settingsNs: NS,
+          profilePath: ['providers', route.trim()],
+          baseURL: normalizedBaseURL,
+          api: protocol,
+          ...keyValue.length === 0 ? {} : { apiKey: keyValue },
+        }, operations),
+        ensurePresets(),
+      ])
       setConfigBusy(false)
       if (!found.ok) {
+        setConfigNotice(undefined)
         setConfigFailure(withDetail(t('configUnreachable'), found.error))
         return
       }
