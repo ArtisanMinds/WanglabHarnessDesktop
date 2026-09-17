@@ -17,7 +17,7 @@
     "tauri",
     "deepseek-harness",
     "models",
-    "rapid-mlx",
+    "model-capabilities",
     "vision"
   ],
   "sideEffects": false,
