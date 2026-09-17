@@ -13,7 +13,10 @@ export const handoff = defineService({
     targetSessionId: string,
     cwd: string,
   ): Promise<OperationResult<{ targetSessionId: string, seedLength: number }>> {
-    return createInherited(sourceSessionId, { cwd, parentSession: sourceSessionId, targetSessionId })
+    const inherited = await createInherited(sourceSessionId, { cwd, parentSession: sourceSessionId, targetSessionId })
+    if (!inherited.ok)
+      getCurrentHostInstance().logger?.warn?.(`dsh-tauri-worktree: session inheritance failed for ${targetSessionId}: ${inherited.error}`)
+    return inherited
   },
 
   async handback(
@@ -73,7 +76,7 @@ export const handoff = defineService({
     try {
       const presets = ctx.get?.('agentPresets')
       const parentPreset = presets?.composedPreset(sourceAgent.ctx) ?? sourceSession.header.agentPreset
-      const seed = sourceSession.events
+      const seed = sessionEvents(sourceSession)
       const handle = await ctx.agents.create({
         sessionId: targetSessionId,
         seed,
@@ -129,7 +132,7 @@ async function createInherited(
   const sourceSession = agent?.session ?? sessionContext.peek(sourceSessionId)
   if (!sourceSession)
     return { ok: false, error: `未找到源会话：${sourceSessionId}` }
-  const seed = Array.isArray(sourceSession.events) ? sourceSession.events : []
+  const seed = sessionEvents(sourceSession)
   if (seed.length === 0)
     return { ok: false, error: `源会话没有可继承的事件：${sourceSessionId}` }
 
@@ -169,4 +172,20 @@ async function createInherited(
   catch (error) {
     return { ok: false, error: get(error, 'message', String(error)) }
   }
+}
+
+/** 内核 `Session` 的日志面逐版本漂移：0.1.2-rc.1 起移除 `events` 访问器，以 `snapshotEvents()` 为准，`log` / `events` 仅作兜底。 */
+function sessionEvents(value: unknown): readonly unknown[] {
+  if (typeof value !== 'object' || value === null)
+    return []
+  const session = value as Record<string, unknown>
+  const snapshotEvents = session.snapshotEvents
+  if (typeof snapshotEvents === 'function') {
+    const snapshot: unknown = Reflect.apply(snapshotEvents, value, [])
+    if (Array.isArray(snapshot))
+      return snapshot
+  }
+  if (Array.isArray(session.log))
+    return session.log
+  return Array.isArray(session.events) ? session.events : []
 }
