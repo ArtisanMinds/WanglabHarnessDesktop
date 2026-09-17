@@ -9,8 +9,9 @@ import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type {} from './slot-contract.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { withDetail, withPath } from '../service/model-config.utils.ts'
+import { ensurePresets } from '../service/presets.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
 import { ProviderEditor } from './ProviderEditor.tsx'
 import { deriveKeyRef, protocolChoices, providerUsable } from './store.ts'
@@ -162,6 +163,11 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace, renderS
   const [declaring, setDeclaring] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
   const [configOpen, setConfigOpen] = useState<{ text: string, failed: boolean } | undefined>(undefined)
+
+  // 能力表是自动配置填图片与思考的来源，进页面就先取回来，别让第一次点击等下载。
+  useEffect(() => {
+    void ensurePresets()
+  }, [])
 
   const openConfigFile = (): void => {
     setConfigOpen(undefined)

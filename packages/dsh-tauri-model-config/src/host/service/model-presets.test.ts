@@ -98,7 +98,7 @@ describe('modelPresets.resolve', () => {
       fetchedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
       presets: { 'gpt-4o': [0, 0, 1, 0] },
     }))
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
     const modelPresets = await loadService()
     const result = await modelPresets.resolve()
     if (!result.ok)
