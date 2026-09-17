@@ -7,8 +7,10 @@ import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
 import { PLUGIN_ID, TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
+import { LOCK_BARRIER_TIMEOUT_MS } from '../config/constants'
 import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance, workspaceQueue } from '../config/runtime'
 import { turnrewindHooks } from '../events'
+import { WorkspaceLockTimeoutError } from '../utils/lock'
 import { capture } from './capture'
 import { ledger } from './ledger'
 
@@ -394,5 +396,86 @@ describe('运行中提示条的读数生命周期', () => {
       await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(capture.live('s16')).toMatchObject({ active: true, turn: 1, fileCount: 1, insertions: 1, deletions: 0 })
+  })
+})
+
+describe('屏障等待预算（容量治理与 before 共用截止时间）', () => {
+  /** 记录每次 queue.run 收到的等待参数；真实队列照常放行。 */
+  function recordingQueue(): Array<{ lockTimeoutMs: number | undefined, waitDeadline: number | undefined }> {
+    const real = workspaceQueue.run
+    const recorded: Array<{ lockTimeoutMs: number | undefined, waitDeadline: number | undefined }> = []
+    workspaceQueue.run = <T>(key: string, task: () => Promise<T>, lockTimeoutMs?: number, options?: { waitDeadline?: number }): Promise<T> => {
+      recorded.push({ lockTimeoutMs, waitDeadline: options?.waitDeadline })
+      return real(key, task, lockTimeoutMs, options)
+    }
+    return recorded
+  }
+
+  it('屏障上的两次排队共用同一截止时间，后台结算仍用默认预算', async () => {
+    const { worktree } = await fixture()
+    captureFor()
+    const recorded = recordingQueue()
+
+    await capture.begin('s-barrier', 1)
+    // begin 返回时实时轮询刚起表，还没有别的排队：恰好是容量治理 + before 两次。
+    expect(recorded).toHaveLength(2)
+    expect(recorded[0]).toMatchObject({ lockTimeoutMs: LOCK_BARRIER_TIMEOUT_MS })
+    expect(recorded[1]).toMatchObject({ lockTimeoutMs: LOCK_BARRIER_TIMEOUT_MS })
+    // 同一个截止对象：第一阶段超时后第二阶段不会重新获得完整预算。
+    expect(recorded[0]!.waitDeadline).toBe(recorded[1]!.waitDeadline)
+
+    await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
+    await capture.settle('s-barrier', 1)
+    // 结算在后台、不占屏障：不传任何预算（用锁的默认值），草率放弃会直接丢掉这一轮的卡片。
+    expect(recorded.at(-1)).toMatchObject({ lockTimeoutMs: undefined, waitDeadline: undefined })
+  })
+
+  it('容量治理拿不到跨进程锁时直接放弃本轮，不再申请第二次 before', async () => {
+    await fixture()
+    captureFor()
+    const real = workspaceQueue.run
+    let calls = 0
+    workspaceQueue.run = <T>(): Promise<T> => {
+      calls += 1
+      return Promise.reject(new WorkspaceLockTimeoutError('workspace lock not acquired (barrier)'))
+    }
+    try {
+      await capture.begin('s-busy', 1)
+      // 第一阶段超时后必须就此打住：再排一次 before 就等于重新申请完整预算，
+      // 用户的 turn 开场就要多等一份 20 秒。
+      expect(calls).toBe(1)
+      const current = await ledger.load('s-busy')
+      expect(current.turns.map(turn => turn.turn)).toEqual([1])
+      expect(current.turns[0]?.unavailable).toBe(TURNREWIND_REASON_SNAPSHOT_FAILED)
+      expect(current.turns[0]?.beforeRef).toBe('')
+    }
+    finally {
+      workspaceQueue.run = real
+    }
+  })
+
+  it('第二阶段拿不到锁同样只留不可用审计行，绝不迟到补拍 before', async () => {
+    await fixture()
+    captureFor()
+    const real = workspaceQueue.run
+    let calls = 0
+    workspaceQueue.run = <T>(key: string, task: () => Promise<T>, lockTimeoutMs?: number, options?: { waitDeadline?: number }): Promise<T> => {
+      calls += 1
+      if (calls === 1)
+        return real(key, task, lockTimeoutMs, options)
+      return Promise.reject(new WorkspaceLockTimeoutError('workspace lock not acquired (before)'))
+    }
+    try {
+      await capture.begin('s-expired', 1)
+      expect(calls).toBe(2)
+      // 没有基线就没有可撤销的承诺：条目不登记、结算无事可做，账本留一行审计。
+      expect(capture.pending('s-expired', 1)).toBe(false)
+      const current = await ledger.load('s-expired')
+      expect(current.turns[0]?.unavailable).toBe(TURNREWIND_REASON_SNAPSHOT_FAILED)
+      expect(current.turns[0]?.beforeRef).toBe('')
+    }
+    finally {
+      workspaceQueue.run = real
+    }
   })
 })

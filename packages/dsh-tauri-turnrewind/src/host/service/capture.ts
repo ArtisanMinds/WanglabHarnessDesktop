@@ -13,7 +13,7 @@
 import type { LiveSnapshot, SnapshotStore, TurnFileChange, TurnRecord } from '../types'
 import type { ActiveTurn, BeginningTurn, CaptureLogger } from './capture.types'
 import { defineService } from 'dsh-tauri'
-import { REASON_SNAPSHOT_FAILED, REASON_UNSAFE_WORKSPACE } from '../config/constants'
+import { LOCK_BARRIER_TIMEOUT_MS, REASON_SNAPSHOT_FAILED, REASON_UNSAFE_WORKSPACE } from '../config/constants'
 import {
   activeTurns,
   beginningTurns,
@@ -25,6 +25,7 @@ import {
 } from '../config/runtime'
 import { turnrewindHooks } from '../events'
 import { pruneLooseObjects } from '../utils/git'
+import { WorkspaceLockTimeoutError } from '../utils/lock'
 import { retention } from './retention'
 import { snapshot } from './snapshot'
 import { turns } from './turns'
@@ -288,17 +289,29 @@ async function runBegin(sessionId: string, turn: number): Promise<void> {
     return
   }
   const store = snapshot.resolve(probe.root, probe.commonDir)
+  // 两个屏障阶段共用从首次入队开始的截止时间，覆盖进程内 FIFO 与跨进程锁等待：
+  // 到期放弃尚未开始的任务；已开始的 git 必须完整等待，不能让迟到的 before 捕到模型改动。
+  const waitOptions = { waitDeadline: Date.now() + LOCK_BARRIER_TIMEOUT_MS }
   // 工作区首次触碰：容量治理（prune 不可达对象 / 超限整仓重建 / 排除清单复检）。
   const exclusions = await workspaceQueue.run(probe.root, async () => {
     const outcome = await retention.ensure(store)
     if (outcome?.rebuilt)
       warn(`dsh-tauri-turnrewind: snapshot repository for ${probe.root} exceeded the size cap and was rebuilt; older turns are now expired`)
     return outcome?.exclusions ?? await retention.read(store)
-  }).catch(() => [] as string[])
+  }, LOCK_BARRIER_TIMEOUT_MS, waitOptions).catch((error: unknown) => {
+    // 锁/排队超时意味着本轮已放弃，不能吞掉后再申请一次完整预算重排 before。
+    if (error instanceof WorkspaceLockTimeoutError)
+      throw error
+    return [] as string[]
+  })
 
   const nestedDirs = snapshot.scan(probe.root)
-  const result = await workspaceQueue.run(probe.root, () =>
-    snapshot.capture(store, snapshot.ref(sessionId, turn, 'before'), `turn ${turn} before`, { exclude: exclusions, nestedDirs }))
+  const result = await workspaceQueue.run(
+    probe.root,
+    () => snapshot.capture(store, snapshot.ref(sessionId, turn, 'before'), `turn ${turn} before`, { exclude: exclusions, nestedDirs }),
+    LOCK_BARRIER_TIMEOUT_MS,
+    waitOptions,
+  )
   if (!result.ok) {
     warn(`dsh-tauri-turnrewind: before snapshot for session ${sessionId} turn ${turn} unavailable: ${result.reason}`)
     await turns.note(sessionId, { workspaceRoot: probe.root, isGit: true, unavailableReason: null }).catch(() => undefined)

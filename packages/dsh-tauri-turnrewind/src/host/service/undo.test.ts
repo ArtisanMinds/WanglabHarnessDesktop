@@ -8,8 +8,9 @@ import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
 import { PLUGIN_ID } from '../../shared/constants'
-import { REASON_ALREADY_UNDONE, REASON_CONFLICT, REASON_EXPIRED, REASON_GIT_REQUIRED, REASON_TURN_ACTIVE } from '../config/constants'
-import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance } from '../config/runtime'
+import { REASON_ALREADY_UNDONE, REASON_CONFLICT, REASON_EXPIRED, REASON_GIT_REQUIRED, REASON_TURN_ACTIVE, REASON_WORKSPACE_BUSY } from '../config/constants'
+import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance, workspaceQueue } from '../config/runtime'
+import { WorkspaceLockTimeoutError } from '../utils/lock'
 import { capture } from './capture'
 import { ledger } from './ledger'
 import { snapshot } from './snapshot'
@@ -248,5 +249,29 @@ describe('undo.turn', () => {
     }
     // 拒绝发生在动文件之前。
     expect(await readFile(join(worktree, 'a.txt'), 'utf8')).toBe('first\nsecond\n')
+  })
+
+  it('工作区被另一个宿主进程占用（跨进程锁超时）：回 409 + WORKSPACE_BUSY，而不是 500', async () => {
+    const { worktree, sessionId, turn } = await fixture()
+    // 队列以锁超时拒绝，等价于「另一个 DSH 进程正占着这个工作区，等满了上限也没轮到我们」。
+    const real = workspaceQueue.run
+    workspaceQueue.run = <T>(): Promise<T> => Promise.reject(new WorkspaceLockTimeoutError('workspace lock not acquired'))
+    try {
+      const outcome = await undo.turn(sessionId, turn)
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) {
+        expect(outcome.code).toBe(409)
+        expect(outcome.error).toBe(REASON_WORKSPACE_BUSY)
+      }
+      // 「现在不是时候」而不是「这一轮不能撤销」：工作区一个字节没动，也没有标成已撤销——
+      // 用户稍后重试仍然有效。
+      expect(await readFile(join(worktree, 'a.txt'), 'utf8')).toBe('first\nsecond\n')
+      expect(existsSync(join(worktree, 'added.txt'))).toBe(true)
+      const current = await ledger.load(sessionId)
+      expect(current.turns.find(item => item.turn === turn)?.undoneAt ?? null).toBeNull()
+    }
+    finally {
+      workspaceQueue.run = real
+    }
   })
 })
