@@ -21,6 +21,8 @@ export const inject = ['slots', 'locale', 'sessions', 'workspaces']
 
 /** 插件体：安装文案与样式，注册设置分区、侧栏入口补丁与草稿注入。 */
 export function apply(ctx: ClientContext): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || window.parent === window)
+    return
   ctx.effect(locale.registerLocale, PET_LOCALE_EFFECT)
   ctx.effect(stylesFeature, PET_STYLES_EFFECT)
   ctx.effect(petSectionFeature, PET_SECTION_EFFECT)
