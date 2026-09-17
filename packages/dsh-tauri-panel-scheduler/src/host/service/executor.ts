@@ -10,13 +10,12 @@ import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import process from 'node:process'
 import { defineService } from 'dsh-tauri'
-import { compact, filter, findLast, last, map } from 'lodash-es'
 import { join } from 'pathe'
 import { getCurrentHostInstance } from '../config/runtime'
 import { loadSchedulerRuntimeModules, resolveSetupAgent } from '../utils/agent-runtime'
 import { applyUnattendedPermission } from '../utils/permission'
 import { schedulerSessionTitle } from '../utils/session-title'
-import { decideRunOutcome, waitForTurnStart } from './executor.utils'
+import { decideRunOutcome, summarizeRun, waitForTurnStart } from './executor.utils'
 import { runs } from './runs'
 
 const SCHEDULER_RUN_TIMEOUT_MS = 30 * 60 * 1000
@@ -112,7 +111,7 @@ export const executor = defineService({
         }
         else {
           await (ctx.sessions as { flush: (session: unknown) => Promise<unknown> }).flush(handle.agent.session)
-          const outcome = summarizeRun(handle.agent.session.events, firstSeq)
+          const outcome = summarizeRun(handle.agent.session, firstSeq)
 
           const decision = decideRunOutcome({ started, timedOut, reason: outcome.reason })
           result = decision.error ? { status: 'failed', error: decision.error } : { status: 'succeeded' }
@@ -158,12 +157,6 @@ interface AgentHandleLike {
     followup: (message: unknown) => void
     cancel: (reason: { kind: string, reason: string }) => void
   }
-}
-
-interface SessionEventLike {
-  readonly seq: number
-  readonly type: string
-  readonly data: Record<string, any>
 }
 
 async function resolveWorkspace(ctx: HostContext, task: SchedulerTask): Promise<WorkspaceResolution> {
@@ -248,21 +241,6 @@ async function settle(id: string, status: RunStatus, outcome: ExecuteOutcome): P
     error: outcome.error,
     sessionId: outcome.sessionId ?? current.sessionId,
   })
-}
-
-function summarizeRun(events: readonly SessionEventLike[], firstSeq: number): {
-  readonly text: string
-  readonly reason?: Record<string, any>
-} {
-  const scoped = filter(events, event => event.seq >= firstSeq)
-  const texts = compact(map(filter(scoped, { type: 'assistant/message' }), textOf))
-  const reason = findLast(scoped, { type: 'turn/end' })?.data.reason as Record<string, any> | undefined
-  return { text: last(texts) ?? '', ...(reason ? { reason } : {}) }
-}
-
-function textOf(event: SessionEventLike): string {
-  const blocks = (event.data.message?.content ?? []) as readonly { type: string, text?: string }[]
-  return blocks.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
 }
 
 function settlesWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
