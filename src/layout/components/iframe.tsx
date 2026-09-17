@@ -1,5 +1,5 @@
 /* eslint-disable react/dom-no-unsafe-iframe-sandbox */
-import type { RefObject } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 import { CircleExclamation } from '@gravity-ui/icons'
 import { useEventListener } from '@reause/core'
 import { invoke } from '@tauri-apps/api/core'
@@ -8,6 +8,7 @@ import { If } from 'react-if-lite'
 import { useStore } from 'valtio-define'
 import { queryClient } from '@/config/client'
 import { queryKeys } from '@/config/query-keys'
+import { useDshStyle } from '@/hooks/use-dsh-style'
 import { useIframeMessage } from '@/hooks/use-iframe-message'
 import { useIframePost } from '@/hooks/use-iframe-post'
 import { useInvokeIframe } from '@/hooks/use-invoke-iframe'
@@ -38,6 +39,10 @@ interface IframeBridgeMessage {
   action?: string
   /** 插件 boot 桥：失败页文本 */
   detail?: string
+
+  sidebar?: CSSProperties
+  marked?: CSSProperties
+  frame?: CSSProperties
 }
 
 export interface IframeProps {
@@ -56,6 +61,8 @@ export function Iframe({ iframeRef }: IframeProps) {
   const harness = useStore(store.harness)
   const setting = useStore(store.setting)
   const post = useIframePost(iframeRef)
+
+  const [, setDshStyle] = useDshStyle()
 
   // 转发 iframe 消息给 Tauri Rust 命令
   useInvokeIframe(iframeRef)
@@ -103,10 +110,12 @@ export function Iframe({ iframeRef }: IframeProps) {
         void store.harness.handleIframeBootFailure(data.detail)
         break
       // 缩放快捷键：跨源 iframe 内的 Ctrl/Cmd +/-/0 不会冒泡到壳层，由 dsh-tauri 插件的
-      case 'dsh://zoom-shortcut': {
+      case 'dsh://zoom-shortcut':
         handleZoomShortcut(data)
         break
-      }
+      case 'dsh://style':
+        setDshStyle(data)
+        break
     }
   })
 
@@ -183,7 +192,7 @@ export function Iframe({ iframeRef }: IframeProps) {
         <iframe
           key={harness.iframeKey}
           ref={iframeRef}
-          className="block h-full w-full border-none bg-load-bg"
+          className="h-full w-full"
           src={harness.iframeSrc}
           allow="accelerometer; ambient-light-sensor; autoplay; battery; camera; clipboard-read; clipboard-write; display-capture; document-domain; encrypted-media; fullscreen; gamepad; geolocation; gyroscope; hid; idle-detection; keyboard-map; magnetometer; microphone; midi; payment; picture-in-picture; publickey-credentials-get; screen-wake-lock; serial; speaker-selection; usb; web-share; xr-spatial-tracking"
           sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads allow-storage-access-by-user-activation"
