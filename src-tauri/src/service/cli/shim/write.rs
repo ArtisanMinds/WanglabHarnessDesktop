@@ -328,4 +328,30 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// issue #581：旧版本落盘的 LF-only `.cmd` 仍带生成标记（可被覆盖），
+    /// 下一次 `ensure_shims` 必须把它升级为 CRLF 版本。
+    #[test]
+    fn write_shim_file_migrates_legacy_lf_only_cmd_shim() {
+        let dir = temp_dir("legacy-lf-cmd");
+        let target = dir.join("pnpm.cmd");
+        let current = build_pnpm_cmd_shim(&dir.join("app"));
+        assert!(current.contains("\r\n"));
+        std::fs::write(&target, current.replace("\r\n", "\n")).unwrap();
+        assert!(
+            !is_foreign_file(&target),
+            "legacy generated shim must stay overwritable"
+        );
+
+        write_shim_file(&target, &current).unwrap();
+
+        let content = std::fs::read_to_string(&target).unwrap();
+        assert_eq!(content, current);
+        assert_eq!(
+            content.matches('\n').count(),
+            content.matches("\r\n").count(),
+            "migrated shim must not keep unpaired LF"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
