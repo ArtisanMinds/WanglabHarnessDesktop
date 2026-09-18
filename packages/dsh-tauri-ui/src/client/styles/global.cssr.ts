@@ -9,6 +9,7 @@ export default c([
     }),
     c('[class$="entry"]:has(> button)', {
       padding: '0',
+      gap: 0,
     }),
     c('[class$="entry"]', {
       border: 'none',

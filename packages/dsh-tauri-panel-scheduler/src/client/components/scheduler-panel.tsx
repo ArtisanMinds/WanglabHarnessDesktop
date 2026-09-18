@@ -106,10 +106,10 @@ export function SchedulerPanel({ t, onViaChat, onOpenSession }: SchedulerPanelPr
           <p>{t('subtitle')}</p>
         </div>
         <div className="dshp-scheduler__toolbar">
-          <Button variant="outline" size="sm" icon={<Icon as={CommentPlus} />} onClick={onViaChat}>
+          <Button style={{ flexShrink: 0 }} variant="outline" size="sm" icon={<Icon as={CommentPlus} />} onClick={onViaChat}>
             {t('viaChat')}
           </Button>
-          <Button variant="primary" size="sm" icon={<Icon as={Plus} size={13} />} onClick={() => setDialog({})}>
+          <Button style={{ flexShrink: 0 }} variant="primary" size="sm" icon={<Icon as={Plus} size={13} />} onClick={() => setDialog({})}>
             {t('createManual')}
           </Button>
         </div>

@@ -2,7 +2,7 @@ import { cssr, styles as sharedStyles } from 'dsh-tauri-ui/client'
 import { SESSION_ICON_ATTRIBUTE } from '../constants'
 
 const { c } = cssr
-const { primary, secondary, tertiary, borderL2, dimmed, borderL3, borderL4, brand, layer1, modulePlatform, hover, hoverSolid, hoverDanger, error, success, primaryFill, primaryHover, primaryFg, chevronSelectSvg: chevronSvg, focusRing } = sharedStyles
+const { primary, secondary, tertiary, dimmed, borderL3, borderL4, brand, layer1, modulePlatform, hover, hoverSolid, hoverDanger, error, success, primaryFill, primaryHover, primaryFg, chevronSelectSvg: chevronSvg, focusRing } = sharedStyles
 
 /**
  * 跨组件通用的官方控件复刻（input / selectInput / textarea / iconButton /
@@ -39,7 +39,7 @@ export default c([
     c('&:hover', { background: 'var(--dsw-alias-interactive-bg-hover)' }),
   ]),
   // —— 任务 / 执行记录行（task-card.tsx 与 runs-tab.tsx 共用，须随注册样式挂载）——
-  c('.dshp-scheduler__card', { boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', width: '100%', minWidth: '0', height: '60px', padding: '10px 12px', border: `1px solid ${borderL2}`, borderRadius: '10px', background: 'transparent', color: 'inherit', font: 'inherit', fontSize: '13px', lineHeight: '20px', textAlign: 'left', cursor: 'pointer', overflow: 'hidden' }),
+  c('.dshp-scheduler__card', { boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', width: '100%', minWidth: '0', height: '60px', padding: '10px 12px', borderRadius: '10px', background: 'transparent', color: 'inherit', font: 'inherit', fontSize: '13px', lineHeight: '20px', textAlign: 'left', cursor: 'pointer', overflow: 'hidden' }),
   c('.dshp-scheduler__card:hover', { background: hover }),
   c('.dshp-scheduler__card--paused', { opacity: '.6' }),
   c('.dshp-scheduler__card-title', { display: 'flex', alignItems: 'center', gap: '8px', margin: '0', fontSize: '13px', lineHeight: '18px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
