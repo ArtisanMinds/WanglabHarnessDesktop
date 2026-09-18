@@ -1,22 +1,38 @@
 import type { ReactElement } from 'react'
+import type { MarketFace } from '../service/market.types'
 import { useMountStyle } from 'dsh-tauri-ui/client'
 import { useEffect, useId, useRef, useState } from 'react'
 import { EXTENSION_PANEL_STYLE_ID } from '../constants'
 import { locale } from '../locales'
 import extensionPanelStyle from './extension-panel.cssr'
+import { MarketTab } from './market-tab'
 import { McpTab } from './mcp-tab'
 import { SkillsTab } from './skills-tab'
 
 export interface ExtensionPanelProps {
   createSkill: () => Promise<void>
+  /** 市场未安装 / 未发布 `render` 时为 undefined：此时不出现市场标签页。 */
+  market: MarketFace | undefined
 }
 
-export function ExtensionPanel({ createSkill }: ExtensionPanelProps): ReactElement {
+interface ExtensionTab {
+  id: string
+  label: string
+  render: () => ReactElement
+}
+
+export function ExtensionPanel({ createSkill, market }: ExtensionPanelProps): ReactElement {
   const t = locale.text
   useMountStyle(extensionPanelStyle, EXTENSION_PANEL_STYLE_ID)
   const tabsId = useId()
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const rows = [{ id: 'skills', label: t('skillsTab') }, { id: 'mcp', label: t('mcpTab') }]
+  const marketFace = market
+  const rows: ExtensionTab[] = [
+    { id: 'skills', label: t('skillsTab'), render: () => <SkillsTab t={t} createSkill={createSkill} /> },
+    { id: 'mcp', label: t('mcpTab'), render: () => <McpTab t={t} /> },
+  ]
+  if (marketFace !== undefined)
+    rows.push({ id: 'market', label: t('marketTab'), render: () => <MarketTab market={marketFace} /> })
   const [activeId, setActiveId] = useState('skills')
   const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set(['skills']))
   useEffect(() => setVisited(previous => previous.has(activeId) ? previous : new Set([...previous, activeId])), [activeId])
@@ -63,7 +79,7 @@ export function ExtensionPanel({ createSkill }: ExtensionPanelProps): ReactEleme
         </div>
         {rows.filter(row => row.id === activeId || visited.has(row.id)).map((row) => {
           const selected = row.id === activeId
-          return <div key={row.id} id={`${tabsId}-panel-${row.id}`} className="dshp-extension__tab-panel" role="tabpanel" aria-labelledby={`${tabsId}-tab-${row.id}`} hidden={!selected}>{row.id === 'skills' ? <SkillsTab t={t} createSkill={createSkill} /> : <McpTab t={t} />}</div>
+          return <div key={row.id} id={`${tabsId}-panel-${row.id}`} className="dshp-extension__tab-panel" role="tabpanel" aria-labelledby={`${tabsId}-tab-${row.id}`} hidden={!selected}>{row.render()}</div>
         })}
       </div>
     </div>

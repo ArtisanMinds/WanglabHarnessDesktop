@@ -307,7 +307,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
   return (
     <div className="dshp-extension__section">
       <div className="dshp-extension__head">
-        <Icon as={PlugConnection} />
+        <span className="dshp-extension__head-icon"><Icon as={PlugConnection} size={16} /></span>
         <h3>{t('mcpTitle')}</h3>
         <span className="dshp-extension__spacer" />
         <Button variant="ghost" size="sm" disabled={restarting} onClick={() => setRestartConfirm(true)}>{t('restart')}</Button>
