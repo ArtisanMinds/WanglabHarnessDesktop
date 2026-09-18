@@ -67,11 +67,21 @@ pub(crate) fn build_plugin_envs(
     // （典型场景：用户在另一个分区的工程里跑过 pnpm，pnpm 就把那份 store 写进了全局配置），
     // 此时档案安装必然失败且无法自愈。这里显式下传档案记录的 store：
     // pnpm 的优先级是 CLI > 环境变量 > 项目 .npmrc > 用户/全局配置，
-    // 因此该值既压过用户配置，也必然等于 .modules.yaml 里的记录，子进程无从跑偏。
+    // 因此该值压过用户配置；传的是去掉版本段的基目录，由 pnpm 追加自身主版本的
+    // 版本段（主版本与档案一致时即等于 `.modules.yaml` 里的记录，见
+    // [`super::pnpm::profile_store_base_dir`]）。
     // 全新档案（没有 node_modules）不注入：让 pnpm 按用户配置自行决定并写回记录。
-    if let Some(store_dir) = super::pnpm::profile_store_dir(app_handle) {
+    if let Some(store_dir) = super::pnpm::profile_store_base_dir(app_handle) {
         log::info!("pinning plugin install pnpm store to the profile record: {store_dir}");
-        envs.insert("npm_config_store_dir".to_string(), store_dir);
+        // pnpm 11 起不再读取 `npm_config_*`：`config/reader` 的 `parseEnvVars` 只认
+        // `pnpm_config_` / `PNPM_CONFIG_` 前缀，其余按键静默 `continue`（见
+        // pnpm 11.0.0 release notes：`npm_config_registry` → `pnpm_config_registry`）。
+        // 只设 `npm_config_store_dir` 对捆绑版 pnpm 11 是空操作 —— 档案记录的 store
+        // 根本没下传，pnpm 用自己解析出的 store 与 `.modules.yaml` 比对失败，仍报
+        // `ERR_PNPM_UNEXPECTED_STORE`。两个前缀同设：pnpm 10 认 `npm_config_*`，
+        // pnpm 11 认 `pnpm_config_*`，值相同因此不冲突。
+        envs.insert("npm_config_store_dir".to_string(), store_dir.clone());
+        envs.insert("pnpm_config_store_dir".to_string(), store_dir);
     }
 
     let mut paths = vec![bin_dir];
