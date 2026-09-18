@@ -98,6 +98,8 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
       submittingRef.current = true
       const targetSessionId = `session-${crypto.randomUUID()}`
       store.worktree.patch(sessionId, { mode: 'pending', phase: 'creating', loadingLabel: locale.text('progressCreating'), error: '' })
+      let switched = false
+      let detached = false
       try {
         const created = await create({ sessionId: targetSessionId, sourceSessionId: sessionId, inherit: true })
         if (!created.ok || !created.result)
@@ -113,14 +115,18 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
           await sessionsRuntime.create({ cwd: worktreePath, sessionId: targetSessionId })
         }
         await attach({ sessionId: targetSessionId })
+        // 0.1.6 起会话输入面只在被保留的会话上物化：先切换（切换即保留主视图）再取目标输入面。
+        // 源会话的草稿与附件必须先摘除——源作用域随切换销毁，会把仍挂在其草稿上的附件从注册表释放。
+        inputActions.setDraft('')
+        forEach(imageIds, imageId => removeDraftAttachment(inputActions, imageId))
+        detached = true
+        sessionsRuntime.open(targetSessionId)
+        switched = true
         const nextActions = await waitForInputActions({ sessions: sessionsRuntime, sessionId: targetSessionId, wait })
         nextActions.setDraft(draft)
         if (!addDraftAttachments(nextActions, imageIds))
           throw new Error('无法迁移消息附件到工作树会话')
-        inputActions.setDraft('')
-        forEach(imageIds, imageId => removeDraftAttachment(inputActions, imageId))
         store.worktree.patch(sessionId, { mode: 'local', phase: 'idle', loadingLabel: '' })
-        sessionsRuntime.open(targetSessionId)
         queueMicrotask(() => {
           try {
             nextActions.submit()
@@ -134,12 +140,27 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
           await workspacesRuntime.archiveSession(sessionId).catch(() => {})
       }
       catch (error) {
+        const message = get(error, 'message', String(error))
+        // 切换失败的源会话仍在：已摘除的草稿与附件原样放回，用户不丢内容。
+        if (detached && !switched) {
+          inputActions.setDraft(draft)
+          addDraftAttachments(inputActions, imageIds)
+        }
         store.worktree.patch(sessionId, {
           mode: 'pending',
           phase: 'error',
           loadingLabel: '',
-          error: get(error, 'message', String(error)),
+          error: message,
         })
+        // 切换成功后源会话的提示条不再渲染：错误同步到当前会话，避免静默失败。
+        if (switched) {
+          store.worktree.patch(targetSessionId, {
+            mode: 'pending',
+            phase: 'error',
+            loadingLabel: '',
+            error: message,
+          })
+        }
       }
       finally {
         submittingRef.current = false

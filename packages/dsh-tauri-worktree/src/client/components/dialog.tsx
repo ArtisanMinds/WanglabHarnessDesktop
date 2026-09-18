@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react'
-import type { WorkspacesRuntime } from '../service/session-switch.types'
+import type { SessionsRuntime, WorkspacesRuntime } from '../service/session-switch.types'
 import type { WorktreeDialogProps } from './dialog.types'
 import { useMountStyle } from 'dsh-tauri-ui/client'
 import { find, useEventListener } from 'dsh-tauri/client'
 import { useRef } from 'react'
 import { DIALOG_STYLE_ID } from '../constants'
+import { useCurrentSession } from '../hooks/use-current-session'
 import { useDiscard } from '../hooks/use-discard'
 import { useWaiter } from '../hooks/use-waiter'
 import { useWorktreeSession } from '../hooks/use-worktree-session'
@@ -14,10 +15,10 @@ import { checkout } from '../service/worktree'
 import { store } from '../store'
 import dialogStyle from './dialog.cssr'
 
-export function WorktreeDialog({ useSessions, workspacesRuntime, sessionsRuntime }: WorktreeDialogProps): ReactElement | null {
+export function WorktreeDialog({ workspacesRuntime, sessionsRuntime }: WorktreeDialogProps): ReactElement | null {
   locale.useLocale()
   useMountStyle(dialogStyle, DIALOG_STYLE_ID)
-  const sessionId = useSessions(state => state.current)
+  const sessionId = useCurrentSession(sessionsRuntime)
   const state = useWorktreeSession(sessionId)
   const discardWorktree = useDiscard(sessionId)
   const checkoutOpen = state.checkoutOpen
@@ -72,11 +73,7 @@ function CheckoutDialog(props: {
   branchName: string
   error: string
   workspacesRuntime: WorkspacesRuntime
-  sessionsRuntime: {
-    open: (sessionId: string) => void
-    refresh: () => Promise<void>
-    list: { getSnapshot: () => { current?: string, ids: string[] } }
-  }
+  sessionsRuntime: SessionsRuntime
   onCancel: () => void
 }): ReactElement {
   const { sessionId, worktreeKey, projectPath, workspacesRuntime, sessionsRuntime, onCancel } = props
