@@ -6,8 +6,7 @@ import type {
   WorktreeParams,
   WorktreeProcessController,
 } from '../types'
-import { existsSync } from 'node:fs'
-import { rmdir } from 'node:fs/promises'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import process from 'node:process'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { compact, filter, find, get, isEmpty, map, reject, some } from 'lodash-es'
@@ -22,7 +21,12 @@ import {
   shellSessionIdFrom,
   unlinkWorktreeDependencies,
 } from '../utils/dependencies'
-import { removeDirectoryReliably } from '../utils/filesystem'
+import {
+  listDirectoryNames,
+  removeDirectoryReliably,
+  removeDirectoryTree,
+  removeEmptyDirectories,
+} from '../utils/filesystem'
 import {
   applyStagedPatch,
   carryStagedChanges,
@@ -41,6 +45,8 @@ import { workspace } from './workspace'
 const WORKTREE_BRANCH_NAME_PATTERN = /^[\w./-]+$/
 
 const LINK_DEPENDENCIES = true
+
+const SWEEP_MIN_AGE_MS = 60_000
 
 export const worktree = defineService({
   async create(
@@ -71,7 +77,7 @@ export const worktree = defineService({
     }
 
     const mainSource = 'refs/heads/main'
-    const mainRef = await git(['rev-parse', '--verify', '--quiet', mainSource], root, { signal: options.signal })
+    const mainRef = await git(['rev-parse', '--verify', mainSource], root, { signal: options.signal })
     if (!mainRef.ok)
       return { ok: false, error: `创建工作树失败：本地分支 main 不存在或无法解析（refs/heads/main）：${mainRef.error}` }
     if (!mainRef.out.trim())
@@ -104,8 +110,8 @@ export const worktree = defineService({
     if (branchName === 'dsh/')
       return { ok: false, error: '分支名不能为空' }
     if (branchName) {
-      const exists = await git(['rev-parse', '--verify', '--quiet', `refs/heads/${branchName}`], root, { signal: options.signal })
-      if (exists.ok && exists.out.trim())
+      const exists = await git(['rev-parse', '--verify', `refs/heads/${branchName}`], root, { signal: options.signal })
+      if (exists.ok)
         return { ok: false, error: `分支已存在：${branchName}` }
     }
 
@@ -215,8 +221,8 @@ export const worktree = defineService({
     const worktreeHead = await git(['rev-parse', 'HEAD'], binding.worktreePath, { signal: options.signal })
     if (!worktreeHead.ok)
       return { ok: false, error: `读取工作树 HEAD 失败：${worktreeHead.error}` }
-    const prev = await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], root, { signal: options.signal })
-    if (!prev.ok)
+    const prev = await git(['rev-parse', '--abbrev-ref', 'HEAD'], root, { signal: options.signal })
+    if (!prev.ok || prev.out === 'HEAD')
       return { ok: false, error: '本地主工作区当前处于 detached HEAD；请先切换到本地分支再检出工作树' }
     const prevBranch = prev.out
     const carriedPatch: OperationResult<{ patch: string }> = options.carryStaged === true
@@ -225,10 +231,12 @@ export const worktree = defineService({
     if (!carriedPatch.ok)
       return { ok: false, error: `读取工作树暂存内容失败：${carriedPatch.error}` }
 
-    const branchRef = await git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], root, { signal: options.signal })
+    const branchRef = await git(['rev-parse', '--verify', `refs/heads/${branch}`], root, { signal: options.signal })
     const handsOffOwnedBranch = binding.ownsBranch && binding.branchName === branch
     let detachedOwnedBranch = false
     let createdBranch = false
+    let reusedBranchHead = ''
+    let advancedBranch = false
     if (handsOffOwnedBranch) {
       if (!branchRef.ok)
         return { ok: false, error: `工作树拥有的本地分支不存在，拒绝重建以避免覆盖状态：${branch}` }
@@ -242,9 +250,29 @@ export const worktree = defineService({
         return { ok: false, error: `释放工作树分支失败：${detached.error}` }
       detachedOwnedBranch = true
     }
+    else if (branchRef.ok) {
+      // 「创建或切换到指定本地分支」：分支已存在时只要不丢提交就复用——同提交直接切换，
+      // 落后于工作树 HEAD 时快进；已经分叉才拒绝，避免两边提交互相覆盖。
+      const occupied = await worktreeOccupant(root, branch, binding.worktreePath, options.signal)
+      if (occupied)
+        return { ok: false, error: `本地分支已在其他工作树中签出，无法复用：${branch}（${occupied}）` }
+      const branchOnly = await git(['rev-list', '--count', `${worktreeHead.out}..${branch}`], root, { signal: options.signal })
+      if (!branchOnly.ok)
+        return { ok: false, error: `检查本地分支与工作树的差异失败：${branchOnly.error}` }
+      const extra = Number.parseInt(branchOnly.out, 10) || 0
+      if (extra > 0)
+        return { ok: false, error: `本地分支 ${branch} 与工作树 HEAD 已分叉（该分支有 ${extra} 个提交不在工作树中），复用会丢失其中一方的提交；请换一个分支名，或在本地处理该分支后再检出` }
+      reusedBranchHead = branchRef.out
+      if (branchRef.out !== worktreeHead.out) {
+        const advanced = branch === prevBranch
+          ? await git(['merge', '--ff-only', worktreeHead.out], root, { signal: options.signal })
+          : await git(['branch', '-f', branch, worktreeHead.out], root, { signal: options.signal })
+        if (!advanced.ok)
+          return { ok: false, error: `把本地分支快进到工作树 HEAD 失败：${advanced.error}` }
+        advancedBranch = true
+      }
+    }
     else {
-      if (branchRef.ok)
-        return { ok: false, error: `本地分支已存在且不属于当前工作树，为避免覆盖其提交而拒绝检出：${branch}` }
       const created = await git(['branch', branch, worktreeHead.out], root, { signal: options.signal })
       if (!created.ok)
         return { ok: false, error: `创建本地分支失败：${created.error}` }
@@ -263,6 +291,21 @@ export const worktree = defineService({
       const removed = await git(['branch', '-D', branch], root)
       return removed.ok ? '' : `；新建分支自动清理失败：${removed.error}`
     }
+    const restoreAdvancedBranch = async (): Promise<string> => {
+      if (!advancedBranch)
+        return ''
+      const restored = branch === prevBranch
+        ? await git(['reset', '--hard', reusedBranchHead], root)
+        : await git(['branch', '-f', branch, reusedBranchHead], root)
+      return restored.ok ? '' : `；已存在分支回退失败：${restored.error}`
+    }
+    const revertBranch = async (): Promise<string> => {
+      if (detachedOwnedBranch)
+        return restoreSourceBranch()
+      if (createdBranch)
+        return removeCreatedBranch()
+      return restoreAdvancedBranch()
+    }
     const rollbackHandoff = async (resetTarget = false): Promise<string> => {
       const failures: string[] = []
       if (resetTarget) {
@@ -275,7 +318,7 @@ export const worktree = defineService({
         failures.push(`恢复本地主分支失败：${switchedBack.error}`)
       }
       else {
-        const sourceRecovery = detachedOwnedBranch ? await restoreSourceBranch() : await removeCreatedBranch()
+        const sourceRecovery = await revertBranch()
         if (sourceRecovery)
           failures.push(sourceRecovery.replace(/^；/, ''))
       }
@@ -284,7 +327,7 @@ export const worktree = defineService({
 
     const check = await git(['checkout', branch], root, { signal: options.signal })
     if (!check.ok) {
-      const recovery = detachedOwnedBranch ? await restoreSourceBranch() : await removeCreatedBranch()
+      const recovery = await revertBranch()
       return { ok: false, error: `切换到本地分支失败：${check.error}${recovery}` }
     }
 
@@ -327,40 +370,59 @@ export const worktree = defineService({
   },
 
   async discard(sessionId: string, key: string): Promise<OperationResult<{ jobId?: string }>> {
-    const binding = ledger.load(sessionId)
-    const parsed = parseWorktreeKey(key)
-    if (!binding && parsed && !existsSync(worktreePath(parsed.hash, parsed.dirname)))
+    const target = await removalTarget(sessionId, key)
+    if (!target)
+      return { ok: false, error: '未找到绑定的工作树' }
+    if (!target.bound && !existsSync(target.worktreePath))
       return { ok: true }
-    const job = cleaner.start(sessionId, key, binding?.worktreePath, () => worktree.remove(sessionId, key))
+    const job = cleaner.start(target.sessionId, key, target.worktreePath, () => worktree.remove(sessionId, key), true)
     return { ok: true, jobId: job.jobId }
   },
 
   async remove(sessionId: string, key = ''): Promise<OperationResult<{ worktreePath: string }>> {
-    const binding = resolveBinding(sessionId, key)
-    if (!binding)
+    const target = await removalTarget(sessionId, key)
+    if (!target)
       return { ok: false, error: '未找到绑定的工作树' }
 
-    await workspace.unregister(binding.worktreePath)
+    await workspace.unregister(target.worktreePath)
     const removed = await removeWorktreeOnDisk(
-      binding.sessionId,
-      binding.projectPath,
-      binding.worktreePath,
-      binding.hash,
-      binding.dirname,
-      removalLinkDirectories(binding),
+      target.sessionId,
+      target.projectPath,
+      target.worktreePath,
+      target.hash,
+      target.dirname,
+      removalLinkDirectories(target.binding),
     )
     if (!removed.ok)
       return { ok: false, error: `删除工作树失败，绑定已保留以便重试：${removed.error}` }
 
-    if (binding.ownsBranch && binding.branchName) {
-      const dropped = await deleteOwnedBranch(binding.projectPath, binding.branchName)
+    if (target.binding?.ownsBranch && target.binding.branchName) {
+      const dropped = await deleteOwnedBranch(target.projectPath, target.binding.branchName)
       if (!dropped.ok)
         return { ok: false, error: `删除工作树分支失败，绑定已保留以便重试：${dropped.error}` }
     }
 
-    await ledger.remove(binding.sessionId)
+    await ledger.remove(target.sessionId)
 
-    return { ok: true, worktreePath: binding.worktreePath }
+    return { ok: true, worktreePath: target.worktreePath }
+  },
+
+  async recover(): Promise<OperationResult<{ resumed: number, swept: number, pruned: number }>> {
+    try {
+      // 只补「本进程还没有删除动作」的任务（多为上次进程留下的），其余任务由 cleaner 自己退避重试；
+      // 清扫兜住回收站残留、空壳目录与已消失工作树的陈旧绑定
+      const pending = cleaner.unsettled()
+      for (const job of pending) {
+        cleaner.start(job.sessionId, job.worktreeKey, job.worktreePath, () =>
+          worktree.remove(job.sessionId, job.worktreeKey))
+      }
+      const swept = await sweepAbandoned()
+      const pruned = await pruneVanishedBindings()
+      return { ok: true, resumed: pending.length, swept, pruned }
+    }
+    catch (error) {
+      return { ok: false, error: get(error, 'message', String(error)) }
+    }
   },
 
   async detach(exec: unknown): Promise<string[]> {
@@ -391,13 +453,15 @@ export const worktree = defineService({
 // --- internal ---
 
 async function removeEmptyHashContainers(hash: string): Promise<void> {
-  await Promise.all(map(
-    [join(DSH_HOME, WORKTREES_DIR, hash), join(DSH_HOME, TRASH_DIR, hash)],
-    container => rmdir(container).catch(() => {}),
-  ))
+  await removeEmptyDirectories([
+    join(DSH_HOME, WORKTREES_DIR, hash),
+    join(DSH_HOME, TRASH_DIR, hash),
+  ])
 }
 
 async function pruneWorktreeAdmin(root: string, signal?: AbortSignal): Promise<OperationResult> {
+  if (!root)
+    return { ok: true }
   const pruned = await git(['worktree', 'prune', '--expire', 'now'], root, { signal })
   return pruned.ok ? { ok: true } : { ok: false, error: pruned.error }
 }
@@ -451,21 +515,25 @@ async function removeWorktreeOnDisk(
   if (linkDirectories.length > 0)
     await unlinkWorktreeDependencies(path, linkDirectories)
 
+  let failure = ''
   try {
     await removeDirectoryReliably(path, worktreeTrashPath(hash, dirname))
   }
   catch (error) {
-    return { ok: false, error: get(error, 'message', String(error)) }
+    failure = get(error, 'message', String(error))
   }
 
+  // 失败时同样清一次：内容可能已被清空但目录句柄未释放，空壳不该继续堆积
   await removeEmptyHashContainers(hash)
+  if (failure)
+    return { ok: false, error: failure }
 
   return pruneWorktreeAdmin(root, signal)
 }
 
-function removalLinkDirectories(binding: Binding, configured?: readonly string[]): string[] {
+function removalLinkDirectories(binding: Binding | null, configured?: readonly string[]): string[] {
   const configuredDirectories = normalizeLinkDirectories(configured)
-  if (isEmpty(binding.linkedDependencies))
+  if (!binding || isEmpty(binding.linkedDependencies))
     return configuredDirectories
   return normalizeLinkDirectories([...binding.linkedDependencies ?? [], ...configuredDirectories])
 }
@@ -510,4 +578,131 @@ function resolveBinding(sessionId?: string, key?: string): Binding | null {
     return null
   return find(ledger.list(), binding =>
     Boolean(binding.hash) && Boolean(binding.dirname) && worktreeKey(binding.hash, binding.dirname) === key) ?? null
+}
+
+interface RemovalTarget {
+  sessionId: string
+  hash: string
+  dirname: string
+  worktreePath: string
+  projectPath: string
+  binding: Binding | null
+  bound: boolean
+}
+
+/**
+ * 删除目标优先取会话绑定；绑定已丢失（旧版本残留、清理中断）时按 `hash/dirname`
+ * 还原确定性路径，并尽力从 `.git` 文件反推项目路径，让孤儿目录也能进回收站。
+ */
+async function removalTarget(sessionId: string, key: string): Promise<RemovalTarget | null> {
+  const binding = resolveBinding(sessionId, key)
+  if (binding)
+    return { ...binding, binding, bound: true }
+  const parsed = parseWorktreeKey(key)
+  if (!parsed)
+    return null
+  const path = worktreePath(parsed.hash, parsed.dirname)
+  return {
+    sessionId,
+    hash: parsed.hash,
+    dirname: parsed.dirname,
+    worktreePath: path,
+    projectPath: projectFromWorktree(path),
+    binding: null,
+    bound: false,
+  }
+}
+
+function projectFromWorktree(path: string): string {
+  try {
+    const pointer = readFileSync(join(path, '.git'), 'utf8')
+      .split('\n')
+      .find(line => line.startsWith('gitdir:'))
+    if (!pointer)
+      return ''
+    return resolve(pointer.slice('gitdir:'.length).trim(), '..', '..', '..')
+  }
+  catch {
+    return ''
+  }
+}
+
+/** 该分支是否已被别的 git 工作树签出（含当前工作树本身则不算占用）。 */
+async function worktreeOccupant(root: string, branch: string, worktreePath: string, signal?: AbortSignal): Promise<string> {
+  const listed = await git(['worktree', 'list', '--porcelain'], root, { signal })
+  if (!listed.ok)
+    return ''
+  let current = ''
+  for (const line of listed.out.split('\n')) {
+    if (line.startsWith('worktree ')) {
+      current = line.slice('worktree '.length).trim()
+      continue
+    }
+    if (line === `branch refs/heads/${branch}` && !samePath(current, root) && !samePath(current, worktreePath))
+      return current
+  }
+  return ''
+}
+
+/**
+ * 清扫上一轮没能删干净的残骸：回收站内容一律可删（搬进去即已判定删除），
+ * `worktrees/` 下只删空壳——仍有内容的工作树可能承载未提交改动，绝不自动删除。
+ */
+async function sweepAbandoned(): Promise<number> {
+  let swept = 0
+  const trashRoot = join(DSH_HOME, TRASH_DIR)
+  for (const hash of listDirectoryNames(trashRoot)) {
+    const container = join(trashRoot, hash)
+    await removeDirectoryTree(container)
+    if (!existsSync(container))
+      swept += 1
+  }
+
+  const worktreesRoot = join(DSH_HOME, WORKTREES_DIR)
+  for (const hash of listDirectoryNames(worktreesRoot)) {
+    const container = join(worktreesRoot, hash)
+    const staleContainer = isSweepable(container)
+    for (const name of listDirectoryNames(container)) {
+      const path = join(container, name)
+      if (isSweepable(path))
+        await removeEmptyDirectories([path])
+      if (!existsSync(path))
+        swept += 1
+    }
+    // 容器是否陈旧要在删子目录之前判定：删子目录会刷新它的 mtime
+    if (staleContainer)
+      await removeEmptyDirectories([container])
+    if (!existsSync(container))
+      swept += 1
+  }
+  return swept
+}
+
+/** 只清扫静置超过一分钟的目录，避开 create/删除正在使用的中间态。 */
+function isSweepable(path: string): boolean {
+  try {
+    return Date.now() - statSync(path).mtimeMs > SWEEP_MIN_AGE_MS
+  }
+  catch {
+    return false
+  }
+}
+
+/** 回收目录已消失的绑定记录，避免 `/bindings` 与启动遍历长期背着历史包袱。 */
+async function pruneVanishedBindings(): Promise<number> {
+  let pruned = 0
+  for (const binding of ledger.list()) {
+    if (!binding.sessionId || !binding.hash || !binding.dirname)
+      continue
+    if (existsSync(binding.worktreePath))
+      continue
+    // 删除流程的中间态：内容已搬进回收站，绑定要等回收站清空后再回收
+    if (existsSync(worktreeTrashPath(binding.hash, binding.dirname)))
+      continue
+    if (some(cleaner.unsettled(), job => job.sessionId === binding.sessionId))
+      continue
+    await ledger.remove(binding.sessionId)
+    pruned += 1
+  }
+  return pruned
 }

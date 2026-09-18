@@ -84,7 +84,7 @@ function CheckoutDialog(props: {
   const branchName = props.branchName || 'dsh/'
   const disabled = branchName.trim() === '' || branchName.trim().endsWith('/')
 
-  const updateBranch = (value: string): void => store.worktree.patch(sessionId, { branchName: value })
+  const updateBranch = (value: string): void => store.worktree.patch(sessionId, { branchName: value, error: '' })
 
   const promoteToWorkspaceTop = async (targetSessionId: string): Promise<void> => {
     const workspace = find(workspacesRuntime.list.getSnapshot().items, item => item.path === projectPath)
