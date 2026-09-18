@@ -9,6 +9,7 @@ import { formatLocalTime } from './schedule.utils'
 export interface RunsTabProps {
   t: Translate
   runs: readonly RunView[]
+  onOpen: (run: RunView) => void
   onDelete: (id: string) => void
 }
 
@@ -32,14 +33,14 @@ const STATUS_ICONS = {
   running: Alarm,
 }
 
-export function RunsTab({ t, runs, onDelete }: RunsTabProps): ReactElement {
+export function RunsTab({ t, runs, onOpen, onDelete }: RunsTabProps): ReactElement {
   useMountStyle(runsTabStyle, RUNS_TAB_STYLE_ID)
   if (runs.length === 0)
     return <p className="dshp-scheduler__empty">{t('emptyRuns')}</p>
   return (
     <ul className="dshp-scheduler__runs-list">
       {runs.map(run => (
-        <li key={run.id} className="dshp-scheduler__card">
+        <li key={run.id} className="dshp-scheduler__card" onClick={() => onOpen(run)}>
           <div style={{ height: 36 }}>
             <span
               className="dshp-scheduler__card-icon"
@@ -69,7 +70,10 @@ export function RunsTab({ t, runs, onDelete }: RunsTabProps): ReactElement {
             type="button"
             className="dshp-scheduler__icon-button"
             aria-label={t('deleteRun')}
-            onClick={() => onDelete(run.id)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete(run.id)
+            }}
           >
             <Icon as={TrashBin} size={12} />
           </button>

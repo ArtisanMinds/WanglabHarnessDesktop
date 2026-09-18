@@ -25,6 +25,14 @@ export const panelFeature = defineRegister<ClientContext>((controller, ctx) => {
             store.prefill.set(locale.text('chatPrompt'))
             holder.current?.close()
           }}
+          onOpenSession={(sessionId) => {
+            const known = ctx.sessions.list.getSnapshot().ids.find(id => id === sessionId)
+            if (known === undefined)
+              return false
+            ctx.sessions.open(known)
+            holder.current?.close()
+            return true
+          }}
         />
       </PanelPage>
     ),

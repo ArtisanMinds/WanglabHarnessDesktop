@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import type { Translate } from '../locales/index.types'
-import type { TaskFormState, TaskView } from '../types'
+import type { RunView, TaskFormState, TaskView } from '../types'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CommentPlus, Icon, Magnifier, Plus, useMountStyle } from 'dsh-tauri-ui/client'
 import { filter, includes, isEmpty, lowerCase, omit, useEventListener, useTimeoutPoll } from 'dsh-tauri/client'
@@ -18,6 +18,7 @@ import { TaskCreateDialog } from './task-create-dialog'
 interface SchedulerPanelProps {
   t: Translate
   onViaChat: () => void
+  onOpenSession: (sessionId: string) => boolean
 }
 
 /** 对话框状态：手动创建（无 initial/taskId）、编辑（taskId + initial）、推荐（initial）。 */
@@ -39,12 +40,13 @@ function taskToForm(task: TaskView): TaskFormState {
   }
 }
 
-export function SchedulerPanel({ t, onViaChat }: SchedulerPanelProps): ReactElement {
+export function SchedulerPanel({ t, onViaChat, onOpenSession }: SchedulerPanelProps): ReactElement {
   useMountStyle(schedulerPanelStyle, SCHEDULER_PANEL_STYLE_ID)
   const state = useScheduler()
   const [tab, setTab] = useState<'tasks' | 'runs'>('tasks')
   const [search, setSearch] = useState('')
   const [dialog, setDialog] = useState<DialogState>(null)
+  const [openError, setOpenError] = useState('')
   // 相对「下次运行」以刷新时刻为基准，避免每次渲染抖动。
   const [now, setNow] = useState(() => Date.now())
 
@@ -74,6 +76,14 @@ export function SchedulerPanel({ t, onViaChat }: SchedulerPanelProps): ReactElem
 
   const filtered = filter(state.tasks, task =>
     isEmpty(search) || includes(lowerCase(`${task.name} ${task.prompt}`), lowerCase(search)))
+
+  function onOpenRun(run: RunView): void {
+    if (run.sessionId === undefined || !onOpenSession(run.sessionId)) {
+      setOpenError(t('openRunFailed'))
+      return
+    }
+    setOpenError('')
+  }
 
   return (
     <div className="dshp-scheduler__shell">
@@ -128,6 +138,7 @@ export function SchedulerPanel({ t, onViaChat }: SchedulerPanelProps): ReactElem
       </div>
 
       {state.error ? <p className="dshp-scheduler__error" role="alert">{state.error}</p> : null}
+      {openError ? <p className="dshp-scheduler__error" role="alert">{openError}</p> : null}
 
       {tab === 'tasks'
         ? (
@@ -156,6 +167,7 @@ export function SchedulerPanel({ t, onViaChat }: SchedulerPanelProps): ReactElem
             <RunsTab
               t={t}
               runs={state.runs}
+              onOpen={onOpenRun}
               onDelete={id => void deleteRun(id)}
             />
           )}
