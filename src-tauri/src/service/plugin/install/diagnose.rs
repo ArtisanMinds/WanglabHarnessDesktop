@@ -152,13 +152,12 @@ const CURRENT_PATH_MARKERS: &[&str] = &[
 /// 原始输出把两条路径捞出来。
 pub(super) fn store_mismatch_hint(output: &str) -> Option<String> {
     const CODES: &[&str] = &[
-        "err_pnpm_unexpected_store",
-        "err_pnpm_unexpected_virtual_store",
-        "err_pnpm_store_breaking_change",
-        "err_pnpm_modules_breaking_change",
+        "ERR_PNPM_UNEXPECTED_STORE",
+        "ERR_PNPM_UNEXPECTED_VIRTUAL_STORE",
+        "ERR_PNPM_STORE_BREAKING_CHANGE",
+        "ERR_PNPM_MODULES_BREAKING_CHANGE",
     ];
-    let lower = output.to_ascii_lowercase();
-    if !CODES.iter().any(|code| lower.contains(code)) {
+    if !CODES.iter().any(|code| contains_error_code(output, code)) {
         return None;
     }
     Some(match (
@@ -181,6 +180,25 @@ fn quoted_after(output: &str, markers: &[&str]) -> Option<String> {
     let rest = output[index + marker.len()..].strip_prefix('"')?;
     let end = rest.find('"')?;
     Some(rest[..end].to_string())
+}
+
+/// 完整错误码匹配（大小写不敏感）：`ERR_PNPM_UNEXPECTED_STORE_EXTRA` 这类更长变体
+/// 不算命中 —— 命中即会把误导性的 store 指引顶到真正的失败原因之前，宁可 fail closed。
+fn contains_error_code(output: &str, code: &str) -> bool {
+    let upper = output.to_ascii_uppercase();
+    let mut from = 0;
+    while let Some(index) = upper[from..].find(code) {
+        let end = from + index + code.len();
+        let boundary = upper[end..]
+            .chars()
+            .next()
+            .is_none_or(|c| !(c.is_ascii_alphanumeric() || c == '_'));
+        if boundary {
+            return true;
+        }
+        from = from + index + 1;
+    }
+    false
 }
 
 #[cfg(test)]
@@ -275,6 +293,12 @@ pnpm now wants to use the virtual store at "/new/.pnpm" to link dependencies fro
     fn store_mismatch_hint_none_for_other_failures() {
         assert!(store_mismatch_hint("ERR_PNPM_NO_MATCHING_VERSION: no version").is_none());
         assert!(store_mismatch_hint("").is_none());
+        // 前缀相同的更长错误码不算命中（fail closed，别把 store 指引顶到真因之前）
+        assert!(store_mismatch_hint("[ERR_PNPM_UNEXPECTED_STORE_EXTRA] other failure").is_none());
+        assert!(store_mismatch_hint("[ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_X] other").is_none());
+        // 完整码（方括号/空格/行尾都算边界）仍命中
+        assert!(store_mismatch_hint("[ERR_PNPM_UNEXPECTED_STORE] Unexpected store location").is_some());
+        assert!(store_mismatch_hint(" ERR_PNPM_UNEXPECTED_STORE  x").is_some());
     }
 
     #[test]

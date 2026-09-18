@@ -73,7 +73,15 @@ pub(crate) fn build_plugin_envs(
     // 全新档案（没有 node_modules）不注入：让 pnpm 按用户配置自行决定并写回记录。
     if let Some(store_dir) = super::pnpm::profile_store_base_dir(app_handle) {
         log::info!("pinning plugin install pnpm store to the profile record: {store_dir}");
-        envs.insert("npm_config_store_dir".to_string(), store_dir);
+        // pnpm 11 起不再读取 `npm_config_*`：`config/reader` 的 `parseEnvVars` 只认
+        // `pnpm_config_` / `PNPM_CONFIG_` 前缀，其余按键静默 `continue`（见
+        // pnpm 11.0.0 release notes：`npm_config_registry` → `pnpm_config_registry`）。
+        // 只设 `npm_config_store_dir` 对捆绑版 pnpm 11 是空操作 —— 档案记录的 store
+        // 根本没下传，pnpm 用自己解析出的 store 与 `.modules.yaml` 比对失败，仍报
+        // `ERR_PNPM_UNEXPECTED_STORE`。两个前缀同设：pnpm 10 认 `npm_config_*`，
+        // pnpm 11 认 `pnpm_config_*`，值相同因此不冲突。
+        envs.insert("npm_config_store_dir".to_string(), store_dir.clone());
+        envs.insert("pnpm_config_store_dir".to_string(), store_dir);
     }
 
     let mut paths = vec![bin_dir];
