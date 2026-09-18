@@ -12,7 +12,6 @@ export const DIALOG_ID = `${PLUGIN_ID}-dialog`
 
 export const STYLES_EFFECT = `${PLUGIN_ID}: styles`
 export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
-export const PREFERENCES_EFFECT = `${PLUGIN_ID}: preferred mode`
 export const MODE_SELECT_EFFECT = `${PLUGIN_ID}: mode select slot`
 export const SURFACE_EFFECT = `${PLUGIN_ID}: surface slot`
 export const DIALOG_EFFECT = `${PLUGIN_ID}: dialog`
@@ -37,8 +36,6 @@ export const WORKTREE_STYLE_ID = '@deepseek-ai/dsh-tauri-worktree/SurfaceDialog.
 export const SURFACE_STYLE_ID = '@deepseek-ai/dsh-tauri-worktree/Surface.module.css'
 export const DIALOG_STYLE_ID = '@deepseek-ai/dsh-tauri-worktree/Dialog.module.css'
 export const SESSION_ICON_STYLE_ID = '@deepseek-ai/dsh-tauri-worktree/SessionBranchIcon.module.css'
-
-export const PREFERRED_MODE_STORAGE_KEY = 'preferred-mode'
 
 export const SESSION_ICON_ATTRIBUTE = 'data-dsh-worktree-icon'
 export const SIDEBAR_SELECTOR = '[data-slot="sidebar"]'

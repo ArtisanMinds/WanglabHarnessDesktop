@@ -1,7 +1,5 @@
 export type WorktreePhase = 'idle' | 'creating' | 'created' | 'thinking' | 'deleting' | 'error'
 
-export type WorktreeNewSessionMode = 'local' | 'pending'
-
 export interface WorktreeSessionState {
   mode: 'local' | 'pending' | 'worktree'
   isGit: boolean
