@@ -318,6 +318,20 @@ describe('worktree.discard', () => {
     expect(existsSync(join(victim, 'keep.txt'))).toBe(true)
   })
 
+  it('未绑定的 key 段数不合法（多余段 / 结尾斜杠）时被拒绝', async () => {
+    const hash = 'ffffffffffff'
+    const path = worktreePath(hash, 'repo')
+    mkdirSync(path, { recursive: true })
+    writeFileSync(join(path, 'keep.txt'), 'keep\n')
+
+    const surplus = await worktree.discard('surplus-session', `${hash}/repo/extra`)
+    const trailing = await worktree.discard('trailing-session', `${hash}/repo/`)
+
+    expect(surplus.ok).toBe(false)
+    expect(trailing.ok).toBe(false)
+    expect(existsSync(join(path, 'keep.txt'))).toBe(true)
+  })
+
   it('无绑定且路径已消失时幂等成功且不产生任务', async () => {
     const repository = createRepository()
     const sessionId = 'no-binding-session'
