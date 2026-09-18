@@ -11,6 +11,7 @@ export default c([
   c('.dshp-scheduler__heading h1', { margin: '0', fontSize: '20px', lineHeight: '28px', fontWeight: '500' }),
   c('.dshp-scheduler__heading p', { margin: '4px 0 0', color: secondary, fontSize: '13px', lineHeight: '20px' }),
   c('.dshp-scheduler__toolbar', { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }),
+  c('.dshp-scheduler__search-bar', { display: 'flex', alignItems: 'center', marginBottom: '12px' }),
   c('.dshp-scheduler__search-wrap', { position: 'relative', display: 'inline-flex', flex: '0 1 280px', minWidth: '0', maxWidth: '280px' }),
   c('.dshp-scheduler__search-wrap .dshp-scheduler__input', { width: '100%', paddingLeft: '32px' }),
   c('.dshp-scheduler__search-icon', { position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tertiary }),

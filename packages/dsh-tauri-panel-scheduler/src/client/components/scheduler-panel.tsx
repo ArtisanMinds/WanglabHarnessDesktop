@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { Translate } from '../locales/index.types'
 import type { TaskFormState, TaskView } from '../types'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CommentPlus, Icon, Magnifier, Plus, useMountStyle } from 'dsh-tauri-ui/client'
 import { filter, includes, isEmpty, lowerCase, omit, useEventListener, useTimeoutPoll } from 'dsh-tauri/client'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -82,27 +83,28 @@ export function SchedulerPanel({ t, onViaChat }: SchedulerPanelProps): ReactElem
           <p>{t('subtitle')}</p>
         </div>
         <div className="dshp-scheduler__toolbar">
-          <div className="dshp-scheduler__search-wrap">
-            <Icon as={Magnifier} className="dshp-scheduler__search-icon" />
-            <input
-              className="dshp-scheduler__input"
-              type="search"
-              aria-label={t('searchPlaceholder')}
-              placeholder={t('searchPlaceholder')}
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-            />
-          </div>
-          <button className="dshp-scheduler__btn" type="button" onClick={onViaChat}>
-            <Icon as={CommentPlus} />
+          <Button variant="outline" size="sm" icon={<Icon as={CommentPlus} />} onClick={onViaChat}>
             {t('viaChat')}
-          </button>
-          <button className={`${'dshp-scheduler__btn'} ${'dshp-scheduler__btn--primary'}`} type="button" onClick={() => setDialog({})}>
-            <Icon as={Plus} />
+          </Button>
+          <Button variant="primary" size="sm" icon={<Icon as={Plus} size={13} />} onClick={() => setDialog({})}>
             {t('createManual')}
-          </button>
+          </Button>
         </div>
       </header>
+
+      <div className="dshp-scheduler__search-bar">
+        <div className="dshp-scheduler__search-wrap">
+          <Icon as={Magnifier} className="dshp-scheduler__search-icon" />
+          <input
+            className="dshp-scheduler__input"
+            type="search"
+            aria-label={t('searchPlaceholder')}
+            placeholder={t('searchPlaceholder')}
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+          />
+        </div>
+      </div>
 
       <div className="dshp-scheduler__tabs" role="tablist" aria-label={t('scheduler')}>
         <button
