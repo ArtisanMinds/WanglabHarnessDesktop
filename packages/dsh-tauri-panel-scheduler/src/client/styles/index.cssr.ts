@@ -52,6 +52,10 @@ export default c([
   c('.dshp-scheduler__card-meta-text', { flex: '1', minWidth: '0', color: tertiary, fontSize: '12px', lineHeight: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
   c('.dshp-scheduler__card-meta-text strong', { color: secondary, fontWeight: '600' }),
   c('.dshp-scheduler__card-waiting', { flex: 'none', display: 'inline-flex', alignItems: 'center', height: '18px', padding: '0 6px', borderRadius: '6px', background: hover, color: 'var(--dsw-alias-state-business-primary)', fontSize: '11px', lineHeight: '18px', whiteSpace: 'nowrap' }),
+  // —— 未读角标：侧边栏 panellist 行（复刻官方尾部槽位几何）与执行记录标题 ——
+  c('button:has(.dshp-scheduler__nav-badge)', { position: 'relative' }),
+  c('.dshp-scheduler__nav-badge', { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '20px', flex: 'none', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', color: tertiary }),
+  c('.dshp-scheduler__unread-dot', { flex: 'none', width: '6px', height: '6px', borderRadius: '50%', background: success }),
   // —— 官方控件复刻：36px 胶囊按钮（primary / secondary / danger）——
   c('.dshp-scheduler__btn,.dshp-scheduler__btn--primary,.dshp-scheduler__btn--danger', { boxSizing: 'border-box', height: '36px', font: 'inherit', cursor: 'pointer', border: 'none', borderRadius: '18px', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '0 14px', fontSize: '14px', lineHeight: '22px', display: 'inline-flex', whiteSpace: 'nowrap' }),
   c('.dshp-scheduler__btn', { border: `.5px solid ${borderL3}`, color: primary, background: 'transparent' }),
