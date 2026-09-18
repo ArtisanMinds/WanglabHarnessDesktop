@@ -30,3 +30,13 @@ export function compareVersions(a: string, b: string): number {
 export function isCoreBreakingVersion(version: string): boolean {
   return !!version && compareVersions(version, CORE_BREAKING_BASELINE) > 0
 }
+
+/**
+ * 核心是否低于内置插件基线（即推荐核心版本）：随包内置插件按该基线编译，核心低于
+ * 它时 client bundle 需要的 `@deepseek-ai/*` 平台模块在运行时模块表里不存在，插件
+ * 必然加载失败并把应用卡在启动阶段（issue #596）。版本缺失或不可解析时返回 false
+ * ——漏放行只是回到修复前的行为，误拦截会把可用的本地核心判死。
+ */
+export function isCoreBelowBaseline(version: string, baseline: string | null | undefined): boolean {
+  return !!version && !!baseline && compareVersions(version, baseline) < 0
+}

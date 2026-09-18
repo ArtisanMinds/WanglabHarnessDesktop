@@ -17,7 +17,7 @@ import { useInvalidateOnSettingUpdated } from '@/hooks/use-invalidate-on-setting
 import { store } from '@/store'
 import { useCoreBreakingConfirm } from '@/ui/config/hooks/use-core-breaking-confirm'
 import { DownloadCoreDialog } from '@/ui/dialog/update-core'
-import { compareVersions } from '@/utils/core-version'
+import { compareVersions, isCoreBelowBaseline } from '@/utils/core-version'
 import { silence } from '@/utils/silence'
 import { toast } from '@/utils/toast'
 
@@ -25,7 +25,8 @@ import { toast } from '@/utils/toast'
  * 「核心」面板：管理 Harness 引擎来源与多版本。
  *
  * - 列表来自 `get_cores` 查询（`setting_updated` 事件一并失效刷新）：
- *   `local` = 用户通过 CLI 全局安装的本地核心（存在时优先使用，需求 3）；
+ *   `local` = 用户通过 CLI 全局安装的本地核心（存在且不低于内置插件基线时优先使用，
+ *   需求 3；低于基线时后端改用预打包核心，行内标注「不兼容」并给出更新提示）；
  *   `app-<tag>` = deepseek-harness-pkg 各发布版本（GitHub releases 拉取失败时
  *   降级为 git tags / 磁盘扫描，仅显示已下载版本）。预览版（Pre-release label
  *   或 tag 命名）照常列出、可下载安装，但带「预览版」标签、不参与更新提示。
@@ -128,6 +129,16 @@ export function ConfigCore() {
   async function onActivate(core: HarnessCore) {
     if (core.active || busy || !core.present)
       return
+    // 低于内置插件基线的本地核心无法加载随包插件（issue #596）：桌面端此时使用
+    // 预打包核心，激活入口改为给出可操作提示，而不是切过去再撞一次启动失败。
+    if (isUnsupportedLocal(core)) {
+      toast(t('core.local_unsupported_toast'), {
+        variant: 'warning',
+        description: t('core.local_unsupported_hint', { version: core.recommendedVersion ?? '' }),
+        timeout: 10_000,
+      })
+      return
+    }
     try {
       const isRiskyVersion = core.recommendedVersion !== null
         && (core.aboveRecommended || compareVersions(core.version, core.recommendedVersion) > 0)
@@ -339,6 +350,12 @@ export function ConfigCore() {
                         {t('core.preview')}
                       </Chip>
                     </If>
+                    {/* 低于内置插件基线的本地核心：桌面端改用预打包核心，激活会被拒绝并给出更新提示 */}
+                    <If cond={isUnsupportedLocal(core)}>
+                      <Chip size="sm" variant="soft" color="danger" className="shrink-0 font-medium">
+                        {t('core.local_unsupported')}
+                      </Chip>
+                    </If>
                     {/* 已下载：Chip 右侧的文件夹图标，点击打开所在目录 */}
                     <If cond={core.present}>
                       <Button
@@ -450,4 +467,12 @@ export function ConfigCore() {
 /** 版本展示：优先版本号，缺失回落来源 id */
 function displayVersion(version: HarnessCore): string {
   return version.version || (version.source === 'local' ? 'local' : 'app')
+}
+
+/**
+ * 本地核心是否低于内置插件基线（推荐核心版本）。低于基线时随包内置插件无法加载
+ * （见 `isCoreBelowBaseline`），桌面端自动改用预打包核心。
+ */
+function isUnsupportedLocal(core: HarnessCore): boolean {
+  return core.source === 'local' && core.present && isCoreBelowBaseline(core.version, core.recommendedVersion)
 }
