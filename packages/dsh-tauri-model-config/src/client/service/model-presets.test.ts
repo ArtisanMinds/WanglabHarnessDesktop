@@ -4,19 +4,25 @@ import { presetFor, presetTableSize, setPresetTable } from './model-presets'
 
 const GRADED = { off: null, low: 'low', medium: 'medium', high: 'high' }
 const VISION = ['text', 'image']
-const TEXT_ONLY = ['text']
 
 describe('presetFor with the downloaded table', () => {
   beforeEach(() => setPresetTable(PRESET_FIXTURE))
 
   it('reads vision and thinking off the table', () => {
     expect(presetFor('gpt-4o')?.input).toEqual(VISION)
-    expect(presetFor('gpt-4o')?.efforts).toBe(false)
     expect(presetFor('o3')?.input).toEqual(VISION)
     expect(presetFor('o3')?.efforts).toEqual(GRADED)
-    expect(presetFor('deepseek-reasoner')?.input).toEqual(TEXT_ONLY)
     expect(presetFor('deepseek-reasoner')?.efforts).toEqual(GRADED)
     expect(presetFor('mimo-v2-flash')?.efforts).toEqual(GRADED)
+  })
+
+  it('leaves a fact the table does not state undeclared instead of writing it off', () => {
+    expect(presetFor('gpt-4o')).toEqual({ input: VISION, contextWindow: 128000, maxTokens: 16384 })
+    expect(presetFor('deepseek-reasoner')).toEqual({
+      efforts: GRADED,
+      contextWindow: 131072,
+      maxTokens: 65536,
+    })
   })
 
   it('carries the table capacities', () => {

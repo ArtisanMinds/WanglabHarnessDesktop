@@ -11,7 +11,9 @@ import {
   hasModelConfig,
   imageInputValue,
   supportsImageInput,
+  supportsTemplateThinking,
   supportsThinking,
+  templateThinkingCompat,
   THINKING_LEVELS,
   thinkingEffortsOf,
   toggleThinkingLevel,
@@ -114,6 +116,15 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
   contextWindow: '256K',
   maxTokens: '32K',
 }
+
+/**
+ * 「本地端点思考」开关只对 chat completions 协议有意义。
+ *
+ * pi-ai 的 compat 是逐协议校验的：`thinkingFormat` 与 `chatTemplateKwargs` 只有
+ * `openai-completions` 收，写到 Responses 或 Anthropic 路由的模型上会让整段配置解析失败。
+ * 路由没显式声明协议时（目录路由）无法判断，就不提供这个开关。
+ */
+const TEMPLATE_COMPAT_PROTOCOL = 'openai-completions'
 
 function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
@@ -453,6 +464,24 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                       </div>
                     </div>
                   </div>
+                  {probe.api === TEMPLATE_COMPAT_PROTOCOL
+                    ? (
+                        <div className={styles.modelField}>
+                          <span className={styles.modelFieldLabel} title={t('templateThinkingHint')}>
+                            {t('templateThinking')}
+                          </span>
+                          <div className={styles.modelSwitchRow}>
+                            <Switch
+                              checked={supportsTemplateThinking(model)}
+                              disabled={disabled}
+                              label={`${t('templateThinking')} ${index + 1}`}
+                              title={t('templateThinkingHint')}
+                              onChange={(next) => { patch(index, { compat: templateThinkingCompat(model, next) }) }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    : null}
                   {supportsThinking(model)
                     ? (
                         <div className={styles.modelEfforts} role="group" aria-label={`${t('thinkingLevels')} ${index + 1}`}>
