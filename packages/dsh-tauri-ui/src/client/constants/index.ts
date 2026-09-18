@@ -28,7 +28,7 @@ export const OBSTRUCTIONS_EFFECT = `${PLUGIN_ID}: settings obstructions`
 export const TURN_NAVIGATION_LABEL_ZH = '轮次导航'
 export const TURN_NAVIGATION_LABEL_EN = 'Turn navigation'
 export const TURN_NAVIGATION_SELECTOR = `:is(nav[aria-label="${TURN_NAVIGATION_LABEL_ZH}"], nav[aria-label="${TURN_NAVIGATION_LABEL_EN}"])`
-export const TURN_NAVIGATION_NARROW_SELECTOR = `[data-sidebar-collapsed] ${TURN_NAVIGATION_SELECTOR}`
+export const TURN_NAVIGATION_SLOT_SELECTOR = `div:has(> ${TURN_NAVIGATION_SELECTOR})`
 
 export const SETTINGS_TRIGGER_PRIORITY = -1
 
