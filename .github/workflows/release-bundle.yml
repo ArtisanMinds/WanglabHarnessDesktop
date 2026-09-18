@@ -1,0 +1,231 @@
+name: Build & Release (Offline Bundle)
+
+# 离线安装包：在普通发布流程（release.yml）成功后追加一次带资源构建。
+# 产物把 Node.js 运行时、推荐 dsh 内核、pnpm（Windows 还有 MinGit）随安装包分发，
+# 首次启动直接落地到应用数据目录，全程不联网。
+on:
+  workflow_run:
+    workflows: ['Build & Release']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      platform_filter:
+        description: 选择需要打包的平台
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - macos-aarch64
+          - macos-x86_64
+          - windows
+          - linux
+      tag:
+        description: 目标 release tag（留空则按 package.json 版本推导 v<version>）
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-bundle-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare Offline Bundle
+    # workflow_run 会为 release.yml 的每一次结束（含失败/取消）触发，只有成功才继续。
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.release.outputs.should_build }}
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      source_ref: ${{ steps.release.outputs.source_ref }}
+      dsh_tag: ${{ steps.meta.outputs.dsh_tag }}
+      dsh_commit: ${{ steps.meta.outputs.dsh_commit }}
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v7
+        with:
+          # workflow_run 用触发运行时的 head_sha（即 release.yml 真正构建的提交），
+          # 手动触发用当前 ref。
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          TAG_INPUT: ${{ inputs.tag }}
+          SOURCE_REF: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          tag="$TAG_INPUT"
+          if [ -z "$tag" ] && [[ "$RUN_HEAD_BRANCH" == v* ]]; then
+            tag="$RUN_HEAD_BRANCH"
+          fi
+          if [ -z "$tag" ]; then
+            tag="v$version"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "offline bundle target release: $tag ($version)"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::release $tag does not exist yet, skipping the offline bundle build"
+          fi
+
+      - name: Resolve bundle metadata
+        id: meta
+        if: steps.release.outputs.should_build == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/bundle-metadata.mjs
+
+  build-macos:
+    name: Build macOS Offline Bundle
+    needs: prepare
+    if: >-
+      needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_build == 'true' &&
+      (github.event_name != 'workflow_dispatch' ||
+       inputs.platform_filter == 'all' ||
+       startsWith(inputs.platform_filter, 'macos-'))
+    uses: ./.github/workflows/build-bundle-macos.yml
+    with:
+      platform_filter: ${{ github.event_name == 'workflow_dispatch' && inputs.platform_filter || 'all' }}
+      source_ref: ${{ needs.prepare.outputs.source_ref }}
+      dsh_tag: ${{ needs.prepare.outputs.dsh_tag }}
+      dsh_commit: ${{ needs.prepare.outputs.dsh_commit }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  build-windows:
+    name: Build Windows Offline Bundle
+    needs: prepare
+    if: >-
+      needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_build == 'true' &&
+      (github.event_name != 'workflow_dispatch' ||
+       inputs.platform_filter == 'all' ||
+       inputs.platform_filter == 'windows')
+    uses: ./.github/workflows/build-bundle-windows.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.source_ref }}
+      dsh_tag: ${{ needs.prepare.outputs.dsh_tag }}
+      dsh_commit: ${{ needs.prepare.outputs.dsh_commit }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  build-linux:
+    name: Build Linux Offline Bundle
+    needs: prepare
+    if: >-
+      needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_build == 'true' &&
+      (github.event_name != 'workflow_dispatch' ||
+       inputs.platform_filter == 'all' ||
+       inputs.platform_filter == 'linux')
+    uses: ./.github/workflows/build-bundle-linux.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.source_ref }}
+      dsh_tag: ${{ needs.prepare.outputs.dsh_tag }}
+      dsh_commit: ${{ needs.prepare.outputs.dsh_commit }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  finalize:
+    name: Publish Offline Installers
+    needs: [prepare, build-macos, build-windows, build-linux]
+    if: >-
+      always() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_build == 'true' &&
+      ((github.event_name != 'workflow_dispatch' &&
+        needs.build-macos.result == 'success' &&
+        needs.build-windows.result == 'success' &&
+        needs.build-linux.result == 'success') ||
+       (github.event_name == 'workflow_dispatch' &&
+        (needs.build-macos.result == 'success' || needs.build-macos.result == 'skipped') &&
+        (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped') &&
+        (needs.build-linux.result == 'success' || needs.build-linux.result == 'skipped')))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build outputs
+        uses: actions/download-artifact@v7
+        with:
+          pattern: release-bundle-*
+          path: release-assets
+
+      # 统一命名为 Deepseek.Harness.Desktop_Bundle_<version>.<ext>：与普通安装包
+      # （Tauri 默认名）区分，且同一 release 内不会重名。macOS 两个架构的产物
+      # 扩展名相同，必须带架构后缀才不会互相覆盖。
+      - name: Rename offline installers
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p upload
+          shopt -s nullglob
+          for dir in release-assets/*/; do
+            artifact="$(basename "$dir")"
+            suffix=""
+            case "$artifact" in
+              *macos-aarch64*) suffix="_aarch64" ;;
+              *macos-x86_64*) suffix="_x64" ;;
+            esac
+            for file in "$dir"*; do
+              [ -f "$file" ] || continue
+              base="$(basename "$file")"
+              ext="${base##*.}"
+              cp "$file" "upload/Deepseek.Harness.Desktop_Bundle_${VERSION}${suffix}.${ext}"
+            done
+          done
+          find upload -type f -print | sort
+
+      - name: Verify offline installers
+        run: |
+          set -euo pipefail
+          [ -n "$(find upload -type f -print -quit)" ] || {
+            echo '::error::No offline installers were produced'
+            exit 1
+          }
+
+      - name: Upload assets to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # finalize 未 checkout，gh 无法从 .git 推断仓库，需显式指定。
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' assets < <(find upload -type f -print0)
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          {
+            echo "### Offline bundle assets"
+            for asset in "${assets[@]}"; do
+              echo "- \`$(basename "$asset")\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
