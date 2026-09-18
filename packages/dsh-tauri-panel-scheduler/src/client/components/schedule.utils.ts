@@ -61,3 +61,16 @@ export function formatRelative(iso: string | undefined, now: number, t: Translat
 export function isTaskPaused(task: { enabled: boolean }): boolean {
   return !task.enabled
 }
+
+/**
+ * 未播种（`readAt === 0`）一律按已读处理，避免首屏闪出一片未读角标。
+ *
+ * `readIds` 给默认值：dev 热更新下 store 可能还是加字段之前的旧实例。
+ */
+export function isRunUnread(run: { id: string, startedAt: string }, readAt: number, readIds: readonly string[] = []): boolean {
+  return readAt !== 0 && Date.parse(run.startedAt) > readAt && !readIds.includes(run.id)
+}
+
+export function countUnreadRuns(runs: readonly { id: string, startedAt: string }[], readAt: number, readIds: readonly string[] = []): number {
+  return readAt === 0 ? 0 : runs.filter(run => isRunUnread(run, readAt, readIds)).length
+}

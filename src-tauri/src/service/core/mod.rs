@@ -8,9 +8,10 @@
 //!   历史版本存放在 `dependencies/dsh-<tag>` 槽位，切换时两个目录互换。debug 与
 //!   release 的整个 AppData 根目录不同，因此两套构建不会互换或覆盖对方核心。
 //!
-//! 启动优先级（需求）：本地核心存在时优先使用本地核心；未检测到才走预打包。
-//! 用户在「核心」面板可显式切回预打包；显式选择持久化在 store 设置
-//! （`active_core`），`None` = 自动（本地优先）。
+//! 启动优先级（需求）：本地核心存在且不低于内置插件基线时优先使用本地核心；未检测到
+//! 或低于基线（随包内置插件按推荐核心版本编译，见 [`source`]）才走预打包。用户在
+//! 「核心」面板可显式切回预打包；显式选择持久化在 store 设置（`active_core`），
+//! `None` = 自动（本地优先）。
 //!
 //! 本地核心更新通过其包管理器 CLI 完成（npm `update -g` / pnpm `add -g`），
 //! 不触碰用户安装本身之外的文件。
@@ -31,3 +32,6 @@ pub use local::{local_core_package_dir, update_local_core};
 pub use source::{active_dsh_binary, active_source, active_version, CoreSource, HarnessCore};
 pub use version::{download_version, has_installed_version, list, remove_version, set_active};
 pub(crate) use runtime::prepare_active_runtime;
+// 目录链接实现（Windows 符号链接 → 无特权时的 junction 回退）供插件模块复用：
+// pnpm 建链后回读失败时，桌面端自行落盘内置插件入口（见 plugin::internal::materialize）。
+pub(crate) use runtime::create_directory_link;

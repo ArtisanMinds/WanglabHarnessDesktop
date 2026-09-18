@@ -7,16 +7,6 @@ import { PLUGIN_ID } from '../../shared/constants'
 export { PLUGIN_ID } from '../../shared/constants'
 
 /**
- * 完成一轮对话的尾部槽位（chain 型）。
- * 官方 `ui-deliverables` 以默认 priority 0 占用该槽渲染 “Files changed” 行；
- * 本插件以更低的优先级抢先当选，用带撤销能力的变更卡片替换它。
- */
-export const TURNREWIND_TURN_TAIL_SLOT = 'conversation.chat.turnTail'
-
-/** chain 选举优先级：低于官方默认 0，保证本插件当选。 */
-export const TURNREWIND_TURN_TAIL_PRIORITY = -1
-
-/**
  * 输入框上方独占一行的 dock 槽（list 型、可叠加）：运行中提示条的位置。
  *
  * dock 按 order 升序渲染；官方 `todo`（0）、`goal`（10）、`queue`（20）与工作树横幅（-10）

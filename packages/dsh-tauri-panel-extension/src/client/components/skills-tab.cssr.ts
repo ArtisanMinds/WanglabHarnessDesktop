@@ -4,15 +4,6 @@ const { c, bem: { b, e } } = cssr
 const { primary, secondary, tertiary, borderL2: border, business, layer1, layer3, hover } = sharedStyles
 
 export default b('extension', [
-  e('head', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    flexWrap: 'wrap',
-  }, [
-    c('& h3', { margin: '0', fontSize: '13px', lineHeight: '20px', fontWeight: '600' }),
-    c('& > svg', { flex: 'none', color: tertiary }),
-  ]),
   e('list-head', {
     display: 'flex',
     alignItems: 'center',

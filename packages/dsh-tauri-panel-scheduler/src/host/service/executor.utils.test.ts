@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
-import { decideRunOutcome, describeFailure, waitForTurnStart } from './executor.utils'
+import { decideRunOutcome, describeFailure, summarizeRun, waitForTurnStart } from './executor.utils'
+
+const runEvents = [
+  { seq: 0, type: 'turn/end', data: { reason: { kind: 'completed' } } },
+  { seq: 1, type: 'turn/start', data: {} },
+  { seq: 2, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'working' }] } } },
+  { seq: 3, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'done' }] } } },
+  { seq: 4, type: 'turn/end', data: { reason: { kind: 'error', error: { code: 'llm_error', message: 'boom' } } } },
+]
+
+const failureReason = { kind: 'error', error: { code: 'llm_error', message: 'boom' } }
 
 describe('decideRunOutcome', () => {
   it('超时优先判失败（即使 turn 已启动）', () => {
@@ -51,5 +61,29 @@ describe('waitForTurnStart', () => {
     finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('summarizeRun', () => {
+  it('内核 0.1.2-rc.1 起改从 snapshotEvents 读日志，失败收尾不会被吞成成功', () => {
+    const outcome = summarizeRun({ snapshotEvents: () => runEvents }, 1)
+    expect(outcome).toEqual({ text: 'done', reason: failureReason })
+    expect(decideRunOutcome({ started: true, timedOut: false, reason: outcome.reason }))
+      .toEqual({ status: 'failed', error: { code: 'llm_error', message: 'boom' } })
+  })
+
+  it('legacy 内核的 log / events 仍作兜底', () => {
+    for (const session of [{ log: runEvents }, { events: runEvents }]) {
+      expect(summarizeRun(session, 1)).toEqual({ text: 'done', reason: failureReason })
+    }
+  })
+
+  it('只统计 firstSeq 之后的事件', () => {
+    expect(summarizeRun({ snapshotEvents: () => runEvents }, 5)).toEqual({ text: '' })
+  })
+
+  it('日志不可读时退化为「没有 turn/end」，交由 decideRunOutcome 兜底', () => {
+    expect(summarizeRun({}, 0)).toEqual({ text: '' })
+    expect(summarizeRun(undefined, 0)).toEqual({ text: '' })
   })
 })

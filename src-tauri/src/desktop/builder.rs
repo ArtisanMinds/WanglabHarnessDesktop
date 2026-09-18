@@ -36,12 +36,12 @@ use crate::utils::show_main_window;
 /// 壳层（`Navbar`）导航栏高度，单位 CSS px。
 ///
 /// 这是「前端高度类 ↔ 后端交通灯纵向位置」的唯一真值入口：前端
-/// `src/layout/components/navbar.tsx` 根元素的 `h-13` 是它的体现（Tailwind 4
-/// 间距刻度 13 × 4px = 52px），macOS 交通灯的纵向位置也由它推导。issue #524
+/// `src/layout/components/navbar.tsx` 根元素的 `h-12` 是它的体现（Tailwind 4
+/// 间距刻度 12 × 4px = 48px），macOS 交通灯的纵向位置也由它推导。issue #524
 /// 之前两处各写一份数值（`h-11` 与 `24.0`）互不知情，改一处就会错位；现在由
 /// `shell_nav_height_matches_navbar_height_class` 测试把这份耦合显式化——
 /// 改栏高忘了同步另一边，CI 直接失败。
-pub const SHELL_NAV_HEIGHT: u32 = 52;
+pub const SHELL_NAV_HEIGHT: u32 = 48;
 
 /// 交通灯距窗口左边缘的内边距（逻辑像素）。
 #[cfg(target_os = "macos")]
@@ -49,7 +49,7 @@ const TRAFFIC_LIGHT_INSET_X: f64 = 14.0;
 
 /// Wry 保留了 AppKit 原生按钮的纵向 frame 偏移：实测视觉圆心 = 传入 y − 2
 /// （44px 栏高配 y = 24 时圆心为 22px，而非直觉上的 24px）。因此「视觉圆心 =
-/// 栏高 / 2」对应 y = 栏高 / 2 + 2（52px 栏高 → 28）。
+/// 栏高 / 2」对应 y = 栏高 / 2 + 2（48px 栏高 → 26）。
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHT_VISUAL_OFFSET: f64 = 2.0;
 
@@ -537,6 +537,9 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         // 注意不能用 .drag_and_drop(false)：它只设置 tao 窗口层的拖放开关
         // （tauri issue #13761），不影响 webview 层，拖拽依旧失效；
         // disable_drag_drop_handler 才能关掉 wry 的接管（等价于旧配置 dragDropEnabled: false）。
+        // 代价：wry 随接管一起关掉的 AllowExternalDrop 防护也没了，必须由
+        // desktop::window::disable_external_drop 在页面加载时补回，否则页面内拖放
+        // 文本会让 WebView2 卡在失效的鼠标捕获上（issue #591）。
         .disable_drag_drop_handler()
         // 接管内嵌 iframe 的 window.open() / target=_blank 新窗口请求：
         // WebView2 里这类请求走 NewWindowRequested，wry 在没有 handler 时
@@ -646,7 +649,7 @@ pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::W
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-13 = 52px），
+        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-12 = 48px），
         // 交通灯必须落在同一水平线上（写死 24.0 会随 #524 的栏高改动错位 4px）。
         .traffic_light_position(tauri::LogicalPosition::new(
             TRAFFIC_LIGHT_INSET_X,

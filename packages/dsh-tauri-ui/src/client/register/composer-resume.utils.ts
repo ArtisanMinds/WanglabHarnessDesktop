@@ -52,12 +52,16 @@ export function restoreDisabled(composerEmpty: boolean, running: boolean, hasSub
 
 export function paintResumeIcon(button: HTMLButtonElement, label: string): void {
   const path = button.querySelector('svg path')
+  const svg = button.querySelector('svg')
   if (path !== null && path.getAttribute('d') !== PLAY_FILL_PATH)
     path.setAttribute('d', PLAY_FILL_PATH)
   if (button.disabled)
     button.disabled = false
   if (button.getAttribute('aria-label') !== label)
     button.setAttribute('aria-label', label)
+
+  if (svg)
+    svg.style.width = '14px'
 }
 
 export function restorePrimaryIcon(
@@ -66,6 +70,7 @@ export function restorePrimaryIcon(
   options: { label: string, disabled: boolean },
 ): void {
   const path = button.querySelector('svg path')
+  const svg = button.querySelector('svg')
   if (state.path !== null && path !== null && path.getAttribute('d') === PLAY_FILL_PATH)
     path.setAttribute('d', state.path)
   if (button.getAttribute('aria-label') === options.label) {
@@ -76,4 +81,6 @@ export function restorePrimaryIcon(
   }
   if (options.disabled)
     button.disabled = true
+  if (svg)
+    svg.style.width = '16px'
 }

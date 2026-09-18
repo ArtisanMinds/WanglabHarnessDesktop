@@ -11,7 +11,8 @@
 //! 为什么放在启动而非安装流程：安装是用户主动行为，内置插件是应用自身的完整性
 //! 要求——用户怎么卸载、何时卸载都不影响下次启动自动恢复，无需任何用户操作。
 //!
-//! 模块划分：协调/飞行（本文件）与 profile 清单/入口文件操作（[`manifest`]）。
+//! 模块划分：协调/飞行（本文件）、profile 清单/入口文件操作（[`manifest`]）与
+//! pnpm 失败后的离线自建链接兜底（[`materialize`]）。
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -22,7 +23,7 @@ use super::cancel::terminate_owned_install;
 use super::install::install_internal;
 use super::installed::{installed_name, profile_dir, ProfilePackageJson};
 use super::preset::{bundled_dep_spec, bundled_plugin_dir, load_presets, PreinstallPluginInfo};
-use super::process::{new_process_owner, ProcessOwner};
+use super::process::{new_process_owner, PreinstallLogPayload, ProcessOwner, PREINSTALL_LOG_EVENT};
 use crate::config;
 
 use manifest::{
@@ -30,8 +31,10 @@ use manifest::{
     internal_plugin_entry_is_ready, is_local_link_dep, remove_duplicate_bundle_entries_from_patch,
     remove_internal_plugins_from_manifest, remove_stale_plugin_entry, write_profile_manifest,
 };
+use materialize::{materialize_links, OfflineLink};
 
 mod manifest;
+mod materialize;
 
 /// 核对并强制安装缺失/路径不正确/被卸载的内置插件，在服务进程启动前调用。
 ///
@@ -721,9 +724,155 @@ async fn ensure_inner(
     if let Err(e) = install_result {
         // 即使 pnpm 失败也清掉旧 fallback，下一次重试必须从干净入口开始。
         remove_legacy_profile_module_fallback_best_effort(&profile);
+        // pnpm 的 `link:` 安装路径在「建好目录链接后立刻回读 package.json」这一步
+        // 失败时（libuv UV_UNKNOWN / 退出码 -4094）可能是**环境性的恒定失败**
+        // （实时防护 / 云盘 / 重解析点过滤驱动），重试与重装都无法越过；此时改由
+        // 桌面端自建链接并补齐清单，让内置插件落盘、启动继续，而不是把应用永久
+        // 卡在 Plugin installation 阶段（见 [`materialize`]）。
+        if is_link_materialization_failure(&e, &need) {
+            let _ = app_handle.emit(
+                PREINSTALL_LOG_EVENT,
+                PreinstallLogPayload {
+                    line: "[harness] pnpm 无法回读新建的插件链接，改由应用直接建立链接…"
+                        .to_string(),
+                },
+            );
+            match materialize_internal_links(app_handle, &profile, &need) {
+                Ok(()) => {
+                    log::warn!(
+                        "INTERNAL_PLUGIN_OFFLINE_LINK_RECOVERED: internal plugin links materialized after pnpm failure: {e}"
+                    );
+                    return Ok(());
+                }
+                Err(fallback) => {
+                    log::error!("INTERNAL_PLUGIN_OFFLINE_LINK_FAILED: {fallback}");
+                    return Err(format!(
+                        "INTERNAL_PLUGIN_INSTALL_FAILED: {e}（离线自建链接兜底失败：{fallback}）\n{}",
+                        link_readback_hint(&profile)
+                    ));
+                }
+            }
+        }
+        // 同一签名但诊断里读不到失败路径：无法确认失败的是内置插件入口，因此不做
+        // 兜底（免得把用户自己依赖的真实失败吞成成功），只给可操作的排除项提示。
+        if is_untraceable_link_readback_failure(&e) {
+            log::warn!("INTERNAL_PLUGIN_OFFLINE_LINK_UNATTRIBUTED: {e}");
+            return Err(format!(
+                "INTERNAL_PLUGIN_INSTALL_FAILED: {e}\n{}",
+                link_readback_hint(&profile)
+            ));
+        }
         return Err(format!("INTERNAL_PLUGIN_INSTALL_FAILED: {e}"));
     }
 
+    Ok(())
+}
+
+/// 安全软件排除项提示：兜底失败与「同类但无法归因」时都要给，避免用户只看到裸
+/// pnpm 报错而无从下手。
+fn link_readback_hint(profile: &Path) -> String {
+    format!(
+        "提示：若本机安全软件（实时防护 / EDR / 云盘同步）拦截了档案目录的目录链接，\
+         请把 {} 加入排除项后重试。",
+        profile.join("node_modules").display()
+    )
+}
+
+/// pnpm 诊断是否属于「`link:` 入口建成后回读 / 落盘失败」这一类签名（尚未归因）。
+///
+/// 注意退出码的措辞：`install` 落盘的是 `dsh plugin exited with code -4094`，
+/// 匹配 `code -4094` 而不是 `exit code -4094`。
+fn looks_like_link_readback_failure(error: &str) -> bool {
+    let lower = error.to_ascii_lowercase();
+    lower.contains("preinstall_failed")
+        && lower.contains("node_modules")
+        && (lower.contains("code -4094") || lower.contains("unknown error, open"))
+}
+
+/// 同类签名但诊断里读不到失败路径：无从确认失败的就是内置插件入口。
+fn is_untraceable_link_readback_failure(error: &str) -> bool {
+    failed_open_path(error).is_none() && looks_like_link_readback_failure(error)
+}
+
+/// 判定安装失败是否属于「pnpm 建好 `link:` 入口后无法回读 / 未落盘」且**可归因到
+/// 本轮待装的内置插件**——即离线自建链接能修、且修了不会掩盖别的失败的那一类。
+///
+/// - `PREINSTALL_SILENT_FAIL`：pnpm 以 0 退出却没落盘产物（源码存在时自建链接必然成功）；
+/// - `PREINSTALL_FAILED`：诊断含 `node_modules` 与 `unknown error, open
+///   '<profile>/node_modules/...'`（或退出码 `-4094`，libuv `UV_UNKNOWN`），**且**
+///   诊断里的失败路径确实落在本轮待装入口之下。
+///
+/// 网络 / spec / git 传输层 / 入口构建失败绝不命中：那些不是链接问题。同一签名也
+/// 可能来自用户自己的 `link:` 依赖（`pnpm add` 会一并解析档案依赖），路径不可归因
+/// 时一律不兜底——宁可漏修也不能把真实失败吞成「安装成功」，此时调用方改为给出
+/// 排除项提示（见 [`is_untraceable_link_readback_failure`] 与 [`link_readback_hint`]）。
+fn is_link_materialization_failure(error: &str, need: &[(String, String, PathBuf)]) -> bool {
+    if error
+        .to_ascii_lowercase()
+        .contains("preinstall_silent_fail")
+    {
+        return true;
+    }
+    if !looks_like_link_readback_failure(error) {
+        return false;
+    }
+    match failed_open_path(error) {
+        Some(path) => need
+            .iter()
+            .any(|(_, _, entry)| path_lives_under(&path, entry)),
+        None => false,
+    }
+}
+
+/// 取 pnpm 诊断里 `unknown error, open '<path>'` 的路径（统一分隔符、去尾斜杠）。
+fn failed_open_path(error: &str) -> Option<String> {
+    const MARKER: &str = "unknown error, open ";
+    // 大小写折叠只改 ASCII 字节，偏移量在两份字符串上一致，因此仍返回原始大小写。
+    let lower = error.to_ascii_lowercase();
+    let start = lower.find(MARKER)? + MARKER.len();
+    let rest = error.get(start..)?.trim_start();
+    let rest = rest.strip_prefix('\'')?;
+    let end = rest.find('\'')?;
+    Some(normalize_link_path(&rest[..end]))
+}
+
+fn normalize_link_path(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+/// 路径比较统一折叠大小写：Windows 不区分大小写，宁可漏兜底也不误吞其它依赖的失败。
+fn path_lives_under(path: &str, entry: &Path) -> bool {
+    let entry = normalize_link_path(&entry.to_string_lossy()).to_ascii_lowercase();
+    let path = path.to_ascii_lowercase();
+    path == entry || path.starts_with(&format!("{entry}/"))
+}
+
+/// 用桌面端的目录链接实现落盘本轮待修复的内置插件入口（离线、不依赖 node/pnpm）。
+fn materialize_internal_links(
+    app_handle: &AppHandle,
+    profile: &Path,
+    need: &[(String, String, PathBuf)],
+) -> Result<(), String> {
+    let mut links = Vec::with_capacity(need.len());
+    for (id, name, entry) in need {
+        let bundled = bundled_plugin_dir(app_handle, id)
+            .ok_or_else(|| format!("INTERNAL_PLUGIN_BUNDLE_MISSING: {id}"))?;
+        links.push(OfflineLink {
+            id: id.clone(),
+            name: name.clone(),
+            spec: bundled_dep_spec(&bundled),
+            bundled,
+            entry: entry.clone(),
+        });
+    }
+    materialize_links(profile, &links)?;
+    // pnpm 失败路径已为这些 id 记过安装错误；兜底成功后必须清掉，否则插件面板
+    // 会继续显示「安装失败」而实际上插件已就绪（与 verify 的成功路径一致）。
+    for (id, _, _) in need {
+        if let Err(e) = super::errors::clear(app_handle, id) {
+            log::warn!("failed to clear plugin error for {id} after offline link: {e}");
+        }
+    }
     Ok(())
 }
 
@@ -810,9 +959,109 @@ fn is_legacy_profile_fallback_target(target: &Path) -> bool {
 mod tests {
     use super::*;
 
+    /// 构造本轮待装列表 `(id, 包名, 入口)`：入口与 `ensure_inner` 一致地落在
+    /// `<profile>/node_modules/<包名>`，用报告里的真实 profile 路径。
+    fn need_entries(names: &[&str]) -> Vec<(String, String, PathBuf)> {
+        let profile = Path::new("C:\\Users\\w00012491\\.dsh\\profiles\\tauri");
+        names
+            .iter()
+            .map(|name| {
+                (
+                    (*name).to_string(),
+                    (*name).to_string(),
+                    profile.join("node_modules").join(name),
+                )
+            })
+            .collect()
+    }
+
+    /// issue #264 的**恒定**版本：pnpm 建好 `link:` 目录链接后回读 package.json
+    /// 失败（libuv UV_UNKNOWN / 退出码 -4094），必须命中离线自建链接兜底。
+    #[test]
+    fn link_materialization_failure_detects_uv_unknown_readback() {
+        let error = "PREINSTALL_FAILED: dsh plugin exited with code -4094: UNKNOWN  UNKNOWN: \
+                     unknown error, open 'C:\\Users\\w00012491\\.dsh\\profiles\\tauri\\node_modules\\\
+                     dsh-tauri-panel-scheduler\\package.json'";
+        let need = need_entries(&["dsh-tauri-panel-scheduler"]);
+        assert!(is_link_materialization_failure(error, &need));
+        // pnpm / Node 的措辞随版本变化，判定大小写不敏感
+        assert!(is_link_materialization_failure(
+            &error.to_ascii_lowercase(),
+            &need
+        ));
+    }
+
+    #[test]
+    fn link_materialization_failure_detects_silent_install() {
+        assert!(is_link_materialization_failure(
+            "PREINSTALL_SILENT_FAIL: dsh plugin exited with code 0, but no install artifact was \
+             created for [dsh-tauri]. Expected package manifests: [...]",
+            &need_entries(&["dsh-tauri"])
+        ));
+    }
+
+    /// 同一签名也可能来自用户自己的 `link:` 依赖（`pnpm add` 会一并解析项目依赖）：
+    /// 失败路径不属于本轮内置插件时绝不能兜底，否则真实失败被吞成「安装成功」。
+    #[test]
+    fn link_materialization_failure_rejects_foreign_dependency_path() {
+        let error = "PREINSTALL_FAILED: dsh plugin exited with code -4094: UNKNOWN  UNKNOWN: \
+                     unknown error, open 'C:\\Users\\w00012491\\.dsh\\profiles\\tauri\\node_modules\\\
+                     someone-else-plugin\\package.json'";
+        assert!(!is_link_materialization_failure(
+            error,
+            &need_entries(&["dsh-tauri-panel-scheduler"])
+        ));
+    }
+
+    /// 同类签名但诊断里没有可解析的失败路径：不能归因到内置插件入口，因此既不
+    /// 兜底（免得掩盖用户依赖的失败）也不能只丢裸错误，要走「只给排除项提示」。
+    #[test]
+    fn link_materialization_failure_rejects_unattributed_diagnostic() {
+        let error = "PREINSTALL_FAILED: dsh plugin exited with code -4094: UNKNOWN: cannot \
+                     materialize node_modules entry";
+        let need = need_entries(&["dsh-tauri-panel-scheduler"]);
+
+        assert!(!is_link_materialization_failure(error, &need));
+        assert!(is_untraceable_link_readback_failure(error));
+        // 能解析出路径后就不再是「无法归因」，只是路径不属于本轮待装入口
+        assert!(!is_untraceable_link_readback_failure(
+            "PREINSTALL_FAILED: dsh plugin exited with code -4094: UNKNOWN: unknown error, open \
+             'C:\\Users\\w00012491\\.dsh\\profiles\\tauri\\node_modules\\someone-else\\package.json'"
+        ));
+    }
+
+    #[test]
+    fn link_materialization_failure_rejects_unrelated_failures() {
+        let need = need_entries(&["dsh-tauri"]);
+        assert!(!is_link_materialization_failure(
+            "PREINSTALL_FAILED: dsh plugin exited with code 1: ERR_PNPM_SPEC_NOT_SUPPORTED",
+            &need
+        ));
+        assert!(!is_link_materialization_failure(
+            "NETWORK_ERROR: plugin registry request failed; check network or proxy settings and retry.",
+            &need
+        ));
+        assert!(!is_link_materialization_failure(
+            "PREINSTALL_ENTRY_FAILED:\ndsh-tauri: PLUGIN_ENTRY_MISSING",
+            &need
+        ));
+        // 含 -4094 但诊断里没有 profile 链接路径：不是本兜底能解的那一类
+        assert!(!is_link_materialization_failure(
+            "PREINSTALL_FAILED: dsh plugin exited with code -4094: some unrelated output",
+            &need
+        ));
+        assert!(!is_untraceable_link_readback_failure(
+            "PREINSTALL_FAILED: dsh plugin exited with code -4094: some unrelated output"
+        ));
+    }
+
     #[test]
     fn legacy_fallback_target_detection_is_path_component_aware() {
-        let base = Path::new("home").join("test").join(".dsh").join("profiles").join("web");
+        let base = Path::new("home")
+            .join("test")
+            .join(".dsh")
+            .join("profiles")
+            .join("web");
         assert!(is_legacy_profile_fallback_target(
             &base
                 .join(".dsh-module-fallback")
@@ -823,9 +1072,7 @@ mod tests {
             &base.join("node_modules").join("anymatch"),
         ));
         assert!(!is_legacy_profile_fallback_target(
-            &base
-                .join(".dsh-module-fallback-old")
-                .join("anymatch"),
+            &base.join(".dsh-module-fallback-old").join("anymatch"),
         ));
     }
 

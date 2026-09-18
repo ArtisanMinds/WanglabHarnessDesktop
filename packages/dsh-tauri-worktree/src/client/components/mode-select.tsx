@@ -15,7 +15,6 @@ import {
 import { useWaiter } from '../hooks/use-waiter'
 import { useWorktreeSession } from '../hooks/use-worktree-session'
 import { locale } from '../locales'
-import { rememberPreferredMode } from '../service/preferences'
 import { waitForInputActions, waitForSessionListed } from '../service/session-switch'
 import { attach, create } from '../service/worktree'
 import { store } from '../store'
@@ -207,7 +206,6 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
       onSelect={(id) => {
         setOpen(false)
         const mode = id === 'pending' ? 'pending' : 'local'
-        void rememberPreferredMode({ mode })
         store.worktree.patch(sessionId, {
           mode,
           phase: 'idle',

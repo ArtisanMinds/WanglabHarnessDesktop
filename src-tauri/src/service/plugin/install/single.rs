@@ -16,7 +16,9 @@ use crate::service::workflow;
 
 use super::artifact::{ensure_plugin_entry_built, installed_package_name};
 use super::build_plugin_envs;
-use super::diagnose::{git_transport_hint, network_error_hint, pick_error_message};
+use super::diagnose::{
+    git_transport_hint, network_error_hint, pick_error_message, store_mismatch_hint,
+};
 use super::errors;
 use super::installed_name;
 use super::is_actionable_plugin_ref;
@@ -318,9 +320,12 @@ async fn run_single_plugin_command(
         log::error!("dsh plugin {action} failed for {id} with exit code {exit_code}");
         let network_error =
             network_error_hint(&output).is_some() || (exit_code == 3 && output.trim().is_empty());
+        let store_hint = store_mismatch_hint(&output);
         let message = if network_error {
             "NETWORK_ERROR: plugin registry request failed; check network or proxy settings and retry."
                 .to_string()
+        } else if let Some(store_hint) = store_hint.as_deref() {
+            store_hint.to_string()
         } else {
             pick_error_message(&output, git_transport_hint(&output))
         };
@@ -329,6 +334,14 @@ async fn run_single_plugin_command(
         }
         if network_error {
             return Err("NETWORK_ERROR: plugin registry request failed; check network or proxy settings and retry.".to_string());
+        }
+        // 与批量安装一致：把 pnpm 因 store 布局不匹配给出的两条路径补进错误里
+        if let Some(store_hint) = store_hint {
+            log::warn!("pnpm store incompatibility detected during plugin {action}: {store_hint}");
+            return Err(format!(
+                "PLUGIN_{}_FAILED: dsh plugin exited with code {exit_code} ({store_hint})",
+                action.to_uppercase()
+            ));
         }
         return Err(format!(
             "PLUGIN_{}_FAILED: dsh plugin exited with code {exit_code}",

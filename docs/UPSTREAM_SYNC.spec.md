@@ -156,12 +156,13 @@ git diff --check
 | `dsh-tauri-pet` | `QCYTSN/dsh-dafeiyu` | `source/dsh-dafeiyu` | `v0.1.9` (`f4f4482`) | `v0.1.14` (`9c0588c`) | `v0.1.10`–`v0.1.14` 待评估 | [日志](https://www.google.com/search?q=../packages/dsh-tauri-pet/docs/sync-log.md) |
 | `dsh-tauri-pet` | `Skylarking/dsh-plugin-codex-pets` | `source/dsh-plugin-codex-pets` | `22e93f4` | - | 未评估 main 分支更新 | [日志](https://www.google.com/search?q=../packages/dsh-tauri-pet/docs/sync-log.md) |
 | 桌宠窗口 | `ayangweb/BongoCat` | `source/BongoCat` | `44f44bc` | `v1.1.0` | HEAD 已超前 Tag 5 个 Commit | [日志](https://www.google.com/search?q=../packages/dsh-tauri-pet/docs/sync-log.md) |
-| `dsh-tauri-panel-extension` | `qinyre/dsh-plugin-capabilities` | `source/dsh-plugin-capabilities` | `v0.3.10` (`e5e3596`) | `v0.3.10` | 暂无待评估项（Market 模块确定不移植） | [日志](https://www.google.com/search?q=../packages/dsh-tauri-panel-extension/docs/upstream-sync-log.md) |
+| `dsh-tauri-panel-extension` | `qinyre/dsh-plugin-capabilities` | `source/dsh-plugin-capabilities` | `v0.3.10` (`e5e3596`) | `v0.3.10` | 暂无待评估项（该上游的 Market 模块确定不移植；扩展面板的市场页改为直接消费 `dshmarket` 的 `market` 服务） | [日志](https://www.google.com/search?q=../packages/dsh-tauri-panel-extension/docs/upstream-sync-log.md) |
+| `dsh-tauri-panel-extension`（市场标签页） | `dsh-market/dsh-market` | `source/dsh-market` | `v1.47.0-6` (`53f793e`) | `v1.47.0-6` (`53f793e`) | 非代码移植：消费其 `ctx.provide('market')` 服务。`render()` 尚未发版，故先以 `source` 子模块承载；待上游发版后改为常规 npm 依赖并移除子模块 | - |
 | `dsh-tauri-panel-scheduler` | `MichengAI/dsh-automation` | `source/dsh-automation` | `f1bc91a` (+`c426c3d`) | `v0.1.42` (`e75499e`) | `v0.1.33`–`v0.1.42` 已评估：全部不采纳（2026-09-16）；无待评估项 | [日志](https://www.google.com/search?q=../packages/dsh-tauri-panel-scheduler/docs/sync-log.md) |
 
 ### 5.2 已知配置与异常记录
 
-* **子模块绑定**：`source/*` 下 6 个参考仓库均已引入 `.gitmodules`。当前 gitlink 配置已暂存，待提交。
+* **子模块绑定**：`source/*` 下 7 个参考仓库均已引入 `.gitmodules`。其中 `source/dsh-market` 是 2026-09 新增的**临时**参考仓库：上游 `render()` API 只存在于 main 分支，尚未发版，故先以源码子模块承载供 GitHub 源安装测试；上游发版后应改为 npm 依赖并移除该子模块。当前 gitlink 配置已暂存，待提交。
 * **路径纠偏记录**：
 * `source/dsh-automation` 已纠正 gitlink 配置，子模块 HEAD 指向 `f1bc91a`。
 * `source/dsh-automation` gitlink 为 `f1bc91a`，但工作区 checkout 停在 `e75499e`（`git submodule status` 前缀 `+`，

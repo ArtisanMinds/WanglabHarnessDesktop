@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 use super::local::{find_user_dsh_bin, local_core};
-use super::source::{active_source, CoreSource, HarnessCore};
+use super::source::{active_source, core_supports_bundled_plugins, CoreSource, HarnessCore};
 
 /// `dependencies` 目录（激活 `dsh` 与历史 `dsh-<tag>` 槽位的共同父级）。
 fn dependencies_dir(app_handle: &AppHandle) -> PathBuf {
@@ -350,8 +350,17 @@ pub async fn set_active(app_handle: &AppHandle, id: &str) -> Result<HarnessCore,
         None
     };
     if id == "local" {
-        if local_core(app_handle).is_none() {
+        let Some(core) = local_core(app_handle) else {
             return Err("CORE_LOCAL_NOT_FOUND: no local core detected".to_string());
+        };
+        // 低于内置插件基线的本地核心无法加载随包插件（issue #596）：显式切换同样
+        // 拒绝并给出可操作提示，而不是让用户切过去再撞一次启动失败。
+        if !core_supports_bundled_plugins(app_handle, &core.version) {
+            return Err(format!(
+                "CORE_LOCAL_UNSUPPORTED: local dsh {} is below the bundled-plugin baseline {}; update it (`npm install -g @deepseek-ai/dsh@latest`) or keep a bundled version",
+                core.version,
+                config::recommended_dsh_version(app_handle).unwrap_or_default(),
+            ));
         }
         stop_harness_for_core_switch(app_handle).await?;
         let mut setting = config::get_store_dat_setting(app_handle);

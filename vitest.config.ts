@@ -32,6 +32,8 @@ export default defineConfig({
       'test/patch-layer.test.ts',
       // issue #539：旧版 WebKit 缺全局 Iterator 导致插件加载失败，壳层兼容垫片回归。
       'test/compat-iterator.test.ts',
+      // issue #596：本地核心低于内置插件基线导致启动失败，核心面板与后端共用的版本判定回归。
+      'test/core-version.test.ts',
       // v0.2.0：气泡托管给 dsh-pet-component，宿主侧只剩「会话快照 → pet.bubble」的映射。
       'src/pet/hooks/use-bubble-tracker.test.ts',
       // 桌宠素材响应头：GitHub 对中文动画名回 `content-disposition`，插件版 fetch 会因

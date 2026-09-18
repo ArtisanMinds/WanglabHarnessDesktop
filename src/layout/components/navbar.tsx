@@ -27,7 +27,7 @@ import { writeClipboardText } from '@/utils/clipboard'
 import { toast } from '@/utils/toast'
 
 /**
- * 壳层窗口顶部导航栏（52px，常驻）：
+ * 壳层窗口顶部导航栏（48px，常驻）：
  *
  *   [侧边栏(展开/收起)] [文件][配置][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
  *
@@ -49,7 +49,7 @@ import { toast } from '@/utils/toast'
  *   「文件」「帮助」在 macOS 上由原生菜单栏承载（见 `desktop/builder.rs` 的
  *   `install_macos_menu`），本组按钮不渲染。
  *   交通灯的纵向位置由 `src-tauri/src/desktop/builder.rs` 的 `SHELL_NAV_HEIGHT`
- *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-13` 是同一真值；两者的一致性
+ *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-12` 是同一真值；两者的一致性
  *   由 Rust 测试 `shell_nav_height_matches_navbar_height_class` 守住——改这个
  *   class 就必须同步那个常量，否则 CI 失败（issue #524）。
  * - Windows/Linux：右侧窗口按钮直接调用 Tauri API；
@@ -197,7 +197,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     if (key === 'check-update')
       void handleCheckUpdate()
     else if (key === 'about')
-      void openAboutDialog().catch(() => {})
+      void openAboutDialog().catch(() => { })
     else if (key === 'copy-run-logs')
       void copyRunLogs()
     else if (key === 'documentation')
@@ -256,16 +256,16 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
   }
 
   function handleOpenConfig() {
-    void openConfigDialog().catch(() => {})
+    void openConfigDialog().catch(() => { })
   }
 
   function handleOpenAbout() {
-    void openAboutDialog().catch(() => {})
+    void openAboutDialog().catch(() => { })
   }
 
   /** 「更新可用」chip：与帮助菜单「检查更新」打开同一个更新对话框 */
   function handleOpenUpdateDialog() {
-    void openUpdateDialog().catch(() => {})
+    void openUpdateDialog().catch(() => { })
   }
 
   /** 「检查更新」：先检查，有更新才弹框；检查失败提示错误而非「已是最新」 */
@@ -333,7 +333,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
   return (
     <div
       className={cn(
-        'relative flex h-13 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
+        'relative flex h-12 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
         {
           'hidden': IS_MACOS && isFullscreen,
           'pl-20 pr-1.5': IS_MACOS && !isFullscreen,
@@ -480,19 +480,6 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
           </Dropdown>
         </div>
       </If>
-      {/* 「更新可用」chip：紧跟「帮助」右侧。检测到新版本即出现（安装包此时已在静默下载），
-          点击进入更新对话框查看进度 / 打开已下载的安装包。macOS 的「帮助」在原生菜单栏，
-          这里同样显示该 chip，保证三平台都有可见的更新入口。 */}
-      <If cond={updateInfo != null}>
-        <Chip
-          color="success"
-          size="sm"
-          className="ml-1 cursor-pointer text-xs"
-          onClick={handleOpenUpdateDialog}
-        >
-          {t('update.chip_available')}
-        </Chip>
-      </If>
       <If cond={import.meta.env.DEV}>
         <Chip size="sm" variant="primary" color="warning" className="text-xs text-background ml-1">
           {t('app.dev_env')}
@@ -509,6 +496,21 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
       />
 
       <div className="absolute" style={dshStyle.marked || {}} />
+
+      {/* 「更新可用」chip：紧跟「帮助」右侧。检测到新版本即出现（安装包此时已在静默下载），
+          点击进入更新对话框查看进度 / 打开已下载的安装包。macOS 的「帮助」在原生菜单栏，
+          这里同样显示该 chip，保证三平台都有可见的更新入口。 */}
+      <If cond={updateInfo != null}>
+        <Chip
+          color="success"
+          size="sm"
+          variant="soft"
+          className="ml-1 cursor-pointer text-xs mr-1"
+          onClick={handleOpenUpdateDialog}
+        >
+          {t('update.chip_available')}
+        </Chip>
+      </If>
 
       <If cond={!IS_MACOS}>
         <Button

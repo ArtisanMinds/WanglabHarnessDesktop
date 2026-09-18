@@ -1,14 +1,18 @@
 import type { ReactElement } from 'react'
 import type { LocaleKey, Translate } from '../locales/index.types'
 import type { RunView } from '../types'
-import { useMountStyle } from 'dsh-tauri-ui/client'
+import { Alarm, CircleCheck, CircleDashed, CircleStop, CircleXmark, Icon, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
 import { RUNS_TAB_STYLE_ID } from '../constants'
 import runsTabStyle from './runs-tab.cssr'
-import { formatLocalTime } from './schedule.utils'
+import { formatLocalTime, isRunUnread } from './schedule.utils'
 
 export interface RunsTabProps {
   t: Translate
   runs: readonly RunView[]
+  readAt: number
+  readIds: readonly string[]
+  emptyLabel: string
+  onOpen: (run: RunView) => void
   onDelete: (id: string) => void
 }
 
@@ -22,27 +26,57 @@ const STATUS_KEYS: Record<RunView['status'], LocaleKey> = {
   running: 'running',
 }
 
-export function RunsTab({ t, runs, onDelete }: RunsTabProps): ReactElement {
+const STATUS_ICONS = {
+  succeeded: CircleCheck,
+  failed: CircleXmark,
+  interrupted: CircleXmark,
+  cancelled: CircleStop,
+  skipped: CircleDashed,
+  queued: CircleDashed,
+  running: Alarm,
+}
+
+export function RunsTab({ t, runs, readAt, readIds, emptyLabel, onOpen, onDelete }: RunsTabProps): ReactElement {
   useMountStyle(runsTabStyle, RUNS_TAB_STYLE_ID)
   if (runs.length === 0)
-    return <p className="dshp-scheduler__empty">{t('emptyRuns')}</p>
+    return <p className="dshp-scheduler__empty">{emptyLabel}</p>
   return (
-    <>
-      <ul className="dshp-scheduler__runs-list">
-        {runs.map(run => (
-          <li key={run.id} className="dshp-scheduler__run-row">
-            <div className="dshp-scheduler__run-main">
-              <span className="dshp-scheduler__run-name" title={run.taskName}>{run.taskName}</span>
-              {run.error ? <p className="dshp-scheduler__run-error">{run.error}</p> : null}
+    <ul className="dshp-scheduler__runs-list">
+      {runs.map(run => (
+        <li key={run.id} className="dshp-scheduler__card" onClick={() => onOpen(run)}>
+          <div style={{ height: 36 }}>
+            <span
+              className="dshp-scheduler__card-icon"
+              data-status={run.status}
+              role="img"
+              aria-label={t(STATUS_KEYS[run.status])}
+              title={t(STATUS_KEYS[run.status])}
+            >
+              <Icon as={STATUS_ICONS[run.status]} />
+            </span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span className="dshp-scheduler__card-title" title={run.taskName}>
+              {run.taskName}
+              {isRunUnread(run, readAt, readIds) ? <span className="dshp-scheduler__unread-dot" /> : null}
+            </span>
+            <div className="dshp-scheduler__card-meta">
+              <span className="dshp-scheduler__card-meta-text">{formatLocalTime(run.startedAt) ?? ''}</span>
             </div>
-            <div className="dshp-scheduler__run-meta">
-              {run.status !== 'succeeded' && <span className="dshp-scheduler__chip" data-status={run.status}>{t(STATUS_KEYS[run.status])}</span>}
-              <span className="dshp-scheduler__run-time">{formatLocalTime(run.startedAt) ?? ''}</span>
-              <button type="button" className="dshp-scheduler__run-delete" onClick={() => onDelete(run.id)} aria-label={t('deleteRun')}>{t('delete')}</button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </>
+          </div>
+          <button
+            type="button"
+            className="dshp-scheduler__icon-button"
+            aria-label={t('deleteRun')}
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete(run.id)
+            }}
+          >
+            <Icon as={TrashBin} size={12} />
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }

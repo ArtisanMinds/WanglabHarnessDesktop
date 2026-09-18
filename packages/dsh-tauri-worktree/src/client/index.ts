@@ -5,7 +5,6 @@ import {
   LOCALE_EFFECT,
   MODE_SELECT_EFFECT,
   PLUGIN_ID,
-  PREFERENCES_EFFECT,
   SESSION_ICONS_EFFECT,
   STYLES_EFFECT,
   SURFACE_EFFECT,
@@ -14,7 +13,6 @@ import { locale } from './locales'
 import { dialogFeature } from './register/dialog'
 import { hydrationFeature } from './register/hydration'
 import { modeSelectFeature } from './register/mode-select'
-import { preferencesFeature } from './register/preferences'
 import { sessionIconsFeature } from './register/session-icons'
 import { stylesFeature } from './register/styles'
 import { surfaceFeature } from './register/surface'
@@ -28,7 +26,6 @@ export const inject = ['slots', 'layout', 'locale', 'sessions', 'workspaces']
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(locale.registerLocale, LOCALE_EFFECT)
-  ctx.effect(preferencesFeature, PREFERENCES_EFFECT)
   ctx.effect(stylesFeature, STYLES_EFFECT)
   ctx.effect(modeSelectFeature, MODE_SELECT_EFFECT)
   ctx.effect(surfaceFeature, SURFACE_EFFECT)

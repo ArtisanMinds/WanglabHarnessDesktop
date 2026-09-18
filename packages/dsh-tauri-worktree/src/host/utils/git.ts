@@ -5,6 +5,10 @@ import { compact, get, partition } from 'lodash-es'
 import { basename, join, resolve } from 'pathe'
 import { simpleGit } from 'simple-git'
 
+/**
+ * simple-git 只在命令写了 stderr 时抛错：静默失败（如 `--quiet`）会以 `ok: true` + 空输出返回。
+ * 判断「存在 / 不存在」必须看输出，或者去掉 `--quiet` 让 git 自己报错。
+ */
 export async function git(args: string[], cwd: string, options: GitOptions = {}): Promise<OperationResult<{ out: string }>> {
   try {
     const client = simpleGit({

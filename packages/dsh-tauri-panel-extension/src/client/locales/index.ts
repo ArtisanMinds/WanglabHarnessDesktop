@@ -2,9 +2,10 @@ import { defineLocale } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../constants'
 
 const zh = {
-  extension: '扩展技能',
+  extension: '扩展管理',
   skillsTab: '技能',
   mcpTab: 'MCP',
+  marketTab: '市场',
   skillsTitle: '技能管理',
   skillsIntro: '查看与编辑 dsh 发现的技能；用户级与仓库技能可就地管理。卡片开关控制技能是否加载。',
   newSkill: '新建技能',
@@ -117,9 +118,10 @@ const zh = {
 type LocaleKey = keyof typeof zh
 
 const en: Record<LocaleKey, string> = {
-  extension: 'Extension Skills',
+  extension: 'Extension Management',
   skillsTab: 'Skills',
   mcpTab: 'MCP',
+  marketTab: 'Market',
   skillsTitle: 'Skills',
   skillsIntro: 'View and manage discovered skills, including user and repository skills. Each card switch controls loading.',
   newSkill: 'New skill',

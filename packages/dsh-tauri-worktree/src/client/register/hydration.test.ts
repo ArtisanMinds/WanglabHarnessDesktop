@@ -87,8 +87,6 @@ vi.mock('dsh-tauri/client', async () => {
   return {
     fetch: mocks.fetch,
     ofetch: mocks.fetch,
-    createStorage: () => ({ getItem: async () => null, setItem: async () => {} }),
-    localStorageDriver: () => ({}),
     defineLocale: (namespace: string) => ({
       NS: namespace,
       text: (key: string) => key,

@@ -1,4 +1,5 @@
 import type { RunStatus } from '../types'
+import { compact, filter, findLast, last, map } from 'lodash-es'
 
 /** 启动窗口：排队的 followup 被 driver 取走前的等待上限。 */
 export const SCHEDULER_TURN_START_TIMEOUT_MS = 30_000
@@ -67,4 +68,47 @@ export function decideRunOutcome(input: {
   if (input.reason === undefined || input.reason.kind === 'completed')
     return { status: 'succeeded' }
   return { status: 'failed', error: describeFailure(input.reason) }
+}
+
+interface SessionEventLike {
+  readonly seq: number
+  readonly type: string
+  readonly data: Record<string, any>
+}
+
+/**
+ * 从会话对象读取本轮之后的事件，提取助手正文与 `turn/end` 收尾原因。
+ *
+ * 取日志必须走 {@link sessionEvents}：直接读 `session.events` 在 0.1.2-rc.1 起的内核上
+ * 恒为 `undefined`，会让收尾原因消失、把失败的跑批误判成成功。
+ */
+export function summarizeRun(session: unknown, firstSeq: number): {
+  readonly text: string
+  readonly reason?: Record<string, any>
+} {
+  const scoped = filter(sessionEvents(session), event => event.seq >= firstSeq)
+  const texts = compact(map(filter(scoped, { type: 'assistant/message' }), textOf))
+  const reason = findLast(scoped, { type: 'turn/end' })?.data.reason as Record<string, any> | undefined
+  return { text: last(texts) ?? '', ...(reason ? { reason } : {}) }
+}
+
+/** 内核 `Session` 的日志面逐版本漂移：0.1.2-rc.1 起移除 `events` 访问器，以 `snapshotEvents()` 为准，`log` / `events` 仅作兜底。 */
+function sessionEvents(value: unknown): readonly SessionEventLike[] {
+  if (typeof value !== 'object' || value === null)
+    return []
+  const session = value as Record<string, unknown>
+  const snapshotEvents = session.snapshotEvents
+  if (typeof snapshotEvents === 'function') {
+    const snapshot: unknown = Reflect.apply(snapshotEvents, value, [])
+    if (Array.isArray(snapshot))
+      return snapshot as readonly SessionEventLike[]
+  }
+  if (Array.isArray(session.log))
+    return session.log as readonly SessionEventLike[]
+  return Array.isArray(session.events) ? session.events as readonly SessionEventLike[] : []
+}
+
+function textOf(event: SessionEventLike): string {
+  const blocks = (event.data.message?.content ?? []) as readonly { type: string, text?: string }[]
+  return blocks.filter(block => block.type === 'text').map(block => block.text ?? '').join('')
 }
