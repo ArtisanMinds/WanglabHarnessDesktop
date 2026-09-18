@@ -7,6 +7,13 @@
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri"
   },
   {
+    "id": "dsh-tauri-model-config",
+    "spec": "dsh-tauri-model-config",
+    "name": "DSH Model Config",
+    "description": "Model configuration for the DeepSeek Harness desktop shell: set the model to use, and other model-specific settings.",
+    "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-model-config"
+  },
+  {
     "id": "dsh-tauri-turnrewind",
     "spec": "dsh-tauri-turnrewind",
     "name": "DSH Turn Rewind",
