@@ -1,8 +1,7 @@
 import type { ReactElement } from 'react'
 import type { LocaleKey, Translate } from '../locales/index.types'
 import type { RunView } from '../types'
-import { IconLoadingOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { CircleCheck, CircleDashed, CircleStop, CircleXmark, Icon, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
+import { Alarm, CircleCheck, CircleDashed, CircleStop, CircleXmark, Icon, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
 import { RUNS_TAB_STYLE_ID } from '../constants'
 import runsTabStyle from './runs-tab.cssr'
 import { formatLocalTime } from './schedule.utils'
@@ -30,7 +29,7 @@ const STATUS_ICONS = {
   cancelled: CircleStop,
   skipped: CircleDashed,
   queued: CircleDashed,
-  running: IconLoadingOutline16,
+  running: Alarm,
 }
 
 export function RunsTab({ t, runs, onDelete }: RunsTabProps): ReactElement {
@@ -53,15 +52,17 @@ export function RunsTab({ t, runs, onDelete }: RunsTabProps): ReactElement {
             </span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span className="dshp-scheduler__card-title" title={run.taskName}>{run.taskName}</span>
+            <span className="dshp-scheduler__card-title" title={run.taskName}>
+              {run.taskName}
+              {run.status !== 'succeeded'
+                ? <span className="dshp-scheduler__chip" data-status={run.status}>{t(STATUS_KEYS[run.status])}</span>
+                : null}
+            </span>
             <div className="dshp-scheduler__card-meta">
               <span className="dshp-scheduler__card-meta-text" title={run.error}>
                 {formatLocalTime(run.startedAt) ?? ''}
                 {run.error ? ` · ${run.error}` : ''}
               </span>
-              {run.status !== 'succeeded'
-                ? <span className="dshp-scheduler__chip" data-status={run.status}>{t(STATUS_KEYS[run.status])}</span>
-                : null}
             </div>
           </div>
           <button
