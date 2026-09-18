@@ -43,6 +43,7 @@ describe('cleaner 退避重试', () => {
 
     await waitFor(() => cleaner.lookup('session-backoff', job.jobId)?.state === 'completed')
     expect(calls).toBe(4)
+    expect(cleaner.lookup('session-backoff', job.jobId)?.error).toBeUndefined()
     expect(cleaner.unsettled()).toEqual([])
     await waitFor(() => jobs.load().length === 0)
   })
@@ -65,5 +66,20 @@ describe('cleaner 退避重试', () => {
     expect(forced.jobId).toBe(first.jobId)
     await waitFor(() => cleaner.lookup('session-force', first.jobId)?.state === 'completed')
     expect(calls).toBe(4)
+  })
+
+  it('同键任务完成后再强制丢弃会真的重跑', async () => {
+    let calls = 0
+    const run = async (): Promise<{ ok: true }> => {
+      calls += 1
+      return { ok: true }
+    }
+    const first = cleaner.start('session-recreate', 'recreate/repo', '/tmp/recreate', run, true)
+    await waitFor(() => cleaner.lookup('session-recreate', first.jobId)?.state === 'completed')
+    expect(calls).toBe(1)
+
+    cleaner.start('session-recreate', 'recreate/repo', '/tmp/recreate', run, true)
+    await waitFor(() => calls === 2)
+    expect(cleaner.lookup('session-recreate', first.jobId)?.state).toBe('completed')
   })
 })

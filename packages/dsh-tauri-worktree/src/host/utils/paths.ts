@@ -20,6 +20,9 @@ export function worktreeTrashPath(hash: string, dirname: string): string {
 }
 
 export function parseWorktreeKey(key: string): { hash: string, dirname: string } | null {
-  const [hash, dirname] = String(key ?? '').split('/')
+  const segments = String(key ?? '').split('/')
+  if (segments.length !== 2)
+    return null
+  const [hash, dirname] = segments
   return hash && dirname ? { hash, dirname } : null
 }

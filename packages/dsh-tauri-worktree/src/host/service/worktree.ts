@@ -599,7 +599,9 @@ async function removalTarget(sessionId: string, key: string): Promise<RemovalTar
   if (binding)
     return { ...binding, binding, bound: true }
   const parsed = parseWorktreeKey(key)
-  if (!parsed)
+  // 未绑定的 key 直接来自请求体：任一段越出 `worktrees/<hash>/<dirname>` 都拒绝，
+  // 否则 `../..` 这类 key 会被 join() 归一化到工作树根之外再被递归删除
+  if (!parsed || !isSafeKeySegment(parsed.hash) || !isSafeKeySegment(parsed.dirname))
     return null
   const path = worktreePath(parsed.hash, parsed.dirname)
   return {
@@ -611,6 +613,11 @@ async function removalTarget(sessionId: string, key: string): Promise<RemovalTar
     binding: null,
     bound: false,
   }
+}
+
+/** key 的每一段都必须是单一目录名：不接受空串、`.`、`..` 与任何路径分隔符。 */
+function isSafeKeySegment(segment: string): boolean {
+  return Boolean(segment) && segment !== '.' && segment !== '..' && !segment.includes('/') && !segment.includes('\\')
 }
 
 function projectFromWorktree(path: string): string {

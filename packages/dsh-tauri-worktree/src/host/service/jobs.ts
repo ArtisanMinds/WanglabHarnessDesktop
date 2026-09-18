@@ -15,8 +15,13 @@ export const jobs = defineService({
     try {
       return parseJobs(readFileSync(join(DSH_HOME, JOBS_KEY), 'utf8'))
     }
-    catch {
-      return []
+    catch (error) {
+      // 只有「文件/目录不存在」才算空队列；其余读取失败必须让 recover() 报错，
+      // 否则未完成的删除任务会被当成不存在而永远不再续跑
+      const code = get(error, 'code')
+      if (code === 'ENOENT' || code === 'ENOTDIR')
+        return []
+      throw error
     }
   },
 
@@ -49,7 +54,9 @@ function parseJob(value: unknown): DiscardJob | null {
   if (typeof jobId !== 'string' || !jobId || typeof sessionId !== 'string' || typeof worktreeKey !== 'string')
     return null
   const worktreePath = typeof record.worktreePath === 'string' && record.worktreePath ? record.worktreePath : ''
-  const attempts = typeof record.attempts === 'number' && Number.isFinite(record.attempts) ? record.attempts : 0
+  const attempts = typeof record.attempts === 'number' && Number.isSafeInteger(record.attempts) && record.attempts >= 0
+    ? record.attempts
+    : 0
   const base = { jobId, sessionId, worktreeKey, ...(worktreePath ? { worktreePath } : {}), attempts }
   if (record.state === 'completed')
     return { ...base, state: 'completed' }

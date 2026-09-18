@@ -30,15 +30,18 @@ const defaultDependencies: RemoveDirectoryDependencies = {
   delay,
 }
 
-/** 枚举目录下的子目录名；目录不存在或不可读时返回空数组。 */
+/** 枚举目录下的子目录名；目录不存在时返回空数组，其余读取失败如实抛出交给调用方。 */
 export function listDirectoryNames(path: string): string[] {
   try {
     return readdirSync(path, { withFileTypes: true })
       .filter(entry => entry.isDirectory())
       .map(entry => entry.name)
   }
-  catch {
-    return []
+  catch (error) {
+    const code = get(error, 'code')
+    if (code === 'ENOENT' || code === 'ENOTDIR')
+      return []
+    throw error
   }
 }
 
