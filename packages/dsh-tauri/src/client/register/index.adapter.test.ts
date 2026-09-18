@@ -32,6 +32,27 @@ function makeContext(services: Record<string, unknown>): unknown {
   return { get: (name: string) => services[name] }
 }
 
+/** 可变 ObservableSnapshot：测试里能主动 publish，验证投影的订阅扇出与引用稳定。 */
+function makeLiveList<T>(initial: T): {
+  getSnapshot: () => T
+  subscribe: (listener: () => void) => () => void
+  publish: (next: T) => void
+} {
+  let value = initial
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => value,
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    publish: (next) => {
+      value = next
+      for (const listener of [...listeners]) listener()
+    },
+  }
+}
+
 /** 非空收窄（tsc / lint 友好的断言辅助，不用 `!`）。 */
 function requireAddWorkspace(adapter: ClientAdapter): AdapterAddWorkspaceRuntime {
   const runtime = adapter.resolveAddWorkspace()
@@ -428,5 +449,102 @@ describe('defineAdapter — openSession 能力', () => {
     expect(adapter.has('navigation.openSession')).toBe(false)
     expect(adapter.openSession('s-5').status).toBe('unavailable')
     expect(warn.mock.calls[0][0]).toContain('openSession unavailable')
+  })
+})
+
+describe('defineAdapter — 0.1.6-alpha.2 会话面投影', () => {
+  it('provideInfo：binding + uiSession.adapter.bindingSource 补出输入面', () => {
+    const inputActions = { submit: vi.fn() }
+    const binding = { sessionId: 's1' }
+    const source = makeLiveList({ key: 's1', props: { inputActions } })
+    const bindingSource = vi.fn(() => source)
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList(), binding: vi.fn(() => binding) },
+      uiSession: { adapter: { bindingSource, current: makeLiveList({ key: 's1' }) } },
+    }))
+
+    expect(adapter.migrations).toContain('sessions:provide-info-bridge')
+    expect(adapter.has('sessions.provideInfo')).toBe(true)
+    expect(adapter.sessions.provideInfo?.('s1')).toEqual({ props: { inputActions } })
+    expect(bindingSource).toHaveBeenCalledWith({ sessionId: 's1', binding })
+  })
+
+  it('provideInfo：未被保留（binding 缺席）的会话诚实回报不可用', () => {
+    const bindingSource = vi.fn()
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList(), binding: vi.fn(() => undefined) },
+      uiSession: { adapter: { bindingSource, current: makeLiveList({ key: undefined }) } },
+    }))
+
+    expect(adapter.sessions.provideInfo?.('s1')).toBeUndefined()
+    expect(bindingSource).not.toHaveBeenCalled()
+  })
+
+  it('current 投影：核心快照缺 current 时由 uiSession.adapter.current 补齐', () => {
+    const list = makeLiveList<Record<string, unknown>>({ ids: ['s1'], byId: {} })
+    const current = makeLiveList<{ key?: string }>({ key: 's1' })
+    const adapter = defineAdapter(makeContext({
+      sessions: { list },
+      uiSession: { adapter: { bindingSource: vi.fn(), current } },
+    }))
+
+    expect(adapter.migrations).toContain('sessions:current-projection')
+    const projected = adapter.sessions.list
+    expect(projected?.getSnapshot()).toEqual({ ids: ['s1'], byId: {}, current: 's1' })
+    // uSES 依赖 getSnapshot 引用稳定：同一份核心快照 + 同一个 current 必须返回同一对象
+    expect(projected?.getSnapshot()).toBe(projected?.getSnapshot())
+    // list 投影本身也引用稳定（消费方按引用比较 / 作为订阅源）
+    expect(adapter.sessions.list).toBe(projected)
+
+    // 订阅扇出：核心列表变化与 current 变化都要通知消费方
+    const listener = vi.fn()
+    const off = projected?.subscribe(listener)
+    list.publish({ ids: ['s1', 's2'], byId: {} })
+    expect(listener).toHaveBeenCalledTimes(1)
+    current.publish({ key: 's2' })
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(projected?.getSnapshot()).toEqual({ ids: ['s1', 's2'], byId: {}, current: 's2' })
+    off?.()
+    current.publish({ key: 's3' })
+    expect(listener).toHaveBeenCalledTimes(2)
+
+    // 顶层别名与 list 同源：老写法读 sessions.getSnapshot 也拿到 current
+    expect(adapter.sessions.getSnapshot?.()).toEqual({ ids: ['s1', 's2'], byId: {}, current: 's3' })
+  })
+
+  it('current 投影：0.1.5 布局（核心自带 current）不装投影，原样保留', () => {
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList({ ids: ['s1'], current: 's1' }) },
+      uiSession: { adapter: { current: makeList({ key: 's9' }) } },
+    }))
+
+    expect(adapter.migrations).not.toContain('sessions:current-projection')
+    expect(adapter.sessions.list?.getSnapshot()).toEqual({ ids: ['s1'], current: 's1' })
+  })
+
+  it('open 桥：0.1.6 布局下 sessions.open 由 uiWorkspace.openSession 补齐', () => {
+    const openSession = vi.fn()
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList() },
+      uiWorkspace: { openSession },
+    }))
+
+    expect(adapter.migrations).toContain('sessions:open-bridge')
+    adapter.sessions.open?.('s1')
+    expect(openSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('open 桥：原生 sessions.open 在场时不覆盖', () => {
+    const open = vi.fn()
+    const openSession = vi.fn()
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList(), open },
+      uiWorkspace: { openSession },
+    }))
+
+    expect(adapter.migrations).not.toContain('sessions:open-bridge')
+    adapter.sessions.open?.('s1')
+    expect(open).toHaveBeenCalledWith('s1')
+    expect(openSession).not.toHaveBeenCalled()
   })
 })
