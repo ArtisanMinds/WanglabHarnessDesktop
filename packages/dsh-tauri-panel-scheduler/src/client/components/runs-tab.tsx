@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react'
 import type { LocaleKey, Translate } from '../locales/index.types'
 import type { RunView } from '../types'
-import { IconCheckOutline16, IconCloseOutline16, IconLoadingOutline16, IconPauseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { Icon, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
+import { IconLoadingOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { CircleCheck, CircleDashed, CircleStop, CircleXmark, Icon, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
 import { RUNS_TAB_STYLE_ID } from '../constants'
 import runsTabStyle from './runs-tab.cssr'
 import { formatLocalTime } from './schedule.utils'
@@ -24,12 +24,12 @@ const STATUS_KEYS: Record<RunView['status'], LocaleKey> = {
 }
 
 const STATUS_ICONS = {
-  succeeded: IconCheckOutline16,
-  failed: IconCloseOutline16,
-  interrupted: IconCloseOutline16,
-  cancelled: IconPauseOutline16,
-  skipped: IconPauseOutline16,
-  queued: IconLoadingOutline16,
+  succeeded: CircleCheck,
+  failed: CircleXmark,
+  interrupted: CircleXmark,
+  cancelled: CircleStop,
+  skipped: CircleDashed,
+  queued: CircleDashed,
   running: IconLoadingOutline16,
 }
 
