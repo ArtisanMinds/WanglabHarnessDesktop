@@ -96,13 +96,14 @@ jobs:
 
           # 构建源必须以 **tag 指向的提交**为准：finalize 是 `gh release upload --clobber`，
           # 若构建源是别的提交（手动 dispatch 到另一个 ref，且版本号恰好相同），就会用
-          # 无关产物覆盖掉该版本已发布的离线包。tag 解析不到时退回触发运行的 head_sha
-          # ——自动路径（tag 推送 / release/* 合并）下两者本来就是同一个发布提交。
-          tag_commit="$(git rev-parse --verify --quiet "${tag}^{commit}" || true)"
-          if [ -z "$tag_commit" ]; then
-            tag_commit="$SOURCE_REF"
-            echo "::warning::cannot resolve tag $tag locally, building the offline bundle from $SOURCE_REF"
-          elif [ "$tag_commit" != "$SOURCE_REF" ]; then
+          # 无关产物覆盖掉该版本已发布的离线包。tag 解析不到时**直接失败**，不回退到
+          # 触发提交——GitHub 会在 tag ref 被删除后保留 release 记录，那时
+          # `gh release view` 成功而 `git rev-parse` 失败，回退同样会覆盖错版本。
+          if ! tag_commit="$(git rev-parse --verify --quiet "${tag}^{commit}")"; then
+            echo "::error::cannot resolve tag $tag locally, refusing to build an offline bundle that could overwrite the wrong release"
+            exit 1
+          fi
+          if [ "$tag_commit" != "$SOURCE_REF" ]; then
             echo "::warning::tag $tag points at $tag_commit, not the triggering commit $SOURCE_REF; building the offline bundle from the release commit"
           fi
           echo "source_ref=$tag_commit" >> "$GITHUB_OUTPUT"
