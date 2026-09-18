@@ -1,3 +1,4 @@
+export { default as Alarm } from '@gravity-ui/icons/Alarm'
 export { default as ArrowDownToLine } from '@gravity-ui/icons/ArrowDownToLine'
 export { default as ArrowLeft } from '@gravity-ui/icons/ArrowLeft'
 export { default as ArrowRight } from '@gravity-ui/icons/ArrowRight'
