@@ -80,13 +80,6 @@ jobs:
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
           tag="$TAG_INPUT"
-          # 手动指定 tag 时，构建源仍是当前 ref（dispatch 的 github.sha）。若两者不是
-          # 同一个发布，finalize 的 `gh release upload --clobber` 会用无关提交构建的产物
-          # 覆盖掉已发布版本的离线包。因此只接受与签出提交版本一致的 tag。
-          if [ -n "$tag" ] && [ "$tag" != "v$version" ]; then
-            echo "::error::tag $tag does not match the checked-out version v$version; the offline bundle must be built from the release commit it is uploaded to"
-            exit 1
-          fi
           if [ -z "$tag" ] && [[ "$RUN_HEAD_BRANCH" == v* ]]; then
             tag="$RUN_HEAD_BRANCH"
           fi
@@ -95,14 +88,27 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "source_ref=$SOURCE_REF" >> "$GITHUB_OUTPUT"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            echo "offline bundle target release: $tag ($version)"
-          else
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
             echo "should_build=false" >> "$GITHUB_OUTPUT"
             echo "::warning::release $tag does not exist yet, skipping the offline bundle build"
+            exit 0
           fi
+
+          # 构建源必须以 **tag 指向的提交**为准：finalize 是 `gh release upload --clobber`，
+          # 若构建源是别的提交（手动 dispatch 到另一个 ref，且版本号恰好相同），就会用
+          # 无关产物覆盖掉该版本已发布的离线包。tag 解析不到时退回触发运行的 head_sha
+          # ——自动路径（tag 推送 / release/* 合并）下两者本来就是同一个发布提交。
+          tag_commit="$(git rev-parse --verify --quiet "${tag}^{commit}" || true)"
+          if [ -z "$tag_commit" ]; then
+            tag_commit="$SOURCE_REF"
+            echo "::warning::cannot resolve tag $tag locally, building the offline bundle from $SOURCE_REF"
+          elif [ "$tag_commit" != "$SOURCE_REF" ]; then
+            echo "::warning::tag $tag points at $tag_commit, not the triggering commit $SOURCE_REF; building the offline bundle from the release commit"
+          fi
+          echo "source_ref=$tag_commit" >> "$GITHUB_OUTPUT"
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
+          echo "offline bundle target release: $tag ($version) from $tag_commit"
 
       - name: Resolve bundle metadata
         id: meta
