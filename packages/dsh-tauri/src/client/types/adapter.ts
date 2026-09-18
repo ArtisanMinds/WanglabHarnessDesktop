@@ -62,6 +62,8 @@ export interface AdapterWorkspaces extends AdapterRuntimeObject {
   connectWorkspace?: (workspaceId: AdapterWorkspaceId) => unknown
   /** 拉起宿主原生目录选择器（modern 原生 / legacy 在 `uiWorkspace` 上）。 */
   pickDirectory?: () => Promise<string | null | undefined>
+  /** 打开已有会话（0.1.6-alpha.2 起改由 `uiWorkspace.openSession` 承担，此处为兼容候选）。 */
+  open?: (sessionId: AdapterSessionId) => unknown
   archiveSession?: (...args: unknown[]) => unknown
   delete?: (...args: unknown[]) => unknown
 }
@@ -81,6 +83,14 @@ export interface AdapterAddWorkspaceRuntime {
 /** 跨版本导航入口（legacy 的 `startSession` 返回 void，modern 也返回 void）。 */
 export type AdapterStartSession = (workspaceId?: AdapterWorkspaceId) => unknown
 
+/**
+ * 跨版本「选中已有会话」入口。
+ *
+ * 落点随版本迁移：`≤0.1.5-rc.2` 在 `sessions.open`，`0.1.6-alpha.2` 收进
+ * `uiWorkspace.openSession` 并移除了 `sessions.open`。
+ */
+export type AdapterOpenSession = (sessionId: AdapterSessionId) => unknown
+
 /** 守卫安全的服务读取器（`ctx.get(name)` 优先，回退属性读取，异常即不可用）。 */
 export interface AdapterProbe {
   /** 读官方服务；Cordis 的 inject-only 守卫抛错时返回 undefined。 */
@@ -96,6 +106,7 @@ export interface AdapterSurface {
   uiWorkspace?: AdapterRuntimeObject
   uiSession?: AdapterRuntimeObject
   startSession?: AdapterStartSession
+  openSession?: AdapterOpenSession
   addWorkspace?: AdapterAddWorkspaceRuntime
 }
 
@@ -127,6 +138,7 @@ export type AdapterCapability
     | 'workspaces.list'
     | 'workspaces.create'
     | 'navigation.startSession'
+    | 'navigation.openSession'
     | 'navigation.addWorkspace'
     | 'dom.newSession'
     | 'dom.addWorkspace'
@@ -135,6 +147,11 @@ export type AdapterCapability
 export type AdapterStartSessionOutcome
   = | { status: 'started', value: unknown }
     | { status: 'delegated' }
+    | { status: 'unavailable', reason: string }
+
+/** `adapter.openSession()` 的结果：官方入口在场即打开，缺席明确回报不可用。 */
+export type AdapterOpenSessionOutcome
+  = | { status: 'opened', value: unknown }
     | { status: 'unavailable', reason: string }
 
 /** `adapter.addWorkspace()` 的结果：明确回报走了退级阶梯的哪一级。 */
@@ -175,10 +192,14 @@ export interface ClientAdapter {
   has: (capability: AdapterCapability) => boolean
   /** 解析出的官方「新建会话」入口；缺席返回 undefined（调用方自行退级）。 */
   resolveStartSession: () => AdapterStartSession | undefined
+  /** 解析出的官方「打开已有会话」入口；缺席返回 undefined（调用方自行退级）。 */
+  resolveOpenSession: () => AdapterOpenSession | undefined
   /** 解析出的官方「打开文件夹」能力；三段缺一返回 undefined。 */
   resolveAddWorkspace: () => AdapterAddWorkspaceRuntime | undefined
   /** 新建会话：官方服务 → 点官方按钮 → 明确回报不可用。 */
   startSession: (workspaceId?: AdapterWorkspaceId) => Promise<AdapterStartSessionOutcome>
+  /** 打开已有会话：官方服务 → 明确回报不可用。 */
+  openSession: (sessionId: AdapterSessionId) => AdapterOpenSessionOutcome
   /** 打开文件夹：官方三段能力全流程 → 点官方按钮 → 明确回报不可用。 */
   addWorkspace: (options?: AdapterAddWorkspaceOptions) => Promise<AdapterAddWorkspaceOutcome>
 }

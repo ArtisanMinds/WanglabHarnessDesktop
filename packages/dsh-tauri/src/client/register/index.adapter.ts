@@ -37,8 +37,10 @@ import type {
   AdapterGeneration,
   AdapterListProjection,
   AdapterMigrationFailure,
+  AdapterOpenSessionOutcome,
   AdapterProbe,
   AdapterRuntimeObject,
+  AdapterSessionId,
   AdapterSessions,
   AdapterStartSessionOutcome,
   AdapterSurface,
@@ -321,6 +323,33 @@ const NAVIGATION_MIGRATION: DshMigration = {
 }
 
 /**
+ * 跨布局：把「打开已有会话」收敛成 `surface.openSession`。
+ *
+ * 落点逐版本漂移：`≤0.1.5-rc.2` 在 `sessions.open`，`0.1.6-alpha.2` 收进
+ * `uiWorkspace.openSession` 并且不再暴露 `sessions.open`。与 `startSession` 同样逐个候选
+ * 找「真的实现了」的那一个，按能力而非版号判断。
+ */
+const NAVIGATION_OPEN_MIGRATION: DshMigration = {
+  id: 'navigation:resolve-open-session',
+  description: 'uiWorkspace.openSession ?? workspaces.open ?? sessions.open → surface.openSession',
+  detect: () => true,
+  apply(surface) {
+    const candidates: readonly (readonly [AdapterRuntimeObject | undefined, string])[] = [
+      [surface.uiWorkspace, 'openSession'],
+      [surface.workspaces, 'open'],
+      [surface.sessions, 'open'],
+    ]
+    for (const [owner, member] of candidates) {
+      const fn = owner?.[member]
+      if (owner !== undefined && typeof fn === 'function') {
+        surface.openSession = (sessionId: AdapterSessionId) => fn.call(owner, sessionId)
+        return
+      }
+    }
+  },
+}
+
+/**
  * 跨布局：「打开文件夹」三段能力聚合。
  *
  * 目录选择在 legacy 是 `uiWorkspace.pickDirectory`、modern 是 `workspaces.pickDirectory`；
@@ -357,7 +386,8 @@ const WORKSPACE_ADD_MIGRATION: DshMigration = {
 /**
  * 内置迁移（按序执行，后一条能看到前一条的投影）：
  * 1. 基线自动绑定 → 2. 会话列表投影别名 → 3. legacy `provideInfo` 兼容桥 →
- * 4. legacy 工作区导航投影 → 5. 跨布局导航解析 → 6. 跨布局「打开文件夹」解析。
+ * 4. legacy 工作区导航投影 → 5. 跨布局导航解析 → 6. 跨布局「打开会话」解析 →
+ * 7. 跨布局「打开文件夹」解析。
  * 消费方可用 `defineAdapter(ctx, { migrations })` 追加，追加项在最后执行。
  */
 export const DEFAULT_DSH_MIGRATIONS: readonly DshMigration[] = [
@@ -366,6 +396,7 @@ export const DEFAULT_DSH_MIGRATIONS: readonly DshMigration[] = [
   SESSIONS_PROVIDE_INFO_MIGRATION,
   LEGACY_WORKSPACES_MIGRATION,
   NAVIGATION_MIGRATION,
+  NAVIGATION_OPEN_MIGRATION,
   WORKSPACE_ADD_MIGRATION,
 ]
 
@@ -413,6 +444,17 @@ async function runStartSession(
   const reason = 'no workspace navigation service and no official new-session button'
   warn(`[dsh-adapter] startSession unavailable: ${reason}`)
   return { status: 'unavailable', reason }
+}
+
+/** 打开已有会话：官方入口在场即打开；会话导航没有 DOM 退级目标，缺席只能明确回报。 */
+function runOpenSession(surface: AdapterSurface, sessionId: AdapterSessionId, warn: AdapterWarn): AdapterOpenSessionOutcome {
+  const open = surface.openSession
+  if (open === undefined) {
+    const reason = 'no uiWorkspace.openSession / workspaces.open / sessions.open capability'
+    warn(`[dsh-adapter] openSession unavailable: ${reason}`)
+    return { status: 'unavailable', reason }
+  }
+  return { status: 'opened', value: open(sessionId) }
 }
 
 /** 打开文件夹：官方三段能力全流程 → 点官方按钮 → 明确回报不可用；目录选择器取消是正常结果。 */
@@ -493,6 +535,7 @@ export function defineAdapter(ctx: unknown, options: DefineAdapterOptions = {}):
     'workspaces.list': () => typeof workspaces.list?.getSnapshot === 'function',
     'workspaces.create': () => typeof workspaces.create === 'function',
     'navigation.startSession': () => surface.startSession !== undefined,
+    'navigation.openSession': () => surface.openSession !== undefined,
     'navigation.addWorkspace': () => surface.addWorkspace !== undefined,
     'dom.newSession': () => typeof document !== 'undefined' && document.querySelector(NEW_SESSION_SELECTOR) !== null,
     'dom.addWorkspace': () => typeof document !== 'undefined' && document.querySelector(ADD_WORKSPACE_SELECTOR) !== null,
@@ -508,8 +551,10 @@ export function defineAdapter(ctx: unknown, options: DefineAdapterOptions = {}):
     service,
     has: capability => capabilityChecks[capability](),
     resolveStartSession: () => surface.startSession,
+    resolveOpenSession: () => surface.openSession,
     resolveAddWorkspace: () => surface.addWorkspace,
     startSession: workspaceId => runStartSession(surface, workspaceId, warn),
+    openSession: sessionId => runOpenSession(surface, sessionId, warn),
     addWorkspace: callOptions => runAddWorkspace(surface, callOptions, warn),
   }
 }

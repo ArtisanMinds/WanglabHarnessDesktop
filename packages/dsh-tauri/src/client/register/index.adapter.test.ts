@@ -381,3 +381,52 @@ describe('defineAdapter — 迁移注册表', () => {
     expect(adapter.has('navigation.startSession')).toBe(true)
   })
 })
+
+describe('defineAdapter — openSession 能力', () => {
+  it('0.1.6-alpha.2 布局：导航落在 uiWorkspace.openSession', () => {
+    const openSession = vi.fn()
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList() },
+      workspaces: { list: makeList(), open: vi.fn() },
+      uiWorkspace: { openSession },
+    }))
+
+    expect(adapter.migrations).toContain('navigation:resolve-open-session')
+    expect(adapter.has('navigation.openSession')).toBe(true)
+    expect(adapter.openSession('s-2').status).toBe('opened')
+    expect(openSession).toHaveBeenCalledWith('s-2')
+  })
+
+  it('初始候选缺席时：workspaces.open 优先于 sessions.open', () => {
+    const workspaceOpen = vi.fn()
+    const sessionOpen = vi.fn()
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList(), open: sessionOpen },
+      workspaces: { list: makeList(), open: workspaceOpen },
+    }))
+
+    adapter.openSession('s-3')
+    expect(workspaceOpen).toHaveBeenCalledWith('s-3')
+    expect(sessionOpen).not.toHaveBeenCalled()
+  })
+
+  it('旧核心：uiWorkspace 缺席时回退 sessions.open', () => {
+    const open = vi.fn()
+    const adapter = defineAdapter(makeContext({
+      sessions: { list: makeList(), open },
+    }))
+
+    expect(adapter.resolveOpenSession()).toBeDefined()
+    expect(adapter.openSession('s-4').status).toBe('opened')
+    expect(open).toHaveBeenCalledWith('s-4')
+  })
+
+  it('能力全缺：明确回报 unavailable 并告警', () => {
+    const warn = makeWarn()
+    const adapter = defineAdapter(makeContext({ sessions: { list: makeList() } }), { onWarn: warn })
+
+    expect(adapter.has('navigation.openSession')).toBe(false)
+    expect(adapter.openSession('s-5').status).toBe('unavailable')
+    expect(warn.mock.calls[0][0]).toContain('openSession unavailable')
+  })
+})
