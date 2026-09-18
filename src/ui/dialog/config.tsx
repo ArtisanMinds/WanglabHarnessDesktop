@@ -16,7 +16,13 @@ import { ConfigDebug } from '@/ui/config/debug'
 import { ConfigPlugin } from '@/ui/config/plugin'
 import { ConfigProfile } from '@/ui/config/profile'
 
-export interface ConfigDialogProps extends PropsWithOverlays {}
+/** 配置面板标识（左侧导航与顶部「配置」菜单共用同一组值） */
+export type ConfigTab = 'application' | 'profiles' | 'plugins' | 'harness'
+
+export interface ConfigDialogProps extends PropsWithOverlays {
+  /** 打开时定位到的面板；缺省为「应用」 */
+  tab?: ConfigTab
+}
 
 export function ConfigDialog(props: ConfigDialogProps) {
   const disclosure = useDisclosure({ props })
@@ -29,14 +35,14 @@ export function ConfigDialog(props: ConfigDialogProps) {
   })
   const abnormalCount = plugins.filter(p => p.error != null).length
 
-  const navs = [
+  const navs: { label: string, value: ConfigTab, icon: typeof Cpu }[] = [
     { label: t('config.application'), value: 'application', icon: LogoWindows },
     { label: t('config.profiles'), value: 'profiles', icon: PersonPencil },
     { label: t('config.plugins'), value: 'plugins', icon: Puzzle },
     { label: t('config.harness'), value: 'harness', icon: Cpu },
   ]
 
-  const [activeTab, setActiveTab] = useState('application')
+  const [activeTab, setActiveTab] = useState<ConfigTab>(props.tab ?? 'application')
 
   // 服务重启/退出前由 store 触发，命令式收起本对话框（卸载时自动注销）
   useListener(hooks['config.dialog.hidden'].on, disclosure.cancel)

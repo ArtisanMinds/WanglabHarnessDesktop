@@ -1,4 +1,5 @@
 import type { DshPlugin } from '@/types'
+import type { ConfigTab } from '@/ui/dialog/config'
 import {
   LayoutSideContent,
   LayoutSideContentLeft,
@@ -41,6 +42,8 @@ import { toast } from '@/utils/toast'
  * - 文件：新建窗口（Tauri 再开一个 webview）/ 新聊天、打开文件夹（经协议调用 dsh 官方
  *   「新建会话」「添加工作区」，接收方是 dsh-tauri 的 `client/register/navigation.ts`）/
  *   关闭（隐藏到托盘）/ 退出（完整退出）。两条依赖 iframe 的项在回调缺席时禁用。
+ * - 配置：应用 / 档案 / 插件 / 核心，直接打开配置对话框并定位到对应面板
+ *   （对话框与角标见 `ui/dialog/config.tsx`）。
  * - 帮助：运行日志 / 检查更新 / 关于 Desktop / 文档（系统浏览器打开官方文档站）。
  * - 空白拖拽区：Tauri 原生 `data-tauri-drag-region`（顶层文档直接生效），
  *   Windows/Linux 上双击切换最大化，macOS 上交由系统标题栏偏好。
@@ -74,6 +77,14 @@ type FileAction = 'new-window' | 'new-chat' | 'open-folder' | 'close' | 'quit'
 
 /** 「帮助」菜单的动作 id。 */
 type HelpAction = 'copy-run-logs' | 'check-update' | 'about' | 'documentation'
+
+/** 「配置」菜单项：直接打开配置对话框并定位到对应面板。 */
+const CONFIG_TABS: { id: ConfigTab, labelKey: string }[] = [
+  { id: 'application', labelKey: 'config.application' },
+  { id: 'profiles', labelKey: 'config.profiles' },
+  { id: 'plugins', labelKey: 'config.plugins' },
+  { id: 'harness', labelKey: 'config.harness' },
+]
 
 /** WKWebView 的 macOS UA 稳定包含 Macintosh，用于切换平台原生窗口 chrome。 */
 function detectMacOS() {
@@ -255,8 +266,8 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     }
   }
 
-  function handleOpenConfig() {
-    void openConfigDialog().catch(() => { })
+  function handleOpenConfig(tab?: ConfigTab) {
+    void openConfigDialog({ tab }).catch(() => { })
   }
 
   function handleOpenAbout() {
@@ -419,14 +430,31 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               </Dropdown.Menu>
             </Dropdown.Popover>
           </Dropdown>
-          <Button
-            className="rounded-lg h-6 text-xs px-1.5"
-            size="sm"
-            variant="ghost"
-            onPress={handleOpenConfig}
-          >
-            {t('app.config')}
-          </Button>
+          <Dropdown>
+            <Button
+              className="rounded-lg h-6 text-xs px-1.5"
+              size="sm"
+              variant="ghost"
+              aria-label={t('app.config')}
+            >
+              {t('app.config')}
+            </Button>
+            <Dropdown.Popover className="rounded-md w-5!">
+              <Dropdown.Menu>
+                {CONFIG_TABS.map(item => (
+                  <Dropdown.Item
+                    key={item.id}
+                    className="rounded-md"
+                    id={item.id}
+                    textValue={t(item.labelKey)}
+                    onAction={() => handleOpenConfig(item.id)}
+                  >
+                    <Label>{t(item.labelKey)}</Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
           <Dropdown>
             <Button
               className="rounded-lg h-6 text-xs px-1.5"
