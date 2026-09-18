@@ -474,15 +474,15 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                       {probe.api === TEMPLATE_COMPAT_PROTOCOL
                         ? (
                             <div className={styles.modelField}>
-                              <span className={styles.modelFieldLabel} title={t('templateThinkingHint')}>
-                                {t('templateThinking')}
+                              <span className={styles.modelFieldLabel} title={t('developerRoleHint')}>
+                                {t('developerRole')}
                               </span>
                               <div className={styles.modelSwitchRow}>
                                 <Switch
                                   checked={supportsTemplateThinking(model)}
                                   disabled={disabled}
-                                  label={`${t('templateThinking')} ${index + 1}`}
-                                  title={t('templateThinkingHint')}
+                                  label={`${t('developerRole')} ${index + 1}`}
+                                  title={t('developerRoleHint')}
                                   onChange={(next) => { patch(index, { compat: templateThinkingCompat(model, next) }) }}
                                 />
                               </div>

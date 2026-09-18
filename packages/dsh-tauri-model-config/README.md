@@ -22,7 +22,7 @@
 | 面板标题右侧（`.zGbnIq_title`） | **打开配置文件**：用系统默认程序打开 `$DSH_HOME/settings.yaml`；文件尚未创建时改为打开它所在目录 |
 | 单个模型行（`.zGbnIq_modelRow`） | **获取配置**：仅在该条目只有 `id`/`name`/`description` 时出现，按 `id` 从提供方端点读取该模型的上下文与输出上限 |
 | 模型目录标题（`.zGbnIq_modelCatalogHeading`） | 追加 `flex: 1`（按钮集中到右侧），并在右侧加入 **自动配置所有模型**；pi-ai 提供方与官方 DeepSeek 模型目录都有这个入口 |
-| 单个模型高级区（`.zGbnIq_modelAdvanced`） | **支持图片输入** 开关 → `input` 声明；**思考模式** 开关 → `reasoningEfforts` 声明，打开后可按档位勾选；**本地端点思考** 开关 → `compat` 声明（仅路由显式声明 `openai-completions` 时出现） |
+| 单个模型高级区（`.zGbnIq_modelAdvanced`） | **图片输入** 开关 → `input` 声明；**思考模式** 开关 → `reasoningEfforts` 声明，打开后可按档位勾选；**关闭 Developer 角色** 开关 → `compat` 声明（仅路由显式声明 `openai-completions` 时出现） |
 
 高级区里的开关统一由 `.zGbnIq_modelSwitchRow` 包裹（`display: flex` + `height: 32px` + 垂直居中），与相邻的 32px 文本输入框对齐。
 
@@ -87,13 +87,13 @@
 开关只表达两种**显式声明**：`false`（不支持）与档位对象（支持）。`reasoningEfforts` 缺席表示「继承默认」，
 此时开关读为关，与图片开关同一口径。
 
-### 本地端点思考
+### 关闭 Developer 角色
 
 声明了档位不等于档位能到端点。pi-ai 默认把档位放进顶层的 `reasoning_effort`，并在模型有思考能力时
 把系统提示的角色从 `system` 换成 `developer`；而 vLLM 这类 OpenAI 兼容端点从 `chat_template_kwargs`
 读思考参数、也不认 `developer`，于是出现「档位选了没反应」与「整轮 400 `Unexpected message role.`」。
 
-**本地端点思考** 开关把这类端点需要的三项事实一次写进该模型的 `compat`：
+**关闭 Developer 角色** 开关把这类端点需要的三项事实一次写进该模型的 `compat`：
 
 ```yaml
 compat:
@@ -120,4 +120,4 @@ compat:
 - 图片能力既不在官方发现通道的返回里，也没有跨厂商的端点字段：它来自模型能力表，表里没有的靠家族规则。两者都是社区口径的近似值，用户随时可以在高级区改；单行「获取配置」也不会覆盖手写值。
 - 能力表需要一次网络请求（约 2.6 MB 的原始数据集，压成 72 KB 落盘，一天内不再请求）。离线且从未下载过时，只剩家族规则能补图片/思考，容量仍由端点清单提供。
 - 档位只提供官方词表内的勾选，线值固定等于档位名；端点要求特殊线值时改设置文档即可。
-- 「本地端点思考」写的是一组固定的 `compat`：参数名 `reasoning_effort`、下发格式 `chat-template`。端点要求别的参数名（例如 `enable_thinking`）或别的下发格式时，改设置文档即可；开关只表达它写入的这一组。
+- 「关闭 Developer 角色」写的是一组固定的 `compat`：参数名 `reasoning_effort`、下发格式 `chat-template`。端点要求别的参数名（例如 `enable_thinking`）或别的下发格式时，改设置文档即可；开关只表达它写入的这一组。
