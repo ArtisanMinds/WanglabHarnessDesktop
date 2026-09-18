@@ -121,14 +121,13 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
 const ADVANCED_AREA_STYLE: CSSProperties = { paddingLeft: 0, paddingRight: 0 }
 
 /**
- * 高级区首行横跨整个栅格，左右各占一半宽度：左半边是两个容量输入（各占四分之一），右半边是三个
- * 开关——开关按内容宽度排布、不做拉伸，容器再左移 4px 与上方对齐。
+ * 高级区首行横跨整个栅格：左半边是两个容量输入（彼此等宽），容量组本身按内容宽度；右半边是三个
+ * 开关，开关组吃掉剩余宽度——开关按内容宽度排布、不做拉伸，容器另加 4px 左外边距。
  *
- * `minWidth: 0` 是必须的：文本输入自带约 20 字符的固有宽度，flex 项的自动最小尺寸会让它拒绝
- * 收缩到四分之一的宽度。
+ * `minWidth: 0` 是必须的：文本输入自带约 20 字符的固有宽度，flex 项的自动最小尺寸会让它拒绝收缩。
  */
 const ADVANCED_ROW_STYLE: CSSProperties = { display: 'flex', gap: '6px', gridColumn: '1 / -1' }
-const ADVANCED_CAPACITIES_STYLE: CSSProperties = { display: 'flex', gap: '6px', flex: 1, minWidth: 0 }
+const ADVANCED_CAPACITIES_STYLE: CSSProperties = { display: 'flex', gap: '6px', minWidth: 0 }
 const ADVANCED_CAPACITY_STYLE: CSSProperties = { flex: 1, minWidth: 0 }
 const ADVANCED_SWITCHES_STYLE: CSSProperties = { display: 'flex', gap: '6px', flex: 1, minWidth: 0, marginLeft: '4px' }
 
