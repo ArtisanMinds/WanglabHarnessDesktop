@@ -4,9 +4,25 @@ const { c, bem: { b, e, m } } = cssr
 const { primary, secondary, tertiary, borderL2: border, business, layer1, layer3, hover } = sharedStyles
 
 export default b('extension', [
-  e('intro', { margin: '0', fontSize: '13px', lineHeight: '20px', color: tertiary }),
+  e('intro', { margin: '0', fontSize: '12px', lineHeight: '18px', color: tertiary }),
   e('empty', { margin: '0', fontSize: '13px', lineHeight: '20px', color: tertiary }),
   e('spacer', { flex: '1' }),
+  e('head', {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    flexWrap: 'wrap',
+  }, [
+    c('& h3', { margin: '0', fontSize: '16px', lineHeight: '24px', fontWeight: '500' }),
+  ]),
+  e('head-icon', {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 'none',
+    width: '22px',
+    height: '22px',
+  }),
   e('search', {
     width: '200px',
     boxSizing: 'border-box',

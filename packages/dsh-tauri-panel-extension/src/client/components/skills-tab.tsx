@@ -189,7 +189,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
   return (
     <div className="dshp-extension__section">
       <div className="dshp-extension__head">
-        <Icon as={GraduationCap} />
+        <span className="dshp-extension__head-icon"><Icon as={GraduationCap} size={16} /></span>
         <h3>{t('skillsTitle')}</h3>
         <span className="dshp-extension__spacer" />
         <Button variant="ghost" size="sm" onClick={() => void doOpen({ target: 'user-skills' })}>{t('openUserSkills')}</Button>

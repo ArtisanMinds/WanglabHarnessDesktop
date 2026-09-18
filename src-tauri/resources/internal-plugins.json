@@ -38,7 +38,7 @@
     "id": "dsh-tauri-panel-extension",
     "spec": "dsh-tauri-panel-extension",
     "name": "DSH Tauri Panel Extension",
-    "description": "Skills and MCP management in the DeepSeek Harness desktop extension panel.",
+    "description": "Skills, MCP, and the plugin market in the DeepSeek Harness desktop extension panel.",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-panel-extension"
   },
   {
