@@ -1,6 +1,6 @@
 import type { ClientContext, PanelHandle } from 'dsh-tauri/client'
 import type { Translate } from '../locales/index.types'
-import { Calendar, Icon, PanelWidthSync } from 'dsh-tauri-ui/client'
+import { Calendar, Icon, PanelPage } from 'dsh-tauri-ui/client'
 import { definePanel, defineRegister } from 'dsh-tauri/client'
 import { SchedulerPanel } from '../components/scheduler-panel'
 import { PANEL_ACTION_ORDER, PANEL_ID } from '../constants'
@@ -18,7 +18,7 @@ export const panelFeature = defineRegister<ClientContext>((controller, ctx) => {
     label: () => locale.text('scheduler'),
     icon: props => <Icon as={Calendar} size={props.size} />,
     render: () => (
-      <PanelWidthSync>
+      <PanelPage>
         <SchedulerPanel
           t={t}
           onViaChat={() => {
@@ -26,7 +26,7 @@ export const panelFeature = defineRegister<ClientContext>((controller, ctx) => {
             holder.current?.close()
           }}
         />
-      </PanelWidthSync>
+      </PanelPage>
     ),
   })
   controller.add(holder.current.dispose)

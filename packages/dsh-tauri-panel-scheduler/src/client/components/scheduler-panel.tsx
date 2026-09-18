@@ -93,7 +93,6 @@ export function SchedulerPanel({ t, onViaChat }: SchedulerPanelProps): ReactElem
               onChange={event => setSearch(event.target.value)}
             />
           </div>
-          <div className="dshp-scheduler__toolbar-spacer" />
           <button className="dshp-scheduler__btn" type="button" onClick={onViaChat}>
             <Icon as={CommentPlus} />
             {t('viaChat')}
