@@ -41,6 +41,7 @@ import type {
   AdapterProbe,
   AdapterRuntimeObject,
   AdapterSessionId,
+  AdapterSessionList,
   AdapterSessions,
   AdapterStartSessionOutcome,
   AdapterSurface,
@@ -446,6 +447,27 @@ async function runStartSession(
   return { status: 'unavailable', reason }
 }
 
+/**
+ * 读官方会话列表投影。
+ *
+ * 归档是「从列表里消失」而不是某个状态位，所以消费方只能靠 `ids` 判断会话还在不在。
+ * 快照形态不合预期时返回 undefined，由调用方按「无法判断」退级，而不是猜一个结论。
+ */
+function readSessionList(surface: AdapterSurface): AdapterSessionList | undefined {
+  const list = surface.sessions?.list
+  if (list === undefined)
+    return undefined
+  const value = list.getSnapshot()
+  if (value === null || typeof value !== 'object')
+    return undefined
+  const record = value as { ids?: unknown, current?: unknown }
+  return {
+    ids: Array.isArray(record.ids) ? record.ids.filter((id): id is string => typeof id === 'string') : [],
+    ...(typeof record.current === 'string' ? { current: record.current } : {}),
+    subscribe: listener => list.subscribe(listener),
+  }
+}
+
 /** 打开已有会话：官方入口在场即打开；会话导航没有 DOM 退级目标，缺席只能明确回报。 */
 function runOpenSession(surface: AdapterSurface, sessionId: AdapterSessionId, warn: AdapterWarn): AdapterOpenSessionOutcome {
   const open = surface.openSession
@@ -552,6 +574,7 @@ export function defineAdapter(ctx: unknown, options: DefineAdapterOptions = {}):
     has: capability => capabilityChecks[capability](),
     resolveStartSession: () => surface.startSession,
     resolveOpenSession: () => surface.openSession,
+    sessionList: () => readSessionList(surface),
     resolveAddWorkspace: () => surface.addWorkspace,
     startSession: workspaceId => runStartSession(surface, workspaceId, warn),
     openSession: sessionId => runOpenSession(surface, sessionId, warn),

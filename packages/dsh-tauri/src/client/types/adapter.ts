@@ -80,6 +80,21 @@ export interface AdapterAddWorkspaceRuntime {
   startSession: (workspaceId: AdapterWorkspaceId) => unknown
 }
 
+/**
+ * 官方会话列表的稳定投影。
+ *
+ * 这是判断「某条会话是否还在」的唯一官方依据：归档的会话会直接从 `ids` 消失，
+ * 而不是被标记成某个状态。
+ */
+export interface AdapterSessionList {
+  /** 官方活动会话 id（已归档的不在其中）。 */
+  ids: readonly AdapterSessionId[]
+  /** 当前选中的会话 id。 */
+  current?: AdapterSessionId
+  /** 订阅列表变化。 */
+  subscribe: (listener: () => void) => () => void
+}
+
 /** 跨版本导航入口（legacy 的 `startSession` 返回 void，modern 也返回 void）。 */
 export type AdapterStartSession = (workspaceId?: AdapterWorkspaceId) => unknown
 
@@ -194,6 +209,8 @@ export interface ClientAdapter {
   resolveStartSession: () => AdapterStartSession | undefined
   /** 解析出的官方「打开已有会话」入口；缺席返回 undefined（调用方自行退级）。 */
   resolveOpenSession: () => AdapterOpenSession | undefined
+  /** 读官方会话列表投影；列表能力缺席时返回 undefined（调用方按「无法判断」处理）。 */
+  sessionList: () => AdapterSessionList | undefined
   /** 解析出的官方「打开文件夹」能力；三段缺一返回 undefined。 */
   resolveAddWorkspace: () => AdapterAddWorkspaceRuntime | undefined
   /** 新建会话：官方服务 → 点官方按钮 → 明确回报不可用。 */
