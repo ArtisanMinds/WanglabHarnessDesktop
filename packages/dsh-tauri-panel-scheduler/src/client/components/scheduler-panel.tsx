@@ -19,7 +19,7 @@ import { TaskCreateDialog } from './task-create-dialog'
 interface SchedulerPanelProps {
   t: Translate
   onViaChat: () => void
-  onOpenSession: (sessionId: string) => boolean
+  onOpenSession: (sessionId: string) => 'opened' | 'archived' | 'unavailable'
 }
 
 /** 对话框状态：手动创建（无 initial/taskId）、编辑（taskId + initial）、推荐（initial）。 */
@@ -77,10 +77,21 @@ export function SchedulerPanel({ t, onViaChat, onOpenSession }: SchedulerPanelPr
     isEmpty(search) || includes(lowerCase(`${task.name} ${task.prompt}`), lowerCase(search)))
   const filteredRuns = filter(state.runs, run =>
     isEmpty(search) || includes(lowerCase(run.taskName), lowerCase(search)))
-  const unread = countUnreadRuns(state.runs, state.readAt)
+  const unread = countUnreadRuns(state.runs, state.readAt, state.readIds)
 
   function onOpenRun(run: RunView): void {
-    if (run.sessionId === undefined || !onOpenSession(run.sessionId)) {
+    // 点开即视为看过：归档或不可用也不留下永远消不掉的未读。
+    store.scheduler.markRunRead(run.id)
+    if (run.sessionId === undefined) {
+      setOpenError(t('openRunFailed'))
+      return
+    }
+    const outcome = onOpenSession(run.sessionId)
+    if (outcome === 'archived') {
+      setOpenError(t('runSessionArchived'))
+      return
+    }
+    if (outcome === 'unavailable') {
       setOpenError(t('openRunFailed'))
       return
     }
@@ -177,6 +188,7 @@ export function SchedulerPanel({ t, onViaChat, onOpenSession }: SchedulerPanelPr
               t={t}
               runs={filteredRuns}
               readAt={state.readAt}
+              readIds={state.readIds}
               emptyLabel={search ? t('noMatchRuns') : t('emptyRuns')}
               onOpen={onOpenRun}
               onDelete={id => void deleteRun(id)}

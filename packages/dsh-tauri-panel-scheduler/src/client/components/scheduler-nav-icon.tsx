@@ -9,7 +9,7 @@ export function SchedulerNavIcon({ size }: { size: number }): ReactElement {
   return (
     <>
       <Icon as={Calendar} size={size} />
-      {countUnreadRuns(state.runs, state.readAt) > 0
+      {countUnreadRuns(state.runs, state.readAt, state.readIds) > 0
         ? (
             <span className="dshp-scheduler__nav-badge">
               <span className="dshp-scheduler__unread-dot" />

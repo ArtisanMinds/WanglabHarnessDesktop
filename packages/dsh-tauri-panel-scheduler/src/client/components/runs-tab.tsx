@@ -10,6 +10,7 @@ export interface RunsTabProps {
   t: Translate
   runs: readonly RunView[]
   readAt: number
+  readIds: readonly string[]
   emptyLabel: string
   onOpen: (run: RunView) => void
   onDelete: (id: string) => void
@@ -35,7 +36,7 @@ const STATUS_ICONS = {
   running: Alarm,
 }
 
-export function RunsTab({ t, runs, readAt, emptyLabel, onOpen, onDelete }: RunsTabProps): ReactElement {
+export function RunsTab({ t, runs, readAt, readIds, emptyLabel, onOpen, onDelete }: RunsTabProps): ReactElement {
   useMountStyle(runsTabStyle, RUNS_TAB_STYLE_ID)
   if (runs.length === 0)
     return <p className="dshp-scheduler__empty">{emptyLabel}</p>
@@ -57,7 +58,7 @@ export function RunsTab({ t, runs, readAt, emptyLabel, onOpen, onDelete }: RunsT
           <div style={{ flex: 1, minWidth: 0 }}>
             <span className="dshp-scheduler__card-title" title={run.taskName}>
               {run.taskName}
-              {isRunUnread(run, readAt) ? <span className="dshp-scheduler__unread-dot" /> : null}
+              {isRunUnread(run, readAt, readIds) ? <span className="dshp-scheduler__unread-dot" /> : null}
             </span>
             <div className="dshp-scheduler__card-meta">
               <span className="dshp-scheduler__card-meta-text">{formatLocalTime(run.startedAt) ?? ''}</span>

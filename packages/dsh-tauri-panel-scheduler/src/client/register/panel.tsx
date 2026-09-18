@@ -21,6 +21,16 @@ export const panelFeature = defineRegister<ClientContext>((controller, ctx, adap
   }, REFRESH_INTERVAL_MS)
   controller.add(() => clearInterval(timer))
 
+  // 在会话区点开某条运行记录的会话时，同步消掉这条记录的未读。
+  const sessionList = adapter.sessionList()
+  if (sessionList !== undefined) {
+    controller.add(sessionList.subscribe(() => {
+      const current = adapter.sessionList()?.current
+      if (current !== undefined)
+        store.scheduler.markSessionRead(current)
+    }))
+  }
+
   holder.current = definePanel(ctx, {
     id: PANEL_ID,
     order: PANEL_ACTION_ORDER,
@@ -36,10 +46,14 @@ export const panelFeature = defineRegister<ClientContext>((controller, ctx, adap
             holder.current?.close()
           }}
           onOpenSession={(sessionId) => {
+            // 归档的会话会从官方活动列表里消失，放行只会落到空白初始页，所以先拦下。
+            const listed = adapter.sessionList()?.ids
+            if (listed !== undefined && !listed.includes(sessionId))
+              return 'archived'
             if (adapter.openSession(sessionId).status === 'unavailable')
-              return false
+              return 'unavailable'
             holder.current?.close()
-            return true
+            return 'opened'
           }}
         />
       </PanelPage>
