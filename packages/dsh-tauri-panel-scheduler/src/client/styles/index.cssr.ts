@@ -43,7 +43,7 @@ export default c([
   c('.dshp-scheduler__card:hover', { background: hover }),
   c('.dshp-scheduler__card--paused', { opacity: '.6' }),
   c('.dshp-scheduler__card-title', { display: 'flex', alignItems: 'center', gap: '8px', margin: '0', fontSize: '13px', lineHeight: '18px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
-  c('.dshp-scheduler__card-icon', { flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', fontSize: '16px', color: 'var(--dsw-alias-state-business-primary)' }),
+  c('.dshp-scheduler__card-icon', { flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginTop: '2px', width: '16px', height: '16px', fontSize: '16px', color: 'var(--dsw-alias-state-business-primary)' }),
   c('.dshp-scheduler__card-icon[data-status="succeeded"]', { color: success }),
   c('.dshp-scheduler__card-icon[data-status="failed"],.dshp-scheduler__card-icon[data-status="interrupted"]', { color: error }),
   c('.dshp-scheduler__card-icon[data-status="running"],.dshp-scheduler__card-icon[data-status="queued"]', { color: secondary }),
