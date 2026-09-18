@@ -117,6 +117,9 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
   maxTokens: '32K',
 }
 
+/** 上游给高级区留了 4px 左右内边距，会让首行比上面的模型行窄 8px、左边缘再右移 4px；这里去掉它。 */
+const ADVANCED_AREA_STYLE: CSSProperties = { paddingLeft: 0, paddingRight: 0 }
+
 /**
  * 高级区首行横跨整个栅格，左右各占一半宽度：左半边是两个容量输入（各占四分之一），右半边是三个
  * 开关——开关按内容宽度排布、不做拉伸，容器再左移 4px 与上方对齐。
@@ -130,7 +133,7 @@ const ADVANCED_CAPACITY_STYLE: CSSProperties = { flex: 1, minWidth: 0 }
 const ADVANCED_SWITCHES_STYLE: CSSProperties = { display: 'flex', gap: '6px', flex: 1, minWidth: 0, marginLeft: '4px' }
 
 /**
- * 「本地端点思考」开关只对 chat completions 协议有意义。
+ * 「关闭 Developer 角色」开关只对 chat completions 协议有意义。
  *
  * pi-ai 的 compat 是逐协议校验的：`thinkingFormat` 与 `chatTemplateKwargs` 只有
  * `openai-completions` 收，写到 Responses 或 Anthropic 路由的模型上会让整段配置解析失败。
@@ -421,7 +424,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           </div>
           {expanded.has(index)
             ? (
-                <div className={styles.modelAdvanced}>
+                <div className={styles.modelAdvanced} style={ADVANCED_AREA_STYLE}>
                   <div style={ADVANCED_ROW_STYLE}>
                     <div style={ADVANCED_CAPACITIES_STYLE}>
                       <label className={styles.modelField} style={ADVANCED_CAPACITY_STYLE}>
