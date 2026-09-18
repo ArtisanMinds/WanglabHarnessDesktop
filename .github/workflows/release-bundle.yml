@@ -80,6 +80,13 @@ jobs:
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
           tag="$TAG_INPUT"
+          # 手动指定 tag 时，构建源仍是当前 ref（dispatch 的 github.sha）。若两者不是
+          # 同一个发布，finalize 的 `gh release upload --clobber` 会用无关提交构建的产物
+          # 覆盖掉已发布版本的离线包。因此只接受与签出提交版本一致的 tag。
+          if [ -n "$tag" ] && [ "$tag" != "v$version" ]; then
+            echo "::error::tag $tag does not match the checked-out version v$version; the offline bundle must be built from the release commit it is uploaded to"
+            exit 1
+          fi
           if [ -z "$tag" ] && [[ "$RUN_HEAD_BRANCH" == v* ]]; then
             tag="$RUN_HEAD_BRANCH"
           fi
