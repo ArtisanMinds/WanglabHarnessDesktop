@@ -87,5 +87,7 @@ export default c([
     flex: 'none',
     marginRight: '2px',
   }),
+  // 侧栏折叠（AppFrame data-sidebar-collapsed）时入口按钮整体隐藏。
+  c('[data-sidebar-collapsed] .dshp-pet__icon-button', { display: 'none' }),
 
 ])
