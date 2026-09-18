@@ -11,6 +11,8 @@ const DISCARD_RETRY_ATTEMPTS = 3
 
 const DISCARD_RETRY_DELAY_MS = 2_000
 
+const PERSIST_RETRY_DELAY_MS = 10_000
+
 /** 一轮三连失败后的等待梯度：句柄往往几秒后就释放了，但卡死的目录不该被无限猛冲。 */
 const RETRY_BACKOFF_MS = [5_000, 15_000, 45_000, 120_000, 300_000] as const
 
@@ -19,6 +21,7 @@ const inFlight = new Map<string, Promise<DiscardJob>>()
 const runners = new Map<string, () => Promise<OperationResult>>()
 const timers = new Map<string, NodeJS.Timeout>()
 let restored = false
+let persistTimer: NodeJS.Timeout | undefined
 let pendingWrite: Promise<void> = Promise.resolve()
 
 const queueArray = (): DiscardJob[] => [...queue.values()]
@@ -38,13 +41,15 @@ export const cleaner = defineService({
 
     const previous = findLast(queueArray(), { sessionId, worktreeKey })
     const target = worktreePath ?? previous?.worktreePath
+    // 上一轮已删除成功时，这次的强制丢弃是全新任务：退避计数必须归零
+    const carriedAttempts = previous?.state === 'completed' ? 0 : previous?.attempts ?? 0
     const job: DiscardJob = {
       jobId: previous?.jobId ?? randomUUID(),
       sessionId,
       worktreeKey,
       ...(target ? { worktreePath: target } : {}),
       state: 'deleting',
-      ...(previous?.attempts ? { attempts: previous.attempts } : {}),
+      ...(carriedAttempts ? { attempts: carriedAttempts } : {}),
     }
     if (previous)
       clearRetry(previous.jobId)
@@ -77,17 +82,21 @@ function findJob(sessionId: string, worktreeKey: string, state: DiscardJob['stat
   return find(queueArray(), { sessionId, worktreeKey, state })
 }
 
-/** 在途任务与已排队退避的任务都不重复触发；显式丢弃（force）才越过退避立刻重来。 */
+/**
+ * 在途任务与已排队退避的任务都不重复触发；显式丢弃（force）才越过退避立刻重来。
+ * 完成态只对非 force 调用算「已删除」——同一会话重建同名工作树后再点一次丢弃，
+ * 必须真的再删一遍，否则返回旧任务、磁盘上什么都不会发生。
+ */
 function reuseOf(sessionId: string, worktreeKey: string, force: boolean): DiscardJob | undefined {
   if (inFlight.has(keyOf(sessionId, worktreeKey)))
     return findJob(sessionId, worktreeKey, 'deleting')
+  if (force)
+    return undefined
   const completed = findJob(sessionId, worktreeKey, 'completed')
   if (completed)
     return completed
   const failed = findJob(sessionId, worktreeKey, 'failed')
-  if (!force && failed && timers.has(failed.jobId))
-    return failed
-  return undefined
+  return failed && timers.has(failed.jobId) ? failed : undefined
 }
 
 function prune(): void {
@@ -102,18 +111,38 @@ function prune(): void {
 function restore(): void {
   if (restored)
     return
+  // 读取失败（非文件缺失）时不标记已恢复：本次调用如实抛出，下次访问仍会重试
+  const records = jobs.load()
   restored = true
-  for (const record of jobs.load()) {
+  for (const record of records) {
     if (!queue.has(record.jobId))
       queue.set(record.jobId, record)
   }
 }
 
-/** 串行落盘，始终写最新快照，避免乱序写回旧状态。 */
+/** 串行落盘，始终写最新快照，避免乱序写回旧状态；写失败留一个补写计时器直到成功。 */
 function persist(): void {
   pendingWrite = pendingWrite
     .then(() => jobs.save(filter(queueArray(), job => job.state !== 'completed')))
-    .catch(() => {})
+    .then(() => clearPersistRetry())
+    .catch(() => schedulePersistRetry())
+}
+
+function clearPersistRetry(): void {
+  if (!persistTimer)
+    return
+  clearTimeout(persistTimer)
+  persistTimer = undefined
+}
+
+/** 落盘失败不能只吞掉：磁盘暂时不可写时，队列必须在进程内继续尝试补写。 */
+function schedulePersistRetry(): void {
+  if (persistTimer)
+    return
+  persistTimer = setTimeout(() => {
+    persistTimer = undefined
+    persist()
+  }, PERSIST_RETRY_DELAY_MS)
 }
 
 function clearRetry(jobId: string): void {
@@ -155,7 +184,16 @@ function execute(job: DiscardJob, key: string, run: () => Promise<OperationResul
   let attempts = job.attempts ?? 0
 
   const settle = (state: DiscardJob['state'], error?: string): DiscardJob => {
-    const updated: DiscardJob = { ...job, state, attempts, ...(error === undefined ? {} : { error }) }
+    // 完成态不携带上一轮的失败文案：lookup() 会把它当成当前状态显示给用户
+    const updated: DiscardJob = {
+      jobId: job.jobId,
+      sessionId: job.sessionId,
+      worktreeKey: job.worktreeKey,
+      ...(job.worktreePath ? { worktreePath: job.worktreePath } : {}),
+      state,
+      attempts,
+      ...(error === undefined ? {} : { error }),
+    }
     queue.set(job.jobId, updated)
     persist()
     if (state === 'completed') {

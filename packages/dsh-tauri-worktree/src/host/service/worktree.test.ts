@@ -307,6 +307,17 @@ describe('worktree.discard', () => {
     expect(existsSync(join(testDshHome, '.trash', created.binding.hash))).toBe(false)
   })
 
+  it('未绑定的越界 key 被拒绝，不会删到工作树根之外', async () => {
+    const victim = join(testDshHome, 'victim-dir')
+    mkdirSync(victim, { recursive: true })
+    writeFileSync(join(victim, 'keep.txt'), 'keep\n')
+
+    const discarded = await worktree.discard('escape-session', '../victim-dir')
+
+    expect(discarded.ok).toBe(false)
+    expect(existsSync(join(victim, 'keep.txt'))).toBe(true)
+  })
+
   it('无绑定且路径已消失时幂等成功且不产生任务', async () => {
     const repository = createRepository()
     const sessionId = 'no-binding-session'
