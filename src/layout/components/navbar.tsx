@@ -27,7 +27,7 @@ import { writeClipboardText } from '@/utils/clipboard'
 import { toast } from '@/utils/toast'
 
 /**
- * 壳层窗口顶部导航栏（52px，常驻）：
+ * 壳层窗口顶部导航栏（48px，常驻）：
  *
  *   [侧边栏(展开/收起)] [文件][配置][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
  *
@@ -49,7 +49,7 @@ import { toast } from '@/utils/toast'
  *   「文件」「帮助」在 macOS 上由原生菜单栏承载（见 `desktop/builder.rs` 的
  *   `install_macos_menu`），本组按钮不渲染。
  *   交通灯的纵向位置由 `src-tauri/src/desktop/builder.rs` 的 `SHELL_NAV_HEIGHT`
- *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-13` 是同一真值；两者的一致性
+ *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-12` 是同一真值；两者的一致性
  *   由 Rust 测试 `shell_nav_height_matches_navbar_height_class` 守住——改这个
  *   class 就必须同步那个常量，否则 CI 失败（issue #524）。
  * - Windows/Linux：右侧窗口按钮直接调用 Tauri API；
@@ -333,7 +333,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
   return (
     <div
       className={cn(
-        'relative flex h-13 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
+        'relative flex h-12 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
         {
           'hidden': IS_MACOS && isFullscreen,
           'pl-20 pr-1.5': IS_MACOS && !isFullscreen,
