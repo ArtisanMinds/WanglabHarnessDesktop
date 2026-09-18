@@ -1,6 +1,7 @@
 //! 失败输出解析：识别网络错误（代理/DNS/连接/TLS）、git 传输层失败
-//! （HTTPS→SSH 回退提示），并从输出中挑选可展示的错误消息（ANSI 清洗、
-//! 命中错误标记的行优先、截断）。
+//! （HTTPS→SSH 回退提示）、pnpm store 布局不兼容（`ERR_PNPM_UNEXPECTED_STORE`
+//! 一族），并从输出中挑选可展示的错误消息（ANSI 清洗、命中错误标记的行优先、
+//! 截断）。
 
 /// 给非空诊断文本加 `: ` 前缀，便于直接拼进错误消息（空文本返回空串）。
 pub(super) fn diagnostic_suffix(detail: &str) -> String {
@@ -128,6 +129,60 @@ pub(super) fn git_transport_hint(output: &str) -> Option<&'static str> {
         .map(|(_, hint)| *hint)
 }
 
+/// pnpm `reportUnexpectedStore` / `reportUnexpectedVirtualStoreDir` 正文里分别给出
+/// 「档案记录的位置」与「当前解析出的位置」，路径用双引号包裹。
+const RECORDED_PATH_MARKERS: &[&str] = &[
+    "currently linked from the store at ",
+    "symlinked from the virtual store directory at ",
+];
+const CURRENT_PATH_MARKERS: &[&str] = &[
+    "now wants to use the store at ",
+    "now wants to use the virtual store at ",
+];
+
+/// 从 pnpm 失败输出里识别 store 布局不兼容（`ERR_PNPM_UNEXPECTED_STORE`、
+/// `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE`、`ERR_PNPM_STORE_BREAKING_CHANGE`、
+/// `ERR_PNPM_MODULES_BREAKING_CHANGE`），返回带双方路径与处置办法的指引。
+///
+/// pnpm 只在正文里给出「档案记录的 store」与「当前 store」两条路径，而
+/// [`pick_error_message`] 的标记行过滤把它们全部丢掉（正文两行都不含
+/// `ERR_`/`error`/`failed` 标记），用户最终只看到
+/// `Unexpected store location (This error may happen if the node_modules was installed
+/// with a different major version of pnpm)` —— 插件装不上却看不到任何原因。这里直接从
+/// 原始输出把两条路径捞出来。
+pub(super) fn store_mismatch_hint(output: &str) -> Option<String> {
+    const CODES: &[&str] = &[
+        "err_pnpm_unexpected_store",
+        "err_pnpm_unexpected_virtual_store",
+        "err_pnpm_store_breaking_change",
+        "err_pnpm_modules_breaking_change",
+    ];
+    let lower = output.to_ascii_lowercase();
+    if !CODES.iter().any(|code| lower.contains(code)) {
+        return None;
+    }
+    Some(match (
+        quoted_after(output, RECORDED_PATH_MARKERS),
+        quoted_after(output, CURRENT_PATH_MARKERS),
+    ) {
+        (Some(recorded), Some(current)) => format!(
+            "The profile's node_modules was created by a different pnpm major version: it is linked from the store at \"{recorded}\", but the pnpm now in use resolves the store at \"{current}\". Install/update cannot succeed until those match — install the pnpm major version that created this profile, or delete the profile's node_modules directory and retry so pnpm rebuilds it with the current version."
+        ),
+        _ => "The profile's node_modules is not compatible with the pnpm version now in use (pnpm refused before installing). Install the pnpm major version that created this profile, or delete the profile's node_modules directory and retry so pnpm rebuilds it with the current version.".to_string(),
+    })
+}
+
+/// 取 `markers` 中最早出现的那一条之后紧跟的双引号路径。
+fn quoted_after(output: &str, markers: &[&str]) -> Option<String> {
+    let (index, marker) = markers
+        .iter()
+        .filter_map(|marker| output.find(marker).map(|index| (index, *marker)))
+        .min_by_key(|(index, _)| *index)?;
+    let rest = output[index + marker.len()..].strip_prefix('"')?;
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,5 +227,63 @@ mod tests {
         // allowBuilds 场景（prepare 构建被拦）不应误判为传输层错误
         let out = "[ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED] ...\nallowBuilds:\n  node-pty: true\n";
         assert!(git_transport_hint(out).is_none());
+    }
+
+    // ---- pnpm store 布局不兼容（ERR_PNPM_UNEXPECTED_STORE 一族）----
+
+    /// pnpm 的真实原始输出：档案由 pnpm 10 装好，当前 pnpm 11 解析出另一份 store。
+    const UNEXPECTED_STORE_OUTPUT: &str = r#"
+ ERR_PNPM_UNEXPECTED_STORE  Unexpected store location
+
+The dependencies at "/Users/gao/.dsh/profiles/web/node_modules" are currently linked from the store at "/Users/gao/Library/pnpm/store/v10".
+
+pnpm now wants to use the store at "/Users/gao/Library/pnpm/store/v11" to link dependencies.
+
+If you want to use the new store location, reinstall your dependencies with "pnpm install".
+
+You may change the global store location by running "pnpm config set store-dir <dir> --global".
+(This error may happen if the node_modules was installed with a different major version of pnpm)
+"#;
+
+    #[test]
+    fn store_mismatch_hint_names_both_store_paths() {
+        let hint = store_mismatch_hint(UNEXPECTED_STORE_OUTPUT).expect("store hint");
+        assert!(hint.contains("/Users/gao/Library/pnpm/store/v10"));
+        assert!(hint.contains("/Users/gao/Library/pnpm/store/v11"));
+        assert!(hint.contains("node_modules"));
+    }
+
+    #[test]
+    fn store_mismatch_hint_covers_virtual_store_and_pathless_codes() {
+        let virtual_store = r#"
+ ERR_PNPM_UNEXPECTED_VIRTUAL_STORE  Unexpected virtual store location
+
+The dependencies at "/p/node_modules" are currently symlinked from the virtual store directory at "/old/.pnpm".
+
+pnpm now wants to use the virtual store at "/new/.pnpm" to link dependencies from the store.
+"#;
+        let hint = store_mismatch_hint(virtual_store).expect("virtual store hint");
+        assert!(hint.contains("/old/.pnpm"));
+        assert!(hint.contains("/new/.pnpm"));
+
+        // 正文里没有双方路径（breaking change 一族）也要给指引，而不是退回裸标题
+        let pathless = r#"[ERR_PNPM_MODULES_BREAKING_CHANGE] The node_modules structure at "/p/node_modules" is not compatible with the current pnpm version. Run "pnpm install --force" to recreate node_modules."#;
+        assert!(store_mismatch_hint(pathless).is_some());
+    }
+
+    #[test]
+    fn store_mismatch_hint_none_for_other_failures() {
+        assert!(store_mismatch_hint("ERR_PNPM_NO_MATCHING_VERSION: no version").is_none());
+        assert!(store_mismatch_hint("").is_none());
+    }
+
+    #[test]
+    fn pick_error_message_drops_store_paths_which_is_why_the_hint_exists() {
+        // 回归说明：标记行过滤把两条 store 路径都丢掉（都不含 ERR_/error/failed），
+        // 用户只剩标题与末行括号说明 —— 必须由 store_mismatch_hint 兜住。
+        let picked = pick_error_message(UNEXPECTED_STORE_OUTPUT, None);
+        assert!(picked.contains("Unexpected store location"));
+        assert!(!picked.contains("store/v10"));
+        assert!(!picked.contains("store/v11"));
     }
 }

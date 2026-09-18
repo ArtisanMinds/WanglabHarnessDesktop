@@ -67,9 +67,11 @@ pub(crate) fn build_plugin_envs(
     // （典型场景：用户在另一个分区的工程里跑过 pnpm，pnpm 就把那份 store 写进了全局配置），
     // 此时档案安装必然失败且无法自愈。这里显式下传档案记录的 store：
     // pnpm 的优先级是 CLI > 环境变量 > 项目 .npmrc > 用户/全局配置，
-    // 因此该值既压过用户配置，也必然等于 .modules.yaml 里的记录，子进程无从跑偏。
+    // 因此该值压过用户配置；传的是去掉版本段的基目录，由 pnpm 追加自身主版本的
+    // 版本段（主版本与档案一致时即等于 `.modules.yaml` 里的记录，见
+    // [`super::pnpm::profile_store_base_dir`]）。
     // 全新档案（没有 node_modules）不注入：让 pnpm 按用户配置自行决定并写回记录。
-    if let Some(store_dir) = super::pnpm::profile_store_dir(app_handle) {
+    if let Some(store_dir) = super::pnpm::profile_store_base_dir(app_handle) {
         log::info!("pinning plugin install pnpm store to the profile record: {store_dir}");
         envs.insert("npm_config_store_dir".to_string(), store_dir);
     }
