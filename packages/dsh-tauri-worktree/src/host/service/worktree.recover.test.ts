@@ -122,4 +122,19 @@ describe('worktree.recover', () => {
 
     expect(jobs.load()).toEqual([])
   })
+
+  it('jobs.json 读取失败但并非文件缺失时如实抛错', () => {
+    mkdirSync(join(testDshHome, WORKTREES_DIR, 'jobs.json'), { recursive: true })
+
+    expect(() => jobs.load()).toThrow()
+  })
+
+  it('落盘的 attempts 只接受非负安全整数', () => {
+    writeQueue([
+      { jobId: 'job-negative', sessionId: 'session-negative', worktreeKey: `${HASH}/${DIRNAME}`, state: 'failed', attempts: -3 },
+      { jobId: 'job-fraction', sessionId: 'session-fraction', worktreeKey: `${HASH}/${DIRNAME}`, state: 'failed', attempts: 1.5 },
+    ])
+
+    expect(jobs.load().map(record => record.attempts)).toEqual([0, 0])
+  })
 })
