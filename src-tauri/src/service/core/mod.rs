@@ -31,3 +31,6 @@ pub use local::{local_core_package_dir, update_local_core};
 pub use source::{active_dsh_binary, active_source, active_version, CoreSource, HarnessCore};
 pub use version::{download_version, has_installed_version, list, remove_version, set_active};
 pub(crate) use runtime::prepare_active_runtime;
+// 目录链接实现（Windows 符号链接 → 无特权时的 junction 回退）供插件模块复用：
+// pnpm 建链后回读失败时，桌面端自行落盘内置插件入口（见 plugin::internal::materialize）。
+pub(crate) use runtime::create_directory_link;
