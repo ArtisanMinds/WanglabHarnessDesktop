@@ -192,5 +192,6 @@ function ConfirmDialog(props: ConfirmDialogProps) {
 * **YAML 补丁层错误 (Issue #525)**：损坏的 `cordis.patch.yml` 会被隔离为 `<Name>.broken-<Timestamp>`。若隔离/重命名失败，程序将直接中止并返回 `PATCH_LAYER_QUARANTINE_FAILED`，要求用户手动处理。
 * **pnpm Workspace 多文档修复 (Issue #526)**：若 `pnpm-workspace.yaml` 被意外包含 `---` 多文档，解析器会自动尝试解析并合并为单文档落盘自愈（日志标记 `PROFILE_WORKSPACE_MULTI_DOCUMENT`）。
 * **旧版 WebKit 缺失 Iterator 补丁 (Issue #539)**：在非 Windows 平台的 WebView 初始化时注入 `compat_iterator.js.inc` 垫片，补齐 ES2025 Iterator Helpers（在 `Object.getPrototypeOf(...)` 上挂载），防止旧 macOS WebKit 崩溃。
+* **Windows `.cmd` shim 行尾 (Issue #581)**：`.gitattributes` 把 `.rs` 固定为 LF，生成的 `dsh.cmd`/`pnpm.cmd` 必须在返回前统一转 CRLF（`normalize_cmd_line_endings`），LF-only 会让部分环境下 cmd.exe 解析错位、内置插件安装全部失败。
 * **macOS 媒体权限配置 (Issue #214)**：必须同时在 `Info.plist` (声明 Usage Description) 与 `Entitlements.plist` (声明 `com.apple.security.device.*`) 中配置，相对路径基于 tauri bundle 运行时的 CWD 目录。
 * **Linux 托盘点击适配 (Issue #386/#438)**：Linux 环境下通过 `linux_tray.rs` 基于 `tray-icon 0.25 (ksni)` 单独构建托盘，避免 muda 依赖版本冲突，通过 `Box::leak` 保活并在独立线程中处理事件。
