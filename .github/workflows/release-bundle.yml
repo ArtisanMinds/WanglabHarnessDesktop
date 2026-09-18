@@ -27,7 +27,8 @@ on:
         type: string
 
 permissions:
-  contents: write
+  # 写权限只给真正上传产物的 finalize；prepare 与三个可复用构建只需要读。
+  contents: read
 
 concurrency:
   group: release-bundle-${{ github.event.workflow_run.head_branch || github.ref }}
@@ -36,10 +37,14 @@ concurrency:
 jobs:
   prepare:
     name: Prepare Offline Bundle
-    # workflow_run 会为 release.yml 的每一次结束（含失败/取消）触发，只有成功才继续。
+    # workflow_run 会为 release.yml 的每一次结束（含失败/取消/全部 job 被跳过）触发。
+    # 被跳过的 job 报告的是 success，因此只看 conclusion 会接受「fork PR 被关闭但未合并」
+    # 那种整轮全跳过的运行——那样下面就会 checkout 到 fork 的 head_sha，并在带写权限与
+    # 签名密钥的构建里执行它。必须同时要求触发运行来自本仓库。
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       should_build: ${{ steps.release.outputs.should_build }}
@@ -56,6 +61,8 @@ jobs:
           # 手动触发用当前 ref。
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+          # 不把仓库写令牌留在 .git/config 里（后续步骤不需要 push）。
+          persist-credentials: false
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
@@ -172,6 +179,8 @@ jobs:
         (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped') &&
         (needs.build-linux.result == 'success' || needs.build-linux.result == 'skipped')))
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download build outputs
         uses: actions/download-artifact@v7

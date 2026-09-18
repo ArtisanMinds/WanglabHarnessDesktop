@@ -157,8 +157,3 @@ pub fn bundled_core_commit<R: Runtime>(app_handle: &AppHandle<R>) -> Option<Stri
         .and_then(|dsh| dsh.commit)
         .filter(|commit| !commit.is_empty())
 }
-
-/// 版本是否为内置核心版本（核心列表据此标注「内置核心」并禁止卸载）。
-pub fn is_bundled_core_version<R: Runtime>(app_handle: &AppHandle<R>, version: &str) -> bool {
-    !version.is_empty() && bundled_dsh_version(app_handle).as_deref() == Some(version)
-}

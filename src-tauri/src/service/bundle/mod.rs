@@ -136,6 +136,20 @@ fn materialized_mode(dir: &Path, source: &Path, version: &str) -> Option<LinkMod
         .then_some(LinkMode::Layer)
 }
 
+/// 某个核心目录是否就是内置核心当前的落位产物（`Link` 链接或 `Layer` 链接层）。
+///
+/// 核心列表与卸载保护都以此为准，而不是比较版本号：用户完全可能另外下载一个与内置
+/// 核心同版本的槽位，那是他自己的副本，不该被标成「内置核心」、更不该禁止卸载。
+pub fn is_bundled_dir(app_handle: &AppHandle, dir: &Path) -> bool {
+    let Some(source) = config::bundled_dsh_dir(app_handle) else {
+        return false;
+    };
+    let Some(version) = config::bundled_dsh_version(app_handle) else {
+        return false;
+    };
+    materialized_mode(dir, &source, &version).is_some()
+}
+
 /// 内置核心是否需要（重新）落位；`None` 表示已就绪或让位给用户自己的核心。
 fn plan(app_handle: &AppHandle, source: &Path, version: &str, tag: &str, mode: LinkMode) -> Option<PathBuf> {
     let active = config::get_dsh_install_path(app_handle);
@@ -278,8 +292,62 @@ fn materialize_core(app_handle: &AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
+/// 先在暂存兄弟目录里建好并自检，全部成功后才与目标换位。
+///
+/// 直接删掉旧目标再重建是不行的：中途失败会留下一个没有标记的半成品真实目录，
+/// [`materialized_mode`] 认不出它，[`plan`] 会当成用户自己的核心而永不修复，
+/// 应用就此没有可用内核。暂存名以 `.` 开头，不会被核心列表的槽位扫描误认。
 fn materialize_into(source: &Path, target: &Path, version: &str, mode: LinkMode) -> Result<(), String> {
-    remove_materialized(target)?;
+    let parent = target.parent().unwrap_or(Path::new("."));
+    let leaf = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("core");
+    let staging = parent.join(format!(".{leaf}.bundling-{}", std::process::id()));
+    let backup = parent.join(format!(".{leaf}.bundling-backup"));
+
+    // 上次崩溃残留
+    remove_materialized(&staging)?;
+    if let Err(e) = build_into(source, &staging, version, mode) {
+        let _ = remove_materialized(&staging);
+        return Err(e);
+    }
+    // 建完立即自检：补丁目标必须真实可写。这里失败说明落位方式与补丁声明脱节，
+    // 属于必须修的缺陷，不能等补丁在运行时静默失效。
+    if let Err(e) = verify_patch_targets(&staging, true) {
+        let _ = remove_materialized(&staging);
+        return Err(e);
+    }
+
+    remove_materialized(&backup)?;
+    let had_previous = fs::symlink_metadata(target).is_ok();
+    if had_previous {
+        fs::rename(target, &backup).map_err(|e| {
+            let _ = remove_materialized(&staging);
+            format!("BUNDLE_LINKS_SWAP_FAILED: {}: {e}", target.display())
+        })?;
+    }
+    if let Err(e) = fs::rename(&staging, target) {
+        if had_previous {
+            let _ = fs::rename(&backup, target);
+        }
+        let _ = remove_materialized(&staging);
+        return Err(format!(
+            "BUNDLE_LINKS_SWAP_FAILED: {} -> {}: {e}",
+            staging.display(),
+            target.display()
+        ));
+    }
+    // 备份可能被仍在运行的旧进程占用，删除失败只告警：它带 `.` 前缀，不会被当成槽位，
+    // 下次启动会再清一次。
+    if let Err(e) = remove_materialized(&backup) {
+        log::warn!("{e}");
+    }
+    Ok(())
+}
+
+/// 按模式建出落位产物（不校验、不换位）。
+fn build_into(source: &Path, target: &Path, version: &str, mode: LinkMode) -> Result<(), String> {
     match mode {
         LinkMode::Link => {
             if let Some(parent) = target.parent() {
@@ -288,19 +356,24 @@ fn materialize_into(source: &Path, target: &Path, version: &str, mode: LinkMode)
             }
             let absolute = fs::canonicalize(source)
                 .map_err(|e| format!("BUNDLE_LINKS_CREATE_FAILED: {}: {e}", source.display()))?;
-            create_directory_link(&absolute, target).map_err(|e| {
-                format!(
-                    "BUNDLE_LINKS_LINK_FAILED: {} -> {}: {e}",
-                    target.display(),
-                    absolute.display()
-                )
-            })?;
+            match create_directory_link(&absolute, target) {
+                Ok(()) => Ok(()),
+                // 目录链接建不出来（Unix 上符号链接不可用、Windows 上非权限类失败）：
+                // 退回链接层。`link_entry` 在链接失败时还会逐项退化为复制，因此这一步
+                // 总能产出可用的核心，而不是让 `Dsh::check_installed` 落空去联网下载。
+                Err(e) => {
+                    log::warn!(
+                        "BUNDLE_LINKS_LINK_FAILED: {} -> {} ({e}), falling back to a link layer",
+                        target.display(),
+                        absolute.display()
+                    );
+                    let _ = remove_materialized(target);
+                    build_link_layer(source, target, version)
+                }
+            }
         }
-        LinkMode::Layer => build_link_layer(source, target, version)?,
+        LinkMode::Layer => build_link_layer(source, target, version),
     }
-    // 落位完立即自检：补丁目标必须真实可写。这里失败说明落位方式与补丁声明脱节，
-    // 属于必须修的缺陷，不能等补丁在运行时静默失效。
-    verify_patch_targets(target, true)
 }
 
 /// 删除上一次的落位产物：链接只删入口，链接层只删链接与它自己复制的内容。
@@ -664,6 +737,53 @@ mod tests {
             fs::read(source.join(first_patch_target())).unwrap().as_slice(),
             b"original"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    /// 重建失败时必须保住旧的落位产物：不能留下一个没有标记的半成品目录
+    /// （那会被 `plan` 当成用户自己的核心，从此不再修复）。
+    #[test]
+    fn failed_rebuild_keeps_the_previous_materialization() {
+        let root = temp_dir("failed-rebuild");
+        let source = root.join("resources").join("dsh");
+        let target = root.join("dependencies").join("dsh");
+        fake_core(&source);
+        materialize_into(&source, &target, "0.1.5-rc.2", LinkMode::Layer).unwrap();
+        let before = fs::read(target.join(first_patch_target())).unwrap();
+
+        // 源目录被破坏（补丁目标消失导致 copy 失败）：这里用一个不存在的源模拟
+        let missing = root.join("resources").join("gone");
+        let error = materialize_into(&missing, &target, "0.1.6-rc.1", LinkMode::Layer).expect_err("必须失败");
+        assert!(error.starts_with("BUNDLE_LINKS_"), "unexpected error: {error}");
+
+        // 旧落位产物原样保留，且仍被认作内置核心的落位结果
+        assert_eq!(fs::read(target.join(first_patch_target())).unwrap(), before);
+        assert_eq!(
+            materialized_mode(&target, &source, "0.1.5-rc.2"),
+            Some(LinkMode::Layer)
+        );
+        // 暂存/备份目录不残留
+        let leftovers: Vec<_> = fs::read_dir(root.join("dependencies"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with('.'))
+            .collect();
+        assert!(leftovers.is_empty(), "leftovers: {leftovers:?}");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    /// 与内置核心同版本的**下载槽位**不是内置核心：不能被认领，也不能被禁止卸载。
+    #[test]
+    fn same_version_downloaded_slot_is_not_the_bundled_core() {
+        let root = temp_dir("same-version");
+        let source = root.join("resources").join("dsh");
+        fake_core(&source);
+        let slot = root.join("dependencies").join("dsh-0.1.5-rc.2-99999999999");
+        fake_core(&slot);
+
+        // 真实目录、无标记 → 不是内置核心的落位产物
+        assert_eq!(materialized_mode(&slot, &source, "0.1.5-rc.2"), None);
         let _ = fs::remove_dir_all(root);
     }
 

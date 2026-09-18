@@ -108,40 +108,45 @@ runs:
           cp -a "$from/." "$to/"
         }
 
-        declare -A ASSET_NAME ASSET_URL ASSET_SHA ASSET_SHA_URL
+        # 刻意不用关联数组：macOS runner 的 /bin/bash 是 3.2（`declare -A` 需要 bash 4），
+        # 而 `shell: bash` 会解析到它，用了会让 macOS 离线包构建在下载前就失败。
+        node_name=''; node_url=''; node_sha_url=''
+        dsh_name=''; dsh_url=''
+        pnpm_name=''; pnpm_url=''; pnpm_sha=''
         while IFS='|' read -r key name url sha sha_url; do
           [ -n "${key:-}" ] || continue
-          ASSET_NAME["$key"]="$name"
-          ASSET_URL["$key"]="$url"
-          ASSET_SHA["$key"]="$sha"
-          ASSET_SHA_URL["$key"]="$sha_url"
+          case "$key" in
+            node) node_name="$name"; node_url="$url"; node_sha_url="$sha_url" ;;
+            dsh) dsh_name="$name"; dsh_url="$url" ;;
+            pnpm) pnpm_name="$name"; pnpm_url="$url"; pnpm_sha="$sha" ;;
+          esac
         done < <(node scripts/bundle-metadata.mjs --assets --platform "$PLATFORM" --arch "$ARCH")
 
         # Node.js 运行时：摘要取自官方 SHASUMS256.txt，与 assets 同源同版本。
-        fetch "${ASSET_URL[node]}" "${workdir}/${ASSET_NAME[node]}"
-        fetch "${ASSET_SHA_URL[node]}" "${workdir}/SHASUMS256.txt"
-        verify "${workdir}/${ASSET_NAME[node]}" \
-          "$(awk -v asset="${ASSET_NAME[node]}" '$2 == asset { print $1 }' "${workdir}/SHASUMS256.txt")" \
-          "Node.js ${ASSET_NAME[node]}"
-        extract "${workdir}/${ASSET_NAME[node]}" "${workdir}/node"
+        fetch "$node_url" "${workdir}/${node_name}"
+        fetch "$node_sha_url" "${workdir}/SHASUMS256.txt"
+        verify "${workdir}/${node_name}" \
+          "$(awk -v asset="${node_name}" '$2 == asset { print $1 }' "${workdir}/SHASUMS256.txt")" \
+          "Node.js ${node_name}"
+        extract "${workdir}/${node_name}" "${workdir}/node"
         flatten "${workdir}/node"
         install_tree "${workdir}/node" "src-tauri/resources/node"
 
         # dsh 内核：摘要来自同一 release 的 GitHub API，缺失即中止（无法校验完整性的
         # 内容不进离线包）。
-        fetch "${ASSET_URL[dsh]}" "${workdir}/${ASSET_NAME[dsh]}"
+        fetch "$dsh_url" "${workdir}/${dsh_name}"
         dsh_digest="$(gh api "repos/dsh-tauri-desk/deepseek-harness-pkg/releases/tags/${DSH_TAG}" \
-          --jq ".assets[] | select(.name == \"${ASSET_NAME[dsh]}\") | .digest" 2>/dev/null \
+          --jq ".assets[] | select(.name == \"${dsh_name}\") | .digest" 2>/dev/null \
           | sed 's/^sha256://' | head -n 1)"
-        verify "${workdir}/${ASSET_NAME[dsh]}" "$dsh_digest" "dsh core ${ASSET_NAME[dsh]}"
-        extract "${workdir}/${ASSET_NAME[dsh]}" "${workdir}/dsh"
+        verify "${workdir}/${dsh_name}" "$dsh_digest" "dsh core ${dsh_name}"
+        extract "${workdir}/${dsh_name}" "${workdir}/dsh"
         flatten "${workdir}/dsh"
         install_tree "${workdir}/dsh" "src-tauri/resources/dsh"
 
         # pnpm：纯 JS 发行，摘要取自 constants.rs 的固定值。
-        fetch "${ASSET_URL[pnpm]}" "${workdir}/${ASSET_NAME[pnpm]}"
-        verify "${workdir}/${ASSET_NAME[pnpm]}" "${ASSET_SHA[pnpm]}" "pnpm ${ASSET_NAME[pnpm]}"
-        extract "${workdir}/${ASSET_NAME[pnpm]}" "${workdir}/pnpm"
+        fetch "$pnpm_url" "${workdir}/${pnpm_name}"
+        verify "${workdir}/${pnpm_name}" "$pnpm_sha" "pnpm ${pnpm_name}"
+        extract "${workdir}/${pnpm_name}" "${workdir}/pnpm"
         flatten "${workdir}/pnpm"
         install_tree "${workdir}/pnpm" "src-tauri/resources/pnpm"
 
