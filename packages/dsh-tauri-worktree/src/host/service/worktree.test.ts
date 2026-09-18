@@ -154,6 +154,99 @@ describe('worktree.create', () => {
   })
 })
 
+describe('worktree.checkout', () => {
+  async function createDetached(sessionId: string): Promise<{ repository: string, created: Extract<Awaited<ReturnType<typeof worktree.create>>, { ok: true }> }> {
+    const repository = createRepository()
+    const created = await worktree.create(repository, sessionId)
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      throw new Error('worktree.create failed')
+    return { repository, created }
+  }
+
+  function checkoutKey(created: { binding: { hash: string, dirname: string } }): string {
+    return `${created.binding.hash}/${created.binding.dirname}`
+  }
+
+  it('复用已存在且指向同一提交的本地分支，不再拒绝检出', async () => {
+    const { repository, created } = await createDetached('reuse-session')
+    git(repository, 'branch', 'dsh/reused', git(created.binding.worktreePath, 'rev-parse', 'HEAD'))
+
+    const result = await worktree.checkout({
+      sessionId: 'reuse-session',
+      worktree_hash_dirname: checkoutKey(created),
+      branch_name: 'dsh/reused',
+    })
+
+    expect(result.ok).toBe(true)
+    if (!result.ok)
+      return
+    expect(git(repository, 'symbolic-ref', '--short', 'HEAD')).toBe('dsh/reused')
+    expect(existsSync(created.binding.worktreePath)).toBe(false)
+  })
+
+  it('把已存在且落后于工作树 HEAD 的本地分支快进到工作树 HEAD', async () => {
+    const { repository, created } = await createDetached('advance-session')
+    const path = created.binding.worktreePath
+    git(repository, 'branch', 'dsh/behind', 'HEAD')
+    writeFileSync(join(path, 'work.txt'), 'work\n')
+    git(path, 'add', '.')
+    git(path, 'commit', '-m', 'work inside the worktree')
+    const worktreeHead = git(path, 'rev-parse', 'HEAD')
+    expect(git(repository, 'rev-parse', 'dsh/behind')).not.toBe(worktreeHead)
+
+    const result = await worktree.checkout({
+      sessionId: 'advance-session',
+      worktree_hash_dirname: checkoutKey(created),
+      branch_name: 'dsh/behind',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(git(repository, 'rev-parse', 'dsh/behind')).toBe(worktreeHead)
+    expect(git(repository, 'symbolic-ref', '--short', 'HEAD')).toBe('dsh/behind')
+  })
+
+  it('本地主工作区已停在该分支上时直接快进并完成检出', async () => {
+    const { repository, created } = await createDetached('recovery-session')
+    const path = created.binding.worktreePath
+    git(repository, 'checkout', '-b', 'dsh/recovery')
+    writeFileSync(join(path, 'work.txt'), 'work\n')
+    git(path, 'add', '.')
+    git(path, 'commit', '-m', 'work inside the worktree')
+    const worktreeHead = git(path, 'rev-parse', 'HEAD')
+
+    const result = await worktree.checkout({
+      sessionId: 'recovery-session',
+      worktree_hash_dirname: checkoutKey(created),
+      branch_name: 'dsh/recovery',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(git(repository, 'rev-parse', 'HEAD')).toBe(worktreeHead)
+    expect(git(repository, 'symbolic-ref', '--short', 'HEAD')).toBe('dsh/recovery')
+    expect(existsSync(path)).toBe(false)
+  })
+
+  it('已存在的本地分支与工作树 HEAD 分叉时给出明确拒绝', async () => {
+    const { repository, created } = await createDetached('diverged-session')
+    writeFileSync(join(repository, 'main.txt'), 'main\n')
+    git(repository, 'add', '.')
+    git(repository, 'commit', '-m', 'main moves on')
+    git(repository, 'branch', 'dsh/diverged')
+
+    const result = await worktree.checkout({
+      sessionId: 'diverged-session',
+      worktree_hash_dirname: checkoutKey(created),
+      branch_name: 'dsh/diverged',
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok)
+      expect(result.error).toContain('已分叉')
+    expect(existsSync(created.binding.worktreePath)).toBe(true)
+  })
+})
+
 describe('worktree.remove', () => {
   it('删除前停止该会话的工作树进程', async () => {
     const repository = createRepository()

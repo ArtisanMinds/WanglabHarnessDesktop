@@ -77,6 +77,7 @@ export interface DiscardJob {
   worktreePath?: string
   state: 'deleting' | 'completed' | 'failed'
   error?: string
+  attempts?: number
 }
 
 export interface WorktreeStatusFacts {

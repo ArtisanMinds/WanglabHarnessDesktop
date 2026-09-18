@@ -48,7 +48,7 @@ export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | 
           <span className="dshp-worktree__spacer" />
           {bound && !deleting && (
             <>
-              <button type="button" className="dshp-worktree__action" onClick={() => store.worktree.patch(sessionId, { checkoutOpen: true })}>
+              <button type="button" className="dshp-worktree__action" onClick={() => store.worktree.patch(sessionId, { checkoutOpen: true, error: '' })}>
                 {locale.text('surfaceCheckout')}
               </button>
               <button type="button" className={`${'dshp-worktree__action'} ${'dshp-worktree__action--danger'}`} onClick={() => store.worktree.patch(sessionId, { abandonOpen: true })}>
