@@ -21,6 +21,7 @@ export async function loadScheduler(withOptions = false): Promise<void> {
     if (token !== store.scheduler.loadToken)
       return
     store.scheduler.$patch({ tasks: tasks.tasks, runs: runs.runs, loading: false, refreshedAt: Date.now() })
+    store.scheduler.seedReadAt()
     if (!withOptions)
       return
     const options = await getOptions()

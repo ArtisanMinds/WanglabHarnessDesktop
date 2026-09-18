@@ -61,3 +61,12 @@ export function formatRelative(iso: string | undefined, now: number, t: Translat
 export function isTaskPaused(task: { enabled: boolean }): boolean {
   return !task.enabled
 }
+
+/** 未播种（`readAt === 0`）一律按已读处理，避免首屏闪出一片未读角标。 */
+export function isRunUnread(run: { startedAt: string }, readAt: number): boolean {
+  return readAt !== 0 && Date.parse(run.startedAt) > readAt
+}
+
+export function countUnreadRuns(runs: readonly { startedAt: string }[], readAt: number): number {
+  return readAt === 0 ? 0 : runs.filter(run => Date.parse(run.startedAt) > readAt).length
+}
