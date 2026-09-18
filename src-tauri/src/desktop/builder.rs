@@ -537,6 +537,9 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         // 注意不能用 .drag_and_drop(false)：它只设置 tao 窗口层的拖放开关
         // （tauri issue #13761），不影响 webview 层，拖拽依旧失效；
         // disable_drag_drop_handler 才能关掉 wry 的接管（等价于旧配置 dragDropEnabled: false）。
+        // 代价：wry 随接管一起关掉的 AllowExternalDrop 防护也没了，必须由
+        // desktop::window::disable_external_drop 在页面加载时补回，否则页面内拖放
+        // 文本会让 WebView2 卡在失效的鼠标捕获上（issue #591）。
         .disable_drag_drop_handler()
         // 接管内嵌 iframe 的 window.open() / target=_blank 新窗口请求：
         // WebView2 里这类请求走 NewWindowRequested，wry 在没有 handler 时
