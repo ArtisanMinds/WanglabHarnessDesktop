@@ -10,8 +10,8 @@
  *      （桌面端重启交叠、用户手动再起的 `dsh web`、离线维护脚本），内存队列对它们无效。
  *
  * 等待上限（`lockTimeoutMs`）只约束**跨进程锁**那一段；`options.waitDeadline` 是绝对
- * 截止时间（Date.now 毫秒），从**入队前**开始覆盖进程内排队与锁竞争，可被同一屏障的
- * 多个阶段共用（见 service/capture.ts 的 runBegin）。到期只取消**尚未开始**的任务：
+ * 截止时间（Date.now 毫秒），从**入队前**开始覆盖进程内排队与锁竞争。
+ * 屏障的治理与 before 合为一个任务；到期只取消**尚未开始**的任务：
  * 已开始的 git 必须完整等待，绝不在执行中超时放行屏障，否则迟到的 before 会把模型
  * 已经改过的文件拍成错误基线。
  *
@@ -85,9 +85,12 @@ export function createWorkspaceQueue(options: WorkspaceQueueOptions = {}): Works
         assertWaiting()
         if (lock === undefined)
           return startTask()
-        const remaining = deadline === undefined ? lockTimeoutMs : Math.min(lockTimeoutMs ?? Number.POSITIVE_INFINITY, deadline - Date.now())
-        if (deadline !== undefined && remaining <= 0)
-          throw timeoutError()
+        let remaining = lockTimeoutMs
+        if (deadline !== undefined) {
+          remaining = Math.min(lockTimeoutMs ?? Number.POSITIVE_INFINITY, deadline - Date.now())
+          if (remaining <= 0)
+            throw timeoutError()
+        }
         return lock.run(key, startTask, remaining)
       })
       const guard = settled.then(() => undefined, () => undefined)

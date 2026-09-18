@@ -41,6 +41,16 @@ function lockFor(dshHome: string, timeoutMs = 2000): WorkspaceLock {
   return createWorkspaceLock({ dshHome, timeoutMs, retryMs: 5 })
 }
 
+function nonCollidingKey(home: string, first: string): string {
+  const port = workspaceLockPort(home, first)
+  for (let index = 0; index < 1000; index += 1) {
+    const candidate = `${first}-parallel-${index}`
+    if (workspaceLockPort(home, candidate) !== port)
+      return candidate
+  }
+  throw new Error('could not select a non-colliding workspace key')
+}
+
 function gate(): { wait: Promise<void>, open: () => void } {
   let open: () => void = () => {}
   const wait = new Promise<void>((resolve) => {
@@ -204,9 +214,11 @@ describe('createWorkspaceLock — public contract', () => {
   it('different workspace keys can enter before the holder releases', async () => {
     const home = await fixture()
     const lock = lockFor(home)
-    expect(workspaceLockPort(home, 'C:/repo-a')).not.toBe(workspaceLockPort(home, 'C:/repo-b'))
-    await withHeld(lock, 'C:/repo-a', async () => {
-      await expect(lock.run('C:/repo-b', async () => 'parallel')).resolves.toBe('parallel')
+    const first = 'C:/repo-a'
+    const second = nonCollidingKey(home, first)
+    expect(workspaceLockPort(home, first)).not.toBe(workspaceLockPort(home, second))
+    await withHeld(lock, first, async () => {
+      await expect(lock.run(second, async () => 'parallel')).resolves.toBe('parallel')
     })
   })
 
@@ -303,13 +315,44 @@ describe('createWorkspaceLock — legacy fencing and diagnostics', () => {
 })
 
 describe('workspaceLockPort — fixed kernel identity', () => {
+  it('keeps derived ports below the default ephemeral ranges', () => {
+    for (let index = 0; index < 512; index += 1) {
+      const port = workspaceLockPort('C:/dsh-port-range', `C:/repo-${index}`)
+      expect(port).toBeGreaterThanOrEqual(20000)
+      expect(port).toBeLessThan(30000)
+    }
+  })
+
+  it('colliding workspace keys serialize instead of falling back to another port', async () => {
+    const home = await fixture()
+    const seen = new Map<number, string>()
+    let collision: [string, string] | undefined
+    for (let index = 0; index <= 10000; index += 1) {
+      const key = `C:/collision-${index}`
+      const port = workspaceLockPort(home, key)
+      const previous = seen.get(port)
+      if (previous !== undefined) {
+        collision = [previous, key]
+        break
+      }
+      seen.set(port, key)
+    }
+    expect(collision).toBeDefined()
+    const [first, second] = collision!
+    expect(workspaceLockPort(home, first)).toBe(workspaceLockPort(home, second))
+    await withHeld(lockFor(home), first, async () => {
+      await expect(lockFor(home, 80).run(second, async () => 'never')).rejects.toBeInstanceOf(WorkspaceLockTimeoutError)
+    })
+    await expect(lockFor(home).run(second, async () => 'released')).resolves.toBe('released')
+  })
+
   it('is stable, path-normalized and includes DSH_HOME', async () => {
     const home = await fixture()
     const key = join(home, 'repo')
     const port = workspaceLockPort(home, key)
     expect(Number.isInteger(port)).toBe(true)
     expect(port).toBeGreaterThanOrEqual(20000)
-    expect(port).toBeLessThan(60000)
+    expect(port).toBeLessThan(30000)
     expect(workspaceLockPort(home, key)).toBe(port)
     expect(workspaceLockPort(`${home}/.`, `${key}/child/..`)).toBe(port)
     // Fixed identities: a collision is permitted in general, not expected for this pair.
@@ -378,7 +421,10 @@ describe('createWorkspaceLock — real process contention', () => {
 
   it('different keys enter in different processes while the first remains held', async () => {
     const home = await fixture()
-    await withWorkers([{ home, key: 'C:/repo-a' }, { home, key: 'C:/repo-b' }], async ([first, second]) => {
+    const firstKey = 'C:/repo-a'
+    const secondKey = nonCollidingKey(home, firstKey)
+    expect(workspaceLockPort(home, firstKey)).not.toBe(workspaceLockPort(home, secondKey))
+    await withWorkers([{ home, key: firstKey }, { home, key: secondKey }], async ([first, second]) => {
       first!.send('start', 0)
       await first!.wait('entered', 0)
       second!.send('start', 0)

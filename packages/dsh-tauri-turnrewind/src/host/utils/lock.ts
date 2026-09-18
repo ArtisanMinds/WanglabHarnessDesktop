@@ -5,7 +5,7 @@
  * 旧文件锁协议被审查确认的互斥漏洞）。每个 (canonical DSH_HOME, workspace) 确定性映射到
  * 一个 IPv4 loopback TCP 端口，只有 `listen` 成功才能执行任务，整个任务完成后才 close。
  * 进程退出由内核释放句柄，不猜 PID、不抢活锁；`exclusive` 禁止 cluster 共享句柄，
- * 不启用 reusePort，也绝不尝试备用端口。
+ * 不启用 reusePort，也绝不尝试备用端口。端口映射变更须先停止全部旧宿主，禁止新旧映射混跑。
  *
  * 哈希碰撞或外部程序占用端口只会额外串行/报忙，不会同时放行。要求同机同网络命名空间；
  * 不支持多个容器/WSL 网络命名空间或多台机器共用同一份快照仓。宿主崩溃后的孤儿 Git
@@ -45,7 +45,8 @@ export class WorkspaceLockTimeoutError extends Error {
 export function workspaceLockPort(dshHome: string, key: string): number {
   const identity = JSON.stringify([workspaceKey(dshHome), workspaceKey(key)])
   const hash = createHash('sha256').update(identity).digest().readUInt32BE(0)
-  return 20000 + hash % 40000
+  // 低于 Linux/Windows 默认动态端口范围；自定义范围或其他监听者仍可能占用，按忙处理。
+  return 20000 + hash % 10000
 }
 
 /** 监听成功后的异步错误延迟到 task 完成后处理，不能提前释放正在工作的句柄。 */

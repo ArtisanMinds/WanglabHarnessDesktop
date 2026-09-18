@@ -99,11 +99,7 @@ export const LOCK_DIR_NAME = 'locks'
  */
 export const LOCK_WAIT_TIMEOUT_MS = GIT_TIMEOUT_MS
 
-/**
- * **屏障上**容量治理与 before 共用的等待截止预算，包含进程内 FIFO 和跨进程锁等待。
- * 已开始的任务不被预算截断；到期只取消尚未开始的任务，防止迟到的 before 在模型已经
- * 执行后补拍出错误基线（见 service/capture.ts 的 runBegin）。
- */
+/** 屏障任务开始前的 FIFO 与争锁等待预算；治理和 before 在一次持锁内完整执行。 */
 export const LOCK_BARRIER_TIMEOUT_MS = 20 * 1000
 
 /** 锁竞争时的重试间隔：轮询粒度，太小会空转 I/O，太大则让短临界区白等。 */
