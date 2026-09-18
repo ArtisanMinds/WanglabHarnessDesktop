@@ -2,7 +2,7 @@ import { cssr, styles as sharedStyles } from 'dsh-tauri-ui/client'
 import { SESSION_ICON_ATTRIBUTE } from '../constants'
 
 const { c } = cssr
-const { primary, secondary, tertiary, dimmed, borderL3, borderL4, brand, layer1, modulePlatform, hover, hoverSolid, hoverDanger, error, primaryFill, primaryHover, primaryFg, chevronSelectSvg: chevronSvg, focusRing } = sharedStyles
+const { primary, secondary, tertiary, borderL2, dimmed, borderL3, borderL4, brand, layer1, modulePlatform, hover, hoverSolid, hoverDanger, error, success, primaryFill, primaryHover, primaryFg, chevronSelectSvg: chevronSvg, focusRing } = sharedStyles
 
 /**
  * 跨组件通用的官方控件复刻（input / selectInput / textarea / iconButton /
@@ -38,6 +38,20 @@ export default c([
   }, [
     c('&:hover', { background: 'var(--dsw-alias-interactive-bg-hover)' }),
   ]),
+  // —— 任务 / 执行记录行（task-card.tsx 与 runs-tab.tsx 共用，须随注册样式挂载）——
+  c('.dshp-scheduler__card', { boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', width: '100%', minWidth: '0', height: '60px', padding: '10px 12px', border: `1px solid ${borderL2}`, borderRadius: '10px', background: 'transparent', color: 'inherit', font: 'inherit', fontSize: '13px', lineHeight: '20px', textAlign: 'left', cursor: 'pointer', overflow: 'hidden' }),
+  c('.dshp-scheduler__card:hover', { background: hover }),
+  c('.dshp-scheduler__card--paused', { opacity: '.6' }),
+  c('.dshp-scheduler__card-title', { display: 'flex', alignItems: 'center', gap: '8px', margin: '0', fontSize: '13px', lineHeight: '18px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+  c('.dshp-scheduler__card-icon', { flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', fontSize: '16px', color: 'var(--dsw-alias-state-business-primary)' }),
+  c('.dshp-scheduler__card-icon[data-status="succeeded"]', { color: success }),
+  c('.dshp-scheduler__card-icon[data-status="failed"],.dshp-scheduler__card-icon[data-status="interrupted"]', { color: error }),
+  c('.dshp-scheduler__card-icon[data-status="running"],.dshp-scheduler__card-icon[data-status="queued"]', { color: secondary }),
+  c('.dshp-scheduler__card-icon[data-status="cancelled"],.dshp-scheduler__card-icon[data-status="skipped"]', { color: tertiary }),
+  c('.dshp-scheduler__card-meta', { display: 'flex', alignItems: 'center', gap: '10px', minWidth: '0' }),
+  c('.dshp-scheduler__card-meta-text', { flex: '1', minWidth: '0', color: tertiary, fontSize: '12px', lineHeight: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+  c('.dshp-scheduler__card-meta-text strong', { color: secondary, fontWeight: '600' }),
+  c('.dshp-scheduler__card-waiting', { flex: 'none', display: 'inline-flex', alignItems: 'center', height: '18px', padding: '0 6px', borderRadius: '6px', background: hover, color: 'var(--dsw-alias-state-business-primary)', fontSize: '11px', lineHeight: '18px', whiteSpace: 'nowrap' }),
   // —— 官方控件复刻：36px 胶囊按钮（primary / secondary / danger）——
   c('.dshp-scheduler__btn,.dshp-scheduler__btn--primary,.dshp-scheduler__btn--danger', { boxSizing: 'border-box', height: '36px', font: 'inherit', cursor: 'pointer', border: 'none', borderRadius: '18px', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '0 14px', fontSize: '14px', lineHeight: '22px', display: 'inline-flex', whiteSpace: 'nowrap' }),
   c('.dshp-scheduler__btn', { border: `.5px solid ${borderL3}`, color: primary, background: 'transparent' }),
