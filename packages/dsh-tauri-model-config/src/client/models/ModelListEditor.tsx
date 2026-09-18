@@ -118,11 +118,16 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
 }
 
 /**
- * 高级区首行：容量输入与三个开关并排成一行、横跨整个栅格。各项按内容宽度排布，不做拉伸，
- * 开关组只负责把三个开关聚在一起；窄面板放不下时整行换行。
+ * 高级区首行横跨整个栅格，左右各占一半宽度：左半边是两个容量输入（各占四分之一），右半边是三个
+ * 开关——开关按内容宽度排布、不做拉伸，容器再左移 4px 与上方对齐。
+ *
+ * `minWidth: 0` 是必须的：文本输入自带约 20 字符的固有宽度，flex 项的自动最小尺寸会让它拒绝
+ * 收缩到四分之一的宽度。
  */
-const ADVANCED_ROW_STYLE: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '6px', gridColumn: '1 / -1' }
-const ADVANCED_SWITCHES_STYLE: CSSProperties = { display: 'flex', gap: '6px' }
+const ADVANCED_ROW_STYLE: CSSProperties = { display: 'flex', gap: '6px', gridColumn: '1 / -1' }
+const ADVANCED_CAPACITIES_STYLE: CSSProperties = { display: 'flex', gap: '6px', flex: 1, minWidth: 0 }
+const ADVANCED_CAPACITY_STYLE: CSSProperties = { flex: 1, minWidth: 0 }
+const ADVANCED_SWITCHES_STYLE: CSSProperties = { display: 'flex', gap: '6px', flex: 1, minWidth: 0, marginLeft: '4px' }
 
 /**
  * 「本地端点思考」开关只对 chat completions 协议有意义。
@@ -418,32 +423,34 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             ? (
                 <div className={styles.modelAdvanced}>
                   <div style={ADVANCED_ROW_STYLE}>
-                    <label className={styles.modelField}>
-                      <span className={styles.modelFieldLabel}>{t('modelContextWindow')}</span>
-                      <input
-                        className={styles.input}
-                        type="text"
-                        inputMode="numeric"
-                        value={capacityText(model, index, 'contextWindow')}
-                        placeholder={CAPACITY_HINT.contextWindow}
-                        aria-label={`${t('modelContextWindow')} ${index + 1}`}
-                        disabled={disabled}
-                        onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
-                      />
-                    </label>
-                    <label className={styles.modelField}>
-                      <span className={styles.modelFieldLabel}>{t('modelMaxTokens')}</span>
-                      <input
-                        className={styles.input}
-                        type="text"
-                        inputMode="numeric"
-                        value={capacityText(model, index, 'maxTokens')}
-                        placeholder={CAPACITY_HINT.maxTokens}
-                        aria-label={`${t('modelMaxTokens')} ${index + 1}`}
-                        disabled={disabled}
-                        onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
-                      />
-                    </label>
+                    <div style={ADVANCED_CAPACITIES_STYLE}>
+                      <label className={styles.modelField} style={ADVANCED_CAPACITY_STYLE}>
+                        <span className={styles.modelFieldLabel}>{t('modelContextWindow')}</span>
+                        <input
+                          className={styles.input}
+                          type="text"
+                          inputMode="numeric"
+                          value={capacityText(model, index, 'contextWindow')}
+                          placeholder={CAPACITY_HINT.contextWindow}
+                          aria-label={`${t('modelContextWindow')} ${index + 1}`}
+                          disabled={disabled}
+                          onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
+                        />
+                      </label>
+                      <label className={styles.modelField} style={ADVANCED_CAPACITY_STYLE}>
+                        <span className={styles.modelFieldLabel}>{t('modelMaxTokens')}</span>
+                        <input
+                          className={styles.input}
+                          type="text"
+                          inputMode="numeric"
+                          value={capacityText(model, index, 'maxTokens')}
+                          placeholder={CAPACITY_HINT.maxTokens}
+                          aria-label={`${t('modelMaxTokens')} ${index + 1}`}
+                          disabled={disabled}
+                          onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
+                        />
+                      </label>
+                    </div>
                     <div style={ADVANCED_SWITCHES_STYLE}>
                       <div className={styles.modelField}>
                         <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
