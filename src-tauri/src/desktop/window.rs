@@ -64,6 +64,30 @@ pub fn on_download<R: Runtime>(webview: Webview<R>, event: DownloadEvent<'_>) ->
     }
 }
 
+/// 关掉 WebView2 的外部拖放（`AllowExternalDrop`）。
+///
+/// wry 只在它自己接管拖放时才关闭该开关（`drop_handler` 为空就跳过）；本项目用
+/// `disable_drag_drop_handler()` 关掉了那份接管以恢复 iframe 内的 HTML5 拖拽，
+/// 于是开关留在默认开启状态。而开启时，在页面内拖放文本会让 WebView2 卡在失效的
+/// 鼠标捕获上：选中无法取消、点击与输入失效、滚轮仍可用（WebView2Feedback #5141 /
+/// #5613）。这里补回这道防护——它只影响外部拖放，页面内 HTML5 拖拽不受影响。
+#[cfg(windows)]
+pub fn disable_external_drop(webview: &tauri::webview::PlatformWebview) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller4;
+    use windows_core::Interface;
+
+    unsafe {
+        match webview.controller().cast::<ICoreWebView2Controller4>() {
+            Ok(controller) => {
+                if let Err(e) = controller.SetAllowExternalDrop(false) {
+                    log::warn!("[webview] failed to disable external drop: {e}");
+                }
+            }
+            Err(e) => log::warn!("[webview] ICoreWebView2Controller4 unavailable: {e}"),
+        }
+    }
+}
+
 #[cfg(windows)]
 pub fn on_page_load(
     webview_window: WebviewWindow<Wry>,
@@ -80,6 +104,7 @@ pub fn on_page_load(
         log::info!("[notification] top-level page load started; scheduling handler registration");
         let parent = webview_window.clone();
         if let Err(e) = webview_window.with_webview(move |platform| {
+            disable_external_drop(&platform);
             if let Err(e) =
                 crate::desktop::notification::enable_notification_permissions(platform, parent)
             {
