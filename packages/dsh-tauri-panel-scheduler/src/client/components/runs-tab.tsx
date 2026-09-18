@@ -4,11 +4,13 @@ import type { RunView } from '../types'
 import { Alarm, CircleCheck, CircleDashed, CircleStop, CircleXmark, Icon, TrashBin, useMountStyle } from 'dsh-tauri-ui/client'
 import { RUNS_TAB_STYLE_ID } from '../constants'
 import runsTabStyle from './runs-tab.cssr'
-import { formatLocalTime } from './schedule.utils'
+import { formatLocalTime, isRunUnread } from './schedule.utils'
 
 export interface RunsTabProps {
   t: Translate
   runs: readonly RunView[]
+  readAt: number
+  emptyLabel: string
   onOpen: (run: RunView) => void
   onDelete: (id: string) => void
 }
@@ -33,10 +35,10 @@ const STATUS_ICONS = {
   running: Alarm,
 }
 
-export function RunsTab({ t, runs, onOpen, onDelete }: RunsTabProps): ReactElement {
+export function RunsTab({ t, runs, readAt, emptyLabel, onOpen, onDelete }: RunsTabProps): ReactElement {
   useMountStyle(runsTabStyle, RUNS_TAB_STYLE_ID)
   if (runs.length === 0)
-    return <p className="dshp-scheduler__empty">{t('emptyRuns')}</p>
+    return <p className="dshp-scheduler__empty">{emptyLabel}</p>
   return (
     <ul className="dshp-scheduler__runs-list">
       {runs.map(run => (
@@ -55,15 +57,10 @@ export function RunsTab({ t, runs, onOpen, onDelete }: RunsTabProps): ReactEleme
           <div style={{ flex: 1, minWidth: 0 }}>
             <span className="dshp-scheduler__card-title" title={run.taskName}>
               {run.taskName}
-              {run.status !== 'succeeded'
-                ? <span className="dshp-scheduler__chip" data-status={run.status}>{t(STATUS_KEYS[run.status])}</span>
-                : null}
+              {isRunUnread(run, readAt) ? <span className="dshp-scheduler__unread-dot" /> : null}
             </span>
             <div className="dshp-scheduler__card-meta">
-              <span className="dshp-scheduler__card-meta-text" title={run.error}>
-                {formatLocalTime(run.startedAt) ?? ''}
-                {run.error ? ` · ${run.error}` : ''}
-              </span>
+              <span className="dshp-scheduler__card-meta-text">{formatLocalTime(run.startedAt) ?? ''}</span>
             </div>
           </div>
           <button
