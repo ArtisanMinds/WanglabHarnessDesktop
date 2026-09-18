@@ -7,7 +7,7 @@ import { PANEL_ACTION_ORDER, PANEL_ID } from '../constants'
 import { locale } from '../locales'
 import { store } from '../store'
 
-export const panelFeature = defineRegister<ClientContext>((controller, ctx) => {
+export const panelFeature = defineRegister<ClientContext>((controller, ctx, adapter) => {
   const t: Translate = locale.text
   const holder: { current?: PanelHandle } = {}
 
@@ -26,10 +26,8 @@ export const panelFeature = defineRegister<ClientContext>((controller, ctx) => {
             holder.current?.close()
           }}
           onOpenSession={(sessionId) => {
-            const known = ctx.sessions.list.getSnapshot().ids.find(id => id === sessionId)
-            if (known === undefined)
+            if (adapter.openSession(sessionId).status === 'unavailable')
               return false
-            ctx.sessions.open(known)
             holder.current?.close()
             return true
           }}
