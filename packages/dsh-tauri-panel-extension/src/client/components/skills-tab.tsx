@@ -187,7 +187,7 @@ export function SkillsTab({ t, createSkill }: SkillsTabProps): ReactElement {
   const readOnly = editor?.mode === 'view'
 
   return (
-    <div className="dshp-extension__section" style={{ margin: '0' }}>
+    <div className="dshp-extension__section">
       <div className="dshp-extension__head">
         <Icon as={GraduationCap} />
         <h3>{t('skillsTitle')}</h3>

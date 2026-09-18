@@ -1,5 +1,5 @@
 import type { ClientContext, PanelHandle } from 'dsh-tauri/client'
-import { Icon, PanelWidthSync, Puzzle } from 'dsh-tauri-ui/client'
+import { Icon, PanelPage, Puzzle } from 'dsh-tauri-ui/client'
 import { definePanel, defineRegister } from 'dsh-tauri/client'
 import { ExtensionPanel } from '../components/extension-panel'
 import { PANEL_ACTION_ORDER, PANEL_ID } from '../constants'
@@ -32,9 +32,9 @@ export const extensionPanelFeature = defineRegister<ClientContext>((controller, 
     label: () => locale.text('extension'),
     icon: props => <Icon as={Puzzle} size={props.size} />,
     render: () => (
-      <PanelWidthSync>
+      <PanelPage>
         <ExtensionPanel createSkill={createSkill} />
-      </PanelWidthSync>
+      </PanelPage>
     ),
   })
   controller.add(panel.dispose)
