@@ -31,6 +31,11 @@ describe('readDshImClient', () => {
     expect(readDshImClient(ctx)).toBeUndefined()
   })
 
+  it('rejects a partial face missing the visibility switch', () => {
+    expect(readDshImClient(contextReflecting(() => ({ ...VALID, setSettingsVisible: undefined })))).toBeUndefined()
+    expect(readDshImClient(contextReflecting(() => ({ ...VALID, settingsVisible: undefined })))).toBeUndefined()
+  })
+
   it('treats an absent service and a throwing registry as unavailable', () => {
     expect(readDshImClient(contextReflecting(() => undefined))).toBeUndefined()
     expect(readDshImClient(contextReflecting(() => {

@@ -23,5 +23,9 @@ export function readDshImClient(ctx: ClientContext): DshImClient | undefined {
   if (service === null || service === undefined)
     return undefined
   const face = service as DshImClient
-  return face.version === 1 && typeof face.render === 'function' ? face : undefined
+  const usable = face.version === 1
+    && typeof face.render === 'function'
+    && typeof face.setSettingsVisible === 'function'
+    && typeof face.settingsVisible === 'function'
+  return usable ? face : undefined
 }

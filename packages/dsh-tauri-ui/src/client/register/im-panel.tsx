@@ -32,10 +32,12 @@ export const registerImPanel = defineRegister<ClientContext>((_controller, ctx) 
       icon: props => <Icon as={Comments} size={props.size} />,
       render: () => <ImPanel render={() => im.render()} />,
     })
+    // 撤下重复入口前记住原状态：退出时恢复到「我们发现它时」的样子。
+    const restoreSettings = im.settingsVisible()
     im.setSettingsVisible(false)
 
     return () => {
-      im.setSettingsVisible(true)
+      im.setSettingsVisible(restoreSettings)
       panel.dispose()
     }
   })
