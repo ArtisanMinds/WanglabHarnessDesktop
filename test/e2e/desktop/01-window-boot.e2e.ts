@@ -85,31 +85,30 @@ describe('窗口启动', () => {
     // `inner_size(1280, 840)` 是逻辑值，而 WebDriver 读回的 CSS 像素随显示器缩放
     // 变化：实测 150% 下 inner 为 854×560，×dpr 才还原成 1280（G-D01-1）。
     // `screen.*` 同样是 CSS 像素，故一并乘 dpr 换算到同一口径。
-    const [innerWidth, innerHeight, dpr, screenWidth, screenHeight] = await browser.execute(() => [
+    const [innerWidth, innerHeight, dpr, screenW, screenH, availW, availH] = await browser.execute(() => [
       window.innerWidth,
       window.innerHeight,
       window.devicePixelRatio,
       window.screen.width,
       window.screen.height,
-    ]) as [number, number, number, number, number]
+      window.screen.availWidth,
+      window.screen.availHeight,
+    ]) as [number, number, number, number, number, number, number]
 
     const width = innerWidth * dpr
     const height = innerHeight * dpr
-    const screenW = screenWidth * dpr
-    const screenH = screenHeight * dpr
-    const seen = `inner=${innerWidth}×${innerHeight} dpr=${dpr} screen=${screenWidth}×${screenHeight}`
+    const seen = `inner=${innerWidth}×${innerHeight} dpr=${dpr} screen=${screenW}×${screenH} avail=${availW}×${availH}`
 
-    // 屏幕放不下时窗口会被夹进屏幕（CI 的虚拟显示器小于 1280×840，实测宽被夹到 1024），
-    // 因此不能直接断言等于请求值；改为断言「申请值 / 屏幕」这对上下界：
-    // 1) 不得超过申请值（应用没有自行放大）；2) 不得超过屏幕；3) 屏幕放得下就必须给足。
+    // 屏幕放不下时窗口会被系统夹小（CI 的虚拟显示器小于 1280×840，实测宽被夹到 1024），
+    // 因此不能直接断言等于申请值，改为断言一对上下界：
+    //   上限 = min(申请值, 屏幕)——应用不得自行放大，也不得越出显示器；
+    //   下限 = min(申请值, 工作区)——屏幕放得下就必须给足；取工作区是因为任务栏会让
+    //   可用高度小于屏幕高度，按工作区夹与按屏幕夹都应被判为合格。
     // ±2 为取整误差：CSS 像素是整数，150% 下 1280 只能表示成 854（×1.5 = 1281）。
-    expect(width, `宽度超申请值：${seen}`).toBeLessThanOrEqual(1_280 + 2)
-    expect(width, `宽度超屏幕：${seen}`).toBeLessThanOrEqual(screenW + 2)
-    expect(width, `宽度未达申请值或屏幕上限：${seen}`).toBeGreaterThanOrEqual(Math.min(1_280, screenW) - 2)
-
-    expect(height, `高度超申请值：${seen}`).toBeLessThanOrEqual(840 + 2)
-    expect(height, `高度超屏幕：${seen}`).toBeLessThanOrEqual(screenH + 2)
-    expect(height, `高度未达申请值或屏幕上限：${seen}`).toBeGreaterThanOrEqual(Math.min(840, screenH) - 2)
+    expect(width, `宽度超出上限：${seen}`).toBeLessThanOrEqual(Math.min(1_280, screenW * dpr) + 2)
+    expect(width, `宽度不足下限：${seen}`).toBeGreaterThanOrEqual(Math.min(1_280, availW * dpr) - 2)
+    expect(height, `高度超出上限：${seen}`).toBeLessThanOrEqual(Math.min(840, screenH * dpr) + 2)
+    expect(height, `高度不足下限：${seen}`).toBeGreaterThanOrEqual(Math.min(840, availH * dpr) - 2)
   })
 
   // TC-DSK-L3-005（窗口最小尺寸约束 860×620）在本通道不可自动断言：

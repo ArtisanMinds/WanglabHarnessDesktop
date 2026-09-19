@@ -5,7 +5,8 @@
  * 立刻刷一帧注释（`get.ts` 的 pushComment），所以「收到 `:` 开头的一行」就是
  * 「路由已注册且 handler 跑起来了」的正向证据。
  *
- * 无浏览器：本用例只走 HTTP，先把编排骨架跑稳，客户端渲染留给 PP2。
+ * 无浏览器：本用例只走 HTTP，先把编排骨架跑稳；客户端渲染（Bundle Slot 挂载、
+ * DOM 节点）待 `docs/testing/plugins/03-dsh-tauri-pet.md` 的客户端部分接线。
  */
 
 import { expect, inject, test } from 'vitest'

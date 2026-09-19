@@ -44,11 +44,11 @@
 * **独立配置**：通过 `vitest.unit.config.ts` 与 `vitest.plugin.config.ts` (`defineProject`) 维护各自配置。
 * **全局报告**：由根目录 `vitest.config.ts` 统一管理报告与覆盖率（Project 级不支持配置 Reporters）。
 * **生命周期**：利用 Project 的 `globalSetup` 完成真实宿主的单次启停，通过 `project.provide()` 注入服务地址。
-* **浏览器驱动**：L2 采用 **Playwright 库 API** (`chromium.launch()`) 驱动浏览器，不引入 Playwright Test Runner。
+* **浏览器驱动**：L2 当前落地的用例只断言 HTTP 响应字节（宿主路由是否注册、方法是否被拒），**不启动浏览器**。需要断言客户端渲染（Bundle Slot 挂载、DOM 节点）时再引入 Playwright 库 API (`chromium.launch()`)，不引入 Playwright Test Runner。
 
 ### 3.2 驱动搭配
 
-* **L2（Playwright + Chromium）**：轻量无头、可并行、支持 Trace/Screenshot 追踪，兼顾速度与稳定性。
+* **L2（真实 dsh 进程 + HTTP 断言）**：无需浏览器即可覆盖宿主路由与注册契约，启动快、可并行；需要客户端渲染证据时再叠加 Chromium 驱动。
 * **L3（WebdriverIO + `@wdio/tauri-service`）**：唯一支持驱动真实 WebView 的方案，专用于桌面端集成。
 * **纯 Node (`node:test` / Vitest)**：仅用于**无 UI 插件**的 HTTP 路由覆盖。
 

@@ -161,9 +161,6 @@ jobs:
         run: pnpm run test:e2e:desktop -- --run
 
   # Rust 单元测试（应用主体逻辑）：
-  # 这是 CI 此前完全缺失的部分。仓库里存在大量 #[cfg(windows)] 的 Windows 专属
-  # 代码（win_spawn / win_inspector / cli shim / path / MSI 版本处理），只能在
-  # Rust 单元测试（应用主体逻辑）：
   # 这是 CI 此前完全缺失的部分。仓库存在大量平台专属代码，必须在对应 OS 上编译并测试：
   #   - #[cfg(windows)]：win_spawn / win_inspector / cli shim / path / MSI 版本处理 → Windows
   #   - #[cfg(target_os = "macos")]：homebrew Node 路径 & macOS 包名/资产名 → macOS
