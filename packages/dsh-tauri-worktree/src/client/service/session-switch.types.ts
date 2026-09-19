@@ -13,12 +13,20 @@ export interface InputActions {
   submit: () => void
 }
 
+export interface SessionListSnapshot {
+  ids: string[]
+  current?: string
+}
+
 export interface SessionsRuntime {
   create: (opts: { cwd: string, sessionId: string }) => Promise<string>
   open: (sessionId: string) => void
-  provideInfo: (sessionId: string) => { props?: { inputActions?: InputActions } } | undefined
+  provideInfo?: (sessionId: string) => { props?: { inputActions?: InputActions } } | undefined
   refresh: () => Promise<void>
-  list: { getSnapshot: () => { ids: string[], current?: string } }
+  list: {
+    getSnapshot: () => SessionListSnapshot
+    subscribe: (listener: () => void) => () => void
+  }
 }
 
 export interface WorkspacesRuntime {
@@ -39,15 +47,15 @@ export type SwitchOutcome = 'switched' | 'aborted' | 'retry'
 
 export interface ListSessions {
   refresh: () => Promise<void>
-  list: { getSnapshot: () => { ids: string[] } }
+  list: { getSnapshot: () => SessionListSnapshot }
 }
 
 export interface InputSessions extends ListSessions {
-  provideInfo: (sessionId: string) => { props?: { inputActions?: InputActions } } | undefined
+  provideInfo?: (sessionId: string) => { props?: { inputActions?: InputActions } } | undefined
 }
 
 export interface SwitchSessions {
   open: (sessionId: string) => void
   refresh: () => Promise<void>
-  list: { getSnapshot: () => { ids: string[], current?: string } }
+  list: { getSnapshot: () => SessionListSnapshot }
 }

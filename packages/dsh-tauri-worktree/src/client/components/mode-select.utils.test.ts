@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   addDraftAttachments,
+  canAddDraftAttachments,
   draftAttachmentIds,
   NO_DRAFT_ATTACHMENTS,
   removeDraftAttachment,
@@ -44,6 +45,15 @@ describe('addDraftAttachments', () => {
     expect(addDraftAttachments({ setDraft: vi.fn(), submit: vi.fn() }, [])).toBe(true)
     expect(addDraftAttachments({ setDraft: vi.fn(), submit: vi.fn() }, ['a'])).toBe(false)
     expect(addDraftAttachments(undefined, ['a'])).toBe(false)
+  })
+})
+
+describe('canAddDraftAttachments', () => {
+  it('识别两代可写的附件面，缺一面即不可写', () => {
+    expect(canAddDraftAttachments({ setDraft: vi.fn(), submit: vi.fn(), addAttachments: vi.fn() })).toBe(true)
+    expect(canAddDraftAttachments({ setDraft: vi.fn(), submit: vi.fn(), addImages: vi.fn() })).toBe(true)
+    expect(canAddDraftAttachments({ setDraft: vi.fn(), submit: vi.fn() })).toBe(false)
+    expect(canAddDraftAttachments(undefined)).toBe(false)
   })
 })
 

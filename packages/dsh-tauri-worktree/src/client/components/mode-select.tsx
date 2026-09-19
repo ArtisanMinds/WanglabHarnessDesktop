@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import type { InputActions } from '../service/session-switch.types'
 import type { ModeSelectProps } from './mode-select.types'
 import { IconChevronDownOutline14 as ChevronDown, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import { CircleTree, Icon } from 'dsh-tauri-ui/client'
@@ -18,7 +19,7 @@ import { locale } from '../locales'
 import { waitForInputActions, waitForSessionListed } from '../service/session-switch'
 import { attach, create } from '../service/worktree'
 import { store } from '../store'
-import { addDraftAttachments, draftAttachmentIds, removeDraftAttachment, resolveAccessModeGroup } from './mode-select.utils'
+import { addDraftAttachments, canAddDraftAttachments, draftAttachmentIds, removeDraftAttachment, resolveAccessModeGroup } from './mode-select.utils'
 
 export function WorktreeModeSelect(props: ModeSelectProps): ReactElement {
   const { sessionId } = props
@@ -98,6 +99,9 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
       submittingRef.current = true
       const targetSessionId = `session-${crypto.randomUUID()}`
       store.worktree.patch(sessionId, { mode: 'pending', phase: 'creating', loadingLabel: locale.text('progressCreating'), error: '' })
+      let switched = false
+      let detached = false
+      let nextActions: InputActions | undefined
       try {
         const created = await create({ sessionId: targetSessionId, sourceSessionId: sessionId, inherit: true })
         if (!created.ok || !created.result)
@@ -113,33 +117,72 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
           await sessionsRuntime.create({ cwd: worktreePath, sessionId: targetSessionId })
         }
         await attach({ sessionId: targetSessionId })
-        const nextActions = await waitForInputActions({ sessions: sessionsRuntime, sessionId: targetSessionId, wait })
-        nextActions.setDraft(draft)
-        if (!addDraftAttachments(nextActions, imageIds))
+        // 目标输入面只在切换后才物化，而源附件一旦摘除、源作用域随切换销毁就再也回不去：
+        // 先用源输入面探测该核心的附件面是否可写，不可写就整体中止（此时草稿与附件都还没动）。
+        if (imageIds.length > 0 && !canAddDraftAttachments(inputActions))
           throw new Error('无法迁移消息附件到工作树会话')
+        // 0.1.6 起会话输入面只在被保留的会话上物化：先切换（切换即保留主视图）再取目标输入面。
+        // 源会话的草稿与附件必须先摘除——源作用域随切换销毁，会把仍挂在其草稿上的附件从注册表释放。
         inputActions.setDraft('')
         forEach(imageIds, imageId => removeDraftAttachment(inputActions, imageId))
-        store.worktree.patch(sessionId, { mode: 'local', phase: 'idle', loadingLabel: '' })
+        detached = true
         sessionsRuntime.open(targetSessionId)
+        switched = true
+        const actions = await waitForInputActions({ sessions: sessionsRuntime, sessionId: targetSessionId, wait })
+        nextActions = actions
+        actions.setDraft(draft)
+        if (!addDraftAttachments(actions, imageIds))
+          throw new Error('无法迁移消息附件到工作树会话')
+        store.worktree.patch(sessionId, { mode: 'local', phase: 'idle', loadingLabel: '' })
         queueMicrotask(() => {
           try {
-            nextActions.submit()
+            actions.submit()
           }
           finally {
-            nextActions.setDraft('')
-            forEach(imageIds, imageId => removeDraftAttachment(nextActions, imageId))
+            actions.setDraft('')
+            forEach(imageIds, imageId => removeDraftAttachment(actions, imageId))
           }
         })
         if (result.inherited)
           await workspacesRuntime.archiveSession(sessionId).catch(() => {})
       }
       catch (error) {
+        const message = get(error, 'message', String(error))
+        // 切换前的失败源会话仍在：把已摘除的草稿与附件放回即可。
+        // 切换后的失败无法就地恢复：切回源会话，用它重新物化的输入面放回内容，避免用户丢内容。
+        let restored = !switched
+        if (detached && switched) {
+          nextActions?.setDraft('')
+          try {
+            sessionsRuntime.open(sessionId)
+            const sourceActions = await waitForInputActions({ sessions: sessionsRuntime, sessionId, wait })
+            sourceActions.setDraft(draft)
+            addDraftAttachments(sourceActions, imageIds)
+            restored = true
+          }
+          catch {
+            restored = false
+          }
+        }
+        else if (detached) {
+          inputActions.setDraft(draft)
+          addDraftAttachments(inputActions, imageIds)
+        }
         store.worktree.patch(sessionId, {
           mode: 'pending',
           phase: 'error',
           loadingLabel: '',
-          error: get(error, 'message', String(error)),
+          error: message,
         })
+        // 没能切回源会话时源提示条不再渲染：错误同步到当前会话，避免静默失败。
+        if (!restored) {
+          store.worktree.patch(targetSessionId, {
+            mode: 'pending',
+            phase: 'error',
+            loadingLabel: '',
+            error: message,
+          })
+        }
       }
       finally {
         submittingRef.current = false

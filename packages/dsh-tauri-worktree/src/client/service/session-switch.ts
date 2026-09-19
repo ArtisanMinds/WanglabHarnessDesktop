@@ -33,7 +33,7 @@ export async function waitForInputActions(input: InputWaitInput): Promise<InputA
   const attempts = input.attempts ?? SESSION_SWITCH_MAX_ATTEMPTS
   const delayMs = input.delayMs ?? SESSION_SWITCH_RETRY_DELAY_MS
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const actions = input.sessions.provideInfo(input.sessionId)?.props?.inputActions
+    const actions = input.sessions.provideInfo?.(input.sessionId)?.props?.inputActions
     if (actions)
       return actions
     await input.wait(delayMs)
