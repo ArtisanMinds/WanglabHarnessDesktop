@@ -65,6 +65,15 @@ export interface DshHost {
   readonly url: string
   /** 裸 origin（`http://127.0.0.1:<port>`）。 */
   readonly baseUrl: string
+  /**
+   * 用就绪 URL 的一次性 token 换来的浏览器会话 Cookie（`name=value`）。
+   *
+   * `/api/**` 要求浏览器会话：`authorizeIndex` **只在 `GET /` 接受** `?token=`，
+   * 随即写入签名 Cookie 并 303 到干净的 `/`；HTTP 载体在根路径交换之外既不认
+   * query token 也不认 Authorization 头。所以纯 HTTP 断言必须先做这次交换，
+   * 再把 Cookie 原样带上。
+   */
+  readonly cookie: string
   /** 本次调用独占的 DSH_HOME。 */
   readonly home: string
   /** dsh web 的 stdout+stderr 日志文件。 */
@@ -73,6 +82,35 @@ export interface DshHost {
   readonly mounted: readonly string[]
   /** 停止服务并清理 scratch（幂等）。 */
   stop: () => Promise<void>
+}
+
+/**
+ * 用就绪 URL 的一次性 token 换浏览器会话 Cookie。
+ *
+ * 机制（见 `@deepseek-ai/dsh-client-connection` 的 README）：
+ * `GET /?token=…` → 303 + `Set-Cookie` + `Location: /`。
+ * 因此这里必须 `redirect: 'manual'`——跟随重定向会丢掉 Set-Cookie。
+ *
+ * 没有 token 的旧宿主返回空串：那类宿主本就不设信任围栏，无需 Cookie。
+ */
+async function exchangeLaunchToken(url: string): Promise<string> {
+  const launch = new URL(url)
+  if (launch.searchParams.get('token') === null)
+    return ''
+
+  const response = await fetch(launch.href, { redirect: 'manual' })
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
+  const setCookies = headers.getSetCookie?.() ?? []
+  const first = setCookies[0] ?? response.headers.get('set-cookie')
+
+  if (response.status !== 303 || first === null) {
+    throw new Error(
+      `token 交换未返回 303 + Set-Cookie（实际 ${response.status}）；`
+      + '该宿主可能既不支持根路径 token 交换、也未打过 --skip-auth 补丁',
+    )
+  }
+  // 只取 `name=value`，属性交给 fetch 的 cookie 语义处理。
+  return first.split(';', 1)[0].trim()
 }
 
 function log(message: string): void {
@@ -345,11 +383,10 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
   // `dsh web` 就是 `--profile web` 的别名，两者不能同时给（CLI 会直接报错退出）；
   // 因此 scratch profile 的目录名固定为 `web`。
   //
-  // `--skip-auth`：dsh 的 `/api/**` 浏览器信任围栏默认要求「带一次性 token 换 cookie」，
-  // 纯 HTTP 调用（无 cookie jar）会一律 401，分不清「没挂载」和「没鉴权」。桌面端是
-  // 内嵌 UI，插件宿主路由本来就是给 Tauri 进程用普通 fetch 调的，所以这里跳过鉴权、
-  // 只保留 Host/Origin 围栏——断言才落在「路由存在与否」上。
-  const args = [dshBin, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open', '--skip-auth']
+  // 不带 `--skip-auth`：那需要桌面端给核心打的补丁，npm 上的 dsh 没有；本通道改走
+  // 上游本就支持的「根路径 token 换 Cookie」（见 `exchangeLaunchToken`），
+  // 于是对打过补丁的装配核心与未打补丁的原版核心都成立。
+  const args = [dshBin, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open']
   log(`启动 dsh web（DSH_HOME=${home}）`)
   // 先落一个空日志：就绪轮询可能在子进程吐出任何输出之前就读它。
   writeFileSync(logPath, '')
@@ -382,8 +419,9 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
   try {
     const url = await waitForReady(child, logPath)
     const baseUrl = new URL(url).origin
-    log(`就绪：${baseUrl}（已挂载 ${packages.join(', ')}；${plugin}@${packageVersion(join(REPO_ROOT, 'packages', plugin))}）`)
-    return { url, baseUrl, home, logPath, mounted: packages, stop }
+    const cookie = await exchangeLaunchToken(url)
+    log(`就绪：${baseUrl}（已挂载 ${packages.join(', ')}；${plugin}@${packageVersion(join(REPO_ROOT, 'packages', plugin))}；会话 Cookie ${cookie === '' ? '不适用' : '已获取'}）`)
+    return { url, baseUrl, cookie, home, logPath, mounted: packages, stop }
   }
   catch (error) {
     await stop()

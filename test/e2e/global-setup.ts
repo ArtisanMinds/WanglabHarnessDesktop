@@ -16,8 +16,13 @@ declare module 'vitest' {
   export interface ProvidedContext {
     /** dsh web 的裸 origin（`http://127.0.0.1:<port>`），用于宿主路由的 HTTP 断言。 */
     dshBaseUrl: string
-    /** 带一次性 token 的就绪 URL（`--skip-auth` 下与裸 origin 等价，保留给页面用例）。 */
+    /** 带一次性 token 的就绪 URL（仅用于观测；已由编排换成 Cookie）。 */
     dshUrl: string
+    /**
+     * 浏览器会话 Cookie（`name=value`）。`/api/**` 要求它：
+     * 根路径的 `?token=` 交换是唯一的取用途径，query token 与 Authorization 头都不被接受。
+     */
+    dshCookie: string
     /** 本次运行独占的 DSH_HOME（调试与断言落盘用）。 */
     dshHome: string
     /** 已挂载的包名。 */
@@ -32,6 +37,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
 
   project.provide('dshBaseUrl', host.baseUrl)
   project.provide('dshUrl', host.url)
+  project.provide('dshCookie', host.cookie)
   project.provide('dshHome', host.home)
   project.provide('dshMounted', [...host.mounted])
 

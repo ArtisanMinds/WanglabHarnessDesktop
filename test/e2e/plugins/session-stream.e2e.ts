@@ -13,6 +13,11 @@ import { expect, inject, test } from 'vitest'
 /** 与 `packages/dsh-tauri-pet/src/shared/constants.ts` 的 SESSION_STREAM_PATH 对齐。 */
 const SESSION_STREAM_PATH = '/api/desktop/dsh-tauri-pet/session/stream'
 
+/** `/api/**` 要求浏览器会话；Cookie 由编排在根路径用一次性 token 换得。 */
+function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { cookie: inject('dshCookie'), ...extra }
+}
+
 /** 带超时地读一段响应体（SSE 永不结束，读满即中止）。 */
 async function readChunk(response: Response, minimumChars: number, timeoutMs = 15_000): Promise<string> {
   const reader = response.body?.getReader()
@@ -36,7 +41,7 @@ async function readChunk(response: Response, minimumChars: number, timeoutMs = 1
 
 test('会话流路由连上后立刻下发就绪帧', async () => {
   const response = await fetch(`${inject('dshBaseUrl')}${SESSION_STREAM_PATH}`, {
-    headers: { accept: 'text/event-stream' },
+    headers: apiHeaders({ accept: 'text/event-stream' }),
   })
 
   expect(response.status, 'SSE 路由必须存在且返回 200').toBe(200)
@@ -47,7 +52,11 @@ test('会话流路由连上后立刻下发就绪帧', async () => {
 })
 
 test('会话流路由拒绝未声明的方法', async () => {
-  const response = await fetch(`${inject('dshBaseUrl')}${SESSION_STREAM_PATH}`, { method: 'POST', body: '{}' })
+  const response = await fetch(`${inject('dshBaseUrl')}${SESSION_STREAM_PATH}`, {
+    method: 'POST',
+    headers: apiHeaders(),
+    body: '{}',
+  })
   expect(response.status, '只声明了 GET，POST 必须 405').toBe(405)
   expect(response.headers.get('allow') ?? '').toContain('GET')
 })
