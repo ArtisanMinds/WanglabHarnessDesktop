@@ -73,4 +73,4 @@ export const store = {
 
 
 5. 每个插件的 client 侧组件，都应该全面使用 @reause/core 的 hooks 以简化组件的实现：
-D:\projects\dsh-tauri-desk\deepseek-harness-desktop\packages\dsh-tauri\src\client\modules\reause.ts
+D:\projects\dsh-tauri\deepseek-harness-desktop\packages\dsh-tauri\src\client\modules\reause.ts
