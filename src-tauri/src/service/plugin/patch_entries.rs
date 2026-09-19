@@ -154,7 +154,8 @@ pub(crate) fn strip_unresolved_entries_in(
         if removed == 0 {
             continue;
         }
-        let backup = backup_path(&layer, "bak", &now_stamp());
+        let stamp = now_stamp();
+        let backup = backup_path(&layer, "bak", &stamp);
         std::fs::copy(&layer, &backup).map_err(|e| {
             format!(
                 "PATCH_LAYER_STRIP_BACKUP_FAILED: {}: {e}",
@@ -163,8 +164,7 @@ pub(crate) fn strip_unresolved_entries_in(
         })?;
         let rendered = serde_yaml::to_string(&Value::Sequence(kept))
             .map_err(|e| format!("PATCH_LAYER_STRIP_RENDER_FAILED: {e}"))?;
-        std::fs::write(&layer, rendered)
-            .map_err(|e| format!("PATCH_LAYER_STRIP_WRITE_FAILED: {}: {e}", layer.display()))?;
+        write_patch_layer_atomically(&layer, &rendered, &stamp)?;
         log::warn!(
             "PATCH_LAYER_ENTRIES_STRIPPED: {} -> {} (removed {removed})",
             layer.display(),
@@ -385,12 +385,42 @@ fn item_line(raw: &str, starts: &[usize], index: usize, name: &str) -> usize {
 }
 
 /// 补丁条目是否带「生效的」顶层 id（与上游 `if (id)` 的真值判定一致）。
+///
+/// 上游是 JS 真值：`id: ''`、`id: null`、`id: false`、`id: 0` 都走「无 id」分支
+/// （insert 追加到顶层、必然被挂载），只有这些才需要预检；写成 `Some(_) => true`
+/// 会把 `id: false` / `id: 0` 误当成 group 作用域而漏检。
 fn has_effective_id(map: &Mapping) -> bool {
     match map_get(map, "id") {
         Some(Value::String(id)) => !id.is_empty(),
+        Some(Value::Bool(value)) => *value,
+        Some(Value::Number(number)) => number
+            .as_f64()
+            .is_some_and(|value| value != 0.0 && !value.is_nan()),
         Some(Value::Null) | None => false,
         Some(_) => true,
     }
+}
+
+/// 原子改写补丁层：先写同目录临时文件再改名替换。
+///
+/// `fs::write` 会先截断原文件，写到一半失败（磁盘满 / 被中断）会把用户手写的补丁层
+/// 截成半截 YAML——虽然 `.bak-<时间戳>` 备份还在，但半截文件会让下次启动多报一个
+/// 语法错误。同目录 `rename` 在 Windows（`MOVEFILE_REPLACE_EXISTING`）与 Unix 上
+/// 都是原子替换，失败时原文件保持不动。
+fn write_patch_layer_atomically(layer: &Path, rendered: &str, stamp: &str) -> Result<(), String> {
+    let name = layer
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temp = layer.with_file_name(format!("{name}.tmp-{stamp}"));
+    std::fs::write(&temp, rendered).map_err(|e| {
+        let _ = std::fs::remove_file(&temp);
+        format!("PATCH_LAYER_STRIP_WRITE_FAILED: {}: {e}", temp.display())
+    })?;
+    std::fs::rename(&temp, layer).map_err(|e| {
+        let _ = std::fs::remove_file(&temp);
+        format!("PATCH_LAYER_STRIP_WRITE_FAILED: {}: {e}", layer.display())
+    })
 }
 
 /// 取映射字段；用迭代而不是 `Mapping::get`，避开 serde_yaml 的索引泛型差异。
@@ -726,5 +756,31 @@ mod tests {
         assert!(!with_id("id: ''"));
         assert!(!with_id("id: null"));
         assert!(!with_id("name: x"));
+        // 上游是 JS 真值判定：false 与 0 同样走「无 id」分支（insert 追加到顶层），
+        // 漏判这两个会让本该预检的条目被当成 group 作用域而漏检。
+        assert!(!with_id("id: false"));
+        assert!(!with_id("id: 0"));
+        assert!(with_id("id: true"));
+        assert!(with_id("id: 7"));
+    }
+
+    /// 原子改写：成功路径不留临时文件，且内容与备份都在。
+    #[test]
+    fn strip_leaves_no_temp_file_behind() {
+        let profile = tmp_dir("atomic-profile");
+        let home = tmp_dir("atomic-home");
+        std::fs::write(profile.join("cordis.patch.yml"), DANGLING_LAYER).unwrap();
+
+        strip_unresolved_entries_in(&profile, &home, None).unwrap();
+
+        let leftovers: Vec<String> = std::fs::read_dir(&profile)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.contains(".tmp-"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
+        let _ = std::fs::remove_dir_all(&profile);
+        let _ = std::fs::remove_dir_all(&home);
     }
 }
