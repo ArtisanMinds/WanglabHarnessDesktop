@@ -17,8 +17,10 @@ import {
   REASON_EXPIRED,
   REASON_GIT_REQUIRED,
   REASON_TURN_ACTIVE,
+  REASON_WORKSPACE_BUSY,
 } from '../config/constants'
 import { workspaceQueue } from '../config/runtime'
+import { WorkspaceLockTimeoutError } from '../utils/lock'
 import { workspaceKey } from '../utils/workspace'
 import { capture } from './capture'
 import { ledger } from './ledger'
@@ -86,6 +88,13 @@ export const undo = defineService({
 
       const report = await snapshot.restore(store, beforeCommit, record.files)
       return { ok: true, restored: report.restored, removed: report.removed, failed: report.failed }
+    }).catch((error: unknown): UndoOutcome => {
+      // 拿不到跨进程锁：工作区正被**另一个宿主进程**占着（它正在同一工作区里捕获/结算/撤销）。
+      // 这不是「这一轮不能撤销」，而是「现在不是时候」——如实回可重试的 409，
+      // 而不是把它当成内部错误报 500（其余异常仍原样上抛）。
+      if (error instanceof WorkspaceLockTimeoutError)
+        return { ok: false, code: 409, error: REASON_WORKSPACE_BUSY }
+      throw error
     })
 
     if (outcome.ok && outcome.failed.length === 0)

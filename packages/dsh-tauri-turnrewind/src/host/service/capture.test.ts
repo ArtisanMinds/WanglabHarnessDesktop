@@ -7,10 +7,14 @@ import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
 import { PLUGIN_ID, TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
+import { LOCK_BARRIER_TIMEOUT_MS } from '../config/constants'
 import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance, workspaceQueue } from '../config/runtime'
 import { turnrewindHooks } from '../events'
+import { WorkspaceLockTimeoutError } from '../utils/lock'
 import { capture } from './capture'
 import { ledger } from './ledger'
+import { retention } from './retention'
+import { snapshot } from './snapshot'
 
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
@@ -394,5 +398,114 @@ describe('运行中提示条的读数生命周期', () => {
       await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(capture.live('s16')).toMatchObject({ active: true, turn: 1, fileCount: 1, insertions: 1, deletions: 0 })
+  })
+})
+
+describe('屏障等待预算（容量治理与 before 一次持锁）', () => {
+  function recordingQueue(): Array<{ lockTimeoutMs: number | undefined, waitDeadline: number | undefined }> {
+    const real = workspaceQueue.run
+    const recorded: Array<{ lockTimeoutMs: number | undefined, waitDeadline: number | undefined }> = []
+    workspaceQueue.run = <T>(key: string, task: () => Promise<T>, lockTimeoutMs?: number, options?: { waitDeadline?: number }): Promise<T> => {
+      recorded.push({ lockTimeoutMs, waitDeadline: options?.waitDeadline })
+      return real(key, task, lockTimeoutMs, options)
+    }
+    return recorded
+  }
+
+  it('屏障只排队持锁一次，后台结算仍用默认预算', async () => {
+    const { worktree } = await fixture()
+    captureFor()
+    const recorded = recordingQueue()
+    const startedAt = Date.now()
+
+    await capture.begin('s-barrier', 1)
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]).toMatchObject({ lockTimeoutMs: LOCK_BARRIER_TIMEOUT_MS })
+    expect(recorded[0]!.waitDeadline).toBeGreaterThanOrEqual(startedAt + LOCK_BARRIER_TIMEOUT_MS)
+    expect(recorded[0]!.waitDeadline).toBeLessThanOrEqual(Date.now() + LOCK_BARRIER_TIMEOUT_MS)
+
+    await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
+    await capture.settle('s-barrier', 1)
+    expect(recorded.at(-1)).toMatchObject({ lockTimeoutMs: undefined, waitDeadline: undefined })
+  })
+
+  it('容量治理拿不到跨进程锁时直接放弃本轮，不再申请第二次 before', async () => {
+    await fixture()
+    captureFor()
+    const real = workspaceQueue.run
+    let calls = 0
+    workspaceQueue.run = <T>(): Promise<T> => {
+      calls += 1
+      return Promise.reject(new WorkspaceLockTimeoutError('workspace lock not acquired (barrier)'))
+    }
+    const ensure = vi.spyOn(retention, 'ensure')
+    const captureSnapshot = vi.spyOn(snapshot, 'capture')
+    try {
+      await capture.begin('s-busy', 1)
+      expect(calls).toBe(1)
+      expect(ensure).not.toHaveBeenCalled()
+      expect(captureSnapshot).not.toHaveBeenCalled()
+      const current = await ledger.load('s-busy')
+      expect(current.turns.map(turn => turn.turn)).toEqual([1])
+      expect(current.turns[0]?.unavailable).toBe(TURNREWIND_REASON_SNAPSHOT_FAILED)
+      expect(current.turns[0]?.beforeRef).toBe('')
+    }
+    finally {
+      workspaceQueue.run = real
+      ensure.mockRestore()
+      captureSnapshot.mockRestore()
+    }
+  })
+
+  it('治理执行超过等待预算后仍在同一次持锁内捕获基线', async () => {
+    const { worktree } = await fixture()
+    const recorded = recordingQueue()
+    const realEnsure = retention.ensure
+    const realNow = Date.now
+    let offset = 0
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + offset)
+    const ensure = vi.spyOn(retention, 'ensure').mockImplementation(async (store) => {
+      const result = await realEnsure(store)
+      offset = LOCK_BARRIER_TIMEOUT_MS + 1
+      return result
+    })
+    const captureSnapshot = vi.spyOn(snapshot, 'capture')
+    try {
+      await capture.begin('s-slow-retention', 1)
+      expect(recorded).toHaveLength(1)
+      expect(Date.now()).toBeGreaterThan(recorded[0]!.waitDeadline!)
+      expect(captureSnapshot).toHaveBeenCalledTimes(1)
+      expect(capture.pending('s-slow-retention', 1)).toBe(true)
+      expect(capture.live('s-slow-retention')).toMatchObject({ active: true, turn: 1 })
+    }
+    finally {
+      clock.mockRestore()
+      ensure.mockRestore()
+      captureSnapshot.mockRestore()
+    }
+    await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
+    await capture.settle('s-slow-retention', 1)
+    const current = await ledger.load('s-slow-retention')
+    expect(current.turns[0]?.unavailable).toBeNull()
+    expect(current.turns[0]?.beforeRef).toBeTruthy()
+    expect(current.turns[0]?.files).toHaveLength(1)
+  })
+
+  it('治理普通异常仍降级为空排除清单并完成基线', async () => {
+    await fixture()
+    const recorded = recordingQueue()
+    const ensure = vi.spyOn(retention, 'ensure').mockRejectedValueOnce(new Error('retention failed'))
+    const captureSnapshot = vi.spyOn(snapshot, 'capture')
+    try {
+      await capture.begin('s-retention-failed', 1)
+      expect(recorded).toHaveLength(1)
+      expect(captureSnapshot).toHaveBeenCalledTimes(1)
+      expect(captureSnapshot.mock.calls[0]?.[3]?.exclude).toEqual([])
+      expect(capture.live('s-retention-failed')).toMatchObject({ active: true, turn: 1 })
+    }
+    finally {
+      ensure.mockRestore()
+      captureSnapshot.mockRestore()
+    }
   })
 })
