@@ -28,13 +28,15 @@ export function ExtensionPanel({ createSkill, market }: ExtensionPanelProps): Re
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const marketFace = market
   const rows: ExtensionTab[] = [
+    ...(marketFace === undefined
+      ? []
+      : [{ id: 'market', label: t('marketTab'), render: () => <MarketTab market={marketFace} /> }]),
     { id: 'skills', label: t('skillsTab'), render: () => <SkillsTab t={t} createSkill={createSkill} /> },
     { id: 'mcp', label: t('mcpTab'), render: () => <McpTab t={t} /> },
   ]
-  if (marketFace !== undefined)
-    rows.push({ id: 'market', label: t('marketTab'), render: () => <MarketTab market={marketFace} /> })
-  const [activeId, setActiveId] = useState('skills')
-  const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set(['skills']))
+  const initialId = rows[0]?.id ?? 'skills'
+  const [activeId, setActiveId] = useState(initialId)
+  const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set([initialId]))
   useEffect(() => setVisited(previous => previous.has(activeId) ? previous : new Set([...previous, activeId])), [activeId])
 
   return (
