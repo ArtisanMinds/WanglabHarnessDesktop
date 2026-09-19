@@ -34,14 +34,21 @@ import { workspace } from './workspace'
 const LIVE_POLL_INTERVAL_MS = 1500
 
 export const capture = defineService({
-  /** pre-step 屏障入口：登记在飞的 before 快照并等它落地。 */
-  async begin(sessionId: string, turn: number): Promise<void> {
+  /**
+   * pre-step 登记：起一个在飞的 before 快照，**不等待**。
+   *
+   * 快照只需早于文件改动，而唯一会改文件的是工具派发——等待点因此挪到
+   * `tools/pre-execute`（见 [`capture.awaitBegin`]）。留在 pre-step 的屏障会让
+   * 「prompt 已受理」到「user 节点落盘」之间多出一整个快照的时间，客户端那一头
+   * 表现为刚发出的消息迟迟不出现。
+   */
+  start(sessionId: string, turn: number): void {
     if (isCaptureDisposed())
       return
     const key = activeKey(sessionId, turn)
     if (activeTurns.has(key) || beginningTurns.has(key))
       return
-    // 落地 promise 永不 reject：结算侧要 await 它，一次失败的快照不能把结算也带走。
+    // 落地 promise 永不 reject：结算侧与工具屏障都要 await 它，一次失败的快照不能把它们带走。
     const task = runBegin(sessionId, turn).then(
       () => undefined,
       async (error: unknown) => {
@@ -52,13 +59,36 @@ export const capture = defineService({
     )
     const entry: BeginningTurn = { sessionId, turn, task }
     beginningTurns.set(key, entry)
-    try {
-      await task
-    }
-    finally {
+    void task.finally(() => {
       if (beginningTurns.get(key)?.task === task)
         beginningTurns.delete(key)
+    })
+  },
+
+  /**
+   * 工具派发前的执行屏障：等该会话在飞的 before 快照落地（已落地的立即返回）。
+   *
+   * 与原先放在 pre-step 语义等价——快照必然早于一切文件改动——但这段等待与模型请求
+   * 并行，用户看不到。刻意不观察 `exec.signal`：工具被取消时快照仍是基线，宁可让一次
+   * 已取消的派发多等一会儿，也不能让基线晚于文件改动而记错可撤销的内容。
+   */
+  async awaitBegin(sessionId: string, turn?: number): Promise<void> {
+    const inflight: Promise<void>[] = []
+    for (const item of beginningTurns.values()) {
+      if (item.sessionId !== sessionId)
+        continue
+      if (turn !== undefined && item.turn !== turn)
+        continue
+      inflight.push(item.task)
     }
+    if (inflight.length > 0)
+      await Promise.all(inflight)
+  },
+
+  /** 起快照并同步等它落地：生产路径由 start / awaitBegin 分挂两个钩子，这里保留合并形态。 */
+  async begin(sessionId: string, turn: number): Promise<void> {
+    capture.start(sessionId, turn)
+    await capture.awaitBegin(sessionId, turn)
   },
 
   /**
