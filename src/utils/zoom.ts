@@ -60,13 +60,10 @@ export function zoomLevelFromFactor(factor: number): number {
 
 /** 默认缩放比例（100%），与 Rust `default_zoom_factor` 一致 */
 export const ZOOM_FACTOR_DEFAULT = 1
-
 /** 缩放步长，与 Rust `ZOOM_FACTOR_STEP` 一致 */
 export const ZOOM_FACTOR_STEP = 0.1
-
 /** 缩放下限，与 Rust `ZOOM_FACTOR_MIN` 一致 */
 export const ZOOM_FACTOR_MIN = 0.5
-
 /** 缩放上限，与 Rust `ZOOM_FACTOR_MAX` 一致 */
 export const ZOOM_FACTOR_MAX = 2
 
@@ -84,12 +81,4 @@ export function normalizeZoomFactor(value: number): number {
   const grid = 1 / ZOOM_FACTOR_STEP
   const clamped = Math.min(Math.max(value, ZOOM_FACTOR_MIN), ZOOM_FACTOR_MAX)
   return Math.round(clamped * grid) / grid
-}
-
-/** 按缩放动作计算下一档比例（increase/decrease 走 0.1 步长，reset 回 100%） */
-export function nextZoomFactor(current: number, action: ZoomAction): number {
-  if (action === 'reset')
-    return ZOOM_FACTOR_DEFAULT
-  const delta = action === 'increase' ? ZOOM_FACTOR_STEP : -ZOOM_FACTOR_STEP
-  return normalizeZoomFactor(current + delta)
 }

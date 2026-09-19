@@ -1,5 +1,6 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(windows)]
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 #[cfg(windows)]
 use std::sync::Arc;
 #[cfg(target_os = "macos")]
@@ -7,10 +8,15 @@ use std::sync::{Mutex, OnceLock};
 
 use tauri::{
     ipc::Invoke,
-    menu::{Menu, MenuEvent, MenuItem},
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder, Wry,
 };
+
+// 托盘相关的 tauri 类型只在非 Linux 路径使用：Linux 走 desktop::linux_tray 的
+// KSNI 托盘（见该文件的背景说明），届时这些导入会变成未使用。
+#[cfg(not(target_os = "linux"))]
+use tauri::menu::{Menu, MenuEvent, MenuItem};
+#[cfg(not(target_os = "linux"))]
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 
 #[cfg(target_os = "macos")]
 use tauri::menu::{PredefinedMenuItem, Submenu};
@@ -22,7 +28,30 @@ static MACOS_FULLSCREEN_MENU_ITEM: OnceLock<Mutex<Option<PredefinedMenuItem<Wry>
 #[cfg(windows)]
 use crate::desktop::window::on_page_load;
 use crate::desktop::window::{on_download, on_new_window};
+// 只在 tauri::tray 路径（Windows / macOS）里按短名使用；Linux 的 KSNI 托盘在
+// desktop::linux_tray 内自行引用，且下面单例回调用的是完整路径。
+#[cfg(not(target_os = "linux"))]
 use crate::utils::show_main_window;
+
+/// 壳层（`Navbar`）导航栏高度，单位 CSS px。
+///
+/// 这是「前端高度类 ↔ 后端交通灯纵向位置」的唯一真值入口：前端
+/// `src/layout/components/navbar.tsx` 根元素的 `h-12` 是它的体现（Tailwind 4
+/// 间距刻度 12 × 4px = 48px），macOS 交通灯的纵向位置也由它推导。issue #524
+/// 之前两处各写一份数值（`h-11` 与 `24.0`）互不知情，改一处就会错位；现在由
+/// `shell_nav_height_matches_navbar_height_class` 测试把这份耦合显式化——
+/// 改栏高忘了同步另一边，CI 直接失败。
+pub const SHELL_NAV_HEIGHT: u32 = 48;
+
+/// 交通灯距窗口左边缘的内边距（逻辑像素）。
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_INSET_X: f64 = 14.0;
+
+/// Wry 保留了 AppKit 原生按钮的纵向 frame 偏移：实测视觉圆心 = 传入 y − 2
+/// （44px 栏高配 y = 24 时圆心为 22px，而非直觉上的 24px）。因此「视觉圆心 =
+/// 栏高 / 2」对应 y = 栏高 / 2 + 2（48px 栏高 → 26）。
+#[cfg(target_os = "macos")]
+const TRAFFIC_LIGHT_VISUAL_OFFSET: f64 = 2.0;
 
 /// WebView2 原生拖拽区域所需的参数。
 ///
@@ -35,6 +64,28 @@ const WINDOWS_DRAG_BROWSER_ARGS: &str = "--enable-features=msWebView2EnableDragg
 #[cfg(windows)]
 fn windows_drag_browser_args() -> &'static str {
     WINDOWS_DRAG_BROWSER_ARGS
+}
+
+/// 主窗口 label：壳层状态（几何恢复/落盘、托盘/单例唤起、macOS Reopen）都以它为准。
+pub const MAIN_WINDOW_LABEL: &str = "main";
+
+/// 「文件 → 新建窗口」的 label 序号（`window-1`、`window-2`…），保证 label 唯一。
+static EXTRA_WINDOW_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// WebView2 用户数据目录：必须与主窗口一致，否则同一进程内的多个窗口会尝试
+/// 使用不同的 User Data Folder 而失败。开发版与 release 分目录的原因见主窗口。
+#[cfg(windows)]
+fn webview_data_directory(app: &tauri::AppHandle<Wry>) -> std::path::PathBuf {
+    let mut directory = app
+        .path()
+        .app_local_data_dir()
+        .expect("Failed to resolve app local data directory");
+    directory.push(if cfg!(debug_assertions) {
+        "EBWebView-dev"
+    } else {
+        "EBWebView"
+    });
+    directory
 }
 
 /// setup app
@@ -71,10 +122,13 @@ pub fn setup(app_handle: tauri::AppHandle) {
         log::warn!("pnpm modules metadata self-heal skipped: {e}");
     }
 
-    // 首装档案引导：桌面端首次安装时，在任何 dsh 启动/插件操作之前新建独立的
-    // Desktop 档案并切换（与 CLI 用户既有插件/补丁隔离，见 service::profile）。
-    // 必须先于 scheduler/auto_start：引导失败时它们回落 web 档案的老行为。
-    crate::service::profile::ensure_first_run_desktop_profile(&app_handle);
+    // 档案迁移 + 首装引导：官方核心 0.1.5 起 `desktop` 档案名被保留给 Electron
+    // 应用（`--profile desktop` 直接报错），先把老用户的 `profiles/desktop` 改名到
+    // `tauri` 并改指 `active_profile`，再在桌面端首次安装时新建独立档案并切换
+    // （与 CLI 用户既有插件/补丁隔离，见 service::profile）。必须先于 scheduler/
+    // auto_start：它们启动服务/装插件时会带上 active_profile，迁移完成前 dsh
+    // spawn 必然失败。
+    crate::service::profile::migrate_desktop_profile_name(&app_handle);
 
     // 启动进程监控（tick 检测 dsh 服务状态）
     crate::service::scheduler::start(&app_handle);
@@ -105,7 +159,19 @@ pub fn setup(app_handle: tauri::AppHandle) {
     });
 }
 
-/// setup tray
+/// 构建系统托盘。
+///
+/// Linux 用上游 tray-icon 的 KSNI 后端自建（`tauri::tray` 固定依赖的 tray-icon 0.24
+/// 在 Linux 上不上报任何托盘事件，见 `desktop::linux_tray` 的平台说明与 issue #386）；
+/// Windows / macOS 沿用 `tauri::tray`。
+#[cfg(target_os = "linux")]
+pub fn tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    crate::desktop::linux_tray::build(app);
+    Ok(())
+}
+
+/// 构建系统托盘（Windows / macOS：`tauri::tray`）。
+#[cfg(not(target_os = "linux"))]
 pub fn tray<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     // 平台差异的托盘图标策略：
     // - macOS：使用 scoped template 透明图标（NSImage template），由系统按菜单栏
@@ -246,6 +312,13 @@ pub fn install_macos_menu(app: &tauri::AppHandle<Wry>) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let help_separator = PredefinedMenuItem::separator(app)?;
+    let documentation = MenuItem::with_id(
+        app,
+        "desktop-documentation",
+        crate::config::i18n::t("menu.documentation"),
+        true,
+        None::<&str>,
+    )?;
     let about = MenuItem::with_id(
         app,
         "desktop-about",
@@ -258,7 +331,60 @@ pub fn install_macos_menu(app: &tauri::AppHandle<Wry>) -> tauri::Result<()> {
         "desktop-help-menu",
         crate::config::i18n::t("menu.help"),
         true,
-        &[&run_logs, &restart, &check_update, &help_separator, &about],
+        &[
+            &run_logs,
+            &restart,
+            &check_update,
+            &help_separator,
+            &documentation,
+            &about,
+        ],
+    )?;
+
+    // 文件菜单：非 macOS 上同一组项渲染在壳层导航栏（`layout/components/navbar.tsx`）。
+    // 图标化的系统动作（新建窗口/新聊天/打开文件夹/关闭/退出）本身只发动作 id，
+    // 由前端复用壳层实现——新建窗口更必须在异步运行时里建窗（见 desktop::window）。
+    let new_window = MenuItem::with_id(
+        app,
+        "desktop-new-window",
+        crate::config::i18n::t("menu.new_window"),
+        true,
+        Some("CmdOrCtrl+N"),
+    )?;
+    let new_chat = MenuItem::with_id(
+        app,
+        "desktop-new-chat",
+        crate::config::i18n::t("menu.new_chat"),
+        true,
+        Some("CmdOrCtrl+Shift+N"),
+    )?;
+    let open_folder = MenuItem::with_id(
+        app,
+        "desktop-open-folder",
+        crate::config::i18n::t("menu.open_folder"),
+        true,
+        Some("CmdOrCtrl+O"),
+    )?;
+    let file_separator_close = PredefinedMenuItem::separator(app)?;
+    // 关闭：走系统 close_window（⌘W）。主窗口的 CloseRequested 由壳层接管为
+    // 「隐藏到托盘」（setting.close_action=tray），语义与导航栏「关闭」一致。
+    let close = PredefinedMenuItem::close_window(app, Some(&crate::config::i18n::t("menu.close")))?;
+    let file_separator_quit = PredefinedMenuItem::separator(app)?;
+    let file_quit = PredefinedMenuItem::quit(app, Some(&crate::config::i18n::t("menu.quit")))?;
+    let file_menu = Submenu::with_id_and_items(
+        app,
+        "desktop-file-menu",
+        crate::config::i18n::t("menu.file"),
+        true,
+        &[
+            &new_window,
+            &new_chat,
+            &open_folder,
+            &file_separator_close,
+            &close,
+            &file_separator_quit,
+            &file_quit,
+        ],
     )?;
 
     // 编辑菜单：macOS 设置了主菜单后，⌘X/⌘C/⌘V/⌘A 等组合键会先经菜单的
@@ -297,6 +423,7 @@ pub fn install_macos_menu(app: &tauri::AppHandle<Wry>) -> tauri::Result<()> {
         &[
             &system_application_menu,
             &application_menu,
+            &file_menu,
             &edit_menu,
             &help_menu,
         ],
@@ -357,7 +484,7 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     let notification_handlers_registered_for_page = _notification_handlers_registered.clone();
 
     let webview_builder =
-        WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        WebviewWindowBuilder::new(app, MAIN_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
             .title("Wanglab Harness Desktop")
             .inner_size(1280.0, 840.0)
             .min_inner_size(860.0, 620.0)
@@ -374,18 +501,7 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         .visible(false)
         // 开发版使用独立 WebView2 数据目录，避免已有 release 实例、热重启残留
         // 或其他同标识实例占用同一 User Data 管道，触发 HRESULT 0x8007139F。
-        .data_directory({
-            let mut directory = app
-                .path()
-                .app_local_data_dir()
-                .expect("Failed to resolve app local data directory");
-            directory.push(if cfg!(debug_assertions) {
-                "EBWebView-dev"
-            } else {
-                "EBWebView"
-            });
-            directory
-        })
+        .data_directory(webview_data_directory(app))
         // WebView2 原生非客户区可直接接收触摸输入；同时禁用会抢占手势的弹性滚动。
         .additional_browser_args(windows_drag_browser_args())
         // Windows 任务栏图标来源：窗口 .icon() > 可执行文件嵌入资源 > 系统默认。
@@ -394,16 +510,22 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         .icon(app.default_window_icon().unwrap().clone())?;
 
     // macOS 保留原生交通灯：绿色按钮由 AppKit 进入独立 Space 的原生全屏，
-    // 同时用 Overlay 让 44px 壳层导航栏继续与窗口 chrome 融合。其他平台
+    // 同时用 Overlay 让壳层导航栏继续与窗口 chrome 融合。其他平台
     // 仍由 ShellNavBar 的右侧按钮提供窗口控制。
     #[cfg(target_os = "macos")]
     let webview_builder = webview_builder
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // Wry 保留了 AppKit 原生按钮的纵向 frame 偏移；24px 在 44px
-        // 壳层导航栏内的实测视觉圆心为 22px，而非 API 直觉上的 24px。
-        .traffic_light_position(tauri::LogicalPosition::new(14.0, 24.0))
+        // 交通灯纵向位置由 SHELL_NAV_HEIGHT 推导（见常量注释），使视觉圆心落在
+        // 栏高一半，与随栏高 flex 居中的折叠/展开按钮同一水平线（issue #524）。
+        // 位置只在窗口创建时生效：Tauri 2.11.5 没有运行期交通灯 API，而 wry
+        // 0.55.1 会在自身重绘时按创建时的值回放（`WryWebViewParent::drawRect:`），
+        // 所以运行期改 NSWindow 会被随时覆盖——改栏高必须同步上面的常量。
+        .traffic_light_position(tauri::LogicalPosition::new(
+            TRAFFIC_LIGHT_INSET_X,
+            f64::from(SHELL_NAV_HEIGHT) / 2.0 + TRAFFIC_LIGHT_VISUAL_OFFSET,
+        ))
         // 在创建时就把原生标题栏外观设为 dsh 主题偏好，避免启动瞬间出现
         // 「内容已亮、顶栏仍暗」的闪变（issue #93）。system → None 即跟随系统。
         // 后续偏好变化由 `config::check_and_emit_theme` 调用 `apply_window_theme` 同步。
@@ -423,6 +545,9 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         // 注意不能用 .drag_and_drop(false)：它只设置 tao 窗口层的拖放开关
         // （tauri issue #13761），不影响 webview 层，拖拽依旧失效；
         // disable_drag_drop_handler 才能关掉 wry 的接管（等价于旧配置 dragDropEnabled: false）。
+        // 代价：wry 随接管一起关掉的 AllowExternalDrop 防护也没了，必须由
+        // desktop::window::disable_external_drop 在页面加载时补回，否则页面内拖放
+        // 文本会让 WebView2 卡在失效的鼠标捕获上（issue #591）。
         .disable_drag_drop_handler()
         // 接管内嵌 iframe 的 window.open() / target=_blank 新窗口请求：
         // WebView2 里这类请求走 NewWindowRequested，wry 在没有 handler 时
@@ -449,6 +574,7 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     #[cfg(not(windows))]
     let webview_builder = webview_builder
         .initialization_script_for_all_frames(crate::desktop::compat::ABORT_SIGNAL_ANY_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::compat::ITERATOR_HELPERS_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::notification::NOTIFICATION_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::paste::PASTE_SHIM_JS)
         .initialization_script_for_all_frames(crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS);
@@ -488,6 +614,96 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     Ok(webview_window)
 }
 
+/// 「文件 → 新建窗口」：以同一 `index.html` 再开一个独立 webview 窗口。
+///
+/// 与主窗口共用同一份平台 chrome、外链/下载接管与（Windows）WebView2 用户数据
+/// 目录，但**不**参与主窗口几何恢复与落盘：`on_window_event` 只对
+/// `MAIN_WINDOW_LABEL` 采样，否则第二个窗口的移动/缩放会覆盖用户保存的主窗口尺寸。
+///
+/// 只能在异步运行时的命令任务里调用（与 `pet::ensure_pet_window` 同样的约束：
+/// `WebviewWindowBuilder::build()` 需要主线程事件循环回包，主线程调用会死锁）。
+pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::WebviewWindow<Wry>> {
+    let sequence = EXTRA_WINDOW_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+    let label = format!("window-{sequence}");
+    let app_handle = app.clone();
+
+    let webview_builder =
+        WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+            .title("Deepseek Harness Desktop")
+            .inner_size(1280.0, 840.0)
+            .min_inner_size(860.0, 620.0)
+            .resizable(true);
+
+    #[cfg(windows)]
+    let webview_builder = webview_builder
+        // 与主窗口共用同一 User Data Folder：同一进程内多个窗口各自指定不同
+        // 目录会直接建窗失败。
+        .data_directory(webview_data_directory(app))
+        .additional_browser_args(windows_drag_browser_args())
+        .icon(app.default_window_icon().unwrap().clone())?;
+
+    // 非 Windows 平台没有 WebView2 的 FrameCreated/ContentLoading 流程，兼容桥、
+    // 通知桥、剪贴板图片桥与 boot 探测桥必须按窗口重新注入（与主窗口一致）。
+    #[cfg(not(windows))]
+    let webview_builder = webview_builder
+        .initialization_script_for_all_frames(crate::desktop::compat::ABORT_SIGNAL_ANY_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::compat::ITERATOR_HELPERS_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::notification::NOTIFICATION_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::paste::PASTE_SHIM_JS)
+        .initialization_script_for_all_frames(crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS);
+
+    #[cfg(target_os = "macos")]
+    let webview_builder = webview_builder
+        .decorations(true)
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-12 = 48px），
+        // 交通灯必须落在同一水平线上（写死 24.0 会随 #524 的栏高改动错位 4px）。
+        .traffic_light_position(tauri::LogicalPosition::new(
+            TRAFFIC_LIGHT_INSET_X,
+            f64::from(SHELL_NAV_HEIGHT) / 2.0 + TRAFFIC_LIGHT_VISUAL_OFFSET,
+        ))
+        .theme(match crate::config::get_dsh_theme(app) {
+            crate::config::DshTheme::System => None,
+            crate::config::DshTheme::Light => Some(tauri::Theme::Light),
+            crate::config::DshTheme::Dark => Some(tauri::Theme::Dark),
+        });
+
+    #[cfg(not(target_os = "macos"))]
+    let webview_builder = webview_builder.decorations(false);
+
+    let webview_builder = webview_builder
+        .disable_drag_drop_handler()
+        .on_new_window(move |url, features| on_new_window(app_handle.clone(), url, features))
+        .on_download(|webview, event| on_download(webview, event));
+
+    #[cfg(windows)]
+    let webview_builder = {
+        // 每个窗口各自持有登记标志：通知权限处理器按 webview 注册。
+        let notification_handlers_registered = Arc::new(AtomicBool::new(false));
+        webview_builder.on_page_load(move |webview_window, payload| {
+            on_page_load(
+                webview_window,
+                payload,
+                notification_handlers_registered.clone(),
+            )
+        })
+    };
+
+    let window = webview_builder.build()?;
+
+    // 启动/真值变化时由主窗口应用缩放；新窗口需要自己应用一次当前真值。
+    let zoom_factor = crate::config::get_store_dat_setting(app).zoom_factor;
+    if zoom_factor != crate::config::default_zoom_factor() {
+        if let Err(error) = crate::desktop::zoom::apply_native_zoom(&window, zoom_factor) {
+            log::warn!("[zoom] extra window zoom was not applied: {error}");
+        }
+    }
+    let _ = window.set_focus();
+
+    Ok(window)
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::windows_drag_browser_args;
@@ -500,6 +716,46 @@ mod tests {
         assert!(args.contains("msWebOOUI,msPdfOOUI"));
         let smart_screen = ["ms", "SmartScreen", "Protection"].concat();
         assert!(!args.contains(smart_screen.as_str()));
+    }
+}
+
+/// 壳层导航栏高度是「前端高度类 ↔ 后端交通灯位置」的隐式耦合点（issue #524）。
+/// 这里把它变成显式契约：改一边忘了另一边，三个平台的 CI 都会直接失败。
+#[cfg(test)]
+mod shell_nav_tests {
+    use super::SHELL_NAV_HEIGHT;
+    use std::path::PathBuf;
+
+    /// Tailwind 4 的间距刻度步长：`h-N` = N × 0.25rem = N × 4px
+    /// （本仓库未覆盖 `--spacing`，见 `src/styles/main.css`）。
+    const TAILWIND_SPACING_PX: u32 = 4;
+
+    #[test]
+    fn shell_nav_height_matches_navbar_height_class() {
+        let path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/layout/components/navbar.tsx");
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {} failed: {error}", path.display()));
+
+        // 只匹配导航栏根元素那串 class（`relative flex h-N w-full flex-none …`），
+        // 免得命中窗口按钮的 `h-6` 等其他高度类。
+        let pattern = regex::Regex::new(r"relative flex h-(\d+) w-full flex-none").unwrap();
+        let captures = pattern.captures(&source).unwrap_or_else(|| {
+            panic!(
+                "{} 里找不到导航栏根元素的 `relative flex h-N w-full flex-none` class；\
+                 若换了高度类的写法，请同步本测试",
+                path.display()
+            )
+        });
+        let steps: u32 = captures[1].parse().expect("h-N 的 N 必须是整数");
+
+        assert_eq!(
+            steps * TAILWIND_SPACING_PX,
+            SHELL_NAV_HEIGHT,
+            "navbar.tsx 的 h-{steps}（{}px）与 SHELL_NAV_HEIGHT（{SHELL_NAV_HEIGHT}px）不一致：\
+             macOS 交通灯纵向位置由 SHELL_NAV_HEIGHT 推导，改栏高必须两处同步（issue #524）",
+            steps * TAILWIND_SPACING_PX,
+        );
     }
 }
 
@@ -562,6 +818,60 @@ mod security_tests {
     }
 }
 
+#[cfg(test)]
+mod macos_bundle_tests {
+    use serde_json::Value;
+
+    /// issue #214：macOS 的麦克风授权完全落在打包配置上——iframe `allow`
+    /// 与 WebView2 侧权限已由 PR #216 修复，macOS 还缺「用途说明 + 签名授权」，
+    /// 两者缺任何一个，内嵌 WKWebView 里的 `getUserMedia` 都拿不到流
+    /// （缺用途说明时 TCC 直接终止进程，连授权框都不弹）。
+    #[test]
+    fn macos_media_capture_permissions_are_declared() {
+        let config: Value = serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let macos = &config["bundle"]["macOS"];
+        assert_eq!(
+            macos["hardenedRuntime"].as_bool(),
+            Some(true),
+            "entitlements 只在开启 Hardened Runtime 的签名上生效"
+        );
+        // 相对路径按 bundle 时的 CWD（src-tauri）解析。
+        assert_eq!(macos["infoPlist"].as_str(), Some("Info.plist"));
+        assert_eq!(macos["entitlements"].as_str(), Some("Entitlements.plist"));
+
+        // 用带 <key> 的完整标签匹配，避免注释里出现的键名让断言蒙混过关。
+        let info_plist = include_str!("../../Info.plist");
+        assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
+        assert!(info_plist.contains("<key>NSCameraUsageDescription</key>"));
+
+        let entitlements = include_str!("../../Entitlements.plist");
+        assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+        assert!(entitlements.contains("<key>com.apple.security.device.camera</key>"));
+    }
+
+    /// plist 语法只有 macOS 的 `plutil` 能权威校验（Rust 侧没有 plist 依赖），
+    /// 放在现有 macOS CI 上跑，免得打包/公证阶段才发现坏文件。
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_bundle_plists_are_valid() {
+        for file in ["Info.plist", "Entitlements.plist"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+            let output = std::process::Command::new("plutil")
+                .arg("-lint")
+                .arg(&path)
+                .output()
+                .expect("plutil must be available on macOS");
+            assert!(
+                output.status.success(),
+                "plutil -lint {} failed: {}{}",
+                path.display(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
+
 // configure invoke handler
 pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
@@ -571,6 +881,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::shutdown_harness,
         crate::bridge::restart_harness,
         crate::bridge::enter_safe_mode,
+        crate::bridge::quarantine_broken_patch_layers,
         crate::bridge::get_dsh_status,
         crate::bridge::get_preinstall_plugins,
         crate::bridge::get_preinstall_pending,
@@ -636,6 +947,8 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::read_clipboard_image,
         crate::bridge::write_clipboard_text,
         crate::desktop::notification::show_native_notification,
+        crate::desktop::window::create_app_window,
+        crate::desktop::window::quit_app,
         crate::bridge::log_frontend,
         crate::bridge::get_pet_status,
         crate::bridge::report_pet_render,
@@ -687,7 +1000,11 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             | "desktop-about"
             | "desktop-copy-run-logs"
             | "desktop-check-update"
-            | "desktop-restart" => {
+            | "desktop-restart"
+            | "desktop-documentation"
+            | "desktop-new-window"
+            | "desktop-new-chat"
+            | "desktop-open-folder" => {
                 if let Err(error) = app.emit("macos-menu-action", event.id().as_ref()) {
                     log::warn!("[menu] failed to emit macOS menu action: {error}");
                 }
@@ -712,6 +1029,11 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
                     if let Err(error) = crate::bridge::pet::set_pet_enabled(handle, false) {
                         log::warn!("[pet] PET_WINDOW_DESTROY_FAILED: {error}");
                     }
+                    return;
+                }
+                // 主窗口以外的附加窗口（「文件 → 新建窗口」）不驻留托盘：直接关闭
+                // 销毁。隐藏它们既没有恢复入口，也不符合「关掉这个窗口」的直觉。
+                if window.label() != MAIN_WINDOW_LABEL {
                     return;
                 }
                 // get_store_dat_setting 内部已归一化，取值只可能是 tray 或 quit
@@ -752,12 +1074,14 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
                 #[cfg(not(target_os = "macos"))]
                 let _ = window.hide();
             }
-            // 移动/缩放主窗口时记录几何，重启后据此恢复（见 config::window_state）
+            // 移动/缩放主窗口时记录几何，重启后据此恢复（见 config::window_state）。
+            // 只认主窗口 label：附加窗口的几何与主窗口共用同一份记录，采样会污染它。
             tauri::WindowEvent::Moved(_) => match window.label() {
                 label if label == crate::desktop::pet::PET_WINDOW_LABEL => {
                     crate::desktop::pet::save_pet_window_geometry(window);
                 }
-                _ => crate::config::save_geometry(window),
+                label if label == MAIN_WINDOW_LABEL => crate::config::save_geometry(window),
+                _ => {}
             },
             tauri::WindowEvent::ScaleFactorChanged { .. } => {
                 if window.label() == crate::desktop::pet::PET_WINDOW_LABEL {
@@ -769,13 +1093,19 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
                     label if label == crate::desktop::pet::PET_WINDOW_LABEL => {
                         crate::desktop::pet::save_pet_window_geometry(window);
                     }
-                    _ => crate::config::save_geometry(window),
+                    label if label == MAIN_WINDOW_LABEL => crate::config::save_geometry(window),
+                    _ => {}
                 }
+                // 全屏菜单文案与 Accessory 切换都只针对主窗口：附加窗口没有
+                // 独立的全屏菜单项，也不参与「关闭主窗口即后台化」的激活策略。
                 #[cfg(target_os = "macos")]
-                sync_macos_fullscreen_menu(window);
-                // 退出全屏后补做全屏期间被推迟的 Accessory 切换
-                #[cfg(target_os = "macos")]
-                crate::desktop::activation::on_window_resized(window);
+                {
+                    if window.label() == MAIN_WINDOW_LABEL {
+                        // 退出全屏后补做全屏期间被推迟的 Accessory 切换
+                        sync_macos_fullscreen_menu(window);
+                        crate::desktop::activation::on_window_resized(window);
+                    }
+                }
             }
             _ => {}
         });
@@ -791,6 +1121,13 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
         crate::utils::show_main_window(app);
     }));
+
+    // Windows/WebView2 上 wry 忽略 `for_main_frame_only`、把每个初始化脚本注入所有子 frame，
+    // 而 Tauri 只在 main frame 定义 `window.__TAURI_INTERNALS__`；dsh GUI 所在的跨源 iframe
+    // 因此每次加载都抛 `path` 插件脚本的 "reading 'plugins'"。垫片注册在最前面，保证排在
+    // core 插件（path 在其中）之前执行，只补骨架、不碰 isTauri（见 desktop::tauri_internals）。
+    #[cfg(windows)]
+    let builder = builder.plugin(crate::desktop::tauri_internals::shim());
 
     builder
         // 官方跨平台登录启动实现：Windows HKCU Run、macOS LaunchAgent、Linux XDG。

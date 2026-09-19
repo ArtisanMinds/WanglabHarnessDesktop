@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unnecessary-use-prefix */
 import type { RefObject } from 'react'
 import { getIframeOrigin } from '@/utils/iframe'
 
@@ -6,7 +7,7 @@ export const IFRAME_HOST_SOURCE = 'dsh-desktop'
 
 /** 宿主 → iframe 的消息体：`type` 必填（如 `dsh://sidebar:toggle`），其余字段按具体协议附带。 */
 export interface IframeOutboundMessage {
-  type: string
+  type?: string
   [key: string]: unknown
 }
 

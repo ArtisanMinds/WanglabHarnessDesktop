@@ -16,7 +16,7 @@ import { useListenIframe } from '@/hooks/use-listen-iframe'
  * 协议（与 dsh-tauri client service/invoke.ts 逐字一致）：
  *   iframe → 宿主：{ source: 'dsh-tauri-invoke', type: 'dsh://tauri:invoke',
  *                     cmd, args, nonce }
- *   宿主 → iframe：{ source: 'dsh-desktop-invoke', type: 'dsh://tauri:reply',
+ *   宿主 → iframe：{ type: 'dsh://tauri:reply',
  *                     nonce, ok, value | error }
  *
  * 来源与 origin 校验由 `useIframeMessage` 统一完成（直接 iframe + origin；
@@ -31,7 +31,7 @@ interface InvokeBridgeRequest {
 
 /**
  * 允许 iframe 桥调用的 Tauri command 白名单（与 dsh-tauri-pet 的
- * service/pet.ts 一一对应）。凡新增可经桥调用的 command 必须在此登记，
+ * client/apis/index.ts 一一对应）。凡新增可经桥调用的 command 必须在此登记，
  * 防止 iframe 内其他插件借道桥执行任意 Tauri command（越权）。
  */
 const ALLOWED_INVOKE_CMDS = new Set([
@@ -69,7 +69,7 @@ export function useInvokeIframe(iframeRef: RefObject<HTMLIFrameElement | null>):
 
     function reply(payload: { ok: boolean, value?: unknown, error?: string }) {
       iframeRef.current?.contentWindow?.postMessage(
-        { source: 'dsh-desktop-invoke', type: 'dsh://tauri:reply', nonce, ...payload },
+        { type: 'dsh://tauri:reply', nonce, ...payload },
         origin,
       )
     }

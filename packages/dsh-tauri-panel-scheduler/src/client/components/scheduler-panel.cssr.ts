@@ -5,13 +5,14 @@ const { primary, secondary, tertiary, borderL2: border, font } = sharedStyles
 
 /** 定时任务面板主容器（scheduler-panel.tsx）：外壳 + 搜索 + Tabs。 */
 export default c([
-  c('.dshp-scheduler__shell', { boxSizing: 'border-box', maxWidth: '1080px', width: '100%', margin: '0 auto', padding: '0 0 32px', color: primary, fontFamily: font, fontSize: '13px', lineHeight: '1.5' }),
-  c('.dshp-scheduler__top', { display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '12px' }),
-  c('.dshp-scheduler__heading h1', { margin: '0', fontSize: '20px', lineHeight: '28px', fontWeight: '650', letterSpacing: '0' }),
-  c('.dshp-scheduler__heading p', { margin: '4px 0 0', color: tertiary, fontSize: '13px', lineHeight: '1.5' }),
-  c('.dshp-scheduler__toolbar', { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }),
-  c('.dshp-scheduler__toolbar-spacer', { flex: '1' }),
-  c('.dshp-scheduler__search-wrap', { position: 'relative', display: 'inline-flex', flex: '1 1 180px', minWidth: 'min(180px, 100%)', maxWidth: '280px' }),
+  c('.dshp-scheduler__shell', { boxSizing: 'border-box', color: primary, fontFamily: font, fontSize: '13px', lineHeight: '1.5' }),
+  c('.dshp-scheduler__top', { display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '12px' }),
+  c('.dshp-scheduler__heading', { flex: '1 1 320px', minWidth: '0' }),
+  c('.dshp-scheduler__heading h1', { margin: '0', fontSize: '20px', lineHeight: '28px', fontWeight: '500' }),
+  c('.dshp-scheduler__heading p', { margin: '4px 0 0', color: secondary, fontSize: '13px', lineHeight: '20px' }),
+  c('.dshp-scheduler__toolbar', { display: 'flex', flexShrink: 0, flexWrap: 'wrap', maxWidth: '100%', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }),
+  c('.dshp-scheduler__search-bar', { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }),
+  c('.dshp-scheduler__search-wrap', { position: 'relative', display: 'inline-flex', flex: '0 1 280px', minWidth: '0', maxWidth: '280px' }),
   c('.dshp-scheduler__search-wrap .dshp-scheduler__input', { width: '100%', paddingLeft: '32px' }),
   c('.dshp-scheduler__search-icon', { position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: tertiary }),
   c('.dshp-scheduler__tabs', { display: 'flex', alignItems: 'center', gap: '16px', margin: '4px 0 14px', borderBottom: `1px solid ${border}` }),
@@ -21,8 +22,5 @@ export default c([
   c('.dshp-scheduler__cards', { display: 'flex', flexDirection: 'column', gap: '8px', margin: '0', padding: '0', listStyle: 'none' }),
   c('.dshp-scheduler__empty', { margin: '0', padding: '48px 0', color: tertiary, fontSize: '13px', textAlign: 'center' }),
   c('.dshp-scheduler__error', { color: 'var(--dsw-alias-state-error-primary)', margin: '0', fontSize: '12px', lineHeight: '18px' }),
-  c('@media (max-width: 680px)', [
-    c('.dshp-scheduler__search-wrap', { flexBasis: '100%', maxWidth: 'none' }),
-    c('.dshp-scheduler__toolbar-spacer', { display: 'none' }),
-  ]),
+  c('@media (max-width: 680px)', [c('.dshp-scheduler__search-wrap', { maxWidth: '160px' })]),
 ])

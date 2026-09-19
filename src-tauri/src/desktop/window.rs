@@ -7,10 +7,10 @@ use std::sync::Arc;
 use tauri::webview::{PageLoadEvent, PageLoadPayload};
 use tauri::{
     webview::{DownloadEvent, NewWindowFeatures, NewWindowResponse},
-    Emitter, Runtime, Url, Webview,
+    AppHandle, Emitter, Runtime, Url, Webview, Wry,
 };
 #[cfg(windows)]
-use tauri::{WebviewWindow, Wry};
+use tauri::WebviewWindow;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::config;
@@ -64,6 +64,48 @@ pub fn on_download<R: Runtime>(webview: Webview<R>, event: DownloadEvent<'_>) ->
     }
 }
 
+/// 关掉 WebView2 的外部拖放（`AllowExternalDrop`）。
+///
+/// wry 只在它自己接管拖放时才关闭该开关（`drop_handler` 为空就跳过）；本项目用
+/// `disable_drag_drop_handler()` 关掉了那份接管以恢复 iframe 内的 HTML5 拖拽，
+/// 于是开关留在默认开启状态。而开启时，在页面内拖放文本会让 WebView2 卡在失效的
+/// 鼠标捕获上：选中无法取消、点击与输入失效、滚轮仍可用（WebView2Feedback #5141 /
+/// #5613）。这里补回这道防护——它只影响外部拖放，页面内 HTML5 拖拽不受影响。
+///
+/// 待确认：调用点位于 `on_page_load` 的通知注册守卫内，而主窗口的守卫会被 setup
+/// 阶段那次注册提前消费，本函数在主窗口可能压根没执行（#591 follow-up）。下面的
+/// 日志就是用来判定的：主窗口若只有 `on_page_load started` 而没有 `AllowExternalDrop`，
+/// 即说明该分支被跳过。
+#[cfg(windows)]
+pub fn disable_external_drop(webview: &tauri::webview::PlatformWebview) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller4;
+    use windows_core::{BOOL, Interface};
+
+    fn read(controller: &ICoreWebView2Controller4) -> Option<bool> {
+        let mut value = unsafe { std::mem::zeroed::<BOOL>() };
+        unsafe { controller.AllowExternalDrop(&mut value) }.ok()?;
+        Some(value.as_bool())
+    }
+
+    unsafe {
+        match webview.controller().cast::<ICoreWebView2Controller4>() {
+            Ok(controller) => {
+                let before = read(&controller);
+                let set = controller.SetAllowExternalDrop(false);
+                let after = read(&controller);
+                log::info!(
+                    "[webview] AllowExternalDrop {before:?} -> {after:?} (set ok={})",
+                    set.is_ok()
+                );
+                if let Err(e) = set {
+                    log::warn!("[webview] failed to disable external drop: {e}");
+                }
+            }
+            Err(e) => log::warn!("[webview] ICoreWebView2Controller4 unavailable: {e}"),
+        }
+    }
+}
+
 #[cfg(windows)]
 pub fn on_page_load(
     webview_window: WebviewWindow<Wry>,
@@ -73,13 +115,17 @@ pub fn on_page_load(
     // Windows 依赖 WebView2 的 FramePermissionRequested / FrameCreated 机制，
     // 需要在页面加载时注册；非 Windows 已在 build_main_window 里通过
     // initialization_script_for_all_frames 注入，这里不需要再做处理。
-    if payload.event() == PageLoadEvent::Started
-        && !notification_handlers_registered_for_page
-            .swap(true, std::sync::atomic::Ordering::SeqCst)
+    if payload.event() != PageLoadEvent::Started {
+        return;
+    }
+    log::info!("[webview] on_page_load started");
+    if !notification_handlers_registered_for_page
+        .swap(true, std::sync::atomic::Ordering::SeqCst)
     {
         log::info!("[notification] top-level page load started; scheduling handler registration");
         let parent = webview_window.clone();
         if let Err(e) = webview_window.with_webview(move |platform| {
+            disable_external_drop(&platform);
             if let Err(e) =
                 crate::desktop::notification::enable_notification_permissions(platform, parent)
             {
@@ -89,4 +135,22 @@ pub fn on_page_load(
             log::warn!("[webview] failed to schedule notification permission setup: {e}");
         }
     }
+}
+
+/// 壳层导航栏「文件 → 新建窗口」：以同一 `index.html` 再开一个独立 webview 窗口。
+///
+/// 异步命令（不占用主线程）是唯一安全的调用侧：`WebviewWindowBuilder::build()`
+/// 需要主线程事件循环回包，主线程调用会死锁（与 `pet::ensure_pet_window` 同约束）。
+#[tauri::command]
+pub async fn create_app_window(app_handle: AppHandle<Wry>) -> Result<(), String> {
+    crate::desktop::builder::build_extra_window(&app_handle)
+        .map(|_| ())
+        .map_err(|error| format!("WINDOW_CREATE_FAILED: {error}"))
+}
+
+/// 壳层导航栏「文件 → 退出」：与托盘「退出」同语义，走 `exit(0)` 完整退出
+/// （触发 `RunEvent::ExitRequested` 的主窗口几何保存与 `RunEvent::Exit` 的进程回收）。
+#[tauri::command]
+pub fn quit_app(app_handle: AppHandle<Wry>) {
+    app_handle.exit(0);
 }

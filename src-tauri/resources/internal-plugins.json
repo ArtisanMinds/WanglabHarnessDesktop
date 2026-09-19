@@ -7,6 +7,13 @@
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri"
   },
   {
+    "id": "dsh-tauri-model-config",
+    "spec": "dsh-tauri-model-config",
+    "name": "DSH Model Config",
+    "description": "Model configuration for the DeepSeek Harness desktop shell: set the model to use, and other model-specific settings.",
+    "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-model-config"
+  },
+  {
     "id": "dsh-tauri-turnrewind",
     "spec": "dsh-tauri-turnrewind",
     "name": "DSH Turn Rewind",
@@ -28,17 +35,10 @@
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-worktree"
   },
   {
-    "id": "dsh-tauri-panel",
-    "spec": "dsh-tauri-panel",
-    "name": "DSH Tauri Panel",
-    "description": "Sidebar shell for the desktop: compact logo row (32px), a panel area holding the New Session item plus third-party panel items (sidebar.panel.action slot), and the panel.protocol service (open/render/close panel content) consumed by dsh-tauri-panel-extension.",
-    "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-panel"
-  },
-  {
     "id": "dsh-tauri-panel-extension",
     "spec": "dsh-tauri-panel-extension",
     "name": "DSH Tauri Panel Extension",
-    "description": "Skills and MCP management in the DeepSeek Harness desktop extension panel.",
+    "description": "Skills, MCP, and the plugin market in the DeepSeek Harness desktop extension panel.",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-panel-extension"
   },
   {
@@ -59,7 +59,7 @@
     "id": "dsh-tauri-pet",
     "spec": "dsh-tauri-pet",
     "name": "DSH Tauri Pet",
-    "description": "Persistent animated desktop pets with conversation activity states, bubbles, and Chat/Codex pet libraries.",
+    "description": "Desktop pets with conversation activity, a personal pet library, and the pet market.",
     "repoUrl": "https://github.com/dsh-tauri-desk/deepseek-harness-desktop/tree/main/packages/dsh-tauri-pet"
   },
   {

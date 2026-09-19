@@ -1,9 +1,9 @@
 {
   "name": "wanglab-harness-desktop",
   "type": "module",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "private": true,
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@11.7.0",
   "description": "Wanglab Harness Desktop — Create Future Here.",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "prebuild": "pnpm build:plugins",
     "build": "tsc && vite build",
     "build:plugins": "tsx scripts/build-plugins.ts",
+    "genapi": "genapi",
     "preview": "vite preview",
     "tauri": "tauri",
     "release": "bumpp --pr",
@@ -23,6 +24,7 @@
     "icons": "tauri icon public/favicon.svg && tsx scripts/rebuild-macos-icon.ts"
   },
   "dependencies": {
+    "@genapi/pipeline": "catalog:",
     "@gravity-ui/icons": "catalog:runtime",
     "@hairy/utils": "catalog:utils",
     "@heroui/react": "catalog:runtime",
@@ -62,6 +64,7 @@
     "@deepseek-ai/dsh-client-ui-renderer": "catalog:dsh",
     "@deepseek-ai/dsh-client-ui-settings": "catalog:dsh",
     "@deepseek-ai/dsh-client-ui-slots": "catalog:dsh",
+    "@deepseek-ai/dsh-client-ui-theme": "catalog:dsh",
     "@deepseek-ai/dsh-llm": "catalog:dsh",
     "@deepseek-ai/dsh-permission-presets": "catalog:dsh",
     "@deepseek-ai/dsh-session": "catalog:dsh",
@@ -71,6 +74,10 @@
     "@deepseek-ai/dsh-user-approval": "catalog:dsh",
     "@deepseek-ai/dsh-workspace": "catalog:dsh",
     "@eslint-react/eslint-plugin": "catalog:lint",
+    "@genapi/core": "catalog:",
+    "@genapi/parser": "catalog:",
+    "@genapi/presets": "catalog:",
+    "@genapi/shared": "catalog:",
     "@tailwindcss/postcss": "catalog:build",
     "@tailwindcss/vite": "catalog:build",
     "@tauri-apps/cli": "catalog:tauri",

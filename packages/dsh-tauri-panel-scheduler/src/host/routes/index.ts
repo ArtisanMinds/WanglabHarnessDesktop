@@ -1,147 +1,24 @@
-/**
- * host/routes/index.ts — 调度器 HTTP 路由（/api/dsh-scheduler/*）。
- *
- * 客户端 UI 经此调用：list / create / update / toggle / delete / run / history /
- * options。变更操作统一 routeHandler({ mutate: true })（POST + 仅 127.0.0.1 回环），
- * 并全部经 withConnectionAuth 做 DSH 连接信任边界校验。
- */
+import { defineRoutes } from 'dsh-tauri'
+import historyDelete from './history/delete'
+import history from './history/get'
+import options from './options/get'
+import recover from './runs/recover/post'
+import tasksDelete from './tasks/delete'
+import tasks from './tasks/get'
+import tasksCreate from './tasks/post'
+import tasksUpdate from './tasks/put'
+import tasksRun from './tasks/run/post'
+import tasksToggle from './tasks/toggle/post'
 
-import type { SchedulerEngine } from '../service/scheduler'
-import type { HostContext, JsonBody, RouteResult } from '../types'
-import { routeHandler, withConnectionAuth } from 'dsh-tauri'
-import { SCHEDULER_API_PREFIX } from '../../shared/constants'
-import { collectSchedulerOptions } from '../service/options'
-import { deleteRun, getAllRun, recoverInterruptedRuns } from '../service/run'
-import { createTask, deleteTask, getAllTask, setTaskEnabled, updateTask } from '../service/task'
-
-/** 从 URL 或 body 提取参数（统一字符串化）。 */
-function stringParam(body: JsonBody, url: URL, key: string): string {
-  const value = url.searchParams.get(key) ?? body[key]
-  return typeof value === 'string' ? value : ''
-}
-
-/** 构造全部路由（engine 由 apply 传入以支持手动触发）。 */
-export function buildRoutes(ctx: HostContext, engine: SchedulerEngine): any[] {
-  const routes = [
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/tasks`,
-      handler: routeHandler(async (body, req) => {
-        const url = new URL(req.url ?? '/', 'http://localhost')
-        const search = stringParam(body, url, 'search')
-        const all = await getAllTask()
-        const tasks = search
-          ? all.filter(task => task.name.toLowerCase().includes(search.toLowerCase()))
-          : all
-        return [200, { tasks }] as RouteResult
-      }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/tasks/create`,
-      handler: routeHandler(async (body) => {
-        const result = await createTask(body as never)
-        if (!result.ok)
-          return [400, { error: result.error }] as RouteResult
-        return [200, { ok: true, task: result.task }] as RouteResult
-      }, { mutate: true }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/tasks/update`,
-      handler: routeHandler(async (body) => {
-        const id = stringParam(body, new URL('http://localhost'), 'id')
-        if (!id)
-          return [400, { error: '缺少任务 id' }] as RouteResult
-        const result = await updateTask(id, body as never)
-        if (!result.ok)
-          return [400, { error: result.error }] as RouteResult
-        return [200, { ok: true, task: result.task }] as RouteResult
-      }, { mutate: true }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/tasks/toggle`,
-      handler: routeHandler(async (body) => {
-        const id = stringParam(body, new URL('http://localhost'), 'id')
-        if (!id)
-          return [400, { error: '缺少任务 id' }] as RouteResult
-        const enabled = body.enabled === true
-        const result = await setTaskEnabled(id, enabled)
-        if (!result.ok)
-          return [400, { error: result.error }] as RouteResult
-        return [200, { ok: true, task: result.task }] as RouteResult
-      }, { mutate: true }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/tasks/delete`,
-      handler: routeHandler(async (body) => {
-        const id = stringParam(body, new URL('http://localhost'), 'id')
-        if (!id)
-          return [400, { error: '缺少任务 id' }] as RouteResult
-        const result = await deleteTask(id)
-        if (!result.ok)
-          return [400, { error: result.error }] as RouteResult
-        return [200, { ok: true }] as RouteResult
-      }, { mutate: true }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/tasks/run`,
-      handler: routeHandler(async (body) => {
-        const id = stringParam(body, new URL('http://localhost'), 'id')
-        if (!id)
-          return [400, { error: '缺少任务 id' }] as RouteResult
-        const result = await engine.runNow(id)
-        if (!result.ok)
-          return [400, { error: result.error }] as RouteResult
-        return [200, { ok: true }] as RouteResult
-      }, { mutate: true }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/history/delete`,
-      handler: routeHandler(async (body) => {
-        const id = stringParam(body, new URL('http://localhost'), 'id')
-        if (!id)
-          return [400, { error: '缺少执行记录 id' }] as RouteResult
-        const result = await deleteRun(id)
-        if (!result.ok)
-          return [400, { error: result.error }] as RouteResult
-        return [200, { ok: true }] as RouteResult
-      }, { mutate: true }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/history`,
-      handler: routeHandler(async (body, req) => {
-        const url = new URL(req.url ?? '/', 'http://localhost')
-        const taskId = stringParam(body, url, 'taskId') || undefined
-        const all = await getAllRun()
-        const runs = taskId ? all.filter(run => run.taskId === taskId) : all
-        return [200, { runs: [...runs].sort((a, b) => b.startedAt.localeCompare(a.startedAt)) }] as RouteResult
-      }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/options`,
-      handler: routeHandler(async () => {
-        const options = await collectSchedulerOptions(ctx)
-        return [200, options] as RouteResult
-      }),
-    },
-    {
-      kind: 'exact',
-      path: `${SCHEDULER_API_PREFIX}/recover`,
-      handler: routeHandler(async () => {
-        await recoverInterruptedRuns()
-        return [200, { ok: true }] as RouteResult
-      }, { mutate: true }),
-    },
-  ]
-  return routes.map(route => ({
-    ...route,
-    handler: withConnectionAuth(ctx.connection, route.handler, 'dsh-tauri-panel-scheduler'),
-  }))
-}
+export const routes = defineRoutes((disposer) => {
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasks)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasksCreate)
+  disposer.put({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasksUpdate)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks' }, tasksDelete)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks/toggle' }, tasksToggle)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/tasks/run' }, tasksRun)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/history' }, history)
+  disposer.delete({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/history' }, historyDelete)
+  disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/options' }, options)
+  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-panel-scheduler/runs/recover' }, recover)
+})

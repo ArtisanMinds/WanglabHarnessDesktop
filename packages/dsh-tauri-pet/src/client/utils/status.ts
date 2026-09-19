@@ -1,4 +1,4 @@
-import type { PetStatus } from '../types'
+import type { PetStatus } from '../service/pet.types'
 
 export function isPetStatus(value: unknown): value is PetStatus {
   if (!value || typeof value !== 'object')

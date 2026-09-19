@@ -496,12 +496,12 @@ fn remove_link_only(path: &Path) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<()> {
+pub(crate) fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(source, destination)
 }
 
 #[cfg(windows)]
-fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<()> {
+pub(crate) fn create_directory_link(source: &Path, destination: &Path) -> std::io::Result<()> {
     // 优先创建真正的符号链接：仅在启用 Developer Mode 或具备
     // SeCreateSymbolicLinkPrivilege（管理员）时才可用；普通用户（release 版
     // 默认非管理员启动）会得到 ERROR_PRIVILEGE_NOT_HELD（os error 1314），

@@ -1,6 +1,6 @@
 # Development
 
-DeepSeek Harness Desktop is a **Tauri 2 + React 19** app: the UI lives in `src/`, the Rust backend in `src-tauri/`. The repository uses pnpm 10 and the desktop's bundled runtime is Node.js 22.22.0.
+DeepSeek Harness Desktop is a **Tauri 2 + React 19** app: the UI lives in `src/`, the Rust backend in `src-tauri/`. The repository uses pnpm 11 and the desktop's bundled runtime is Node.js 22.22.0.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ DeepSeek Harness Desktop is a **Tauri 2 + React 19** app: the UI lives in `src/`
 | --- | --- |
 | Node.js | 22.19+ (CI and bundled runtime: 22.22.0) |
 | Rust | 1.77.2+ |
-| pnpm | 10.x (`pnpm@10.28.2`) |
+| pnpm | 11.x (`pnpm@11.7.0`) |
 
 Plus the platform toolchain:
 

@@ -319,6 +319,7 @@ pub fn ensure_pet_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Webvie
     {
         builder = builder
             .initialization_script_for_all_frames(crate::desktop::compat::ABORT_SIGNAL_ANY_SHIM_JS)
+            .initialization_script_for_all_frames(crate::desktop::compat::ITERATOR_HELPERS_SHIM_JS)
             .initialization_script_for_all_frames(
                 crate::desktop::notification::NOTIFICATION_SHIM_JS,
             )

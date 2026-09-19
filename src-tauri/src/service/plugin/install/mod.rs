@@ -74,7 +74,10 @@ pub use single::{remove, update};
 
 use allowlist::{add_allow_build_keys, parse_allowlist_keys};
 use artifact::{ensure_plugin_entry_built, verify_installed_products};
-use diagnose::{diagnostic_suffix, git_transport_hint, network_error_hint, pick_error_message};
+use diagnose::{
+    diagnostic_suffix, git_transport_hint, network_error_hint, pick_error_message,
+    store_mismatch_hint,
+};
 use pnpm::ensure_pnpm;
 use spec::{bundled_dir_of, normalize_git_spec, preset_spec_for_install, shell_quote_spec};
 
@@ -282,11 +285,14 @@ async fn install_with_cancel(
         let network_error = network_error_hint(&last_output).is_some()
             || (exit_code == 3 && last_output.trim().is_empty());
         let hint = git_transport_hint(&last_output);
+        let store_hint = store_mismatch_hint(&last_output);
         let network_hint = network_error.then_some(
             "NETWORK_ERROR: plugin registry request failed; check network or proxy settings and retry.",
         );
         let message = if network_error {
             network_hint.unwrap_or_default().to_string()
+        } else if let Some(store_hint) = store_hint.as_deref() {
+            store_hint.to_string()
         } else {
             pick_error_message(&last_output, hint)
         };
@@ -318,6 +324,21 @@ async fn install_with_cancel(
             );
             return Err(format!(
                 "PREINSTALL_FAILED: dsh plugin exited with code {exit_code} ({hint})"
+            ));
+        }
+        // pnpm 因档案 node_modules 与当前 pnpm 的 store 布局不匹配而拒绝安装：
+        // 报错正文里的两条 store 路径会被 pick_error_message 丢掉，这里补上可读
+        // 指引，避免用户只看到「插件安装失败」。
+        if let Some(store_hint) = store_hint {
+            log::warn!("pnpm store incompatibility detected during plugin install: {store_hint}");
+            let _ = window.emit(
+                PREINSTALL_LOG_EVENT,
+                PreinstallLogPayload {
+                    line: format!("[pnpm] {store_hint}"),
+                },
+            );
+            return Err(format!(
+                "PREINSTALL_FAILED: dsh plugin exited with code {exit_code} ({store_hint})"
             ));
         }
         let detail = pick_error_message(&last_output, None);

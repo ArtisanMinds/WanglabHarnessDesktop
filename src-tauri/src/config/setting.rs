@@ -34,11 +34,13 @@ pub struct Setting {
     pub dsh_home_migrated: bool,
     /// 当前使用的档案 id（`$DSH_HOME/profiles/<id>`，默认 web）。
     /// 桌面端启动服务与插件管理都以它为准（见 service::profile）。
+    /// 老用户 store 里可能仍是旧引导档案名 `desktop`：启动迁移
+    /// （`service::profile::migrate_desktop_profile_name`）会把它改指 `tauri`。
     #[serde(default = "default_active_profile")]
     pub active_profile: String,
-    /// 首装档案引导是否已完成：桌面端首次安装时自动新建 Desktop 档案并切换为
-    /// 当前档案（见 service::profile::ensure_first_run_desktop_profile），成功后
-    /// 置位，之后启动不再重做（幂等标记，语义同 dsh_home_migrated）。
+    /// 首装档案引导是否已完成：桌面端首次安装时自动新建引导档案（`tauri`）并
+    /// 切换为当前档案（见 service::profile::migrate_desktop_profile_name），成功
+    /// 后置位，之后启动不再重做（幂等标记，语义同 dsh_home_migrated）。
     #[serde(default)]
     pub desktop_profile_ready: bool,
     /// 活动核心的显式选择：`Some("local")` = 用户 CLI 安装的本地核心，

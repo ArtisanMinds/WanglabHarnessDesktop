@@ -1,10 +1,13 @@
 import type { ReactElement } from 'react'
-import type { MarketPetItem, PetMarketProps, PresetDownloadProgress } from '../types'
+import type { MarketPetItem, PetMarketProps, PresetDownloadProgress } from '../types/market'
 import { ArrowDownToLine, ArrowRotateRight, Icon, useMountStyle } from 'dsh-tauri-ui/client'
+import { useWatchImmediate } from 'dsh-tauri/client'
 import { useEffect, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
-import { usePetLocale } from '../locales'
-import { createPetMarketSession, initialMarketSnapshot } from '../service/market'
+import { PET_CARD_STYLES_ID } from '../constants'
+import { locale } from '../locales'
+import { createPetMarketSession, initialMarketSnapshot } from '../register/market'
+import petCardStyle from './pet-card.cssr'
 import petMarketStyle from './pet-market.cssr'
 
 interface MarketCardProps {
@@ -17,7 +20,7 @@ interface MarketCardProps {
 }
 
 function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: MarketCardProps): ReactElement {
-  const messages = usePetLocale()
+  locale.useLocale()
   const [imageFailed, setImageFailed] = useState(false)
   const phase = progress?.phase ?? pet.phase
   const downloading = phase === 'downloading' || phase === 'extracting'
@@ -53,7 +56,7 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
           <If cond={!pet.installed && !downloading}>
             <If cond={failed} then={<Icon as={ArrowRotateRight} />} else={<Icon as={ArrowDownToLine} />} />
           </If>
-          {messages[label]}
+          {locale.text(label)}
           <If cond={downloading && percent !== null}>
             <span>
               {percent}
@@ -62,10 +65,10 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
           </If>
         </button>
         <If cond={downloading}>
-          <progress className="dshp-pet__market-progress" aria-label={messages.downloading} max={100} value={percent ?? undefined} />
+          <progress className="dshp-pet__market-progress" aria-label={locale.text('downloading')} max={100} value={percent ?? undefined} />
         </If>
         <If cond={failed}>
-          <p className="dshp-pet__error" role="alert">{messages[progress?.error?.includes('MISMATCH') ? 'downloadInvalid' : 'downloadFailed']}</p>
+          <p className="dshp-pet__error" role="alert">{locale.text(progress?.error?.includes('MISMATCH') ? 'downloadInvalid' : 'downloadFailed')}</p>
         </If>
       </div>
     </article>
@@ -73,15 +76,17 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
 }
 
 export function PetMarket(props: PetMarketProps): ReactElement {
+  useMountStyle(petCardStyle, PET_CARD_STYLES_ID)
   useMountStyle(petMarketStyle, 'dsh-tauri-pet-market-styles')
-  const messages = usePetLocale()
+  locale.useLocale()
   const [snapshot, setSnapshot] = useState(initialMarketSnapshot)
   const sessionRef = useRef<ReturnType<typeof createPetMarketSession> | null>(null)
   const onInstalledRef = useRef(props.onInstalled)
 
-  useEffect(() => {
+  useWatchImmediate(props.onInstalled, () => {
     onInstalledRef.current = props.onInstalled
-  }, [props.onInstalled])
+  })
+  // keep:effect 关闭市场后停止轮询，下载由后端继续。
   useEffect(() => {
     const current = createPetMarketSession(setSnapshot, () => onInstalledRef.current())
     sessionRef.current = current
@@ -93,26 +98,26 @@ export function PetMarket(props: PetMarketProps): ReactElement {
   }, [])
 
   return (
-    <section className="dshp-pet__market" aria-label={messages.market}>
+    <section className="dshp-pet__market" aria-label={locale.text('market')}>
       <div className="dshp-pet__market-tools">
         <div className="dshp-pet__tab-tools">
-          <button type="button" className="dshp-pet__tool-btn dshp-pet__tool-icon" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }} aria-label={messages.refresh} title={messages.refresh}><Icon as={ArrowRotateRight} /></button>
+          <button type="button" className="dshp-pet__tool-btn dshp-pet__tool-icon" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }} aria-label={locale.text('refresh')} title={locale.text('refresh')}><Icon as={ArrowRotateRight} /></button>
         </div>
       </div>
       <If cond={Boolean(snapshot.error)}>
         <div className="dshp-pet__market-error" role="alert">
-          <span>{messages.marketFailed}</span>
+          <span>{locale.text('marketFailed')}</span>
           <button type="button" className="dshp-pet__tool-btn" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }}>
             <Icon as={ArrowRotateRight} />
-            {messages.retry}
+            {locale.text('retry')}
           </button>
         </div>
       </If>
       <If cond={snapshot.loading && snapshot.pets.length === 0}>
-        <p className="dshp-pet__loading" role="status">{messages.loading}</p>
+        <p className="dshp-pet__loading" role="status">{locale.text('loading')}</p>
       </If>
       <If cond={!snapshot.loading && !snapshot.error && snapshot.pets.length === 0}>
-        <p className="dshp-pet__empty">{messages.marketEmpty}</p>
+        <p className="dshp-pet__empty">{locale.text('marketEmpty')}</p>
       </If>
       <div className="dshp-pet__market-grid">
         {snapshot.pets.map(pet => (

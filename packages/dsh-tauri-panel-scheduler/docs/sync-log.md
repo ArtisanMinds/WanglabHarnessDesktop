@@ -5,12 +5,10 @@
 ## 同步基线
 
 - 参考项目：[`MichengAI/dsh-automation`](https://github.com/MichengAI/dsh-automation)
-- 本次对比版本：`v0.1.32`
-- 本次对比提交：`f1bc91a`
+- 本次对比版本：`v0.1.42`（`e75499e`，= 上游 `origin/main`，无更新提交）
+- 已采纳基线：`f1bc91a`（`v0.1.32`）；宿主兼容跟进 `c426c3d`（`v0.1.35`，2026-09-10，适配 DSH `0.1.5-rc.1`）
 - Panel 当前版本：`0.6.7`
-- 记录更新时间：2026-09-07
-- 宿主兼容跟进：上游 `c426c3d`（`v0.1.35`，2026-09-10）适配 DSH `0.1.5-rc.1`；
-  上游最新 tag 为 `v0.1.40`（`88e20ed`）。
+- 记录更新时间：2026-09-16
 
 ## 宿主兼容修复（DSH 0.1.5-rc.1）
 
@@ -90,6 +88,19 @@
 
 ## 验证记录
 
+### 并发上限「等待中」提示（2026-09-16）
+
+```text
+pnpm run lint                                       # 0 error（17 条既有 warning）
+pnpm --filter dsh-tauri-panel-scheduler typecheck   # tsc --noEmit 通过（0 error）
+pnpm test -- --run                                  # 53 test files, 433 tests passed
+pnpm --filter dsh-tauri-panel-scheduler build        # tsdown 通过，publint 无问题
+git diff --check                                    # 无输出
+```
+
+新增单测 `src/host/utils/waiting.test.ts`（5 例：容量为 0、名额内不等待、在跑数占用名额、
+运行中/暂停/未到点均不等待）。
+
 ### DSH 0.1.5-rc.1 宿主兼容修复（2026-09-13）
 
 ```text
@@ -139,12 +150,59 @@ PR #412 的 Frontend、macOS、Ubuntu、Windows CI 均已通过。
 5. 完成后运行 lint、typecheck、test、build，并在本文件补充验证结果。
 6. 将已完成项从“待同步”移动到“已同步”，保留未实施项及原因。
 
+## v0.1.33–v0.1.42 评估与裁决（2026-09-16）
+
+评估范围：`f1bc91a`（`v0.1.32`）..`e75499e`（`v0.1.42`），共 23 个提交；上游 `origin/main` 已停在 `e75499e`。
+
+### 裁决结论
+
+- **A 并发能力簇**（`1f38c56` / `207d2cc` / `3a4be24` / `88e20ed`）：**不采纳、不照搬**。保留本插件
+  `SCHEDULER_MAX_CONCURRENT_RUNS = 4` 的全局上限，不引入上游的 `maxConcurrentRuns` 持久化字段与按任务并发。
+  另立一条本地行为要求：**超出并发上限而未拉起的任务应显示「等待中」**（已同意，待实施）。
+- **B 设置与模型菜单**（`5afa5a0`）：**不采纳**。本地保留模型选项描述行与现有信息密度。
+- **C 插件自更新**（`81058eb` / `0c14fad`）：**不采纳**。桌面端已有分发/更新链路，不引入上游经
+  `ctx.webServer` 暴露的自更新路由与 `pnpm` 拉起逻辑。
+
+### 不采纳明细
+
+| 提交 | 版本 | 结论 | 原因 |
+| --- | --- | --- | --- |
+| `1f38c56` | v0.1.39 | 不采纳 | 删除全局并发上限；本地保留 `SCHEDULER_MAX_CONCURRENT_RUNS = 4`。 |
+| `207d2cc` | v0.1.40 | 不采纳 | 按任务并发 + 1 分钟间隔；不引入 `maxConcurrentRuns`。宿主 interval 下限本就是 1（`src/host/utils/schedule.ts:26`），UI `task-create-dialog.tsx:75` 的 `INTERVAL_OPTIONS` 保持从 5 起。 |
+| `3a4be24` | v0.1.40 | 不采纳 | 工具 schema 去掉 `minimum`；本地 `src/host/tools/create-task.ts` 本就没有 `minimum`，无对应改动。 |
+| `88e20ed` | v0.1.40 | 不采纳 | RPC 边界正整数校验；随并发特性一并放弃。 |
+| `f4acaa4` | v0.1.41 | 不采纳 | 上游 sidebar 页签包裹方案；本地用 `src/client/register/panel.tsx` 的 `definePanel` 独立面板 + `src/client/register/session-icons.ts` DOM 注入，无 native-tabs 注册表。 |
+| `c42700e` | v0.1.42 | 不采纳 | 同上；其「卸载时校验所有权再删」原则可在本地自检，但不构成必须改动。 |
+| `0156a06` | v0.1.36 | 不采纳 | 会话枚举失败时保活；本地无会话枚举与会话关联清理逻辑（`sessionPersistence` / `knownSessionIds` 零引用）。 |
+| `25e4e1b` | — | 部分已满足 | 会话枚举加固与 `cordis.patch.yml` 的 `connection` 补丁不适用本地（本地 patch 仅 `insert` 自身）；`trigger` 标签本地已是 `'schedule' \| 'manual'`（`src/host/types/index.ts:64`、`src/client/apis/index.type.ts:20`）。 |
+| `f05c477` / `d60a711` | v0.1.37 / v0.1.38 | 不采纳 | 无 `src/` 改动，仅上游自身 peer/dev 依赖版本串与 `minimumReleaseAgeExclude` 登记；本地 `pnpm-workspace.yaml:46-70` 的 `dsh` catalog 已锁 `0.1.5-rc.2`。 |
+| `5afa5a0` | v0.1.35 | 不采纳 | 纯视觉（模型描述行、菜单 hint、shell 尺寸）；本地保留现状。 |
+| `81058eb` / `0c14fad` | v0.1.33 | 不采纳 | 插件自更新流程；桌面端已有分发/更新链路，避免双更新源与新增 loopback HTTP 写操作面。 |
+
+归档（纯文档 / CI / release chore，无价值）：`e75499e`、`a8d87bf`、`d4b0109`、`a9f522c`、`ad0f77f`、`028f006`、`817dfd3`、`a1c6b9a`、`babc1c9`。
+
+### 评估范围说明
+
+上一轮（2026-09-13）直接从 `f1bc91a` 跳到 `c426c3d`，漏评 `f1bc91a..c426c3d` 之间触及 `src/` 的三个提交：
+`81058eb`、`0c14fad`、`5afa5a0`。本轮已补评并给出裁决（均不采纳）。
+
+### 本轮增量实施（2026-09-16）
+
+- **并发上限提示**：调度器因 `SCHEDULER_MAX_CONCURRENT_RUNS = 4` 已满而未拉起任务时，任务卡片显示「等待中」。
+  实现方式（裁决 A）：主机侧派生只读字段 `waiting`，不落盘。
+  - 新增 `src/host/utils/waiting.ts`：`isTaskDue()` 与 `selectWaitingTaskIds()`，与 `tick()` 共用同一「到点且未在跑」判定；
+    本次名额（`4 - running.size`）之内的任务不计入等待集，避免每个到点任务都闪一次「等待中」。
+  - `src/host/service/scheduler.ts`：`tick()` 复用 `isTaskDue`；新增服务方法 `waitingIds()`。
+  - `src/host/routes/tasks/get.ts`：任务列表按 `waitingIds()` 标注 `waiting: true`。
+  - `src/host/types/index.ts`、`src/client/types/index.ts`、`src/client/apis/index.type.ts`：补 `waiting?: boolean`。
+  - `src/client/components/task-card.tsx` + `task-card.cssr.ts`：卡片元信息行渲染「等待中」徽标。
+  - `src/client/locales/index.ts`：新增 `waiting`（`等待中` / `Waiting`）。
+  - 未采纳上游 `maxConcurrentRuns`（按任务并发）与「取消全局上限」，本地 `SCHEDULER_MAX_CONCURRENT_RUNS = 4` 保持不变。
+
 ## 待同步项
 
-本轮只处理 DSH `0.1.5-rc.1` 宿主兼容（P0 缺陷），参考仓库 `v0.1.36`–`v0.1.40` 的新能力尚未评估：
+无。`f1bc91a..e75499e` 的全部提交已评估并由用户逐条裁决（见上），本地行为要求「等待中」已实施。
 
-- `0156a06`（v0.1.36）`fix: preserve automation availability when session enumeration fails`——会话枚举失败时保活；
-  需先确认本插件是否存在同类枚举依赖。
-- `f05c477`（v0.1.37）/ `d60a711`（v0.1.38）DSH `0.1.5-rc.2` 支持与 rc.2 包校验——待内核进入 rc.2 时对齐。
-- `1f38c56`/`207d2cc`/`3a4be24`/`88e20ed`（v0.1.39–v0.1.40）取消全局并发上限、按任务并发、一分钟间隔粒度、
-  RPC 边界并发校验——属能力扩展（P2），需要 UI（任务创建对话框）与协议同步后再实施。
+## Wanglab 0.5.0
+
+同步 Desktop v0.15.5 的运行历史、未读标记、会话跳转与 PanelPage 布局。搜索框沿用上游独立行，保留 Wanglab 的工具栏换行与按钮宽度保护，避免窄窗口下挤占标题。

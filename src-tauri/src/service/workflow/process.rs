@@ -193,10 +193,13 @@ pub(super) fn on_owned_process_exit(
 }
 
 /// 只结束本应用当前进程创建并仍持有的 Harness 进程树。
-fn terminate_owned_process() {
+///
+/// 返回是否真的结束了一个进程：调用方据此决定要不要等端口释放。没有持有进程时
+/// 是纯 no-op，不该白等——退出与安装器路径都在用户可见的关键路径上。
+fn terminate_owned_process() -> bool {
     // 一次性取出 PID+句柄（成对），杜绝「PID 已清空/句柄未清」的漏杀窗口
     let Some(owned) = take_owned_process() else {
-        return;
+        return false;
     };
 
     #[cfg(windows)]
@@ -206,12 +209,12 @@ fn terminate_owned_process() {
         const WAIT_TIMEOUT_CODE: u32 = 0x0000_0102;
         let handle = owned.handle as windows_sys::Win32::Foundation::HANDLE;
         if handle.is_null() {
-            return;
+            return true;
         }
         // 真实句柄已结束说明 PID 可能已复用，此时绝不调用 taskkill。
         if unsafe { WaitForSingleObject(handle, 0) } != WAIT_TIMEOUT_CODE {
             unsafe { CloseHandle(handle) };
-            return;
+            return true;
         }
         kill_pid_tree(owned.pid);
         unsafe {
@@ -224,6 +227,8 @@ fn terminate_owned_process() {
     {
         kill_pid_tree(owned.pid);
     }
+
+    true
 }
 
 /// 结束进程树（Windows `taskkill /PID <pid> /T /F`；Unix 负 PID 进程组，与
@@ -458,9 +463,11 @@ pub async fn stop(app_handle: tauri::AppHandle) -> Result<(), String> {
     // 进程终止涉及 WaitForSingleObject（至多 5s）与 taskkill/kill 等同步阻塞
     // 调用，移出 Tokio 执行线程避免卡住其他并发任务（WARN-7/P2-#20）。
     LAUNCH_GUARD.store(false, Ordering::SeqCst);
-    tauri::async_runtime::spawn_blocking(terminate_owned_process)
-        .await
-        .map_err(|e| format!("STOP_FAILED: {e}"))?;
+    tauri::async_runtime::spawn_blocking(|| {
+        terminate_owned_process();
+    })
+    .await
+    .map_err(|e| format!("STOP_FAILED: {e}"))?;
     // 清理孤儿清扫标记：正常停止的实例不应被下次启动当作残留
     let _ = fs::remove_file(harness_pid_path(&app_handle));
 
@@ -472,13 +479,33 @@ pub async fn stop(app_handle: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// 交付安装包前的同步停服：结束持有的 Harness 进程树 → 等端口释放 → 清清扫标记。
+///
+/// 安装器（Windows 的 `CheckIfAppIsRunning` → taskkill、macOS 安装脚本的
+/// `CheckIfAppIsRunning`）会强杀桌面端进程，让应用走不到正常退出路径；桌面端一旦
+/// 先消失，它持有的 Harness 子进程就变成孤儿继续占着配置端口，更新后新实例启动
+/// 撞上 EADDRINUSE（表现为「更新后进不去」）。因此**打开安装包之前**必须先停服，
+/// 这是平台无关的要求，不能只在某一条调用路径上做。
+///
+/// 同步、可在退出路径调用（无 async 运行时依赖）：进程从 SIGKILL 返回那一刻已死，
+/// 但内核回收监听套接字仍有短暂滞后，故结束过进程后补一次有界等待，让紧随其后的
+/// 安装器/新实例看到端口已释放。没持有进程时不等待，避免在用户可见路径上白耗。
+pub fn stop_for_installer(app_handle: &tauri::AppHandle) {
+    if !terminate_owned_process() {
+        return;
+    }
+    // 正常停止路径同样清理清扫标记（崩溃路径才需要下次启动清扫）
+    let _ = fs::remove_file(harness_pid_path(app_handle));
+    log::info!("Harness stopped and port released for installer handoff");
+    std::thread::sleep(std::time::Duration::from_millis(800));
+}
+
 /// 应用退出时同步回收 Harness 进程。
 ///
-/// 退出路径上不更新状态、不做异步等待，只结束当前应用持有的 Harness 进程树。
-pub fn stop_on_exit(app_handle: tauri::AppHandle, _port: u16) {
-    terminate_owned_process();
-    // 正常退出路径同样清理清扫标记（崩溃路径才需要下次启动清扫）
-    let _ = fs::remove_file(harness_pid_path(&app_handle));
+/// 退出路径上不更新状态，只结束当前应用持有的 Harness 进程树（与安装器交接共用
+/// [`stop_for_installer`]，保证两条路径行为一致）。
+pub fn stop_on_exit(app_handle: &tauri::AppHandle) {
+    stop_for_installer(app_handle);
 }
 
 #[cfg(test)]

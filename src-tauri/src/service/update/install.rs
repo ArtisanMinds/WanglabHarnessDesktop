@@ -345,9 +345,12 @@ fn is_appimage(path: &std::path::Path) -> bool {
 
 /// 校验安装包并交给系统默认处理器打开（不停服务、不动「待安装」标记）。
 ///
-/// 供两条路径共用：「对话框立即更新」与「退出时自动更新」。二者的 Harness
-/// 停止时机不同——前者需提前释放端口（见 [`open_installer`]），后者已在退出
-/// 路径由 `stop_on_exit` 处理——故停止动作留在各自调用方。
+/// **调用方必须先停 Harness**（见 [`stop_for_installer`](crate::service::workflow::stop_for_installer)）：
+/// 安装器会强杀桌面端进程，桌面端先消失就没人回收 Harness 子进程，它变成孤儿继续
+/// 占用配置端口，更新后的新实例会撞上 EADDRINUSE。两条调用路径各自完成停服：
+/// 「对话框立即更新」用 async 的 `workflow::stop`（要更新状态），「退出时自动更新」
+/// 用同步的 `stop_for_installer`（退出路径没有 async 运行时可用）。停止动作不放在
+/// 这里，是为了让每条路径都能按自己的时序等待端口释放。
 pub(super) fn open_installer_now(app_handle: &AppHandle, path: &str) -> Result<(), String> {
     let resolved = resolve_installer_path(app_handle, path)?;
     log::info!("Opening desktop installer: {}", resolved.display());

@@ -1,64 +1,32 @@
 import type { ChangeEvent, ReactElement } from 'react'
-import type { PetListItem, PetSettingsProps, PresetPetItem } from '../types'
+import type { PetSettingsProps } from './pet-settings.types'
 import { ArrowDownToLine, Icon, Plus, useMountStyle } from 'dsh-tauri-ui/client'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useStore, useWatchImmediate } from 'dsh-tauri/client'
+import { useEffect, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
-import { PET_DEFAULT_SIZE, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
-import { text, usePetLocale } from '../locales'
-import { activatePet, fetchPetList, fetchPetStatus, fetchPresetPets, importPet, setActivePet, setPetEnabled, setPetSize } from '../service/pet'
-import { beginPetStatusFetch, commitPetStatusFetch, getPetUiSnapshot, setPetsAvailable, setPetStatus, subscribePetUi } from '../store'
-import { hasAvailablePets } from '../utils/availability'
+import { PET_DEFAULT_SIZE, PET_SETTINGS_STYLES_ID, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
+import { locale } from '../locales'
+import {
+  clearPetSelection,
+  enablePet,
+  importPetArchive,
+  loadPetCatalog,
+  resizePet,
+  togglePet,
+} from '../service/pet'
+import { store } from '../store'
+import { PetCard } from './pet-card'
 import { PetMarket } from './pet-market'
 import petSettingsStyle from './pet-settings.cssr'
 
-let cachedPresetPets: PresetPetItem[] | null = null
-let cachedChatPets: PetListItem[] | null = null
-
-interface PetCardProps {
-  actionLabel: string
-  active: boolean
-  desc: string
-  disabled: boolean
-  name: string
-  onAction: () => void
-  thumbnail?: string
-  spriteRows?: number | null
-}
-
-function PetCard(props: PetCardProps): ReactElement {
-  return (
-    <div className="dshp-pet__card-item">
-      <If cond={!!props.thumbnail} else={<div className="dshp-pet__card-thumb dshp-pet__card-thumbPlaceholder" aria-hidden="true">PET</div>}>
-        <If cond={props.spriteRows != null} else={<img className="dshp-pet__card-thumb" src={props.thumbnail} alt="" aria-hidden="true" />}>
-          <span className="dshp-pet__card-thumb dshp-pet__card-thumbSprite" data-sprite-rows={props.spriteRows ?? 11} aria-hidden="true">
-            <img src={props.thumbnail} alt="" aria-hidden="true" />
-          </span>
-        </If>
-      </If>
-      <span className="dshp-pet__card-body">
-        <span className="dshp-pet__card-nameRow"><span className="dshp-pet__card-name">{props.name}</span></span>
-        <If cond={!!props.desc}><span className="dshp-pet__card-desc">{props.desc}</span></If>
-      </span>
-      <span className="dshp-pet__card-actions">
-        <button
-          type="button"
-          className={props.active ? 'dshp-pet__card-action dshp-pet__card-actionActive' : 'dshp-pet__card-action'}
-          disabled={props.disabled}
-          onClick={props.onAction}
-        >
-          {props.actionLabel}
-        </button>
-      </span>
-    </div>
-  )
-}
-
+/** 读取 .zip 归档为 base64（桌面端命令按字符串收包）。 */
 function readAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
       const value = String(reader.result ?? '')
-      resolve(value.slice(value.indexOf(',') + 1))
+      const comma = value.indexOf(',')
+      resolve(comma >= 0 ? value.slice(comma + 1) : value)
     }
     reader.onerror = () => reject(new Error('PET_FILE_READ_FAILED: failed to read pet archive'))
     reader.readAsDataURL(file)
@@ -66,98 +34,84 @@ function readAsBase64(file: File): Promise<string> {
 }
 
 export function PetSettings(props: PetSettingsProps): ReactElement {
-  useMountStyle(petSettingsStyle, 'dsh-tauri-pet-settings-styles')
-  const messages = usePetLocale()
-  const { status } = useSyncExternalStore(subscribePetUi, getPetUiSnapshot, getPetUiSnapshot)
+  useMountStyle(petSettingsStyle, PET_SETTINGS_STYLES_ID)
+  locale.useLocale()
+  const { status, presetPets, chatPets, catalogLoaded } = useStore(store.pet)
   const [tab, setTab] = useState<'pets' | 'market'>('pets')
   const [marketOpened, setMarketOpened] = useState(false)
-  const [busy, setBusy] = useState(() => cachedChatPets === null)
+  // 无缓存（首次挂载）时进入加载态，避免空列表闪烁；有缓存直接渲染、后台静默刷新。
+  const [busy, setBusy] = useState(() => !catalogLoaded)
   const [error, setError] = useState<string | null>(null)
-  const [chatPets, setChatPets] = useState<PetListItem[]>(() => cachedChatPets ?? [])
-  const [presetPets, setPresetPets] = useState<PresetPetItem[]>(() => cachedPresetPets ?? [])
   const [size, setSize] = useState(status?.pet_size ?? PET_DEFAULT_SIZE)
   const committedSizeRef = useRef<number | null>(null)
-  const active = status?.active_pet ?? null
   const visible = Boolean(status?.enabled && status.visible)
-  const displayError = error ?? (status?.error ? `${messages.loadFailed}: ${status.error}` : null)
+  const active = status?.active_pet ?? ''
   const statusSize = status?.pet_size ?? PET_DEFAULT_SIZE
+  const displayError = error ?? (status?.error ? `${locale.text('loadFailed')}: ${status.error}` : null)
 
-  useEffect(() => {
+  // 宿主状态里的尺寸变化（别的入口改过）同步到本地滑条；本地正在拖动的值不被覆盖。
+  useWatchImmediate(statusSize, () => {
     if (statusSize !== committedSizeRef.current)
       setSize(statusSize)
-  }, [statusSize])
+  })
 
+  // keep:effect 关闭面板后忽略尚未完成的清单请求。
   useEffect(() => {
     let cancelled = false
-    const revision = beginPetStatusFetch()
-    void Promise.all([fetchPetStatus(), fetchPetList(), fetchPresetPets()])
-      .then(([nextStatus, nextChatPets, nextPresetPets]) => {
-        if (cancelled)
-          return
-        commitPetStatusFetch(revision, nextStatus)
-        cachedChatPets = nextChatPets
-        cachedPresetPets = nextPresetPets
-        setChatPets(nextChatPets)
-        setPresetPets(nextPresetPets)
-        setPetsAvailable(hasAvailablePets(nextPresetPets, nextChatPets))
-      })
-      .catch((loadError) => {
-        if (!cancelled) {
-          console.error('[dsh-tauri-pet] initial load failed:', loadError)
-          setError(text('listFailed'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled)
-          setBusy(false)
-      })
+    void loadPetCatalog().then((result) => {
+      if (cancelled)
+        return
+      setBusy(false)
+      if (!result.ok)
+        setError(locale.text('listFailed'))
+    })
     return () => {
       cancelled = true
     }
   }, [])
 
   async function choose(id: string): Promise<void> {
-    if (busy)
+    if (busy || active === id)
       return
     setBusy(true)
     setError(null)
-    try {
-      setPetStatus(id === active ? await setActivePet('') : await activatePet(id))
-    }
-    catch (chooseError) {
-      setError(`${text('setPetFailed')}: ${String(chooseError)}`)
-    }
-    finally {
-      setBusy(false)
-    }
+    const result = await enablePet({ id })
+    if (!result.ok)
+      setError(locale.text('setPetFailed'))
+    setBusy(false)
   }
 
+  /** 取消选择：清空已选宠物；仍在启用时一并关闭桌宠（无内容可渲染，不留空窗口）。 */
+  async function clearSelection(): Promise<void> {
+    if (busy || active === '')
+      return
+    setBusy(true)
+    setError(null)
+    const result = await clearPetSelection()
+    if (!result.ok)
+      setError(locale.text('clearFailed'))
+    setBusy(false)
+  }
+
+  /** 启用/关闭桌宠：纯持久开关，关闭后重启不再自动拉起。 */
   async function toggleEnabled(): Promise<void> {
     if (busy || !active)
       return
     setBusy(true)
     setError(null)
-    try {
-      setPetStatus(await setPetEnabled(!visible))
-    }
-    catch (toggleError) {
-      setError(`${text('toggleFailed')}: ${String(toggleError)}`)
-    }
-    finally {
-      setBusy(false)
-    }
+    const result = await togglePet({ enabled: !visible })
+    if (!result.ok)
+      setError(locale.text('toggleFailed'))
+    setBusy(false)
   }
 
   async function commitSize(value: number): Promise<void> {
     setError(null)
-    try {
-      const nextStatus = await setPetSize(value)
+    const result = await resizePet({ size: value })
+    if (result.ok)
       committedSizeRef.current = value
-      setPetStatus(nextStatus)
-    }
-    catch {
-      setError(text('setSizeFailed'))
-    }
+    else
+      setError(locale.text('setSizeFailed'))
   }
 
   async function createPet(): Promise<void> {
@@ -165,20 +119,11 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
       return
     setBusy(true)
     setError(null)
-    try {
-      await props.onCreate(props.close)
-    }
-    catch {
-      setError(text('createFailed'))
+    const result = await props.onCreate(props.close)
+    if (!result.ok) {
+      setError(locale.text('createFailed'))
       setBusy(false)
     }
-  }
-
-  async function refreshChatPets(): Promise<void> {
-    const pets = await fetchPetList()
-    cachedChatPets = pets
-    setChatPets(pets)
-    setPetsAvailable(hasAvailablePets(cachedPresetPets ?? [], pets))
   }
 
   async function onImport(event: ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -189,22 +134,69 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     setBusy(true)
     setError(null)
     try {
-      await importPet(file.name, await readAsBase64(file))
-      await refreshChatPets()
+      const result = await importPetArchive({ name: file.name, data: await readAsBase64(file) })
+      if (!result.ok)
+        setError(locale.text('importFailed'))
     }
     catch (importError) {
-      setError(`${text('importFailed')}: ${String(importError)}`)
+      console.error('[dsh-tauri-pet] import failed:', importError)
+      setError(locale.text('importFailed'))
     }
     finally {
       setBusy(false)
     }
   }
 
-  const empty = presetPets.length === 0 && chatPets.length === 0
+  async function refreshPets(): Promise<void> {
+    const result = await loadPetCatalog()
+    if (!result.ok)
+      throw new Error(result.error)
+  }
+
+  const petsPanel = (
+    <>
+      {busy && presetPets.length === 0 && chatPets.length === 0
+        ? <div className="dshp-pet__loading">{locale.text('loading')}</div>
+        : (
+            <div className="dshp-pet__cards">
+              {presetPets.map(item => (
+                <PetCard
+                  key={item.id}
+                  thumbnail={item.image ?? undefined}
+                  name={item.name}
+                  desc={item.desc ?? ''}
+                  active={active === item.id}
+                  disabled={busy}
+                  actionLabel={locale.text(active === item.id ? 'clear' : 'enable')}
+                  onAction={() => { void (active === item.id ? clearSelection() : choose(item.id)) }}
+                />
+              ))}
+              {chatPets.map(item => (
+                <PetCard
+                  key={item.id}
+                  thumbnail={item.thumbnail}
+                  thumbnailType={item.thumbnail ? 'spritesheet' : undefined}
+                  spriteRows={item.sprite_rows}
+                  name={item.name}
+                  desc={item.description ?? ''}
+                  active={active === item.id}
+                  disabled={busy}
+                  actionLabel={locale.text(active === item.id ? 'clear' : 'select')}
+                  onAction={() => { void (active === item.id ? clearSelection() : choose(item.id)) }}
+                />
+              ))}
+              <If cond={presetPets.length === 0 && chatPets.length === 0}>
+                <div className="dshp-pet__empty">{locale.text('emptyPets')}</div>
+              </If>
+            </div>
+          )}
+    </>
+  )
+
   return (
     <div className="dshp-pet__page">
       <div className="dshp-pet__tabs">
-        <div className="dshp-pet__tab-list" role="tablist" aria-label={messages.name}>
+        <div className="dshp-pet__tab-list" role="tablist" aria-label={locale.text('name')}>
           <button
             type="button"
             role="tab"
@@ -212,7 +204,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
             className={tab === 'pets' ? 'dshp-pet__tab-btn dshp-pet__tab-btnActive' : 'dshp-pet__tab-btn'}
             onClick={() => setTab('pets')}
           >
-            {messages.name}
+            {locale.text('name')}
           </button>
           <button
             type="button"
@@ -224,72 +216,42 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
               setTab('market')
             }}
           >
-            {messages.market}
+            {locale.text('market')}
           </button>
         </div>
         <div className="dshp-pet__tab-tools">
           <If cond={tab === 'pets'}>
             <button type="button" className="dshp-pet__tool-btn" disabled={busy} onClick={() => { void createPet() }}>
               <Icon as={Plus} />
-              {messages.create}
+              {locale.text('create')}
             </button>
             <label className="dshp-pet__tool-btn" aria-disabled={busy}>
               <Icon as={ArrowDownToLine} />
-              {messages.import}
-              <input type="file" accept=".zip" hidden disabled={busy} onChange={(event) => { void onImport(event) }} />
+              {locale.text('import')}
+              <input
+                type="file"
+                accept=".zip"
+                hidden
+                disabled={busy}
+                onChange={(event) => { void onImport(event) }}
+              />
             </label>
           </If>
           <button type="button" className="dshp-pet__tool-btn" disabled={busy || !active} onClick={() => { void toggleEnabled() }}>
-            {visible ? messages.closePet : messages.wakePet}
+            {visible ? locale.text('closePet') : locale.text('wakePet')}
           </button>
         </div>
       </div>
-      <If cond={tab === 'pets'}>
-        <If
-          cond={busy && empty}
-          else={(
-            <div className="dshp-pet__cards">
-              {presetPets.map(item => (
-                <PetCard
-                  key={item.id}
-                  thumbnail={item.image ?? undefined}
-                  name={item.name}
-                  desc={item.desc ?? ''}
-                  active={active === item.id}
-                  disabled={busy}
-                  actionLabel={active === item.id ? messages.clear : messages.enable}
-                  onAction={() => { void choose(item.id) }}
-                />
-              ))}
-              {chatPets.map(item => (
-                <PetCard
-                  key={item.id}
-                  thumbnail={item.thumbnail}
-                  spriteRows={item.sprite_rows}
-                  name={item.name}
-                  desc={item.description ?? ''}
-                  active={active === item.id}
-                  disabled={busy}
-                  actionLabel={active === item.id ? messages.clear : messages.select}
-                  onAction={() => { void choose(item.id) }}
-                />
-              ))}
-              <If cond={empty}><div className="dshp-pet__empty">{messages.emptyPets}</div></If>
-            </div>
-          )}
-        >
-          <div className="dshp-pet__loading">{messages.loading}</div>
-        </If>
-      </If>
+      <If cond={tab === 'pets'}>{petsPanel}</If>
       <If cond={marketOpened}>
         <div hidden={tab !== 'market'}>
-          <PetMarket active={active} busy={busy} onChoose={choose} onInstalled={refreshChatPets} />
+          <PetMarket active={active} busy={busy} onChoose={choose} onInstalled={refreshPets} />
         </div>
       </If>
-      <If cond={!!displayError}><div className="dshp-pet__error" role="alert">{displayError}</div></If>
+      <If cond={Boolean(displayError)}><div className="dshp-pet__error" role="alert">{displayError}</div></If>
       <If cond={tab === 'pets'}>
         <div className="dshp-pet__size-row">
-          <span className="dshp-pet__size-label">{messages.sizeLabel}</span>
+          <span className="dshp-pet__size-label">{locale.text('sizeLabel')}</span>
           <input
             type="range"
             className="dshp-pet__size-slider"
@@ -297,7 +259,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
             max={PET_SIZE_MAX}
             step={PET_SIZE_STEP}
             value={size}
-            aria-label={messages.sizeLabel}
+            aria-label={locale.text('sizeLabel')}
             onChange={(event) => {
               const value = Number(event.target.value)
               setSize(value)

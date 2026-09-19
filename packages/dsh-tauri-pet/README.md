@@ -35,8 +35,8 @@ DeepSeek Harness 的桌宠插件，在设置页提供 `Pets` 与 `Market` 两个
 
 ## Session Events
 
-host 订阅 `session/event`、`agent/status`、`session/disposed`，
-投影为展示状态后经 `/api/dsh-pet/session-stream` 下发。
+host 订阅会话与 agent 事件，
+投影为展示状态后经 `/api/desktop/dsh-tauri-pet/session/stream` 下发。
 Rust 在宠物媒体就绪后开始订阅，确保新窗口能够接收初始快照；
 关闭时停止流。前端清理会话、计时器和气泡，重新唤醒从新快照恢复。
 

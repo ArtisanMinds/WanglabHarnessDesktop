@@ -10,3 +10,12 @@
 [submodule "source/dsh-dafeiyu"]
 	path = source/dsh-dafeiyu
 	url = https://github.com/QCYTSN/dsh-dafeiyu
+[submodule "source/dsh-automation"]
+	path = source/dsh-automation
+	url = https://github.com/MichengAI/dsh-automation
+[submodule "source/dsh-plugin-capabilities"]
+	path = source/dsh-plugin-capabilities
+	url = https://github.com/qinyre/dsh-plugin-capabilities
+[submodule "source/dsh-market"]
+	path = source/dsh-market
+	url = https://github.com/dsh-market/dsh-market.git

@@ -1,4 +1,3 @@
-import type { AppSettingUpdate } from '@/store/modules/setting'
 import { ArrowRotateRight, ArrowUpRightFromSquare, ChevronRight, Copy, Folder, Power, TrashBin } from '@gravity-ui/icons'
 import { Button, Chip, Description, Input, Link, ListBox, Select, Spinner, Surface, Switch } from '@heroui/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -111,7 +110,7 @@ export function ConfigDebug() {
   const { mutate: onToggleCliLink } = useMutation({
     mutationFn: async (enabled: boolean) => {
       // 命令会先建/删 shim 与 PATH 再落盘，前端只改 store 不会产生这些副作用
-      await invoke('update_app_config', { cliLinkEnabled: enabled } satisfies AppSettingUpdate)
+      await store.setting.update({ cliLinkEnabled: enabled })
       await refreshCliStatus()
     },
     onError: (err: unknown) => {
@@ -146,7 +145,7 @@ export function ConfigDebug() {
         throw new Error('PORT_INVALID')
       }
       // 后端会同时记录 manual_port（端口避让后回落到用户选择，issue #91）
-      await invoke('update_app_config', { port } satisfies AppSettingUpdate)
+      await store.setting.update({ port })
       const key = toast(t('messages.port_changed'), {
         variant: 'accent',
         description: t('messages.port_restart_hint'),

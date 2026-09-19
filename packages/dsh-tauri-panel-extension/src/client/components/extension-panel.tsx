@@ -1,29 +1,38 @@
-/**
- * components/extension-panel.tsx — 扩展面板：技能 / MCP 两个 tab 的容器 UI。
- *
- * 只负责 tab 切换（键盘导航 + visited 惰性挂载）；各 tab 内容由
- * SkillsTab / McpTab 子组件承担（直接消费 apis/）。
- */
-
 import type { ReactElement } from 'react'
-import type { Translate } from '../types'
+import type { MarketFace } from '../service/market.types'
 import { useMountStyle } from 'dsh-tauri-ui/client'
 import { useEffect, useId, useRef, useState } from 'react'
 import { EXTENSION_PANEL_STYLE_ID } from '../constants'
+import { locale } from '../locales'
 import extensionPanelStyle from './extension-panel.cssr'
+import { MarketTab } from './market-tab'
 import { McpTab } from './mcp-tab'
 import { SkillsTab } from './skills-tab'
 
 export interface ExtensionPanelProps {
-  t: Translate
   createSkill: () => Promise<void>
+  /** 市场未安装 / 未发布 `render` 时为 undefined：此时不出现市场标签页。 */
+  market: MarketFace | undefined
 }
 
-export function ExtensionPanel({ t, createSkill }: ExtensionPanelProps): ReactElement {
+interface ExtensionTab {
+  id: string
+  label: string
+  render: () => ReactElement
+}
+
+export function ExtensionPanel({ createSkill, market }: ExtensionPanelProps): ReactElement {
+  const t = locale.text
   useMountStyle(extensionPanelStyle, EXTENSION_PANEL_STYLE_ID)
   const tabsId = useId()
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const rows = [{ id: 'skills', label: t('skillsTab') }, { id: 'mcp', label: t('mcpTab') }]
+  const marketFace = market
+  const rows: ExtensionTab[] = [
+    { id: 'skills', label: t('skillsTab'), render: () => <SkillsTab t={t} createSkill={createSkill} /> },
+    { id: 'mcp', label: t('mcpTab'), render: () => <McpTab t={t} /> },
+  ]
+  if (marketFace !== undefined)
+    rows.push({ id: 'market', label: t('marketTab'), render: () => <MarketTab market={marketFace} /> })
   const [activeId, setActiveId] = useState('skills')
   const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set(['skills']))
   useEffect(() => setVisited(previous => previous.has(activeId) ? previous : new Set([...previous, activeId])), [activeId])
@@ -70,7 +79,7 @@ export function ExtensionPanel({ t, createSkill }: ExtensionPanelProps): ReactEl
         </div>
         {rows.filter(row => row.id === activeId || visited.has(row.id)).map((row) => {
           const selected = row.id === activeId
-          return <div key={row.id} id={`${tabsId}-panel-${row.id}`} className="dshp-extension__tab-panel" role="tabpanel" aria-labelledby={`${tabsId}-tab-${row.id}`} hidden={!selected}>{row.id === 'skills' ? <SkillsTab t={t} createSkill={createSkill} /> : <McpTab t={t} />}</div>
+          return <div key={row.id} id={`${tabsId}-panel-${row.id}`} className="dshp-extension__tab-panel" role="tabpanel" aria-labelledby={`${tabsId}-tab-${row.id}`} hidden={!selected}>{row.render()}</div>
         })}
       </div>
     </div>

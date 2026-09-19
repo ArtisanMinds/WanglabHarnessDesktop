@@ -1,10 +1,11 @@
-import type { ExtensionClientContext } from '../types'
-import { LOCALE_NAMESPACE, PLUGIN_ID } from '../constants'
+import { defineLocale } from 'dsh-tauri/client'
+import { PLUGIN_ID } from '../constants'
 
-const zh: Record<string, string> = {
-  extension: '扩展技能',
+const zh = {
+  extension: '扩展管理',
   skillsTab: '技能',
   mcpTab: 'MCP',
+  marketTab: '市场',
   skillsTitle: '技能管理',
   skillsIntro: '查看与编辑 dsh 发现的技能；用户级与仓库技能可就地管理。卡片开关控制技能是否加载。',
   newSkill: '新建技能',
@@ -105,16 +106,22 @@ const zh: Record<string, string> = {
   scopeAll: '全部',
   global: '全局',
   profile: 'Profile',
-  shadowed: '已覆盖',
-  globalError: '全局错误',
   connectivityOk: '连接成功',
   connectivityFailed: '连接失败',
+  scopeGlobal: '全局',
+  scopeProfile: '当前 profile',
+  checkLabel: '检查',
+  checkRunning: '检查中…',
+  shadowedByGlobal: '全局层存在同名 id，此行不生效',
 }
 
-const en: Record<string, string> = {
-  extension: 'Extension Skills',
+type LocaleKey = keyof typeof zh
+
+const en: Record<LocaleKey, string> = {
+  extension: 'Extension Management',
   skillsTab: 'Skills',
   mcpTab: 'MCP',
+  marketTab: 'Market',
   skillsTitle: 'Skills',
   skillsIntro: 'View and manage discovered skills, including user and repository skills. Each card switch controls loading.',
   newSkill: 'New skill',
@@ -211,11 +218,17 @@ const en: Record<string, string> = {
   formatPaste: 'Paste a JSON config (wrapper or bare entry)',
   formatFill: 'Parse and switch to form',
   pasteTransportMismatch: 'The row transport is locked and differs from the pasted config.',
+  scope: 'Scope',
+  scopeAll: 'All',
+  global: 'Global',
+  profile: 'Profile',
+  connectivityOk: 'Connected',
+  connectivityFailed: 'Connection failed',
+  scopeGlobal: 'Global',
+  scopeProfile: 'This profile',
+  checkLabel: 'Check',
+  checkRunning: 'Checking…',
+  shadowedByGlobal: 'a global row with the same id wins — this row has no effect',
 }
 
-export function registerExtensionLocale(ctx: ExtensionClientContext): void {
-  ctx.effect(() => [
-    ctx.locale.register(LOCALE_NAMESPACE, 'zh', zh),
-    ctx.locale.register(LOCALE_NAMESPACE, 'en', en),
-  ], `${PLUGIN_ID}: locale`)
-}
+export const locale = defineLocale(PLUGIN_ID, { zh, en })

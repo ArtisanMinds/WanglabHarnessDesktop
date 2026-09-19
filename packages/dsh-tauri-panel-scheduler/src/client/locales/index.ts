@@ -1,7 +1,7 @@
-import type { SchedulerClientContext } from '../types'
-import { LOCALE_NAMESPACE, PLUGIN_ID } from '../constants'
+import { defineLocale } from 'dsh-tauri/client'
+import { PLUGIN_ID } from '../constants'
 
-const zh: Record<string, string> = {
+const zh = {
   'scheduler': '定时任务',
   'subtitle': '按计划自动执行任务，也可随时手动触发。在任意对话中描述你想定期做的事，即可快速创建。',
   'tasksTab': '定时任务',
@@ -30,7 +30,11 @@ const zh: Record<string, string> = {
   'emptyTasks': '还没有定时任务，点击「手动创建」创建一个。',
   'emptyRuns': '还没有执行记录。',
   'deleteRun': '删除执行记录',
+  'openRunFailed': '无法打开该执行记录对应的会话',
+  'runSessionArchived': '该执行记录的会话已归档，无法跳转',
   'noMatch': '没有匹配的任务',
+  'noMatchRuns': '没有匹配的执行记录',
+  'markAllRead': '全部标记为已读',
   'loading': '载入中…',
   'taskName': '名称',
   'taskNamePlaceholder': '请输入任务名称...',
@@ -64,8 +68,6 @@ const zh: Record<string, string> = {
   'followGlobal': '跟随全局模型',
   'providerDefault': '提供商默认',
   'chatPrompt': '我要创建一个定时任务，每【时间间隔】执行【具体任务】',
-  // 模型选择文案：逐字对齐官方 model 命名空间（dsh-client-ui-model-selection
-  // lib/types/client/locales.js），与 dsh-automation 的 ctx.locale.bind('model') 完全一致。
   'menu.model': '模型',
   'menu.effort': '推理等级',
   'menu.aria': '模型与推理等级',
@@ -97,6 +99,7 @@ const zh: Record<string, string> = {
   'cancelled': '已取消',
   'queued': '排队中',
   'running': '执行中',
+  'waiting': '等待中',
   'triggerSchedule': '计划',
   'triggerManual': '手动',
   'startedAt': '开始时间',
@@ -121,7 +124,9 @@ const zh: Record<string, string> = {
   'perWeek': '每周',
 }
 
-const en: Record<string, string> = {
+type LocaleKey = keyof typeof zh
+
+const en: Record<LocaleKey, string> = {
   'scheduler': 'Scheduled Tasks',
   'subtitle': 'Run tasks automatically on a schedule, or trigger them anytime. Describe what you want to run regularly in any chat to create one quickly.',
   'tasksTab': 'Scheduled Tasks',
@@ -150,7 +155,11 @@ const en: Record<string, string> = {
   'emptyTasks': 'No scheduled tasks yet. Click "Create manually" to create one.',
   'emptyRuns': 'No run history yet.',
   'deleteRun': 'Delete run',
+  'openRunFailed': 'Cannot open the session for this run',
+  'runSessionArchived': 'The session for this run is archived',
   'noMatch': 'No matching tasks',
+  'noMatchRuns': 'No matching runs',
+  'markAllRead': 'Mark all as read',
   'loading': 'Loading…',
   'taskName': 'Name',
   'taskNamePlaceholder': 'Enter a task name...',
@@ -184,8 +193,6 @@ const en: Record<string, string> = {
   'followGlobal': 'Follow global model',
   'providerDefault': 'Provider default',
   'chatPrompt': 'I want to create a scheduled task that runs every [interval] and does [the actual task]',
-  // Model-picker strings: verbatim from the official `model` namespace
-  // (dsh-client-ui-model-selection lib/types/client/locales.js).
   'menu.model': 'Model',
   'menu.effort': 'Effort',
   'menu.aria': 'Model and reasoning effort',
@@ -217,6 +224,7 @@ const en: Record<string, string> = {
   'cancelled': 'Cancelled',
   'queued': 'Queued',
   'running': 'Running',
+  'waiting': 'Waiting',
   'triggerSchedule': 'Schedule',
   'triggerManual': 'Manual',
   'startedAt': 'Started',
@@ -241,9 +249,4 @@ const en: Record<string, string> = {
   'perWeek': 'Weekly',
 }
 
-export function registerSchedulerLocale(ctx: SchedulerClientContext): void {
-  ctx.effect(() => [
-    ctx.locale.register(LOCALE_NAMESPACE, 'zh', zh),
-    ctx.locale.register(LOCALE_NAMESPACE, 'en', en),
-  ], `${PLUGIN_ID}: locale`)
-}
+export const locale = defineLocale(PLUGIN_ID, { zh, en })

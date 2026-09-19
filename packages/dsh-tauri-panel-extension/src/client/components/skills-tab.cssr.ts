@@ -3,17 +3,7 @@ import { cssr, styles as sharedStyles } from 'dsh-tauri-ui/client'
 const { c, bem: { b, e } } = cssr
 const { primary, secondary, tertiary, borderL2: border, business, layer1, layer3, hover } = sharedStyles
 
-/** 技能列表（skills-tab.tsx）：头部 + 横幅 + 刷新。 */
 export default b('extension', [
-  e('head', {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    flexWrap: 'wrap',
-  }, [
-    c('& h3', { margin: '0', fontSize: '13px', lineHeight: '20px', fontWeight: '600' }),
-    c('& > svg', { flex: 'none', color: tertiary }),
-  ]),
   e('list-head', {
     display: 'flex',
     alignItems: 'center',
@@ -143,7 +133,6 @@ export default b('extension', [
   }, [
     c('&:hover', { textDecoration: 'underline' }),
   ]),
-  // 技能编辑器弹窗的「预览 / 编辑」分段切换（skills-tab.tsx editor modal）。
   e('segments', {
     display: 'inline-flex',
     gap: '4px',
