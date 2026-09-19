@@ -53,7 +53,6 @@
   "devDependencies": {
     "@antfu/eslint-config": "catalog:lint",
     "@deepseek-ai/cordis": "catalog:dsh",
-    "@deepseek-ai/dsh": "catalog:dsh",
     "@deepseek-ai/dsh-agent": "catalog:dsh",
     "@deepseek-ai/dsh-agent-default-model": "catalog:dsh",
     "@deepseek-ai/dsh-agent-presets": "catalog:dsh",

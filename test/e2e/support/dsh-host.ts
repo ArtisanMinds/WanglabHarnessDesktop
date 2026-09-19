@@ -106,7 +106,7 @@ async function exchangeLaunchToken(url: string): Promise<string> {
   if (response.status !== 303 || first === null) {
     throw new Error(
       `token 交换未返回 303 + Set-Cookie（实际 ${response.status}）；`
-      + '该宿主可能既不支持根路径 token 交换、也未打过 --skip-auth 补丁',
+      + '该宿主可能不支持根路径 token 交换（该通道只在 `GET /?token=` 上生效）',
     )
   }
   // 只取 `name=value`，属性交给 fetch 的 cookie 语义处理。
@@ -127,7 +127,8 @@ function resolveDshCommand(): string[] {
     return [require.resolve('@deepseek-ai/dsh/lib/bin.js')]
   }
   catch {
-    // 仓库没装 @deepseek-ai/dsh（它是运行期下载物，不在 workspace 依赖里）。
+    // 仓库不把 dsh CLI 作为依赖安装：它是运行期产物，装进依赖树会与本仓 catalog 的
+    // `@deepseek-ai/dsh-*` 形成双树，profile 组合时取到不匹配的实例。
   }
 
   if (existsSync(ASSEMBLED_DSH)) {
@@ -135,6 +136,8 @@ function resolveDshCommand(): string[] {
     return [ASSEMBLED_DSH]
   }
 
+  // 缺核心一律硬失败，不提供「跳过」开关：一旦可跳过，CI 会在什么都没断言的
+  // 情况下报绿。
   throw new Error(
     'DSH_E2E_DSH_BIN 未设置，PATH 与桌面端装配目录都没有 dsh 入口；'
     + '请设置 DSH_E2E_DSH_BIN 指向 @deepseek-ai/dsh 的 lib/bin.js',
