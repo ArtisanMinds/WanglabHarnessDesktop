@@ -23,5 +23,13 @@
     "description": "In-window conversation rewind that never forks a new session, with a lightweight workspace backup that restores files together with the rewind.",
     "repoUrl": "https://github.com/SiriLee/dsh-rewind",
     "recommended": true
+  },
+  {
+    "id": "@xmanrui/dsh-im",
+    "spec": "@xmanrui/dsh-im",
+    "name": "DSH-IM",
+    "description": "Connect eleven IM channels (WeChat, Feishu, DingTalk, WeCom, QQ, Slack, Telegram, Discord, WhatsApp, iMessage) and a public AI Office to a local DeepSeek Harness, with bot management in the desktop sidebar.",
+    "repoUrl": "https://github.com/xmanrui/dsh-im",
+    "recommended": true
   }
 ]

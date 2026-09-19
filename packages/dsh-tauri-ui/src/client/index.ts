@@ -1,9 +1,10 @@
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ClientContext } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../shared/constants'
-import { LOCALE_EFFECT, OBSTRUCTIONS_EFFECT, SEAT_EFFECT, SECTIONS_EFFECT, SETTINGS_EFFECT, STYLES_EFFECT } from './constants'
+import { IM_PANEL_EFFECT, LOCALE_EFFECT, OBSTRUCTIONS_EFFECT, SEAT_EFFECT, SECTIONS_EFFECT, SETTINGS_EFFECT, STYLES_EFFECT } from './constants'
 import { locale } from './locales'
 import { composerResumeFeature } from './register/composer-resume'
+import { registerImPanel } from './register/im-panel'
 import { registerSettingsObstructions } from './register/obstructions'
 import { registerShellSeat } from './register/seat'
 import { registerSettingsSections } from './register/sections'
@@ -36,4 +37,5 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(registerSettings, SETTINGS_EFFECT)
   ctx.effect(registerSettingsObstructions, OBSTRUCTIONS_EFFECT)
   ctx.effect(composerResumeFeature, COMPOSER_RESUME_EFFECT)
+  ctx.effect(registerImPanel, IM_PANEL_EFFECT)
 }
