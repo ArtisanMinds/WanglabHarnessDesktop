@@ -8,7 +8,9 @@ import {
   mergeModelCards,
   modelConfigNotice,
   supportsImageInput,
+  supportsTemplateThinking,
   supportsThinking,
+  templateThinkingCompat,
   THINKING_LEVELS,
   thinkingEffortsOf,
   toggleThinkingLevel,
@@ -119,6 +121,64 @@ describe('thinking levels', () => {
   })
 })
 
+describe('template thinking compat', () => {
+  it('reads the switch as on only when the effort travels through the chat template', () => {
+    expect(supportsTemplateThinking({ id: 'm' })).toBe(false)
+    expect(supportsTemplateThinking({ id: 'm', compat: { thinkingFormat: 'chat-template' } })).toBe(false)
+    expect(supportsTemplateThinking({
+      id: 'm',
+      compat: { thinkingFormat: 'chat-template', supportsDeveloperRole: false },
+    })).toBe(true)
+    expect(supportsTemplateThinking({ id: 'm', compat: 'chat-template' })).toBe(false)
+  })
+
+  it('writes the three switches a vLLM-style endpoint needs', () => {
+    expect(templateThinkingCompat({ id: 'm' }, true)).toEqual({
+      supportsDeveloperRole: false,
+      thinkingFormat: 'chat-template',
+      chatTemplateKwargs: { reasoning_effort: { $var: 'thinking.effort' } },
+    })
+  })
+
+  it('keeps the compat entries it does not own', () => {
+    const model = {
+      id: 'm',
+      compat: {
+        supportsStore: false,
+        chatTemplateKwargs: { enable_thinking: true },
+        chatTemplateArgs: {},
+      },
+    }
+    expect(templateThinkingCompat(model, true)).toEqual({
+      supportsStore: false,
+      chatTemplateArgs: {},
+      supportsDeveloperRole: false,
+      thinkingFormat: 'chat-template',
+      chatTemplateKwargs: { enable_thinking: true, reasoning_effort: { $var: 'thinking.effort' } },
+    })
+  })
+
+  it('removes only the switches it wrote, dropping emptied containers', () => {
+    const written = {
+      id: 'm',
+      compat: {
+        supportsDeveloperRole: false,
+        thinkingFormat: 'chat-template',
+        chatTemplateKwargs: { reasoning_effort: { $var: 'thinking.effort' } },
+      },
+    }
+    expect(templateThinkingCompat(written, false)).toBeUndefined()
+    expect(templateThinkingCompat({ id: 'm', compat: { supportsStore: false } }, false))
+      .toEqual({ supportsStore: false })
+  })
+
+  it('does not mutate the compat it was handed', () => {
+    const model = { id: 'm', compat: { chatTemplateKwargs: { enable_thinking: true } } }
+    templateThinkingCompat(model, true)
+    expect(model.compat).toEqual({ chatTemplateKwargs: { enable_thinking: true } })
+  })
+})
+
 describe('mergeModelCards', () => {
   it('fills only the fields the row leaves empty', () => {
     const merged = mergeModelCards(
@@ -195,7 +255,6 @@ describe('mergeModelCards with presets', () => {
       contextWindow: 200000,
       maxTokens: 16384,
       input: ['text', 'image'],
-      reasoningEfforts: false,
     })
   })
 
@@ -211,7 +270,6 @@ describe('mergeModelCards with presets', () => {
       contextWindow: 128000,
       maxTokens: 16384,
       input: ['text', 'image'],
-      reasoningEfforts: false,
     })
     expect(merged.undisclosed).toEqual([])
   })
@@ -234,14 +292,24 @@ describe('mergeModelCards with presets', () => {
     expect(merged.models[0]?.reasoningEfforts).toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
   })
 
-  it('keeps the declared capabilities on a single-row fill and replaces them on a reconfigure', () => {
+  it('keeps the capabilities a row already declares on a single-row fill', () => {
     const row = { id: 'gpt-4o', input: ['text'], reasoningEfforts: { off: null, low: 'low' } }
     const filled = mergeModelCards([row], [], { targets: ['gpt-4o'] }).models[0]
     expect(filled?.input).toEqual(['text'])
     expect(filled?.reasoningEfforts).toEqual({ off: null, low: 'low' })
-    const reconfigured = mergeModelCards([row], [], { targets: ['gpt-4o'], overwrite: true }).models[0]
+  })
+
+  it('replaces the declared capabilities on a reconfigure', () => {
+    const row = { id: 'o3', input: ['text'], reasoningEfforts: { off: null, low: 'low' } }
+    const reconfigured = mergeModelCards([row], [], { targets: ['o3'], overwrite: true }).models[0]
     expect(reconfigured?.input).toEqual(['text', 'image'])
-    expect(reconfigured?.reasoningEfforts).toBe(false)
+    expect(reconfigured?.reasoningEfforts).toEqual({ off: null, low: 'low', medium: 'medium', high: 'high' })
+  })
+
+  it('never rewrites a capability the table did not state as unsupported', () => {
+    const row = { id: 'gpt-4o', reasoningEfforts: { off: null, low: 'low' } }
+    const reconfigured = mergeModelCards([row], [], { targets: ['gpt-4o'], overwrite: true }).models[0]
+    expect(reconfigured?.reasoningEfforts).toEqual({ off: null, low: 'low' })
   })
 })
 
