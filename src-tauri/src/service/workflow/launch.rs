@@ -598,6 +598,18 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     // 确实支持该标志才传，避免旧核心把未知选项当成错误退出。
     let skip_auth = crate::service::patch::alpha_auth::web_startup_supports_skip_auth(&app_handle);
 
+    // 补丁层悬空 insert 预检：手写的 `insert` 条目在包被卸载（市场会拒绝卸载
+    // 「仍被用户补丁引用」的插件，用户于是改走手工删依赖 / pnpm remove）或本地
+    // `link:` 源被删后仍留在补丁层里，loader 会在 import 时抛 ERR_MODULE_NOT_FOUND，
+    // 让整棵插件树加载失败——应用彻底起不来，用户只看到一坨 Node 堆栈。上游契约
+    // 是「补丁文件存在却应用不了就大声失败」，这里不改变契约，只把同一结果提前成
+    // 一条可操作的错误（哪个文件、哪一行、哪个包），错误页据此给出「移除悬空条目」
+    // 的一键恢复。必须在所有插件自愈之后：那些步骤会改变安装状态。
+    if let Err(e) = crate::service::plugin::preflight_active_patch_entries(&app_handle) {
+        log::error!("patch layer entry preflight failed: {e}");
+        return Err(e);
+    }
+
     log::info!("Starting Harness process");
 
     // dsh 的 Loader 在插件 dispose 时会把组合后的整棵 entry 树回写进

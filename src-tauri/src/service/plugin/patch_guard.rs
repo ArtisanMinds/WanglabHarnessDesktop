@@ -87,17 +87,20 @@ fn parse_error(path: &Path) -> Option<String> {
         .map(|error| error.to_string())
 }
 
-/// 备份路径 `<原名>.broken-<stamp>`；已存在时追加 `-2`、`-3`…，绝不覆盖已有备份。
-fn backup_path(path: &Path, stamp: &str) -> PathBuf {
+/// 备份路径 `<原名>.<suffix>-<stamp>`；已存在时追加 `-2`、`-3`…，绝不覆盖已有备份。
+///
+/// `suffix` 由调用方给定：语法错误用 `broken`（隔离，改名保存），悬空条目用
+/// `bak`（清理，改写前留底），两者在同一个档案目录里必须一眼可分。
+pub(super) fn backup_path(path: &Path, suffix: &str, stamp: &str) -> PathBuf {
     let name = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let mut candidate = path.with_file_name(format!("{name}.broken-{stamp}"));
-    let mut suffix = 2;
+    let mut candidate = path.with_file_name(format!("{name}.{suffix}-{stamp}"));
+    let mut extra = 2;
     while candidate.exists() {
-        candidate = path.with_file_name(format!("{name}.broken-{stamp}-{suffix}"));
-        suffix += 1;
+        candidate = path.with_file_name(format!("{name}.{suffix}-{stamp}-{extra}"));
+        extra += 1;
     }
     candidate
 }
@@ -112,7 +115,7 @@ fn quarantine_layers(paths: &[PathBuf], stamp: &str) -> PatchQuarantineReport {
         let Some(error) = parse_error(path) else {
             continue;
         };
-        let backup = backup_path(path, stamp);
+        let backup = backup_path(path, "broken", stamp);
         match std::fs::rename(path, &backup) {
             Ok(()) => {
                 log::warn!(
@@ -143,7 +146,7 @@ fn quarantine_layers(paths: &[PathBuf], stamp: &str) -> PatchQuarantineReport {
 }
 
 /// 生成 UTC 时间戳（`yyyymmddhhmmss`），与档案备份、插件快照的命名一致。
-fn now_stamp() -> String {
+pub(super) fn now_stamp() -> String {
     use time::OffsetDateTime;
     let now = OffsetDateTime::now_utc();
     let date = now.date();

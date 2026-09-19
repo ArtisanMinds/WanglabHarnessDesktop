@@ -9,7 +9,7 @@ import type {
   SidebarBusyAction,
   StartupError,
 } from './types'
-import type { PatchQuarantineReport } from '@/types/plugin'
+import type { PatchEntryStripReport, PatchQuarantineReport } from '@/types/plugin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import i18next from 'i18next'
@@ -37,6 +37,7 @@ import {
   checkHealthViaProxy,
   generateTimestampedUrl,
   internalPluginReason,
+  notifyPatchEntryStrip,
   notifyPatchQuarantine,
   pollHarnessReadiness,
   startupError,
@@ -600,6 +601,7 @@ export const harness = defineStore({
           error.pluginConflictHint,
           error.inotifyLimitHint,
           this.serviceRunning,
+          error.patchLayerHint,
         )
       }
       finally {
@@ -701,6 +703,37 @@ export const harness = defineStore({
       }
       catch (err) {
         console.error('[Harness] quarantine broken patch layers failed:', err)
+        const error = await attachStartupDiagnostics(err)
+        this.fail(
+          error.message,
+          error.logs,
+          error.pluginConflictHint,
+          error.inotifyLimitHint,
+          undefined,
+          error.patchLayerHint,
+        )
+        return
+      }
+      await this.restart()
+    },
+
+    /**
+     * 移除补丁层里解析不到包的 insert 条目并重启：错误页在「补丁层引用了未安装的
+     * 包」时的专用恢复入口（与语法错误的「隔离」入口互斥，见 setup.tsx）。
+     *
+     * 判定与启动前预检完全一致，只剥离悬空条目——同一条目里的其它 insert、其它
+     * 条目与其它配置原样保留，因此不会顺手删掉还能用的插件。改写前先把原文件备份
+     * 成 `.bak-<时间戳>`，结果用 toast 告知备份路径。
+     */
+    async stripUnresolvedPatchEntries() {
+      if (this.busyAction)
+        return
+      try {
+        const report = await invoke<PatchEntryStripReport>('strip_unresolved_patch_entries')
+        notifyPatchEntryStrip(report)
+      }
+      catch (err) {
+        console.error('[Harness] strip unresolved patch entries failed:', err)
         const error = await attachStartupDiagnostics(err)
         this.fail(
           error.message,
