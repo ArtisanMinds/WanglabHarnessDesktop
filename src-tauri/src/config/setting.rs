@@ -192,7 +192,15 @@ pub fn is_e2e_run() -> bool {
 /// **不随 E2E 自动生效**——是否禁用由测试按需选择：只验壳层的用例置位以省流量，
 /// 覆盖启动装配流程的用例保持不置位。
 pub fn auto_download_disabled() -> bool {
-    DISABLE_AUTO_DOWNLOAD || env_flag(E2E_DISABLE_DOWNLOAD_ENV_VAR)
+    resolve_auto_download_disabled(
+        DISABLE_AUTO_DOWNLOAD,
+        env_flag(E2E_DISABLE_DOWNLOAD_ENV_VAR),
+    )
+}
+
+/// `auto_download_disabled` 的纯函数内核：编译期常量与运行期开关取或。
+fn resolve_auto_download_disabled(compile_time: bool, runtime_flag: bool) -> bool {
+    compile_time || runtime_flag
 }
 
 /// 读取布尔型环境变量：`1` / `true`（忽略大小写）为真，其余（含未设置）为假。
@@ -374,10 +382,36 @@ pub fn set_dsh_pkg_tag(app_handle: &AppHandle, tag: String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_close_action, default_zoom_factor, normalize_close_action, normalize_zoom_factor,
-        preserve_persisted_fields, resolve_store_dat_file, Setting, STORE_DAT_DEV_FILE,
-        STORE_DAT_FILE, STORE_DAT_TEST_FILE, ZOOM_FACTOR_MAX, ZOOM_FACTOR_MIN,
+        default_close_action, default_zoom_factor, env_flag, normalize_close_action,
+        normalize_zoom_factor, preserve_persisted_fields, resolve_auto_download_disabled,
+        resolve_store_dat_file, Setting, DISABLE_AUTO_DOWNLOAD, STORE_DAT_DEV_FILE, STORE_DAT_FILE,
+        STORE_DAT_TEST_FILE, ZOOM_FACTOR_MAX, ZOOM_FACTOR_MIN,
     };
+
+    /// 默认不禁用下载：只有编译期常量置位或运行期开关置位才禁用。
+    #[test]
+    fn auto_download_is_enabled_unless_explicitly_disabled() {
+        assert!(!DISABLE_AUTO_DOWNLOAD, "生产默认必须允许自动下载");
+        assert!(!resolve_auto_download_disabled(false, false));
+        assert!(resolve_auto_download_disabled(true, false));
+        assert!(resolve_auto_download_disabled(false, true));
+    }
+
+    /// `env_flag` 只认 `1` / `true`（忽略大小写、允许首尾空白），其余一律为假。
+    #[test]
+    fn env_flag_accepts_only_documented_truthy_values() {
+        const KEY: &str = "DSH_TEST_ENV_FLAG_PROBE";
+        for value in ["1", "true", "TRUE", " True ", " 1 "] {
+            std::env::set_var(KEY, value);
+            assert!(env_flag(KEY), "`{value}` 应判为真");
+        }
+        for value in ["0", "false", "", "yes", "on", "2"] {
+            std::env::set_var(KEY, value);
+            assert!(!env_flag(KEY), "`{value}` 应判为假");
+        }
+        std::env::remove_var(KEY);
+        assert!(!env_flag(KEY), "未设置时应判为假");
+    }
 
     #[test]
     fn store_dat_file_name_isolates_the_three_modes() {

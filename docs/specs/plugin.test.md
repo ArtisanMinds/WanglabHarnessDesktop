@@ -61,22 +61,22 @@ packages/<name>/
 ├── src/**/*.test.ts          # L1 单元测试（保持原位）
 └── test/support/             # 插件专属 Fixture / Stub
 test/e2e/
-├── global-setup.ts           # e2e project 的 globalSetup（启动 dsh web 并传递地址）
+├── global-setup.ts           # plugin project 的 globalSetup（启动 dsh web 并传递地址与 Cookie）
 ├── support/
-│   ├── dsh-host.ts           # 共享环境脚手架（Scratch DSH_HOME、挂载、启动、清理）
+│   ├── dsh-host.ts           # 共享环境脚手架（Scratch DSH_HOME、挂载、启动、鉴权交换、清理）
 │   └── desktop-host.ts       # L3 桌面端宿主编排
-├── plugins/*.e2e.ts          # L2 插件宿主 E2E（由 e2e project 匹配）
+├── plugins/*.e2e.ts          # L2 插件宿主 E2E（由 plugin project 匹配）
 └── desktop/*.e2e.ts          # L3 桌面端宿主 E2E（由 desktop project 匹配）
 test/archive/*                # 历史用例归档（只读参考，不被任何 project 匹配）
 vitest.config.ts              # 根配置：包含 Projects 清单与全局别名
 vitest.unit.config.ts         # unit project 配置
-vitest.plugin.config.ts          # e2e project 配置（插件 L2）
+vitest.plugin.config.ts       # plugin project 配置（插件 L2）
 vitest.desktop.config.ts      # desktop project 配置（桌面端 L3）
 docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
 ```
 
 * **命名约定**：L2/L3 文件必须使用 `*.e2e.ts`，与 L1 的 `*.test.ts` / `*.spec.ts` 严格区分。
-* **匹配策略**：`unit` 匹配 `*.{test,spec}.*`（自动排他 `.e2e.ts`）；`e2e` 显式指定 `test/e2e/plugins/**/*.e2e.ts`，`desktop` 指定 `test/e2e/desktop/*.e2e.ts`。
+* **匹配策略**：`unit` 匹配 `*.{test,spec}.*`（自动排他 `.e2e.ts`）；`plugin` 显式指定 `test/e2e/plugins/**/*.e2e.ts`，`desktop` 指定 `test/e2e/desktop/*.e2e.ts`。
 * **映射关系**：文档中的每条用例条目必须与代码中的 `test()` 一一对应。
 
 ---
@@ -87,20 +87,26 @@ docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
 
 ```
 1. 构建产物      ──> 执行 pnpm build:plugins（禁止直接测试 TS 源码）
-2. 创建隔离环境  ──> 创建独立根 DSH_E2E_HOME=<tmp>/dsh-e2e-<suite>-<timestamp>；L2 的 DSH_HOME=<DSH_E2E_HOME>/dsh
-3. 初始化 Profile──> 构建 <DSH_HOME>/profiles/web/{package.json, cordis.patch.yml, pnpm-workspace.yaml}
-4. 挂载插件      ──> [link 模式] 自建软链接至 profile/node_modules + 配置 dsh.profile.bundles
+2. 解析核心      ──> DSH_E2E_DSH_BIN → 仓库依赖 → 桌面端装配目录；三者皆无则直接失败
+3. 创建隔离环境  ──> 创建独立根 DSH_E2E_HOME=<tmp>/dsh-e2e-<suite>-<timestamp>；L2 的 DSH_HOME=<DSH_E2E_HOME>/dsh
+4. 初始化 Profile──> 构建 <DSH_HOME>/profiles/web/{package.json, cordis.patch.yml, pnpm-workspace.yaml}
+5. 挂载插件      ──> [link 模式] 自建软链接至 profile/node_modules + 配置 dsh.profile.bundles
                      [cli 模式]  执行 dsh plugin --profile web add link:<repo>/packages/<name>
-5. 校验挂载      ──> 确认 dsh.profile.bundles 包含目标插件（未找到则立即报错抛出）
-6. 启动服务      ──> 执行 dsh web --host 127.0.0.1 --port 0 --no-open --skip-auth
-7. 解析端点      ──> 捕获日志中的 `http://127.0.0.1:<port>/?token=<...>` 并解析 URL
-8. 执行测试      ──> 运行 vitest --project plugin，测试用例通过 inject() 提取服务地址
-9. 资源回收      ──> 触发 Teardown：终止 dsh 进程树，清空临时目录
+6. 校验挂载      ──> 确认 dsh.profile.bundles 包含目标插件（未找到则立即报错抛出）
+7. 启动服务      ──> 执行 dsh web --host 127.0.0.1 --port 0 --no-open
+8. 交换会话      ──> 对日志里的 `http://127.0.0.1:<port>/?token=<...>` 发 redirect:'manual'
+                     请求，断言 303 且响应带 Set-Cookie，取出 `name=value` 作为会话凭据
+9. 执行测试      ──> 运行 vitest --project plugin，用例经 inject() 取地址与 Cookie
+10. 资源回收     ──> 触发 Teardown：终止 dsh 进程树，清空临时目录
 
 ```
 
+> **鉴权说明**：上游只接受「根路径 `GET /?token=<...>` 换 Cookie」这一条通道——`/` 之外的请求带 query token 或 Authorization 头都不认。交换成功返回 303 + `Set-Cookie`（host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`、无 `Secure`），此后 `/api` 与插件自有路由都必须带回该 Cookie，否则 401。
+> 桌面端内嵌 WebView 走的是另一条路（`alpha_auth` 补丁提供的 `--skip-auth`），**L2 不复用该参数**：npm 上的核心没有这个补丁，且绕过鉴权会让「未鉴权」与「路由丢失」在测试里不可区分。
+>
+> **核心解析**：`DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录，依次尝试。仓库刻意**不**把 `@deepseek-ai/dsh` 装进依赖树——它会与本仓 catalog 的 `@deepseek-ai/dsh-*` 形成双树，profile 组合时取到不匹配的实例。三者皆无时**直接抛错**，不提供「跳过」开关：一旦可跳过，CI 会在什么都没断言的情况下报绿。
+>
 > **参数说明**：
-> * `--skip-auth`：跳过浏览器一次性 Token 校验，避免误把“未鉴权”当作“路由丢失”。
 > * `--profile`：`dsh web` 内置为 `--profile web` 别名，无需显式传参。
 > * `fileParallelism`：`plugin` project 设置为 `false`，确保单实例下串行断言的稳定性。
 > 

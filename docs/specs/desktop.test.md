@@ -141,6 +141,18 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 
 **前置清空**：脚手架必须在启动前删除 `<app-data>/.store.test.dat`，保证几何、端口等状态从默认值起步；否则会读到上一次运行留下的窗口几何（`01` 批次 TC-004 因此失败过）。
 
+**依赖下载控制**：应用启动时会拉起 dsh 核心装配流程，三条口径分开，互不牵连：
+
+| 口径 | 机制 | 用途 |
+| --- | --- | --- |
+| 默认不禁用 | 生产语义，`DISABLE_AUTO_DOWNLOAD = false`；仅当 `DSH_E2E_DISABLE_DOWNLOAD=1` 时才禁用 | 绝大多数用例保持真实启动路径 |
+| 下载缓存复用 | `DSH_DOWNLOAD_CACHE_DIR` 覆盖下载基目录（`config/runtime.rs:get_base_dir`），跨用例指向同一稳定目录 | 除首次装配外，后续 L3 用例不再重复下载 |
+| 可清空下载状态 | 脚手架提供 `resetDownloadCache()`，删除缓存目录后再启动 | 专门验证「首次启动的装配流程」本身 |
+
+* **仅壳层用例必须禁用下载**：只断言壳层（窗口、几何、导航）而不触达 dsh 的批次，一律以 `startDesktopApp({ disableDownload: true })` 启动，避免为无关断言付出下载代价。
+* **禁用下载不等于跳过装配**：禁用只截断网络下载，装配与装配失败路径仍在，断言按实际观测结果书写。
+* 判定收敛在 `config::setting.rs` 的 `auto_download_disabled()`；常量在 `config/constants.rs`，由 Rust 单测守门「默认关闭禁用」与「环境变量可打开禁用」两种取值。
+
 **为什么不能只设 `DSH_HOME`**：`get_dsh_data_path` 在 debug 构建下恒返回 `<home>/.dsh.dev` 并**忽略** `DSH_HOME`（`src-tauri/src/config/runtime.rs:471`、`:472`）。
 
 **禁止事项**：不得设置 `DSH_HOME` 来「隔离」桌面端；不得在用例中创建或删除 `web`、`tauri`、`safe` 档案；不得删除用户真实的 `.store.dev.dat` / `.store.dat`。

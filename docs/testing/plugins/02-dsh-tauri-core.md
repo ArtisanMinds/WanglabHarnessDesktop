@@ -43,7 +43,7 @@
 [类型] 正向
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:270`
 [自动化] 是（`test/e2e/plugins/routes-contract.e2e.ts`）
-[前置条件] 宿主已挂载 `dsh-tauri-pet`（提供代表路由）；`DSH_E2E_MOUNT=link`
+[前置条件] 宿主已挂载 `dsh-tauri-pet`（提供代表路由）；`DSH_E2E_MOUNT=link`；本批所有请求均须带 `startDshHost()` 换回的会话 Cookie（`inject('dshCookie')`），否则 `/api` 一律 401，断言会把鉴权失败误读成路由契约失败
 [测试数据] `DSH_E2E_PLUGIN=dsh-tauri`；`DSH_E2E_ALSO=dsh-tauri-pet`
 [测试步骤] 1. 对代表路由发起 `OPTIONS`（不带 body）。2. 读状态码与 `allow` 头。
 [预期结果] 1. 状态码 204，响应体长度为 0。2. `allow` 头存在，且同时包含 `GET` 与 `OPTIONS`；因为 GET 隐含允许 HEAD，`allow` 中还应包含 `HEAD`。
@@ -106,9 +106,9 @@
 [Case ID] TC-CORE-L2-006
 [层级] L2（真实 dsh 进程）
 [类型] 异常
-[追踪] `docs/specs/plugin.test.md` §5 参数说明（`--skip-auth` 的用意）
+[追踪] `docs/specs/plugin.test.md` §5 鉴权说明（Cookie 交换下 401 与 404 的区分）
 [自动化] 是（同上文件）
-[前置条件] 宿主**未**挂载 `dsh-tauri-turnrewind`
+[前置条件] 宿主**未**挂载 `dsh-tauri-turnrewind`；请求带会话 Cookie
 [测试数据] `GET /api/desktop/dsh-tauri-turnrewind/summary?sessionId=x`
 [测试步骤] 1. 发起请求。2. 读状态码。
 [预期结果] 1. 状态码 404（既不是 401 也不是 200）。2. 该结果与「挂载后同路径返回 200/4xx 业务码」形成对照，证明失败来自路由缺失而非鉴权围栏。
@@ -125,12 +125,12 @@
 | 路由契约：405 + allow | TC-CORE-L2-003 | 异常 | 与各插件文件中的 405 断言**不重复**：此处只验共享层 |
 | 路由契约：跨源 403 | TC-CORE-L2-004 | 异常 | — |
 | 路由契约：413 bodyLimit | TC-CORE-L2-005 | 边界 | — |
-| `plugin.test.md` §5 `--skip-auth` 的判定语义 | TC-CORE-L2-006 | 异常 | — |
+| `plugin.test.md` §5 鉴权说明：带 Cookie 后 404 与 401 可区分 | TC-CORE-L2-006 | 异常 | — |
 
 ---
 
 ## 4. 缺口与假设
 
 - **不可覆盖**：非回环地址发起的变更请求 403（`routes/index.ts:279`）需要非本机来源，本套用例不做，仅登记为已知未覆盖分支。
-- **假设**：`--skip-auth` 下连接门不再拦截本机无 Origin 请求；若实际仍返回 401，TC-CORE-L2-001 需改为显式携带会话 Cookie。
+- **已定论**：不带会话 Cookie 时 `/api` 与插件路由返回 401（上游 `authorizeIndex` 在根路径之外不做 token 交换）。因此本批一律显式携带 Cookie；L2 不再依赖 `--skip-auth`——那是桌面端 `alpha_auth` 补丁提供的参数，npm 上的核心没有。
 - **假设**：`allow` 头的成员顺序稳定（`SUPPORTED_METHODS` 过滤后 join，见 `routes/index.ts:255`）。若顺序不稳定，断言改为集合包含而非字符串相等。

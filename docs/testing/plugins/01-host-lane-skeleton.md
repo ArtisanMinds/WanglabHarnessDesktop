@@ -23,11 +23,13 @@
 | link 挂载（junction / dir symlink，离线）或 cli 挂载（`dsh plugin add`） | `test/e2e/support/dsh-host.ts:179`、`test/e2e/support/dsh-host.ts:237` |
 | 挂载后必须出现在 `dsh.profile.bundles`，否则抛错 | `test/e2e/support/dsh-host.ts:335` |
 | 产物预检：`main` 与 `exports["./client"]` 指向的文件必须存在 | `test/e2e/support/dsh-host.ts:127` |
-| 启动命令：`dsh web --host 127.0.0.1 --port 0 --no-open --skip-auth` | `test/e2e/support/dsh-host.ts:352` |
+| 核心解析：`DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录，皆无则抛错 | `test/e2e/support/dsh-host.ts:121`、`test/e2e/support/dsh-host.ts:42` |
+| 启动命令：`dsh web --host 127.0.0.1 --port 0 --no-open`（不带 `--skip-auth`） | `test/e2e/support/dsh-host.ts:392` |
+| 鉴权交换：根路径 token → `redirect:'manual'` 断言 303 + `Set-Cookie`，取 `name=value` | `test/e2e/support/dsh-host.ts:96` |
 | 就绪判定：从日志抓 `http://127.0.0.1:<port>...` 首个匹配 | `test/e2e/support/dsh-host.ts:36`、`test/e2e/support/dsh-host.ts:274` |
 | 就绪上限 120s | `test/e2e/support/dsh-host.ts:39` |
 | 收尾：Windows `taskkill /T /F`；其余 SIGTERM→SIGKILL | `test/e2e/support/dsh-host.ts:371`、`test/e2e/support/dsh-host.ts:255` |
-| 地址下传：`project.provide('dshBaseUrl' / 'dshUrl' / 'dshHome' / 'dshMounted')` | `test/e2e/global-setup.ts:33` |
+| 地址下传：`project.provide('dshBaseUrl' / 'dshUrl' / 'dshCookie' / 'dshHome' / 'dshMounted')` | `test/e2e/global-setup.ts:38` |
 | project 归属：`packages/*/test/**/*.e2e.ts`，`fileParallelism: false`，超时 120s | `vitest.plugin.config.ts:15`、`vitest.plugin.config.ts:18` |
 
 ---
@@ -40,11 +42,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `docs/specs/plugin.test.md` §8 批次 1；`test/e2e/support/dsh-host.ts:307`
-[自动化] 是（`test/e2e/plugins/host-lane.e2e.ts`）
-[前置条件] `pnpm build:plugins` 已执行；`DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`）指向的包已构建；系统临时目录可写；`@deepseek-ai/dsh` 入口可解析
+[自动化] 否（待建立 `test/e2e/plugins/host-lane.e2e.ts`）
+[前置条件] `pnpm build:plugins` 已执行；`DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`）指向的包已构建；系统临时目录可写；dsh 核心可解析（`DSH_E2E_DSH_BIN`、仓库依赖树或桌面端装配目录任一命中）
 [测试数据] `DSH_E2E_PLUGIN=dsh-tauri`；`DSH_E2E_MOUNT=link`（默认）
-[测试步骤] 1. 调用 `startDshHost({ plugin: 'dsh-tauri' })`。2. 读返回的 `url` / `baseUrl` / `home` / `mounted`。3. 对 `baseUrl` 发起 `GET /`。4. 读 `home/dsh-web.log` 末尾内容。
-[预期结果] 1. `startDshHost` 在 120s 内 resolve，不抛错。2. `baseUrl` 形如 `http://127.0.0.1:<非 0 端口>`；`mounted` 精确包含 `dsh-tauri`；`home` 路径包含 `dsh-e2e-dsh-tauri-`。3. `GET /` 返回 2xx 且响应体非空。4. 日志内出现与 `url` 一致的就绪行，且未出现 `ERR_MODULE_NOT_FOUND`。
+[测试步骤] 1. 调用 `startDshHost({ plugin: 'dsh-tauri' })`。2. 读返回的 `url` / `baseUrl` / `cookie` / `home` / `mounted`。3. 带 `cookie` 对 `baseUrl` 发起 `GET /`。4. 读 `home/dsh-web.log` 末尾内容。
+[预期结果] 1. `startDshHost` 在 120s 内 resolve，不抛错。2. `baseUrl` 形如 `http://127.0.0.1:<非 0 端口>`；`cookie` 非空；`mounted` 精确包含 `dsh-tauri`；`home` 路径包含 `dsh-e2e-dsh-tauri-`。3. `GET /` 返回 2xx 且响应体非空。4. 日志内出现与 `url` 一致的就绪行，且未出现 `ERR_MODULE_NOT_FOUND`。
 [清理] 用例结束（含失败）必须调用 `stop()`；断言 `home` 目录已被删除
 
 ### [P2] 验证宿主启动后目标插件的 bundle 已登记进 profile
