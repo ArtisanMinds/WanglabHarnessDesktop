@@ -126,11 +126,13 @@ describe('defineAdapter — 世代探测与内置迁移', () => {
     expect(adapter.migrations).toContain('sessions:provide-info-bridge')
     expect(adapter.migrations).toContain('legacy:workspaces-navigation')
 
-    // 嵌套投影补齐成与新版同形的 getSnapshot / subscribe
+    // 嵌套投影补齐成与新版同形的 getSnapshot / subscribe（订阅转发：核心列表发布即通知消费方）
     expect(adapter.sessions.getSnapshot?.()).toEqual(snapshot)
-    const listener = () => {}
+    const listener = vi.fn()
     adapter.sessions.subscribe?.(listener)
-    expect(list.subscribe).toHaveBeenCalledWith(listener)
+    expect(list.subscribe).toHaveBeenCalledTimes(1)
+    list.subscribe.mock.calls[0]?.[0]?.()
+    expect(listener).toHaveBeenCalledTimes(1)
 
     // per-session 信息：legacy 走 binding + uiSession.adapter.resolve 投影
     expect(adapter.has('sessions.provideInfo')).toBe(true)
@@ -510,6 +512,56 @@ describe('defineAdapter — 0.1.6-alpha.2 会话面投影', () => {
 
     // 顶层别名与 list 同源：老写法读 sessions.getSnapshot 也拿到 current
     expect(adapter.sessions.getSnapshot?.()).toEqual({ ids: ['s1', 's2'], byId: {}, current: 's3' })
+  })
+
+  it('current 投影：创建期 uiSession 尚未激活，服务到达后仍补齐 current', () => {
+    const list = makeLiveList<Record<string, unknown>>({ ids: ['s1'], byId: {} })
+    const current = makeLiveList<{ key?: string }>({ key: undefined })
+    // `dsh-tauri-ui` 只声明 sessions，会早于 ui-session 激活：创建期读不到 uiSession 是常态
+    const services: Record<string, unknown> = { sessions: { list } }
+    const adapter = defineAdapter(makeContext(services))
+
+    expect(adapter.migrations).toContain('sessions:current-projection')
+    const projected = adapter.sessions.list
+    const currentOf = (): unknown => (projected?.getSnapshot() as { current?: unknown } | undefined)?.current
+    expect(currentOf()).toBeUndefined()
+
+    // ui-session 稍后激活：投影在调用期重读服务，无需重建适配层
+    services.uiSession = { adapter: { bindingSource: vi.fn(), current } }
+    current.publish({ key: 's1' })
+    expect(currentOf()).toBe('s1')
+
+    // 订阅侧同样自愈：源到达前订阅，到达后 current 变化仍要通知消费方
+    const listener = vi.fn()
+    const off = projected?.subscribe(listener)
+    list.publish({ ids: ['s1', 's2'], byId: {} })
+    expect(listener).toHaveBeenCalledTimes(1)
+    current.publish({ key: 's2' })
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(currentOf()).toBe('s2')
+    off?.()
+    current.publish({ key: 's3' })
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+
+  it('provideInfo：创建期 uiSession 尚未激活，服务到达后桥照常解析', () => {
+    const inputActions = { submit: vi.fn() }
+    const binding = { sessionId: 's1' }
+    const source = makeLiveList({ key: 's1', props: { inputActions } })
+    const services: Record<string, unknown> = {
+      sessions: { list: makeList(), binding: vi.fn(() => binding) },
+    }
+    const adapter = defineAdapter(makeContext(services))
+
+    expect(adapter.migrations).toContain('sessions:provide-info-bridge')
+    expect(adapter.has('sessions.provideInfo')).toBe(true)
+    // 投影源未到达：诚实回报不可用，而不是抛错
+    expect(adapter.sessions.provideInfo?.('s1')).toBeUndefined()
+
+    const bindingSource = vi.fn(() => source)
+    services.uiSession = { adapter: { bindingSource, current: makeLiveList({ key: 's1' }) } }
+    expect(adapter.sessions.provideInfo?.('s1')).toEqual({ props: { inputActions } })
+    expect(bindingSource).toHaveBeenCalledWith({ sessionId: 's1', binding })
   })
 
   it('current 投影：0.1.5 布局（核心自带 current）不装投影，原样保留', () => {
