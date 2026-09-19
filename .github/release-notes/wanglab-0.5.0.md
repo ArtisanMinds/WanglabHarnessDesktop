@@ -6,6 +6,7 @@ Syncs DeepSeek Harness Desktop **v0.15.5**, including all changes since v0.14.1.
 - Adds searchable scheduled run history, unread indicators, and direct navigation to a run's conversation.
 - Integrates the installed plugin market into Extensions and updates the panel layout.
 - Improves interrupted conversation recovery and worktree cleanup.
+- Fixes Windows short-path aliases being mistaken for different worktree locations, preserving existing worktrees and uncommitted files.
 - Fixes Windows text-selection freezes, command shim line endings, pnpm store migrations, and internal plugin linking.
 - Updates pet bubbles and archive import compatibility while preserving Pets / Market, application-only pet storage, 25–200% sizing, and render-confirmed status. No default pet or pet assets are bundled.
 - Preserves Wanglab model routes, independent DeepSeek / Grok suppliers, existing settings, and the English About Us introduction. Grok continues to use the pi-ai route.

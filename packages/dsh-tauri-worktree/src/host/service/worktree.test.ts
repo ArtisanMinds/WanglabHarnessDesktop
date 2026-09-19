@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +8,7 @@ import { clearHostRuntime, setCurrentHostInstance } from '../config/runtime'
 import { projectDirname } from '../utils/git'
 import { computeHash, worktreePath } from '../utils/paths'
 import { cleaner } from './cleaner'
+import { ledger } from './ledger'
 import { worktree } from './worktree'
 
 vi.mock('dsh-tauri', async (importOriginal) => {
@@ -89,7 +90,7 @@ describe('worktree.create', () => {
 
     const path = expectedPath(repository, sessionId)
     expect(result.binding.worktreePath).toBe(path)
-    expect(result.binding.projectPath).toBe(repository)
+    expect(realpathSync.native(result.binding.projectPath)).toBe(realpathSync.native(repository))
     expect(result.binding.ownsBranch).toBe(false)
     expect(result.binding.branchName).toBe('(detached)')
     expect(result.existed).toBe(false)
@@ -151,6 +152,35 @@ describe('worktree.create', () => {
       return
     expect(second.existed).toBe(true)
     expect(second.binding.worktreePath).toBe(expectedPath(repository, sessionId))
+  })
+
+  it('工作树目录经过路径别名时复用绑定并保留未提交文件', async () => {
+    const repository = createRepository()
+    const target = mkdtempSync(join(tmpdir(), 'dsh-worktree-store-'))
+    repositories.push(target)
+    symlinkSync(target, join(testDshHome, 'worktrees'), 'junction')
+    const sessionId = 'aliased-worktree-session'
+    const first = await worktree.create(repository, sessionId)
+    expect(first.ok).toBe(true)
+    if (!first.ok)
+      return
+    const draft = join(first.binding.worktreePath, 'uncommitted.txt')
+    writeFileSync(draft, 'keep user changes\n')
+
+    const second = await worktree.create(repository, sessionId)
+    expect(second.ok).toBe(true)
+    if (!second.ok)
+      return
+    expect(second.existed).toBe(true)
+    expect(second.binding).toEqual(first.binding)
+    expect(readFileSync(draft, 'utf8')).toBe('keep user changes\n')
+
+    await ledger.remove(sessionId)
+    const unbound = await worktree.create(repository, sessionId)
+    expect(unbound.ok).toBe(false)
+    if (!unbound.ok)
+      expect(unbound.error).toContain('拒绝覆盖')
+    expect(readFileSync(draft, 'utf8')).toBe('keep user changes\n')
   })
 })
 

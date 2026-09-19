@@ -6,7 +6,7 @@ import type {
   WorktreeParams,
   WorktreeProcessController,
 } from '../types'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import process from 'node:process'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { compact, filter, find, get, isEmpty, map, reject, some } from 'lodash-es'
@@ -466,9 +466,18 @@ async function pruneWorktreeAdmin(root: string, signal?: AbortSignal): Promise<O
   return pruned.ok ? { ok: true } : { ok: false, error: pruned.error }
 }
 
+function resolvedPath(path: string): string {
+  try {
+    return resolve(realpathSync.native(path))
+  }
+  catch {
+    return resolve(path)
+  }
+}
+
 function samePath(a: string, b: string): boolean {
-  const left = resolve(a)
-  const right = resolve(b)
+  const left = resolvedPath(a)
+  const right = resolvedPath(b)
   return process.platform === 'win32'
     ? left.replaceAll('/', '\\').toLowerCase() === right.replaceAll('/', '\\').toLowerCase()
     : left === right
