@@ -1,5 +1,4 @@
 pub mod backup;
-pub mod bundle;
 pub mod cli;
 pub mod core;
 pub mod download;

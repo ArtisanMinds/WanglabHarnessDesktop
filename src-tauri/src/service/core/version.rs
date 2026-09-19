@@ -96,7 +96,6 @@ pub async fn list(app_handle: &AppHandle) -> Vec<HarnessCore> {
             .as_ref()
             .is_some_and(|c| config::is_dsh_version_above_recommended(app_handle, &c.version)),
         orphaned: false,
-        bundled: false,
         recommended_version: config::recommended_dsh_version(app_handle),
         error: None,
     }];
@@ -212,7 +211,6 @@ pub async fn list(app_handle: &AppHandle) -> Vec<HarnessCore> {
             preview: *preview,
             above_recommended: config::is_dsh_version_above_recommended(app_handle, version),
             orphaned: false,
-            bundled: false,
             recommended_version: config::recommended_dsh_version(app_handle),
             error: None,
         });
@@ -240,7 +238,6 @@ pub async fn list(app_handle: &AppHandle) -> Vec<HarnessCore> {
             above_recommended: installed_version
                 .as_deref()
                 .is_some_and(|v| config::is_dsh_version_above_recommended(app_handle, v)),
-            bundled: false,
             recommended_version: config::recommended_dsh_version(app_handle),
             error: None,
         });
@@ -299,18 +296,10 @@ pub async fn list(app_handle: &AppHandle) -> Vec<HarnessCore> {
                 preview: download::is_preview_tag(&tag),
                 above_recommended: config::is_dsh_version_above_recommended(app_handle, &version),
                 orphaned,
-                bundled: false,
                 recommended_version: config::recommended_dsh_version(app_handle),
                 error: None,
             });
         }
-    }
-
-    // 「内置核心」按**落位身份**标注，而不是比较版本号：用户完全可能另外下载一个与
-    // 内置核心同版本的槽位，那是他自己的副本，不该被标成内置核心、更不该禁止卸载。
-    for row in rows.iter_mut() {
-        row.bundled = !row.dir.is_empty()
-            && crate::service::bundle::is_bundled_dir(app_handle, Path::new(&row.dir));
     }
 
     rows
@@ -574,19 +563,6 @@ pub async fn remove_version(app_handle: &AppHandle, id: &str) -> Result<(), Stri
     let dir = existing_slot_dir(app_handle, tag)
         .ok_or_else(|| format!("CORE_VERSION_NOT_FOUND: {tag}"))?;
 
-    // 离线安装包的内置核心不允许卸载：它是随包分发的兜底内核，删掉后内网/离线
-    // 环境将再无可用核心（重装应用才能恢复）。核心面板同样不渲染卸载入口。
-    //
-    // 按落位身份判定而不是版本号：用户另外下载的同版本槽位是他自己的副本，可以卸载。
-    if crate::service::bundle::is_bundled_dir(app_handle, &dir) {
-        let version = read_manifest_dsh_version(&dir)
-            .or_else(|| download::parse_version_from_tag(tag))
-            .unwrap_or_default();
-        return Err(format!(
-            "CORE_BUNDLED_PROTECTED: bundled core {version} cannot be removed"
-        ));
-    }
-
     // 停止服务避免句柄锁定（被删目录可能是上一份激活副本，句柄未释放）
     if workflow::has_owned_process() {
         if let Err(e) = workflow::stop(app_handle.clone()).await {
@@ -618,13 +594,11 @@ fn active_app_version(
 fn row_for_tag(app_handle: &AppHandle, tag: &str, dir: &Path) -> HarnessCore {
     let active = config::get_dsh_pkg_tag(app_handle).as_deref() == Some(tag)
         && active_source(app_handle) == CoreSource::App;
-    let version = download::parse_version_from_tag(tag).unwrap_or_default();
     let dir_str = dir.to_string_lossy().into_owned();
     HarnessCore {
         id: format!("app-{tag}"),
         source: CoreSource::App,
-        bundled: crate::service::bundle::is_bundled_dir(app_handle, dir),
-        version,
+        version: download::parse_version_from_tag(tag).unwrap_or_default(),
         tag: tag.to_string(),
         path: dir_str.clone(),
         dir: dir_str,

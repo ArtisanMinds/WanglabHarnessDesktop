@@ -1,4 +1,3 @@
-mod bundle;
 mod constants;
 mod format;
 pub mod i18n;
@@ -10,7 +9,6 @@ mod utils;
 mod version_recommend;
 mod window_state;
 
-pub use bundle::*;
 pub use constants::*;
 pub use format::*;
 pub use region::*;
