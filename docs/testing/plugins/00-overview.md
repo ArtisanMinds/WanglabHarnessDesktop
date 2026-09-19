@@ -14,7 +14,7 @@
 
 | 层级 | 宿主 | 驱动方式 | 覆盖对象 |
 | --- | --- | --- | --- |
-| L2 插件宿主 E2E | 真实 `dsh web` 进程（+ 真实浏览器页面） | Vitest `e2e` project；HTTP 断言先行，浏览器断言待接线 | 宿主路由、客户端挂载点、崩溃防护 |
+| L2 插件宿主 E2E | 真实 `dsh web` 进程（+ 真实浏览器页面） | Vitest `plugin` project；HTTP 断言先行，浏览器断言待接线 | 宿主路由、客户端挂载点、崩溃防护 |
 | L3 桌面端宿主 E2E | 真实 Tauri 窗口（`deepseek-harness-desktop.exe`） | Vitest `desktop` project + WebdriverIO（内嵌 WebDriver server） | 依赖 Tauri 桥的插件与壳层集成 |
 
 - **纳入范围**：`packages/` 下 10 个产品可见插件、核心桥接包 `dsh-tauri`、编排骨架、插件生命周期治理（清单/监控、禁用启用、升级卸载、快照、预装引导、异常修复、档案与补丁隔离、内置插件自愈）。
@@ -101,7 +101,7 @@
 | 附加挂载 | `DSH_E2E_ALSO`（逗号分隔） | `test/e2e/global-setup.ts:30` |
 | 挂载模式 | `DSH_E2E_MOUNT=link`（默认）/ `cli` | `test/e2e/support/dsh-host.ts:322` |
 | 保留现场 | `DSH_E2E_KEEP_HOME=1` | `test/e2e/global-setup.ts:31` |
-| 运行 | `pnpm test:e2e:plugin`（= `vitest --project e2e`） | `package.json:21` |
+| 运行 | `pnpm test:e2e:plugin`（= `vitest --project plugin`） | `package.json:21` |
 | 隔离 | 每次运行独占 `<tmp>/dsh-e2e-<plugin>-<时间戳>`，不触碰用户真实 `DSH_HOME` | `test/e2e/support/dsh-host.ts:313` |
 
 ---

@@ -27,7 +27,7 @@
 | 层级 | 代码位置 | 驱动/运行器 | 断言对象 | 必选场景 |
 | --- | --- | --- | --- | --- |
 | **L1 单元测试** | `packages/<name>/src/**/*.test.ts` | Vitest (`unit` project) | 纯函数、路由 Handler、注册表契约 | 无条件必选 |
-| **L2 插件宿主 E2E** | `test/e2e/plugins/*.e2e.ts` | Vitest (`e2e` project) + Playwright API | 真实 `dsh web` 进程：路由响应、客户端挂载点、崩溃防护 | 每个产品可见插件 |
+| **L2 插件宿主 E2E** | `test/e2e/plugins/*.e2e.ts` | Vitest (`plugin` project) + Playwright API | 真实 `dsh web` 进程：路由响应、客户端挂载点、崩溃防护 | 每个产品可见插件 |
 | **L3 桌面端宿主 E2E** | `test/e2e/desktop/*.e2e.ts` | Vitest (`desktop` project) + WebdriverIO | 桌面端壳层 + 内嵌 dsh iframe | 仅依赖 Tauri 桥的插件 |
 
 > **分工原则**：L1 允许 Mock 宿主；L2/L3 下游全真，仅允许 Mock 外部服务（网络、模型、时钟）。
@@ -40,8 +40,8 @@
 
 全仓**统一使用 Vitest 作为唯一测试运行器**，通过 `test.projects` 实现分层隔离：
 
-* **命令隔离**：使用 `vitest --project unit` 或 `--project e2e` 指定层级；`pnpm test` 运行全部。
-* **独立配置**：通过 `vitest.unit.config.ts` 与 `vitest.e2e.config.ts` (`defineProject`) 维护各自配置。
+* **命令隔离**：使用 `vitest --project unit` 或 `--project plugin` 指定层级；`pnpm test` 运行全部。
+* **独立配置**：通过 `vitest.unit.config.ts` 与 `vitest.plugin.config.ts` (`defineProject`) 维护各自配置。
 * **全局报告**：由根目录 `vitest.config.ts` 统一管理报告与覆盖率（Project 级不支持配置 Reporters）。
 * **生命周期**：利用 Project 的 `globalSetup` 完成真实宿主的单次启停，通过 `project.provide()` 注入服务地址。
 * **浏览器驱动**：L2 采用 **Playwright 库 API** (`chromium.launch()`) 驱动浏览器，不引入 Playwright Test Runner。
@@ -70,7 +70,7 @@ test/e2e/
 test/archive/*                # 历史用例归档（只读参考，不被任何 project 匹配）
 vitest.config.ts              # 根配置：包含 Projects 清单与全局别名
 vitest.unit.config.ts         # unit project 配置
-vitest.e2e.config.ts          # e2e project 配置（插件 L2）
+vitest.plugin.config.ts          # e2e project 配置（插件 L2）
 vitest.desktop.config.ts      # desktop project 配置（桌面端 L3）
 docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
 ```
@@ -94,7 +94,7 @@ docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
 5. 校验挂载      ──> 确认 dsh.profile.bundles 包含目标插件（未找到则立即报错抛出）
 6. 启动服务      ──> 执行 dsh web --host 127.0.0.1 --port 0 --no-open --skip-auth
 7. 解析端点      ──> 捕获日志中的 `http://127.0.0.1:<port>/?token=<...>` 并解析 URL
-8. 执行测试      ──> 运行 vitest --project e2e，测试用例通过 inject() 提取服务地址
+8. 执行测试      ──> 运行 vitest --project plugin，测试用例通过 inject() 提取服务地址
 9. 资源回收      ──> 触发 Teardown：终止 dsh 进程树，清空临时目录
 
 ```
@@ -102,7 +102,7 @@ docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
 > **参数说明**：
 > * `--skip-auth`：跳过浏览器一次性 Token 校验，避免误把“未鉴权”当作“路由丢失”。
 > * `--profile`：`dsh web` 内置为 `--profile web` 别名，无需显式传参。
-> * `fileParallelism`：`e2e` project 设置为 `false`，确保单实例下串行断言的稳定性。
+> * `fileParallelism`：`plugin` project 设置为 `false`，确保单实例下串行断言的稳定性。
 > 
 > 
 

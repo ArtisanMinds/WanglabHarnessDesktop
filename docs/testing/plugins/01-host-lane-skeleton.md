@@ -4,7 +4,7 @@
 > 自动化：`test/e2e/plugins/host-lane.e2e.ts`（待建立；本文件是它的用例来源）
 > 前置：`pnpm build:plugins` 已产出 `packages/*/dist`；`DSH_E2E_DSH_BIN` 或桌面端装配目录内存在 `@deepseek-ai/dsh/lib/bin.js`
 > 编排：`test/e2e/support/dsh-host.ts`；全局生命周期：`test/e2e/global-setup.ts`
-> 运行：`pnpm test:e2e:plugin`（= `vitest --project e2e`）
+> 运行：`pnpm test:e2e:plugin`（= `vitest --project plugin`）
 
 本批是全套插件用例的地基：**先证明编排本身可信**，再谈插件行为。若这里不成立，后面所有「插件路由 404」都无法区分是插件没挂上还是宿主没起来。
 
@@ -28,7 +28,7 @@
 | 就绪上限 120s | `test/e2e/support/dsh-host.ts:39` |
 | 收尾：Windows `taskkill /T /F`；其余 SIGTERM→SIGKILL | `test/e2e/support/dsh-host.ts:371`、`test/e2e/support/dsh-host.ts:255` |
 | 地址下传：`project.provide('dshBaseUrl' / 'dshUrl' / 'dshHome' / 'dshMounted')` | `test/e2e/global-setup.ts:33` |
-| project 归属：`packages/*/test/**/*.e2e.ts`，`fileParallelism: false`，超时 120s | `vitest.e2e.config.ts:15`、`vitest.e2e.config.ts:18` |
+| project 归属：`packages/*/test/**/*.e2e.ts`，`fileParallelism: false`，超时 120s | `vitest.plugin.config.ts:15`、`vitest.plugin.config.ts:18` |
 
 ---
 

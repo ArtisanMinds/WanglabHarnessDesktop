@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console -- CLI 探针：stdout 就是它唯一的产出通道 */
 // D0 临时探针：验证 debug 二进制内嵌的 WebDriver server 能否被纯 HTTP 驱动。
 // 只验这一个不确定性，通过后由 D1 的正式接线取代；见 docs/testing/desktop/basic.md。
 

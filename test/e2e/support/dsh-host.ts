@@ -33,7 +33,7 @@ const PROFILE = 'web'
  * 就绪行正则：只取 URL 本体（`dsh web: ` 前缀留在匹配之外，否则 `new URL()` 会抛）。
  * 必须吃到空白为止——在 `/` 处截断会丢掉 `?token=`，首屏直接 401。
  */
-const READY_RE = /http:\/\/127\.0\.0\.1:\d+[^\s]*/
+const READY_RE = /http:\/\/127\.0\.0\.1:\d\S*/
 
 /** 就绪等待上限（冷启 dsh web + 插件装配）。 */
 const READY_TIMEOUT_MS = 120_000
@@ -169,8 +169,8 @@ function writeProfile(profileDir: string, bundles: readonly string[]): void {
     '  protobufjs: true',
     '',
     'minimumReleaseAgeExclude:',
-    "  - '@deepseek-ai/*'",
-    "  - 'dsh-tauri*'",
+    '  - \'@deepseek-ai/*\'',
+    '  - \'dsh-tauri*\'',
     '',
   ].join('\n'))
 }
@@ -215,10 +215,10 @@ function run(command: string, args: readonly string[], cwd: string, env: NodeJS.
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, [...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     let output = ''
-    child.stdout?.on('data', (chunk: Buffer) => {
+    child.stdout?.on('data', (chunk: Uint8Array) => {
       output += chunk.toString()
     })
-    child.stderr?.on('data', (chunk: Buffer) => {
+    child.stderr?.on('data', (chunk: Uint8Array) => {
       output += chunk.toString()
     })
     child.on('error', reject)
@@ -360,7 +360,7 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
     windowsHide: true,
   })
   const chunks: string[] = []
-  const collect = (chunk: Buffer): void => {
+  const collect = (chunk: Uint8Array): void => {
     chunks.push(chunk.toString())
     writeFileSync(logPath, chunks.join(''))
   }
