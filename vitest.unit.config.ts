@@ -10,6 +10,11 @@ import { defineProject } from 'vitest/config'
  *
  * `test/archive/**` 是历史用例的归档（只读参考，不参与任何 project）。
  *
+ * 排除项必须显式带上 node_modules 的通配：Vitest 一旦收到自定义 `exclude` 就**不再**
+ * 合并默认值，而各插件包的 node_modules 下装着彼此链接的副本——不排除会把同一个
+ * `index.test.ts` 收编七八遍，既拖慢全量跑，又让重复的异步错误被计成 unhandled
+ * 而判整轮失败。
+ *
  * 别名：project 级配置不继承根 `vitest.config.ts` 的 `resolve.alias`，而壳层用例
  * 普遍 import `@/…`，因此这里必须重复声明一次。
  *
@@ -33,7 +38,9 @@ export default defineProject({
       'test/**/*.test.ts',
       'src/**/*.test.ts',
     ],
-    exclude: ['test/archive/**', 'archive/**'],
+    exclude: ['**/node_modules/**', 'test/archive/**', 'archive/**'],
+    // 壳层模块在导入期就访问 Tauri API，node 下需要最小运行时垫片，见该文件说明。
+    setupFiles: ['./test/setup/tauri-runtime.ts'],
     maxWorkers: 4,
     testTimeout: 30_000,
     hookTimeout: 30_000,
