@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { LlmDiscoveredModel } from '../types/remotes.ts'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { en } from './locales.ts'
@@ -11,7 +11,9 @@ import {
   hasModelConfig,
   imageInputValue,
   supportsImageInput,
+  supportsTemplateThinking,
   supportsThinking,
+  templateThinkingCompat,
   THINKING_LEVELS,
   thinkingEffortsOf,
   toggleThinkingLevel,
@@ -114,6 +116,29 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
   contextWindow: '256K',
   maxTokens: '32K',
 }
+
+/** 上游给高级区留了 4px 左右内边距，会让首行比上面的模型行窄 8px、左边缘再右移 4px；这里去掉它。 */
+const ADVANCED_AREA_STYLE: CSSProperties = { paddingLeft: 0, paddingRight: 0 }
+
+/**
+ * 高级区首行横跨整个栅格：左半边是两个容量输入（彼此等宽），容量组本身按内容宽度；右半边是三个
+ * 开关，开关组吃掉剩余宽度——开关按内容宽度排布、不做拉伸，容器另加 4px 左外边距。
+ *
+ * `minWidth: 0` 是必须的：文本输入自带约 20 字符的固有宽度，flex 项的自动最小尺寸会让它拒绝收缩。
+ */
+const ADVANCED_ROW_STYLE: CSSProperties = { display: 'flex', gap: '6px', gridColumn: '1 / -1' }
+const ADVANCED_CAPACITIES_STYLE: CSSProperties = { display: 'flex', gap: '6px', minWidth: 0 }
+const ADVANCED_CAPACITY_STYLE: CSSProperties = { flex: 1, minWidth: 0 }
+const ADVANCED_SWITCHES_STYLE: CSSProperties = { display: 'flex', gap: '6px', flex: 1, minWidth: 0, marginLeft: '4px' }
+
+/**
+ * 「关闭 Developer 角色」开关只对 chat completions 协议有意义。
+ *
+ * pi-ai 的 compat 是逐协议校验的：`thinkingFormat` 与 `chatTemplateKwargs` 只有
+ * `openai-completions` 收，写到 Responses 或 Anthropic 路由的模型上会让整段配置解析失败。
+ * 路由没显式声明协议时（目录路由）无法判断，就不提供这个开关。
+ */
+const TEMPLATE_COMPAT_PROTOCOL = 'openai-completions'
 
 function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
@@ -398,59 +423,81 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           </div>
           {expanded.has(index)
             ? (
-                <div className={styles.modelAdvanced}>
-                  <label className={styles.modelField}>
-                    <span className={styles.modelFieldLabel}>{t('modelContextWindow')}</span>
-                    <input
-                      className={styles.input}
-                      type="text"
-                      inputMode="numeric"
-                      value={capacityText(model, index, 'contextWindow')}
-                      placeholder={CAPACITY_HINT.contextWindow}
-                      aria-label={`${t('modelContextWindow')} ${index + 1}`}
-                      disabled={disabled}
-                      onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
-                    />
-                  </label>
-                  <label className={styles.modelField}>
-                    <span className={styles.modelFieldLabel}>{t('modelMaxTokens')}</span>
-                    <input
-                      className={styles.input}
-                      type="text"
-                      inputMode="numeric"
-                      value={capacityText(model, index, 'maxTokens')}
-                      placeholder={CAPACITY_HINT.maxTokens}
-                      aria-label={`${t('modelMaxTokens')} ${index + 1}`}
-                      disabled={disabled}
-                      onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
-                    />
-                  </label>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <div className={styles.modelField}>
-                      <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
-                      <div className={styles.modelSwitchRow}>
-                        <Switch
-                          checked={supportsImageInput(model)}
+                <div className={styles.modelAdvanced} style={ADVANCED_AREA_STYLE}>
+                  <div style={ADVANCED_ROW_STYLE}>
+                    <div style={ADVANCED_CAPACITIES_STYLE}>
+                      <label className={styles.modelField} style={ADVANCED_CAPACITY_STYLE}>
+                        <span className={styles.modelFieldLabel}>{t('modelContextWindow')}</span>
+                        <input
+                          className={styles.input}
+                          type="text"
+                          inputMode="numeric"
+                          value={capacityText(model, index, 'contextWindow')}
+                          placeholder={CAPACITY_HINT.contextWindow}
+                          aria-label={`${t('modelContextWindow')} ${index + 1}`}
                           disabled={disabled}
-                          label={`${t('imageInput')} ${index + 1}`}
-                          title={t('imageInputHint')}
-                          onChange={(next) => { patch(index, { input: imageInputValue(next) }) }}
+                          onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
                         />
-                      </div>
+                      </label>
+                      <label className={styles.modelField} style={ADVANCED_CAPACITY_STYLE}>
+                        <span className={styles.modelFieldLabel}>{t('modelMaxTokens')}</span>
+                        <input
+                          className={styles.input}
+                          type="text"
+                          inputMode="numeric"
+                          value={capacityText(model, index, 'maxTokens')}
+                          placeholder={CAPACITY_HINT.maxTokens}
+                          aria-label={`${t('modelMaxTokens')} ${index + 1}`}
+                          disabled={disabled}
+                          onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
+                        />
+                      </label>
                     </div>
-                    <div className={styles.modelField}>
-                      <span className={styles.modelFieldLabel} title={t('thinkingModeHint')}>{t('thinkingMode')}</span>
-                      <div className={styles.modelSwitchRow}>
-                        <Switch
-                          checked={supportsThinking(model)}
-                          disabled={disabled}
-                          label={`${t('thinkingMode')} ${index + 1}`}
-                          title={t('thinkingModeHint')}
-                          onChange={(next) => {
-                            patch(index, { reasoningEfforts: next ? enableThinking(model) : false })
-                          }}
-                        />
+                    <div style={ADVANCED_SWITCHES_STYLE}>
+                      <div className={styles.modelField}>
+                        <span className={styles.modelFieldLabel} title={t('imageInputHint')}>{t('imageInput')}</span>
+                        <div className={styles.modelSwitchRow}>
+                          <Switch
+                            checked={supportsImageInput(model)}
+                            disabled={disabled}
+                            label={`${t('imageInput')} ${index + 1}`}
+                            title={t('imageInputHint')}
+                            onChange={(next) => { patch(index, { input: imageInputValue(next) }) }}
+                          />
+                        </div>
                       </div>
+                      <div className={styles.modelField}>
+                        <span className={styles.modelFieldLabel} title={t('thinkingModeHint')}>{t('thinkingMode')}</span>
+                        <div className={styles.modelSwitchRow}>
+                          <Switch
+                            checked={supportsThinking(model)}
+                            disabled={disabled}
+                            label={`${t('thinkingMode')} ${index + 1}`}
+                            title={t('thinkingModeHint')}
+                            onChange={(next) => {
+                              patch(index, { reasoningEfforts: next ? enableThinking(model) : false })
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {probe.api === TEMPLATE_COMPAT_PROTOCOL
+                        ? (
+                            <div className={styles.modelField}>
+                              <span className={styles.modelFieldLabel} title={t('developerRoleHint')}>
+                                {t('developerRole')}
+                              </span>
+                              <div className={styles.modelSwitchRow}>
+                                <Switch
+                                  checked={supportsTemplateThinking(model)}
+                                  disabled={disabled}
+                                  label={`${t('developerRole')} ${index + 1}`}
+                                  title={t('developerRoleHint')}
+                                  onChange={(next) => { patch(index, { compat: templateThinkingCompat(model, next) }) }}
+                                />
+                              </div>
+                            </div>
+                          )
+                        : null}
                     </div>
                   </div>
                   {supportsThinking(model)

@@ -36,12 +36,12 @@ use crate::utils::show_main_window;
 /// 壳层（`Navbar`）导航栏高度，单位 CSS px。
 ///
 /// 这是「前端高度类 ↔ 后端交通灯纵向位置」的唯一真值入口：前端
-/// `src/layout/components/navbar.tsx` 根元素的 `h-12` 是它的体现（Tailwind 4
-/// 间距刻度 12 × 4px = 48px），macOS 交通灯的纵向位置也由它推导。issue #524
+/// `src/layout/components/navbar.tsx` 根元素的 `h-11` 是它的体现（Tailwind 4
+/// 间距刻度 11 × 4px = 44px），macOS 交通灯的纵向位置也由它推导。issue #524
 /// 之前两处各写一份数值（`h-11` 与 `24.0`）互不知情，改一处就会错位；现在由
 /// `shell_nav_height_matches_navbar_height_class` 测试把这份耦合显式化——
 /// 改栏高忘了同步另一边，CI 直接失败。
-pub const SHELL_NAV_HEIGHT: u32 = 48;
+pub const SHELL_NAV_HEIGHT: u32 = 44;
 
 /// 交通灯距窗口左边缘的内边距（逻辑像素）。
 #[cfg(target_os = "macos")]
@@ -49,7 +49,7 @@ const TRAFFIC_LIGHT_INSET_X: f64 = 14.0;
 
 /// Wry 保留了 AppKit 原生按钮的纵向 frame 偏移：实测视觉圆心 = 传入 y − 2
 /// （44px 栏高配 y = 24 时圆心为 22px，而非直觉上的 24px）。因此「视觉圆心 =
-/// 栏高 / 2」对应 y = 栏高 / 2 + 2（48px 栏高 → 26）。
+/// 栏高 / 2」对应 y = 栏高 / 2 + 2（44px 栏高 → 24）。
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHT_VISUAL_OFFSET: f64 = 2.0;
 
@@ -649,7 +649,7 @@ pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::W
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-12 = 48px），
+        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-11 = 44px），
         // 交通灯必须落在同一水平线上（写死 24.0 会随 #524 的栏高改动错位 4px）。
         .traffic_light_position(tauri::LogicalPosition::new(
             TRAFFIC_LIGHT_INSET_X,
@@ -874,6 +874,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::restart_harness,
         crate::bridge::enter_safe_mode,
         crate::bridge::quarantine_broken_patch_layers,
+        crate::bridge::strip_unresolved_patch_entries,
         crate::bridge::get_dsh_status,
         crate::bridge::get_preinstall_plugins,
         crate::bridge::get_preinstall_pending,

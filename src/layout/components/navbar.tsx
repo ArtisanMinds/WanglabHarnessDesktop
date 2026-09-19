@@ -1,4 +1,5 @@
 import type { DshPlugin } from '@/types'
+import type { ConfigTab } from '@/ui/dialog/config'
 import {
   LayoutSideContent,
   LayoutSideContentLeft,
@@ -27,7 +28,7 @@ import { writeClipboardText } from '@/utils/clipboard'
 import { toast } from '@/utils/toast'
 
 /**
- * 壳层窗口顶部导航栏（48px，常驻）：
+ * 壳层窗口顶部导航栏（44px，常驻）：
  *
  *   [侧边栏(展开/收起)] [文件][配置][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
  *
@@ -41,6 +42,8 @@ import { toast } from '@/utils/toast'
  * - 文件：新建窗口（Tauri 再开一个 webview）/ 新聊天、打开文件夹（经协议调用 dsh 官方
  *   「新建会话」「添加工作区」，接收方是 dsh-tauri 的 `client/register/navigation.ts`）/
  *   关闭（隐藏到托盘）/ 退出（完整退出）。两条依赖 iframe 的项在回调缺席时禁用。
+ * - 配置：应用 / 档案 / 插件 / 核心，直接打开配置对话框并定位到对应面板
+ *   （对话框与角标见 `ui/dialog/config.tsx`）。
  * - 帮助：运行日志 / 检查更新 / 关于 Desktop / 文档（系统浏览器打开官方文档站）。
  * - 空白拖拽区：Tauri 原生 `data-tauri-drag-region`（顶层文档直接生效），
  *   Windows/Linux 上双击切换最大化，macOS 上交由系统标题栏偏好。
@@ -49,7 +52,7 @@ import { toast } from '@/utils/toast'
  *   「文件」「帮助」在 macOS 上由原生菜单栏承载（见 `desktop/builder.rs` 的
  *   `install_macos_menu`），本组按钮不渲染。
  *   交通灯的纵向位置由 `src-tauri/src/desktop/builder.rs` 的 `SHELL_NAV_HEIGHT`
- *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-12` 是同一真值；两者的一致性
+ *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-11` 是同一真值；两者的一致性
  *   由 Rust 测试 `shell_nav_height_matches_navbar_height_class` 守住——改这个
  *   class 就必须同步那个常量，否则 CI 失败（issue #524）。
  * - Windows/Linux：右侧窗口按钮直接调用 Tauri API；
@@ -74,6 +77,14 @@ type FileAction = 'new-window' | 'new-chat' | 'open-folder' | 'close' | 'quit'
 
 /** 「帮助」菜单的动作 id。 */
 type HelpAction = 'copy-run-logs' | 'check-update' | 'about' | 'documentation'
+
+/** 「配置」菜单项：直接打开配置对话框并定位到对应面板。 */
+const CONFIG_TABS: { id: ConfigTab, labelKey: string }[] = [
+  { id: 'application', labelKey: 'config.application' },
+  { id: 'profiles', labelKey: 'config.profiles' },
+  { id: 'plugins', labelKey: 'config.plugins' },
+  { id: 'harness', labelKey: 'config.harness' },
+]
 
 /** WKWebView 的 macOS UA 稳定包含 Macintosh，用于切换平台原生窗口 chrome。 */
 function detectMacOS() {
@@ -255,8 +266,8 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     }
   }
 
-  function handleOpenConfig() {
-    void openConfigDialog().catch(() => { })
+  function handleOpenConfig(tab?: ConfigTab) {
+    void openConfigDialog({ tab }).catch(() => { })
   }
 
   function handleOpenAbout() {
@@ -333,7 +344,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
   return (
     <div
       className={cn(
-        'relative flex h-12 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
+        'relative flex h-11 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
         {
           'hidden': IS_MACOS && isFullscreen,
           'pl-20 pr-1.5': IS_MACOS && !isFullscreen,
@@ -365,7 +376,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               时禁用而不是留着点了没反应的死按钮，与左侧侧边栏开关同一取舍）。 */}
           <Dropdown>
             <Button
-              className="rounded-lg h-6 text-xs px-1.5"
+              className="rounded-lg h-6 text-[12.5px] px-1.5"
               size="sm"
               variant="ghost"
               aria-label={t('menu.file')}
@@ -419,17 +430,34 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               </Dropdown.Menu>
             </Dropdown.Popover>
           </Dropdown>
-          <Button
-            className="rounded-lg h-6 text-xs px-1.5"
-            size="sm"
-            variant="ghost"
-            onPress={handleOpenConfig}
-          >
-            {t('app.config')}
-          </Button>
           <Dropdown>
             <Button
-              className="rounded-lg h-6 text-xs px-1.5"
+              className="rounded-lg h-6 text-[12.5px] px-1.5"
+              size="sm"
+              variant="ghost"
+              aria-label={t('app.config')}
+            >
+              {t('app.config')}
+            </Button>
+            <Dropdown.Popover className="rounded-md w-5!">
+              <Dropdown.Menu>
+                {CONFIG_TABS.map(item => (
+                  <Dropdown.Item
+                    key={item.id}
+                    className="rounded-md"
+                    id={item.id}
+                    textValue={t(item.labelKey)}
+                    onAction={() => handleOpenConfig(item.id)}
+                  >
+                    <Label>{t(item.labelKey)}</Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+          <Dropdown>
+            <Button
+              className="rounded-lg h-6 text-[12.5px] px-1.5"
               size="sm"
               variant="ghost"
               aria-label={t('app.help')}

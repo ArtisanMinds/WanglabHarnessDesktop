@@ -132,15 +132,41 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   return typeof (value as PromiseLike<unknown>).then === 'function'
 }
 
+/** 从标准面投影里取出输入动作（两代同形：`props.inputActions`）。 */
+function readInputActions(projected: unknown): unknown {
+  if (projected === null || typeof projected !== 'object')
+    return undefined
+  const props = (projected as { props?: unknown }).props
+  if (props === null || typeof props !== 'object')
+    return undefined
+  const inputActions = (props as { inputActions?: unknown }).inputActions
+  return inputActions === undefined ? undefined : { props: { inputActions } }
+}
+
 /**
- * legacy 核心不暴露 per-session 的 `provideInfo`：官方能力优先，缺失时用
- * `sessions.binding(id)` + `uiSession.adapter.resolve(id)` 的投影补齐。
+ * 惰性读取 `uiSession.adapter`。
+ *
+ * 客户端服务按激活顺序到达：`dsh-tauri-ui` 只声明 `sessions`，会在 `ui-session`
+ * （额外等 `remote`，由 `dsh-client-connection` 稍后提供）之前激活，因此**适配层创建期
+ * 读到的 `uiSession` 可能缺席**。依赖它的投影一律在调用期重读，不缓存创建期快照。
+ */
+function uiSessionAdapter(probe: AdapterProbe): AdapterRuntimeObject | undefined {
+  return probe.service<AdapterRuntimeObject>('uiSession')?.adapter as AdapterRuntimeObject | undefined
+}
+
+/**
+ * 核心不暴露 per-session 的 `provideInfo`：官方能力优先，缺失时借已保留会话的 binding 补齐。
+ *
+ * 落点逐版本漂移：`≤0.1.5-rc.2` 在 `uiSession.adapter.resolve(id)`；`0.1.6-alpha.2` 起
+ * `sessions.binding` 只在**被保留**的会话上存在，标准面改由 `uiSession.adapter.bindingSource`
+ * 物化，因此这里用 `{ sessionId, binding }` 满足它的 SessionReference 读取路径（binding 未变即有效，
+ * 与 `sessions.binding` 的「借出不续期」语义一致）。
  * 补不出也绝不因此让插件失败——这是可选桥，不是必需能力。
  */
 function resolveProvideInfo(
   sessions: AdapterRuntimeObject,
   sessionId: string,
-  uiSession: AdapterRuntimeObject | undefined,
+  probe: AdapterProbe,
 ): unknown {
   // 部分桌面运行时即使在 legacy 布局下也提供了完整投影：原生路径优先。
   const native = sessions.provideInfo
@@ -156,22 +182,37 @@ function resolveProvideInfo(
   }
 
   const bindingFn = sessions.binding
-  if (typeof bindingFn !== 'function' || bindingFn.call(sessions, sessionId) === undefined)
+  const binding = typeof bindingFn === 'function' ? bindingFn.call(sessions, sessionId) : undefined
+  if (binding === undefined)
     return undefined
 
-  const adapter = uiSession?.adapter as AdapterRuntimeObject | undefined
+  const adapter = uiSessionAdapter(probe)
+
+  // legacy：`uiSession.adapter.resolve(id)` 直接按 id 物化标准面。
   const resolveFn = adapter?.resolve
-  if (typeof resolveFn !== 'function')
-    return undefined
-  try {
-    const projected = resolveFn.call(adapter, sessionId) as AdapterRuntimeObject | undefined
-    const inputActions = (projected?.props as AdapterRuntimeObject | undefined)?.inputActions
-    return inputActions === undefined ? undefined : { props: { inputActions } }
+  if (typeof resolveFn === 'function') {
+    try {
+      return readInputActions(resolveFn.call(adapter, sessionId))
+    }
+    catch {
+      // binding 可能在新会话物化期间消失：按不可用处理。
+      return undefined
+    }
   }
-  catch {
-    // binding 可能在新会话物化期间消失：按不可用处理。
-    return undefined
+
+  // 0.1.6-alpha.2：`bindingSource` 只接受 SessionReference，用已借出的 binding 调用它。
+  const bindingSourceFn = adapter?.bindingSource
+  if (typeof bindingSourceFn === 'function') {
+    try {
+      const source = bindingSourceFn.call(adapter, { sessionId, binding }) as AdapterListProjection | undefined
+      return readInputActions(typeof source?.getSnapshot === 'function' ? source.getSnapshot() : undefined)
+    }
+    catch {
+      return undefined
+    }
   }
+
+  return undefined
 }
 
 /**
@@ -239,31 +280,128 @@ const SESSIONS_LIST_PROJECTION_MIGRATION: DshMigration = {
 }
 
 /**
- * legacy 核心不暴露 per-session 的 `provideInfo`：用 `sessions.binding(id)` +
- * `uiSession.adapter.resolve(id)` 的投影补齐（消费方如 worktree 依赖它取 inputActions）。
+ * 把列表快照的 `current` 补回 `sessions.list`。
  *
- * 探测很严：`binding` 与 `uiSession.adapter.resolve` 缺一就不安装桥——宁可在
- * `has('sessions.provideInfo')` 上诚实报 false，也不放一个永远返回 undefined 的函数。
- * 原生 `provideInfo` 在场也照样装桥：它可能只覆盖部分会话，`resolveProvideInfo` 会原生优先、
- * 缺失时回退投影。
+ * `0.1.6-alpha.2` 起核心不再把选中态放进列表快照（改由 `uiSession.adapter.current` 持有），
+ * 而桌面消费方（worktree 会话切换、composer 续跑、右键定位…）都按
+ * `list.getSnapshot().current` 判断「当前会话」。核心自带 `current` 时原样优先（0.1.5 及更早），
+ * 缺席时用 `uiSession.adapter.current` 的 binding key 补齐。
+ *
+ * 快照按（核心快照引用，current）缓存：uSES 的 `getSnapshot` 必须引用稳定，否则会无限重渲染。
+ * `current` 源按调用期解析（见 {@link uiSessionAdapter}）：`ui-session` 可能晚于本适配层创建，
+ * 订阅侧因此在每次列表发布时重挂，源一出现就接上。
+ */
+function projectListCurrent(
+  list: AdapterListProjection,
+  resolveCurrent: () => AdapterListProjection | undefined,
+): AdapterListProjection {
+  let lastSnapshot: unknown
+  let lastCurrent: unknown
+  let lastProjected: unknown
+  const currentId = (): unknown => {
+    const source = resolveCurrent()
+    if (source === undefined)
+      return undefined
+    const value = source.getSnapshot()
+    return value !== null && typeof value === 'object' ? (value as { key?: unknown }).key : undefined
+  }
+  return {
+    getSnapshot: () => {
+      const snapshot = list.getSnapshot()
+      const owned = snapshot !== null && typeof snapshot === 'object' ? (snapshot as { current?: unknown }).current : undefined
+      const selected = owned ?? currentId()
+      if (snapshot === lastSnapshot && selected === lastCurrent)
+        return lastProjected
+      lastSnapshot = snapshot
+      lastCurrent = selected
+      lastProjected = snapshot !== null && typeof snapshot === 'object' ? { ...snapshot, current: selected } : snapshot
+      return lastProjected
+    },
+    subscribe: (listener) => {
+      let offCurrent: (() => void) | undefined
+      let boundCurrent: AdapterListProjection | undefined
+      const followCurrent = (): void => {
+        const source = resolveCurrent()
+        if (source === boundCurrent)
+          return
+        offCurrent?.()
+        boundCurrent = source
+        offCurrent = typeof source?.subscribe === 'function' ? source.subscribe(listener) : undefined
+      }
+      const offList = list.subscribe(() => {
+        followCurrent()
+        listener()
+      })
+      followCurrent()
+      return () => {
+        offList()
+        offCurrent?.()
+      }
+    },
+  }
+}
+
+/** 核心列表快照是否自带 `current`（`0.1.5` 及更早自带，`0.1.6-alpha.2` 起交给 `uiSession`）。 */
+function ownsCurrent(list: AdapterListProjection): boolean {
+  const snapshot = list.getSnapshot()
+  return snapshot !== null && typeof snapshot === 'object' && 'current' in snapshot
+}
+
+const SESSIONS_CURRENT_PROJECTION_MIGRATION: DshMigration = {
+  id: 'sessions:current-projection',
+  description: 'uiSession.adapter.current → sessions.list 快照的 current 投影',
+  detect: (_probe, surface) => {
+    const list = surface.sessions?.list
+    return list !== undefined && !ownsCurrent(list)
+  },
+  apply(surface, probe) {
+    const sessions = surface.sessions
+    const list = sessions?.list as AdapterListProjection | undefined
+    if (sessions === undefined || list === undefined)
+      return
+    const projected = projectListCurrent(list, () => currentSourceOf(probe))
+    surface.sessions = new Proxy(sessions as object, {
+      get(target, prop) {
+        if (prop === 'list')
+          return projected
+        if (prop === 'getSnapshot')
+          return () => projected.getSnapshot()
+        if (prop === 'subscribe')
+          return (listener: () => void) => projected.subscribe(listener)
+        const member = Reflect.get(target, prop)
+        return typeof member === 'function' ? member.bind(target) : member
+      },
+    }) as AdapterSessions
+  },
+}
+
+/** `uiSession.adapter.current` 投影源；缺席（服务未到达或核心不自带该源）时返回 undefined。 */
+function currentSourceOf(probe: AdapterProbe): AdapterListProjection | undefined {
+  const current = uiSessionAdapter(probe)?.current as AdapterListProjection | undefined
+  return current !== undefined && typeof current.getSnapshot === 'function' ? current : undefined
+}
+
+/**
+ * 核心不暴露 per-session 的 `provideInfo`：用 `sessions.binding(id)` +
+ * `uiSession.adapter`（legacy 的 `resolve`，0.1.6 起的 `bindingSource`）补齐
+ * （消费方如 worktree 依赖它取 inputActions）。
+ *
+ * 探测只认 `binding`：`uiSession` 由投影在调用期解析，因此晚到达的 `ui-session` 不再让桥缺席；
+ * 会话未被保留（`binding` 缺席）时仍诚实回报 undefined。原生 `provideInfo` 在场也照样装桥：
+ * 它可能只覆盖部分会话，`resolveProvideInfo` 会原生优先、缺失时回退投影。
  */
 const SESSIONS_PROVIDE_INFO_MIGRATION: DshMigration = {
   id: 'sessions:provide-info-bridge',
-  description: 'sessions.binding + uiSession.adapter.resolve → sessions.provideInfo 兼容桥',
-  detect: (_probe, surface) => {
-    if (typeof surface.sessions?.binding !== 'function')
-      return false
-    const adapter = surface.uiSession?.adapter as AdapterRuntimeObject | undefined
-    return typeof adapter?.resolve === 'function'
-  },
-  apply(surface) {
+  description: 'sessions.binding + uiSession.adapter.resolve|bindingSource → sessions.provideInfo 兼容桥',
+  detect: (_probe, surface) => typeof surface.sessions?.binding === 'function',
+  apply(surface, probe) {
     const sessions = surface.sessions
     if (sessions === undefined)
       return
     surface.sessions = new Proxy(sessions as object, {
       get(target, prop) {
         if (prop === 'provideInfo')
-          return (sessionId: string) => resolveProvideInfo(target as AdapterRuntimeObject, sessionId, surface.uiSession)
+          return (sessionId: string) => resolveProvideInfo(target as AdapterRuntimeObject, sessionId, probe)
         const member = Reflect.get(target, prop)
         return typeof member === 'function' ? member.bind(target) : member
       },
@@ -351,6 +489,34 @@ const NAVIGATION_OPEN_MIGRATION: DshMigration = {
 }
 
 /**
+ * 把已解析的「打开已有会话」补回 `sessions.open`（旧式消费方免改）。
+ *
+ * `0.1.6-alpha.2` 起核心移除了 `sessions.open`，选中态改由 `uiWorkspace.openSession` 承担；
+ * 桌面消费方（worktree 会话切换等）仍按 `sessions.open(id)` 切换，因此这里复用上一条迁移解析出的
+ * `surface.openSession` 做别名。原生 `sessions.open` 在场时不装桥，能力全缺时保持缺席。
+ */
+const SESSIONS_OPEN_MIGRATION: DshMigration = {
+  id: 'sessions:open-bridge',
+  description: 'uiWorkspace.openSession / workspaces.open → sessions.open 兼容桥',
+  detect: (_probe, surface) =>
+    typeof surface.sessions?.open !== 'function' && surface.openSession !== undefined,
+  apply(surface) {
+    const sessions = surface.sessions
+    const open = surface.openSession
+    if (sessions === undefined || open === undefined)
+      return
+    surface.sessions = new Proxy(sessions as object, {
+      get(target, prop) {
+        if (prop === 'open')
+          return (sessionId: AdapterSessionId) => open(sessionId)
+        const member = Reflect.get(target, prop)
+        return typeof member === 'function' ? member.bind(target) : member
+      },
+    }) as AdapterSessions
+  },
+}
+
+/**
  * 跨布局：「打开文件夹」三段能力聚合。
  *
  * 目录选择在 legacy 是 `uiWorkspace.pickDirectory`、modern 是 `workspaces.pickDirectory`；
@@ -386,18 +552,20 @@ const WORKSPACE_ADD_MIGRATION: DshMigration = {
 
 /**
  * 内置迁移（按序执行，后一条能看到前一条的投影）：
- * 1. 基线自动绑定 → 2. 会话列表投影别名 → 3. legacy `provideInfo` 兼容桥 →
- * 4. legacy 工作区导航投影 → 5. 跨布局导航解析 → 6. 跨布局「打开会话」解析 →
- * 7. 跨布局「打开文件夹」解析。
+ * 1. 基线自动绑定 → 2. 会话列表投影别名 → 3. 列表 `current` 投影 → 4. `provideInfo` 兼容桥 →
+ * 5. legacy 工作区导航投影 → 6. 跨布局导航解析 → 7. 跨布局「打开会话」解析 →
+ * 8. `sessions.open` 兼容桥 → 9. 跨布局「打开文件夹」解析。
  * 消费方可用 `defineAdapter(ctx, { migrations })` 追加，追加项在最后执行。
  */
 export const DEFAULT_DSH_MIGRATIONS: readonly DshMigration[] = [
   SERVICES_AUTO_BIND_MIGRATION,
   SESSIONS_LIST_PROJECTION_MIGRATION,
+  SESSIONS_CURRENT_PROJECTION_MIGRATION,
   SESSIONS_PROVIDE_INFO_MIGRATION,
   LEGACY_WORKSPACES_MIGRATION,
   NAVIGATION_MIGRATION,
   NAVIGATION_OPEN_MIGRATION,
+  SESSIONS_OPEN_MIGRATION,
   WORKSPACE_ADD_MIGRATION,
 ]
 
@@ -529,7 +697,10 @@ export function defineAdapter(ctx: unknown, options: DefineAdapterOptions = {}):
     sessions: service<AdapterSessions>('sessions') ?? {},
     workspaces: service<AdapterWorkspaces>('workspaces') ?? {},
     uiWorkspace: service<AdapterRuntimeObject>('uiWorkspace'),
-    uiSession: service<AdapterRuntimeObject>('uiSession'),
+    // 取值为 live：`ui-session` 晚于本适配层激活，缓存创建期快照会让依赖它的迁移永久缺席。
+    get uiSession() {
+      return service<AdapterRuntimeObject>('uiSession')
+    },
   }
 
   const migrations: string[] = []

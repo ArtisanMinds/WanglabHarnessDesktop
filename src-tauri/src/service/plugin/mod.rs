@@ -27,6 +27,7 @@
 //! - [`recovery`]：插件异常定位与一键离线卸载
 //! - [`safe`]：安全档案启动前的用户插件清除（只留内置插件与核心包）
 //! - [`patch_guard`]：补丁层 YAML 语法错误的显式隔离（安全模式 / 错误页恢复入口）
+//! - [`patch_entries`]：补丁层悬空 `insert` 条目的启动前预检与显式清理（错误页恢复入口）
 //! - [`cancel`]：Windows 下取消正在进行的安装
 //! - [`watch`]：已安装插件文件监控（轮询指纹比对 + `dsh-plugins-updated` 事件推送）
 
@@ -36,6 +37,7 @@ pub mod errors;
 mod install;
 mod installed;
 mod internal;
+mod patch_entries;
 mod patch_guard;
 mod preset;
 mod process;
@@ -64,6 +66,9 @@ pub(crate) use safe::purge_user_plugins_in_safe_profile;
 pub(crate) use patch_guard::{
     patch_layer_paths, quarantine_active_patch_layers, quarantine_failure_message,
     quarantine_patch_layers_in, PatchQuarantineReport,
+};
+pub(crate) use patch_entries::{
+    preflight_active_patch_entries, strip_active_unresolved_entries, PatchEntryStripReport,
 };
 pub use disable::{disable, enable};
 pub use recovery::{

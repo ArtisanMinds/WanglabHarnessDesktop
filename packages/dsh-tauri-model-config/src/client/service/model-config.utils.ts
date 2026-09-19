@@ -17,6 +17,26 @@ export const DEFAULT_THINKING_EFFORTS: Readonly<Record<string, string | null>> =
 }
 
 /**
+ * vLLM 这类 OpenAI 兼容端点读取思考档位的方式：参数走 chat template，而不是顶层的
+ * `reasoning_effort`。档位本身用 pi-ai 的请求态占位符动态填入，因此不必重述模板。
+ */
+const TEMPLATE_THINKING_FORMAT = 'chat-template'
+const TEMPLATE_THINKING_KWARG = 'reasoning_effort'
+const TEMPLATE_THINKING_EFFORT_VAR = 'thinking.effort'
+
+/** 任意值读成普通对象；缺席、数组与标量都读作空表。 */
+function recordOf(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return {}
+  return value as Record<string, unknown>
+}
+
+/** 该条目当前的 compat 声明；缺席或非对象读作空表。 */
+function compatOf(model: DeepSeekModelDraft): Record<string, unknown> {
+  return recordOf(model.compat)
+}
+
+/**
  * 该条目是否还只是「身份」——只有 id/name/description，没有任何能力配置。
  * 「获取配置」按钮只在这种条目上出现：已经配置过的行不提供一个会把用户手写值
  * 覆盖掉的入口。
@@ -94,6 +114,51 @@ export function toggleThinkingLevel(
   return Object.keys(next).length === 0 ? false : next
 }
 
+/**
+ * 该条目是否已声明按 chat template 下发思考。
+ *
+ * 两个键一起读：只写 `thinkingFormat` 的条目（例如手写的）在开关上仍读为关，打开时会把端点
+ * 不认 `developer` 角色所必需的 `supportsDeveloperRole: false` 一并补上。
+ */
+export function supportsTemplateThinking(model: DeepSeekModelDraft): boolean {
+  const compat = compatOf(model)
+  return compat.thinkingFormat === TEMPLATE_THINKING_FORMAT && compat.supportsDeveloperRole === false
+}
+
+/**
+ * 开关状态对应的 `compat` 声明值。
+ *
+ * 打开时写入 vLLM 这类 OpenAI 兼容端点需要的三项事实：思考参数走 `chat_template_kwargs`、档位
+ * 由下拉框动态填入、系统提示保持 `system` 角色（这类端点不认 `developer`，否则整轮请求 400）。
+ * 关闭只摘掉这三项，条目里其它 compat 键与 chat template 参数原样保留；compat 被摘空时返回
+ * undefined，让调用方删掉整个字段。
+ * @param model - 该条目当前的声明。
+ * @param next - 打开为写入，关闭为摘除。
+ * @returns 新的 compat 值，或 undefined（整个字段都不该存在）。
+ */
+export function templateThinkingCompat(
+  model: DeepSeekModelDraft,
+  next: boolean,
+): Record<string, unknown> | undefined {
+  const compat = { ...compatOf(model) }
+  const kwargs = { ...recordOf(compat.chatTemplateKwargs) }
+  delete kwargs[TEMPLATE_THINKING_KWARG]
+  if (next) {
+    compat.chatTemplateKwargs = { ...kwargs, [TEMPLATE_THINKING_KWARG]: { $var: TEMPLATE_THINKING_EFFORT_VAR } }
+    compat.thinkingFormat = TEMPLATE_THINKING_FORMAT
+    compat.supportsDeveloperRole = false
+  }
+  else {
+    delete compat.thinkingFormat
+    delete compat.supportsDeveloperRole
+    if (Object.keys(kwargs).length === 0)
+      delete compat.chatTemplateKwargs
+    else
+      compat.chatTemplateKwargs = kwargs
+  }
+  return Object.keys(compat).length === 0 ? undefined : compat
+}
+
 export interface ModelConfigMerge {
   models: DeepSeekModelDraft[]
   /** 至少写入了一个字段的条目数。 */
@@ -153,7 +218,7 @@ export function mergeModelCards(
     if (preset?.input !== undefined && (overwrite || model.input === undefined))
       patch.input = [...preset.input]
     if (preset?.efforts !== undefined && (overwrite || model.reasoningEfforts === undefined))
-      patch.reasoningEfforts = preset.efforts === false ? false : { ...preset.efforts }
+      patch.reasoningEfforts = { ...preset.efforts }
     if (Object.keys(patch).length === 0) {
       if (found === undefined && id.length > 0)
         undisclosed.push(id)

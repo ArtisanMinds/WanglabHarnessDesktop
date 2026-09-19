@@ -7,6 +7,7 @@ import { If, Then } from 'react-if-lite'
 import { useStore } from 'valtio-define'
 import { button } from '@/components/primitives'
 import { store } from '@/store'
+import { containsPatchEntryUnresolved } from '@/store/modules/harness'
 import { writeClipboardText } from '@/utils/clipboard'
 import { toast } from '@/utils/toast'
 import { Loadable } from './loadable'
@@ -63,11 +64,13 @@ export function Setup() {
   const logs = installing
     ? installer.logs
     : (error && errorLogs.length > 0 ? errorLogs : undefined)
-  // 错误态的针对性提示：插件路由冲突 / Linux inotify 文件监视上限 / 补丁层语法错误，
+  // 错误态的针对性提示：插件路由冲突 / Linux inotify 文件监视上限 / 补丁层问题，
   // 三者互斥（由各自的失败特征识别），优先展示最具体的一条。
   const hint = error ? (patchLayerHint || pluginConflictHint || inotifyLimitHint) : undefined
-  // 补丁层语法错误：提供「隔离损坏的补丁文件」恢复入口（改名备份后重启，不删文件）
-  const patchLayerBroken = error && patchLayerHint !== ''
+  // 补丁层问题分两种，恢复动作不同：语法错误整层隔离（改名备份），悬空 insert 只
+  // 剥离解析不到的条目。两者的提示共用 patchLayerHint，入口按错误特征二选一。
+  const patchEntriesUnresolved = error && containsPatchEntryUnresolved(errorMsg)
+  const patchLayerBroken = error && patchLayerHint !== '' && !patchEntriesUnresolved
 
   return (
     <Loadable
@@ -101,6 +104,16 @@ export function Setup() {
                 }}
               >
                 {t('buttons.quarantine_patch')}
+              </button>
+            </If>
+            <If cond={patchEntriesUnresolved}>
+              <button
+                className={button({ tone: 'primary', size: 'sm' })}
+                onClick={() => {
+                  void store.harness.stripUnresolvedPatchEntries()
+                }}
+              >
+                {t('buttons.strip_patch_entries')}
               </button>
             </If>
             <button

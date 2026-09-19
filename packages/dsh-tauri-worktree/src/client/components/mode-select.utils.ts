@@ -6,6 +6,10 @@ export function draftAttachmentIds(state: InputState | undefined): readonly stri
   return state?.attachmentIds ?? state?.imageIds ?? NO_DRAFT_ATTACHMENTS
 }
 
+export function canAddDraftAttachments(actions: InputActions | undefined): boolean {
+  return typeof actions?.addAttachments === 'function' || typeof actions?.addImages === 'function'
+}
+
 export function addDraftAttachments(actions: InputActions | undefined, ids: readonly string[]): boolean {
   if (ids.length === 0)
     return true
