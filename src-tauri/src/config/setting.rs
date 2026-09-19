@@ -182,14 +182,52 @@ impl Default for Setting {
     }
 }
 
-/// Store 持久化文件名：debug 构建与生产隔离（各自独立文件）。
+/// 当前是否为 E2E 运行（内嵌 WebDriver server 被请求）。
+pub fn is_e2e_run() -> bool {
+    std::env::var_os(E2E_PORT_ENV_VAR).is_some_and(|v| !v.is_empty())
+}
+
+/// 是否禁用环境与核心的自动下载：编译期常量开关，或运行期环境变量选择。
 ///
-/// store（端口、installed、active_core 等）属于「应用数据」而非共用核心——
-/// 生产默认 3080、开发默认 3081，共用一份 store 会让两边端口一路漂移
-/// （release 读到开发写入的 3081 后把 3080 让出，开发下次又从 3081 漂走）
-/// 并相互污染安装/核心等状态。
-fn store_dat_file_name() -> &'static str {
-    if cfg!(debug_assertions) {
+/// **不随 E2E 自动生效**——是否禁用由测试按需选择：只验壳层的用例置位以省流量，
+/// 覆盖启动装配流程的用例保持不置位。
+pub fn auto_download_disabled() -> bool {
+    resolve_auto_download_disabled(
+        DISABLE_AUTO_DOWNLOAD,
+        env_flag(E2E_DISABLE_DOWNLOAD_ENV_VAR),
+    )
+}
+
+/// `auto_download_disabled` 的纯函数内核：编译期常量与运行期开关取或。
+fn resolve_auto_download_disabled(compile_time: bool, runtime_flag: bool) -> bool {
+    compile_time || runtime_flag
+}
+
+/// 读取布尔型环境变量：`1` / `true`（忽略大小写）为真，其余（含未设置）为假。
+fn env_flag(key: &str) -> bool {
+    std::env::var(key).is_ok_and(|v| {
+        let v = v.trim();
+        v == "1" || v.eq_ignore_ascii_case("true")
+    })
+}
+
+/// 当前进程应使用的 Store 持久化文件名（生产 / 开发 / E2E 三方隔离的唯一真值）。
+///
+/// store（端口、installed、active_core、窗口几何等）属于「应用数据」而非共用核心：
+/// 生产默认 3080、开发默认 3081，共用一份 store 会让两边端口一路漂移并相互污染状态；
+/// E2E 若复用开发文件，用例写入的窗口几何会覆盖用户正在使用的开发版配置。
+///
+/// 注意 `app_data_dir()` 在 Windows 上由 `SHGetKnownFolderPath` 解析，重定向
+/// `APPDATA` 环境变量**无法**把 store 引到 scratch 目录——三方隔离只能靠换文件名。
+pub fn store_dat_file_name() -> &'static str {
+    resolve_store_dat_file(is_e2e_run(), cfg!(debug_assertions))
+}
+
+/// `store_dat_file_name` 的纯函数内核：把「是否 E2E」「是否 debug」映射到文件名。
+fn resolve_store_dat_file(e2e: bool, debug: bool) -> &'static str {
+    if e2e {
+        STORE_DAT_TEST_FILE
+    } else if debug {
         STORE_DAT_DEV_FILE
     } else {
         STORE_DAT_FILE
@@ -344,9 +382,55 @@ pub fn set_dsh_pkg_tag(app_handle: &AppHandle, tag: String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_close_action, default_zoom_factor, normalize_close_action, normalize_zoom_factor,
-        preserve_persisted_fields, Setting, ZOOM_FACTOR_MAX, ZOOM_FACTOR_MIN,
+        default_close_action, default_zoom_factor, env_flag, normalize_close_action,
+        normalize_zoom_factor, preserve_persisted_fields, resolve_auto_download_disabled,
+        resolve_store_dat_file, Setting, DISABLE_AUTO_DOWNLOAD, STORE_DAT_DEV_FILE, STORE_DAT_FILE,
+        STORE_DAT_TEST_FILE, ZOOM_FACTOR_MAX, ZOOM_FACTOR_MIN,
     };
+
+    /// 默认不禁用下载：只有编译期常量置位或运行期开关置位才禁用。
+    #[test]
+    fn auto_download_is_enabled_unless_explicitly_disabled() {
+        assert!(!DISABLE_AUTO_DOWNLOAD, "生产默认必须允许自动下载");
+        assert!(!resolve_auto_download_disabled(false, false));
+        assert!(resolve_auto_download_disabled(true, false));
+        assert!(resolve_auto_download_disabled(false, true));
+    }
+
+    /// `env_flag` 只认 `1` / `true`（忽略大小写、允许首尾空白），其余一律为假。
+    #[test]
+    fn env_flag_accepts_only_documented_truthy_values() {
+        const KEY: &str = "DSH_TEST_ENV_FLAG_PROBE";
+        for value in ["1", "true", "TRUE", " True ", " 1 "] {
+            std::env::set_var(KEY, value);
+            assert!(env_flag(KEY), "`{value}` 应判为真");
+        }
+        for value in ["0", "false", "", "yes", "on", "2"] {
+            std::env::set_var(KEY, value);
+            assert!(!env_flag(KEY), "`{value}` 应判为假");
+        }
+        std::env::remove_var(KEY);
+        assert!(!env_flag(KEY), "未设置时应判为假");
+    }
+
+    #[test]
+    fn store_dat_file_name_isolates_the_three_modes() {
+        assert_eq!(resolve_store_dat_file(true, true), STORE_DAT_TEST_FILE);
+        assert_eq!(resolve_store_dat_file(true, false), STORE_DAT_TEST_FILE);
+        assert_eq!(resolve_store_dat_file(false, true), STORE_DAT_DEV_FILE);
+        assert_eq!(resolve_store_dat_file(false, false), STORE_DAT_FILE);
+    }
+
+    /// 三方文件名必须互不相同：任何一处塌缩都会让某一方改写另一方的用户状态。
+    #[test]
+    fn store_dat_file_names_are_pairwise_distinct() {
+        let names = [STORE_DAT_FILE, STORE_DAT_DEV_FILE, STORE_DAT_TEST_FILE];
+        for (i, a) in names.iter().enumerate() {
+            for b in names.iter().skip(i + 1) {
+                assert_ne!(a, b, "Store 文件名重复：{a} 与 {b}");
+            }
+        }
+    }
 
     #[test]
     fn zoom_factor_defaults_for_legacy_settings() {
