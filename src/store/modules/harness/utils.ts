@@ -1,7 +1,7 @@
 /* eslint-disable no-control-regex */
 import type { ReadinessPollResult, ReadinessProbeResult, StartupPhase } from './readiness'
 import type { InternalPluginsPhasePayload, StartupError } from './types'
-import type { PatchQuarantineReport } from '@/types/plugin'
+import type { PatchEntryStripReport, PatchQuarantineReport } from '@/types/plugin'
 import { invoke } from '@tauri-apps/api/core'
 import i18next from 'i18next'
 import { containsInotifyLimitError, pickErrorLines } from '@/components/logs.utils'
@@ -12,7 +12,14 @@ import {
   LOG_TAIL_MAX_BYTES,
   STARTUP_INACTIVITY_TIMEOUT,
 } from './constants'
-import { containsPatchLayerParseError, containsQuarantineFailure, patchLayerErrorDetail, quarantineFailureDetail } from './patch-layer'
+import {
+  containsPatchEntryUnresolved,
+  containsPatchLayerParseError,
+  containsQuarantineFailure,
+  patchEntryUnresolvedEntries,
+  patchLayerErrorDetail,
+  quarantineFailureDetail,
+} from './patch-layer'
 import { pollReadiness } from './readiness'
 
 /**
@@ -184,7 +191,28 @@ export async function attachStartupDiagnostics(err: unknown): Promise<StartupErr
       detail: quarantineFailureDetail(diagnosed.message),
     })
   }
+  // 补丁层悬空 insert（包被卸载、手写的引用还在）：启动前预检已把「哪个文件、
+  // 哪一行、哪个包」作为明细回传，这里转成可读提示；错误页据此给出「移除悬空
+  // 条目」入口（与语法错误的「隔离」入口互斥，见 setup.tsx）。
+  if (containsPatchEntryUnresolved(diagnosed.message)) {
+    diagnosed.patchLayerHint = i18next.t('errors.patch_entry_unresolved', {
+      detail: patchEntryUnresolvedDetail(diagnosed.message),
+    })
+  }
   return diagnosed
+}
+
+/** 把悬空条目明细拼成「文件 + 行号 + 包名」的提示串（明细不可解析时为空串）。 */
+export function patchEntryUnresolvedDetail(message: string): string {
+  return patchEntryUnresolvedEntries(message)
+    .map(entry => i18next.t('errors.patch_entry_unresolved_item', {
+      layer: entry.layer,
+      line: entry.line,
+      id: entry.id || entry.name,
+      name: entry.name,
+      note: entry.declared ? i18next.t('errors.patch_entry_unresolved_declared') : '',
+    }))
+    .join('; ')
 }
 
 /**
@@ -207,6 +235,24 @@ export function notifyPatchQuarantine(report: PatchQuarantineReport): void {
     toast(
       i18next.t('patch.quarantine_failed_toast', { path: failure.path, error: failure.error }),
       { variant: 'danger', timeout: 0 },
+    )
+  }
+}
+
+/**
+ * 把补丁层清理结果告知用户：逐层提示「移除 N 条 + 备份路径」。
+ *
+ * 清理会改写用户手写的补丁层，因此必须说清原文件被备份到了哪里；没有清理项时
+ * 完全不打扰（正常情况下点按钮总能清掉预检报出的那批条目）。
+ */
+export function notifyPatchEntryStrip(report: PatchEntryStripReport): void {
+  for (const layer of report.layers) {
+    toast(
+      i18next.t('patch.entries_stripped_toast', {
+        count: layer.removed,
+        backup: layer.backup,
+      }),
+      { variant: 'accent', timeout: 10_000 },
     )
   }
 }

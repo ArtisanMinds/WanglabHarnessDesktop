@@ -64,3 +64,19 @@ export interface PatchQuarantineReport {
   /** 隔离失败的补丁层（只提示，不阻断其它层） */
   failures: PatchQuarantineFailure[]
 }
+
+/** Rust 侧 service::plugin::patch_entries::StrippedPatchLayer 的序列化形态 */
+export interface StrippedPatchLayer {
+  /** 原始补丁文件路径 */
+  original: string
+  /** 清理前的备份路径（`<原名>.bak-<UTC 时间戳>`） */
+  backup: string
+  /** 移除的悬空条目数 */
+  removed: number
+}
+
+/** Rust 侧 service::plugin::patch_entries::PatchEntryStripReport 的序列化形态 */
+export interface PatchEntryStripReport {
+  /** 被清理过的补丁层（没有悬空条目时为空） */
+  layers: StrippedPatchLayer[]
+}

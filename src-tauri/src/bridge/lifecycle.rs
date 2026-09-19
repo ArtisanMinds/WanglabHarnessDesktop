@@ -392,6 +392,22 @@ pub async fn quarantine_broken_patch_layers(
     Ok(report)
 }
 
+/// 移除补丁层里解析不到包的 `insert` 条目（错误页「移除悬空条目」入口）。
+///
+/// 与 [`quarantine_broken_patch_layers`] 的区别：语法错误只能整层隔离，悬空条目
+/// 可以精确定位——只剥离判定为悬空的 insert 项，同一条目里的其它 insert、其它
+/// 条目与其它配置原样保留。用户手写的补丁层绝不无声丢失：改写前先复制成
+/// `<原名>.bak-<时间戳>` 备份，备份路径回传前端提示。
+///
+/// 判定规则与启动前预检完全一致（见 `service::plugin::patch_entries`），因此本命令
+/// 移除的正是预检报出的那批条目；没有可移除项时返回空报告，前端照常重启。
+#[tauri::command]
+pub async fn strip_unresolved_patch_entries(
+    app_handle: AppHandle,
+) -> Result<crate::service::plugin::PatchEntryStripReport, String> {
+    crate::service::plugin::strip_active_unresolved_entries(&app_handle)
+}
+
 /// 获取当前 Harness 服务状态
 #[tauri::command]
 pub fn get_dsh_status() -> workflow::status::Status {
