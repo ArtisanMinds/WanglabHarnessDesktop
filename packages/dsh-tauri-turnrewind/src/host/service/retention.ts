@@ -1,8 +1,8 @@
 /**
  * host/service/retention.ts — 私有快照仓的容量治理与排除清单。
  *
- * 三件事只在「工作区首次触碰」这个安全点做一次（此时该工作区没有在飞 turn、
- * 也没有进行中的撤销，且调用方已持有工作区串行队列）：
+ * 三件事只在「工作区首次触碰」这个安全点做一次（此时该工作区没有在飞 turn，
+ * 且调用方已持有工作区串行队列）：
  *   1. 回收不可达对象（`git prune --expire=now`）——实时读数每 1.5s 就 add 一次，
  *      中间版本的 blob 没有 ref 可达，而 `gc.auto` 被关成 0，不显式回收私有仓只涨不降；
  *   2. 容量上限 → 整仓隔离重建：`rename` 到隔离目录是原子发布点，之后任何一步死亡都自洽，
@@ -37,7 +37,7 @@ export const retention = defineService({
     return retention.enforce(store)
   },
 
-  /** 对一个工作区执行容量治理（调用方保证：无在飞 turn、无进行中的撤销、持有工作区队列）。 */
+  /** 对一个工作区执行容量治理（调用方保证：无在飞 turn、持有工作区队列）。 */
   async enforce(store: SnapshotStore, options: { maxRepoMb?: number } = {}): Promise<RetentionOutcome> {
     const maxRepoMb = options.maxRepoMb ?? MAX_SNAPSHOT_REPO_MB
     const pruned = await pruneLooseObjects(store)

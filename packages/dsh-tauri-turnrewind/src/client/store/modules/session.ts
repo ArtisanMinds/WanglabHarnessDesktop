@@ -1,7 +1,7 @@
 /**
- * store/modules/session.ts — 每会话摘要缓存 + 撤销状态源（valtio-define 协议）。
+ * store/modules/session.ts — 每会话摘要缓存（valtio-define 协议）。
  *
- * 状态只放数据与同步迁移；请求、重试记账与乐观回滚分别在 `service/` 与 `register/`。
+ * 状态只放数据与同步迁移；请求与重试记账分别在 `service/` 与 `register/`。
  */
 
 import type { TurnrewindSessionState, TurnrewindUiState } from './session.types'

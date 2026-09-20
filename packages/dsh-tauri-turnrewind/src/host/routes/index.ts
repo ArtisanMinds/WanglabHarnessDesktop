@@ -3,7 +3,6 @@
  *
  *   GET  /api/desktop/dsh-tauri-turnrewind/summary?sessionId=<id>  读本会话的 turn 变更记录
  *   GET  /api/desktop/dsh-tauri-turnrewind/live?sessionId=<id>     读运行中实时读数（客户端提示条）
- *   POST /api/desktop/dsh-tauri-turnrewind/turns/undo              撤销某个 turn 的文件改动
  *
  * 「文件路径 = URL 路径」：`routes/<资源>/<方法>.ts` 逐段对应
  * `/api/desktop/dsh-tauri-turnrewind/<资源>` 与 `client/apis` 的生成物同源派生。
@@ -14,10 +13,8 @@
 import { defineRoutes } from 'dsh-tauri'
 import live from './live/get'
 import summary from './summary/get'
-import undo from './turns/undo/post'
 
 export const routes = defineRoutes((disposer) => {
   disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-turnrewind/summary' }, summary)
   disposer.get({ kind: 'exact', path: '/api/desktop/dsh-tauri-turnrewind/live' }, live)
-  disposer.post({ kind: 'exact', path: '/api/desktop/dsh-tauri-turnrewind/turns/undo' }, undo)
 })

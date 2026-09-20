@@ -59,7 +59,7 @@
 | 06 | `06-dsh-tauri-ui.md` | 壳层槽位注入（导航/侧栏/设置） | L2 → L3 | 批次 4+ |
 | 07 | `07-dsh-tauri-panel-extension.md` | 扩展管理面板（技能 / MCP / 市场） | L2 → L3 | 批次 4+ |
 | 08 | `08-dsh-tauri-panel-scheduler.md` | 定时任务面板 | L2 → L3 | 批次 4+ |
-| 09 | `09-dsh-tauri-turnrewind.md` | 回合级回滚 | L2 → L3 | 批次 4+ |
+| 09 | `09-dsh-tauri-turnrewind.md` | 回合级变更记录 | L2 → L3 | 批次 4+ |
 | 10 | `10-dsh-tauri-model-config.md` | 模型配置 | L2 → L3 | 批次 4+ |
 | 11 | `11-plugin-inventory-and-watch.md` | 插件清单真值、文件监控与事件推送 | L3 | 批次 4+ |
 | 12 | `12-plugin-lifecycle-commands.md` | 禁用/启用/升级/卸载/快照的落盘副作用 | L3 | 批次 4+ |
@@ -110,7 +110,7 @@
 2. **核心扩展（L2 可立即运行）**：`03`–`10` 中全部 `-L2-*` 用例；每条只依赖 `pnpm build:plugins` 与 scratch 宿主。
 3. **桌面端集成**：`02`、`03`、`05`、`06`、`16` 的 `-L3-*` 用例（需先补 `data-testid` 与 `desktop` project，见 §8 G3/G4）。
 4. **客户端渲染层**：全部 `-C-*` 用例（需先引入浏览器驱动，见 §8 G2）。
-5. **需真实会话/凭据的用例**：`06` 的 `TC-UI-L2-06-003/004`、`09` 的 undo 业务码、`10` 的端点探测成功路径（见 §8 G9）。
+5. **需真实会话/凭据的用例**：`06` 的 `TC-UI-L2-06-003/004`、`10` 的端点探测成功路径（见 §8 G9）。
 6. **治理批次**：`11` → `12` → `13` → `14` → `15`。
 7. **跨插件集成**：`16`。
 
@@ -130,7 +130,7 @@
 | `06-dsh-tauri-ui.md` | `TC-UI-L2-06-*` / `-C-06-*` / `-L3-06-*` | 10 | L2 → L3 |
 | `07-dsh-tauri-panel-extension.md` | `TC-EXT-L2-07-*` / `-C-07-*` / `-L3-07-*` | 13 | L2 → L3 |
 | `08-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-08-*` / `-C-08-*` / `-L3-08-*` | 11 | L2 → L3 |
-| `09-dsh-tauri-turnrewind.md` | `TC-REW-L2-09-*` / `-C-09-*` / `-L3-09-*` | 8 | L2 → L3 |
+| `09-dsh-tauri-turnrewind.md` | `TC-REW-L2-09-*` / `-C-09-*` / `-L3-09-*` | 7 | L2 → L3 |
 | `10-dsh-tauri-model-config.md` | `TC-MC-L2-10-*` / `-C-10-*` / `-L3-10-*` | 9 | L2 → L3 |
 | `11-plugin-inventory-and-watch.md` | `TC-INV-L3-11-*` | 8 | L3 |
 | `12-plugin-lifecycle-commands.md` | `TC-LIFE-L3-12-*` | 12 | L3 |

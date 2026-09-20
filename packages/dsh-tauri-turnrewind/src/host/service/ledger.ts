@@ -2,11 +2,10 @@
  * host/service/ledger.ts — 每会话 JSON 账本的持久化。
  *
  * 存放于 `$DSH_HOME/<feature>/sessions/<sessionId>.json`，经 `storage` 的原子写驱动落盘。
- * 选 JSON 而非 SQLite：本插件的读写面只有「追加一条 turn、标记一次撤销、读一份摘要」，
- * 事务需求为零。
+ * 选 JSON 而非 SQLite：本插件的读写面只有「追加一条 turn、读一份摘要」，事务需求为零。
  *
- * 边界策略：**过期只锁执行、不抹审计**——超出保留窗口的 turn 由 `turns` 标记 `expiredAt`
- * 并清空 files 与 refs（撤销不再可能），但 turn 号、计数、时间戳留在账本里可回溯。
+ * 边界策略：**过期只锁 refs、不抹审计**——超出保留窗口的 turn 由 `turns` 清空 files 与 refs，
+ * 但 turn 号、计数、时间戳留在账本里可回溯。
  */
 
 import type { SessionLedger } from '../types'

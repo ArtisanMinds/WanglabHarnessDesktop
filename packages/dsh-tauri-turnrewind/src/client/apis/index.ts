@@ -19,8 +19,3 @@ export function getLive(params?: Types.GetLiveQuery, options?: FetchOptions) {
 export function getSummary(params?: Types.GetSummaryQuery, options?: FetchOptions) {
   return ofetch<Types.SummaryPayload>("/summary", { baseURL, method: "get", params, ...options });
 }
-
-/** @method post */
-export function postTurnsUndo(body: Types.UndoBody, options?: FetchOptions) {
-  return ofetch<Types.UndoResponse>("/turns/undo", { baseURL, method: "post", body, ...options });
-}

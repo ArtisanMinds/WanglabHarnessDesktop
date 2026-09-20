@@ -22,11 +22,10 @@ describe('turn-changes-card.cssr（视觉对齐官方 deliverables 行）', () =
     expect(css).toMatch(/\.dshp-turnrewind__title\s*\{[^}]*font-weight: 600/)
   })
 
-  it('字号整体收小：标题 13 / 副行 13 / 清单行 12 / 徽标 11', () => {
+  it('字号整体收小：标题 13 / 副行 13 / 清单行 12', () => {
     expect(css).toMatch(/\.dshp-turnrewind__title\s*\{[^}]*font-size: 13px/)
     expect(css).toMatch(/\.dshp-turnrewind__sub\s*\{[^}]*font-size: 13px/)
     expect(css).toMatch(/\.dshp-turnrewind__file\s*\{[^}]*font-size: 12px/)
-    expect(css).toMatch(/\.dshp-turnrewind__badge\s*\{[^}]*font-size: 11px/)
   })
 
   it('hover「查看更改」当前整体停用：无 hover 换行规则，提示默认不占位', () => {
@@ -67,9 +66,7 @@ describe('turn-changes-card.cssr（视觉对齐官方 deliverables 行）', () =
     expect(css).toMatch(/\.dshp-turnrewind__more\s*\{[^}]*border-top: 1px solid/)
   })
 
-  it('「不在撤销范围内」的提示是中性说明，与错误提示区分开', () => {
-    // 错误态用状态错误色；跳过说明用弱化色 + 更小字号（不是错误，只是范围说明）。
-    expect(css).toMatch(/\.dshp-turnrewind__notice--error\s*\{[^}]*color: var\(--dsw-alias-state-error-primary/)
+  it('「未纳入快照范围」的提示是中性说明（弱化色 + 更小字号）', () => {
     expect(css).toMatch(/\.dshp-turnrewind__notice--skip\s*\{[^}]*font-size: 11px/)
     expect(css).toMatch(/\.dshp-turnrewind__notice--skip\s*\{[^}]*color: var\(--dsw-alias-label-tertiary/)
   })

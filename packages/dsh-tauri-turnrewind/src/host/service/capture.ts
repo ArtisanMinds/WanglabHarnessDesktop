@@ -5,7 +5,7 @@
  * `session/event` 的 `turn/end` 与 `agent/status → idle` 只做后台结算，不阻塞 turn 落定。
  *
  * 并发：私有仓的 index/refs 是每个工作区共享的可变状态，所有 git 动作（捕获、结算、
- * 实时读数、容量治理、撤销）都经 runtime 的同一个工作区队列串行。
+ * 实时读数、容量治理）都经 runtime 的同一个工作区队列串行。
  *
  * 失败语义：任何捕获/统计失败都只写日志 + 账本里记 unavailable，绝不抛给 Agent 链路。
  */
@@ -13,6 +13,7 @@
 import type { LiveSnapshot, SnapshotStore, TurnFileChange, TurnRecord } from '../types'
 import type { ActiveTurn, BeginningTurn, CaptureLogger } from './capture.types'
 import { defineService } from 'dsh-tauri'
+import { TURNREWIND_REASON_WORKSPACE_CHANGED as REASON_WORKSPACE_CHANGED } from '../../shared/constants'
 import { LOCK_BARRIER_TIMEOUT_MS, REASON_SNAPSHOT_FAILED, REASON_UNSAFE_WORKSPACE } from '../config/constants'
 import {
   activeTurns,
@@ -70,7 +71,7 @@ export const capture = defineService({
    *
    * 与原先放在 pre-step 语义等价——快照必然早于一切文件改动——但这段等待与模型请求
    * 并行，用户看不到。刻意不观察 `exec.signal`：工具被取消时快照仍是基线，宁可让一次
-   * 已取消的派发多等一会儿，也不能让基线晚于文件改动而记错可撤销的内容。
+   * 已取消的派发多等一会儿，也不能让基线晚于文件改动而记错这一轮的改动。
    */
   async awaitBegin(sessionId: string, turn?: number): Promise<void> {
     const inflight: Promise<void>[] = []
@@ -121,7 +122,7 @@ export const capture = defineService({
         return
       }
       if (entry.beforeCommit === null) {
-        // 连基线都没建立：这一轮从来没有过可撤销的承诺，账本行不带 ref（客户端据此沉默）。
+        // 连基线都没建立：这一轮从来没有过变更记录，账本行不带 ref（客户端据此沉默）。
         await recordUnavailable(sessionId, entry.turn, entry.skippedReason ?? REASON_SNAPSHOT_FAILED)
         terminal = true
         return
@@ -129,13 +130,28 @@ export const capture = defineService({
       const store = entry.store
       const workspaceRoot = entry.workspaceRoot
       const beforeCommit = entry.beforeCommit
+      // 工作区在 turn 期间被带外换了提交世代：before 树与当前磁盘的差不是这一轮的改动，
+      // 如实记不可用，而不是把整段世代差报成「这一轮改了 N 个文件」。
+      if (await workspaceHeadMoved(entry)) {
+        await recordUnavailable(sessionId, turn, REASON_WORKSPACE_CHANGED, snapshot.ref(sessionId, turn, 'before'))
+        terminal = true
+        return
+      }
       await workspaceQueue.run(workspaceRoot, async () => {
+        const headBefore = await snapshot.head(workspaceRoot)
         const after = await snapshot.capture(store, snapshot.ref(sessionId, turn, 'after'), `turn ${turn} after`, {
           exclude: entry.exclusions,
           nestedDirs: entry.nestedDirs,
         })
+        const headAfter = await snapshot.head(workspaceRoot)
+        // after 快照期间被带外换世代：这一轮的树横跨两代，不能按内容归属。
+        if (headBefore !== headAfter) {
+          await recordUnavailable(sessionId, turn, REASON_WORKSPACE_CHANGED, snapshot.ref(sessionId, turn, 'before'))
+          terminal = true
+          return
+        }
         if (!after.ok) {
-          // 基线在、after 失败：这是「承诺过的撤销落空了」，账本行保留 before ref，
+          // 基线在、after 失败：账本行保留 before ref，
           // 客户端据此仍然给出告警（与「从没建立基线」的沉默区分开）。
           await recordUnavailable(sessionId, turn, after.reason, snapshot.ref(sessionId, turn, 'before'))
           terminal = true
@@ -208,7 +224,7 @@ export const capture = defineService({
   },
 
   /**
-   * 该轮是否仍未落定：before 快照还在飞，或 after 尚未结算。撤销用它判定「仍在运行中」——
+   * 该轮是否仍未落定：before 快照还在飞，或 after 尚未结算。
    * 不能用实时读数是否 active（读数是提示条的过程态，`turn/end` 一到就归零，
    * 而这一轮此后还要在后台结算）。
    * @param sessionId - 会话 id。
@@ -283,6 +299,7 @@ function skippedEntry(sessionId: string, turn: number, parts: { store: SnapshotS
     workspaceRoot: parts?.workspaceRoot ?? null,
     store: parts?.store ?? null,
     beforeCommit: null,
+    baselineHead: null,
     skippedReason: reason,
     live: null,
     liveTimer: null,
@@ -318,10 +335,10 @@ async function runBegin(sessionId: string, turn: number): Promise<void> {
     register(skippedEntry(sessionId, turn, null, probe.reason))
     return
   }
-  const store = snapshot.resolve(probe.root, probe.commonDir)
+  const store = snapshot.resolve(probe.root, probe.commonDir, sessionId)
   const waitOptions = { waitDeadline: Date.now() + LOCK_BARRIER_TIMEOUT_MS }
   // 治理与基线共用一次持锁；等待预算只在整个任务开始前生效。
-  const { exclusions, result } = await workspaceQueue.run(probe.root, async () => {
+  const { exclusions, result, baselineHead, stable } = await workspaceQueue.run(probe.root, async () => {
     let exclusions: string[]
     try {
       const outcome = await retention.ensure(store)
@@ -335,8 +352,12 @@ async function runBegin(sessionId: string, turn: number): Promise<void> {
       exclusions = []
     }
     const nestedDirs = snapshot.scan(probe.root)
+    // 基线必须绑定一个**稳定的**提交世代：快照期间工作区被带外 checkout 时，读到的树
+    // 可能横跨两代，之后任何比对都不再有意义。
+    const headBefore = await snapshot.head(probe.root)
     const result = await snapshot.capture(store, snapshot.ref(sessionId, turn, 'before'), `turn ${turn} before`, { exclude: exclusions, nestedDirs })
-    return { exclusions, result }
+    const headAfter = await snapshot.head(probe.root)
+    return { exclusions, result, baselineHead: headBefore, stable: headBefore === headAfter }
   }, LOCK_BARRIER_TIMEOUT_MS, waitOptions)
   if (!result.ok) {
     warn(`dsh-tauri-turnrewind: before snapshot for session ${sessionId} turn ${turn} unavailable: ${result.reason}`)
@@ -349,12 +370,20 @@ async function runBegin(sessionId: string, turn: number): Promise<void> {
   if (result.learnedExclusions.length > 0)
     await retention.write(store, [...exclusions, ...result.learnedExclusions])
 
+  // 基线本身横跨两代：这一轮从没有过可归属的基线，如实记原因（客户端据此给出说明）。
+  if (!stable) {
+    warn(`dsh-tauri-turnrewind: workspace HEAD moved during the before snapshot for session ${sessionId} turn ${turn}`)
+    register(skippedEntry(sessionId, turn, { store, workspaceRoot: probe.root }, REASON_WORKSPACE_CHANGED))
+    return
+  }
+
   const entry: ActiveTurn = {
     sessionId,
     turn,
     workspaceRoot: probe.root,
     store,
     beforeCommit: result.commit,
+    baselineHead,
     skippedReason: null,
     live: { turn, fileCount: 0, insertions: 0, deletions: 0 },
     liveTimer: null,
@@ -395,6 +424,12 @@ async function refreshLive(entry: ActiveTurn): Promise<void> {
   const epoch = entry.liveEpoch
   entry.liveBusy = true
   try {
+    // 工作区被带外换世代（checkout / worktree 更新）：before 树与磁盘之间横着整段世代差，
+    // 读数不再是「这一轮改了什么」，停表并让提示条消失。
+    if (await workspaceHeadMoved(entry)) {
+      stopLivePolling(entry)
+      return
+    }
     // 嵌套仓库目录必须一起传：目录语义的排除（`:(exclude,glob)dir/**`）只有独立传入才
     // 生效，漏掉时 `git add` 会把嵌套仓库当 gitlink 写进私有 index，读数于是报出工作区
     // 根本没发生过的改动。
@@ -402,8 +437,13 @@ async function refreshLive(entry: ActiveTurn): Promise<void> {
       exclude: entry.exclusions,
       nestedDirs: entry.nestedDirs,
     }))
-    if (result.ok && entry.liveEpoch === epoch)
-      entry.live = { turn: entry.turn, ...result.stats }
+    if (result.ok && entry.liveEpoch === epoch) {
+      // 读数期间被带外换世代：这次读数横跨两代，丢弃并停表。
+      if (await workspaceHeadMoved(entry))
+        stopLivePolling(entry)
+      else
+        entry.live = { turn: entry.turn, ...result.stats }
+    }
   }
   catch (error) {
     warn(`dsh-tauri-turnrewind: live diff failed: ${String(error)}`)
@@ -411,6 +451,14 @@ async function refreshLive(entry: ActiveTurn): Promise<void> {
   finally {
     entry.liveBusy = false
   }
+}
+
+/** 源仓库 HEAD 是否已离开 before 快照绑定的那个提交世代。 */
+async function workspaceHeadMoved(entry: ActiveTurn): Promise<boolean> {
+  if (entry.workspaceRoot === null || entry.baselineHead === null)
+    return false
+  const current = await snapshot.head(entry.workspaceRoot)
+  return current !== null && current !== entry.baselineHead
 }
 
 function stopLivePolling(entry: ActiveTurn): void {
@@ -448,7 +496,7 @@ function buildRecord(
   }
   return {
     turn,
-    // 账本只留 ref：commit oid 由 ref 解析（撤销前会重新 rev-parse 校验），
+    // 账本只留 ref：commit oid 由 ref 解析，
     // 避免账本与仓库状态出现两份可能漂移的真相。
     beforeRef: snapshot.ref(sessionId, turn, 'before'),
     afterRef: snapshot.ref(sessionId, turn, 'after'),
@@ -456,7 +504,6 @@ function buildRecord(
     insertions,
     deletions,
     createdAt: Date.now(),
-    undoneAt: null,
     unavailable: null,
     generation: extras.generation,
     skippedOversized: extras.skippedOversized,
@@ -465,7 +512,7 @@ function buildRecord(
 }
 
 /**
- * 记录一个不可撤销的 turn（快照失败/超限），保留原因供卡片呈现。
+ * 记录一个没有变更明细的 turn（快照失败/超限），保留原因供卡片呈现。
  *
  * `beforeRef` 只在**基线确实建立过**时传入：客户端用它把两种结局分开——
  * 「这一轮从没建立过快照」不弹告警；「基线在、after 结算失败」必须如实告警。
@@ -479,7 +526,6 @@ async function recordUnavailable(sessionId: string, turn: number, reason: string
     insertions: 0,
     deletions: 0,
     createdAt: Date.now(),
-    undoneAt: null,
     unavailable: reason,
   })
 }

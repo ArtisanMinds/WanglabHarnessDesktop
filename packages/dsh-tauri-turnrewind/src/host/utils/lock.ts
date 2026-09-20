@@ -30,7 +30,7 @@ import {
 } from '../config/constants'
 import { workspaceHash, workspaceKey } from './workspace'
 
-/** 等待超时：撤销据此回 409；屏障据此取消尚未开始的快照。 */
+/** 等待超时：捕获据此如实记不可用；屏障据此取消尚未开始的快照。 */
 export class WorkspaceLockTimeoutError extends Error {
   /** 线协议原因码（客户端据此给文案）。 */
   readonly reason = REASON_WORKSPACE_BUSY

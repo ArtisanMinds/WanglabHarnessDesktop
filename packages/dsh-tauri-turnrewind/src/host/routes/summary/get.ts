@@ -29,7 +29,7 @@ export default defineEventHandler<EventHandlerRequest, Promise<SummaryPayload | 
   }
   const current = await ledger.load(sessionId)
   const probe = await workspace.resolve(sessionId)
-  // 非 Git → false（客户端点撤销弹「需要 Git 仓库」）；「确实是 Git 仓库但被守卫拒绝」
+  // 非 Git → false（客户端据此整张卡片保持沉默）；「确实是 Git 仓库但被守卫拒绝」
   // （家目录/盘根等）保留 true，只呈现不可用原因，不误报缺少仓库。
   const refusedGitWorkspace = !probe.ok && probe.reason !== REASON_GIT_REQUIRED && current.isGit
   const isGit = probe.ok || refusedGitWorkspace
@@ -45,13 +45,12 @@ export default defineEventHandler<EventHandlerRequest, Promise<SummaryPayload | 
         fileCount: turn.files.length,
         insertions: turn.insertions,
         deletions: turn.deletions,
-        undoneAt: turn.undoneAt ?? null,
         unavailable: turn.unavailable ?? null,
         // 失败/超限行的 refs 语义见 host/types：空 refs = 这一轮没建立过快照。
         hasBaseline: turn.beforeRef.length > 0 || turn.afterRef.length > 0,
         truncated,
         files: truncated ? turn.files.slice(0, MAX_SUMMARY_FILES) : turn.files,
-        // 「不在撤销范围内」的路径：让卡片能如实标注，而不是静默漏掉。
+        // 「未纳入快照范围」的路径：让卡片能如实标注，而不是静默漏掉。
         skippedOversized: (turn.skippedOversized ?? []).slice(0, MAX_SKIPPED_PATHS),
         skippedNestedRepos: (turn.skippedNestedRepos ?? []).slice(0, MAX_SKIPPED_PATHS),
       }
