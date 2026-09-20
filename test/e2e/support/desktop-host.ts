@@ -142,7 +142,9 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     USERPROFILE: profile,
     HOME: profile,
     DSH_DOWNLOAD_CACHE_DIR: cacheDir,
-    ...(disableDownload ? { DSH_E2E_DISABLE_DOWNLOAD: '1' } : {}),
+    // 显式二值化：子进程会继承父进程环境，开发者 shell 里若已置位该变量，
+    // 不禁用的用例会被悄悄带上「禁用下载」的语义（Rust 侧只认 1/true）。
+    DSH_E2E_DISABLE_DOWNLOAD: disableDownload ? '1' : '0',
   }
 
   const capabilities = createTauriCapabilities(binaryPath, {
