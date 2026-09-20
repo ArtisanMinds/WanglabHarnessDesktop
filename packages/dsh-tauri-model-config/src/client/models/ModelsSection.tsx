@@ -10,6 +10,7 @@ import type {} from './slot-contract.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useEffect, useState } from 'react'
+import { ConfigEditor } from '../components/config-editor'
 import { withDetail, withPath } from '../service/model-config.utils.ts'
 import { ensurePresets } from '../service/presets.ts'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
@@ -262,14 +263,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace, renderS
     <div className={styles.section}>
       <div className={styles.titleRow}>
         <h2 className={styles.title}>{t('title')}</h2>
-        <button
-          type="button"
-          className={styles.linkButton}
-          title={t('openConfigFileHint')}
-          onClick={openConfigFile}
-        >
-          {t('openConfigFile')}
-        </button>
+        <div className={styles.rowActions}>
+          <ConfigEditor t={t} />
+          <button
+            type="button"
+            className={styles.linkButton}
+            title={t('openConfigFileHint')}
+            onClick={openConfigFile}
+          >
+            {t('openConfigFile')}
+          </button>
+        </div>
       </div>
       <p className={styles.intro}>{t('intro')}</p>
       {configOpen === undefined

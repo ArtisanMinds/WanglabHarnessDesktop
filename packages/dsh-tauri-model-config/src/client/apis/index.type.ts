@@ -1,3 +1,11 @@
+export type EditorPreferenceResponse = {
+  preference?: EditorPreference;
+  error?: string;
+};
+export type EditorPreference = {
+  editor: "vscode" | "cursor" | "system" | "custom";
+  command: string;
+};
 export type OpenModelsConfigResponse = {
   ok?: boolean;
   path?: string;
@@ -27,6 +35,9 @@ export type PresetsResponse = {
   error?: string;
 };
 
+export interface EditorPreferenceBody {
+  preference: EditorPreference;
+}
 export interface GetEndpointModelsQuery {
   ns?: string;
   profilePath?: string;
