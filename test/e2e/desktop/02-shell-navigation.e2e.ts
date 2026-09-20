@@ -22,13 +22,12 @@ import {
   NAVBAR_MENU_CONFIG,
   NAVBAR_MENU_FILE,
   NAVBAR_MENU_HELP,
+  NAVBAR_MENU_ITEM_PREFIX,
+  NAVBAR_MENU_ITEMS,
   NAVBAR_ROOT,
   SETUP_DISABLED,
   SETUP_ERROR,
 } from '../support/selectors'
-
-/** 展开中的下拉菜单项（react-aria 把集合 key 落在 `data-key` 上）。 */
-const MENU_ITEM = '[role="menuitem"]'
 
 /**
  * 「配置」菜单项文案。与 `src/i18n/locales/*.json` 的 `config.*` 一致，
@@ -59,7 +58,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 /** 展开中的菜单项数量。WDIO 的 `ChainablePromiseArray.length` 本身是 Promise，需二次 await。 */
 async function menuItemCount(): Promise<number> {
-  return await (await browser.$$(MENU_ITEM)).length
+  return await (await browser.$$(NAVBAR_MENU_ITEMS)).length
 }
 
 async function openMenu(trigger: string): Promise<void> {
@@ -98,8 +97,12 @@ async function readMenu(): Promise<{ ids: string[], texts: string[], disabled: R
   const texts: string[] = []
   const disabled: Record<string, boolean> = {}
 
-  for (const item of await browser.$$(MENU_ITEM)) {
-    const id = (await item.getAttribute('data-key')) ?? ''
+  for (const item of await browser.$$(NAVBAR_MENU_ITEMS)) {
+    // id 从 testid 反推（`dsh-navbar-item-<id>`），不再依赖 react-aria 的 `data-key`
+    const testid = (await item.getAttribute('data-testid')) ?? ''
+    const id = testid.startsWith(NAVBAR_MENU_ITEM_PREFIX)
+      ? testid.slice(NAVBAR_MENU_ITEM_PREFIX.length)
+      : testid
     ids.push(id)
     texts.push((await item.getText()).trim())
     disabled[id] = (await item.getAttribute('aria-disabled')) === 'true'
@@ -114,21 +117,21 @@ async function readMenuGeometry(): Promise<{
   popoverWidth: number
   items: { id: string, width: number, clipped: boolean }[]
 }> {
-  return browser.execute(() => {
-    const menu = document.querySelector('[role="menu"]')
-    const popover = menu?.closest('[class*="popover"]')
+  return browser.execute((itemPrefix: string) => {
+    const popover = document.querySelector('[data-testid="dsh-navbar-menu-popover"]')
+    const nodes = Array.from(document.querySelectorAll(`[data-testid^="${itemPrefix}"]`)) as HTMLElement[]
     return {
       popoverWidth: popover ? Math.round(popover.getBoundingClientRect().width) : 0,
-      items: Array.from(document.querySelectorAll('[role="menuitem"]')).map((el) => {
-        const node = el as HTMLElement
+      items: nodes.map((node) => {
+        const testid = node.getAttribute('data-testid') ?? ''
         return {
-          id: node.getAttribute('data-key') ?? '',
+          id: testid.startsWith(itemPrefix) ? testid.slice(itemPrefix.length) : testid,
           width: Math.round(node.getBoundingClientRect().width),
           clipped: node.scrollWidth > node.clientWidth + 1,
         }
       }),
     }
-  })
+  }, NAVBAR_MENU_ITEM_PREFIX)
 }
 
 /** 窗口是否处于最大化（Tauri window 插件，主窗口 label 固定为 `main`）。 */

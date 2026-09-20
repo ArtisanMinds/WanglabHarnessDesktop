@@ -380,11 +380,12 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
             >
               {t('menu.file')}
             </Button>
-            <Dropdown.Popover className="rounded-md min-w-55">
+            <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
               <Dropdown.Menu>
                 <Dropdown.Item
                   className="rounded-md"
                   id="new-window"
+                  data-testid="dsh-navbar-item-new-window"
                   textValue={t('menu.new_window')}
                   onAction={() => handleFileAction('new-window')}
                 >
@@ -393,6 +394,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="new-chat"
+                  data-testid="dsh-navbar-item-new-chat"
                   isDisabled={onNewChat == null}
                   textValue={t('menu.new_chat')}
                   onAction={() => handleFileAction('new-chat')}
@@ -402,6 +404,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="open-folder"
+                  data-testid="dsh-navbar-item-open-folder"
                   isDisabled={onOpenFolder == null}
                   textValue={t('menu.open_folder')}
                   onAction={() => handleFileAction('open-folder')}
@@ -411,6 +414,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="close"
+                  data-testid="dsh-navbar-item-close"
                   textValue={t('menu.close')}
                   onAction={() => handleFileAction('close')}
                 >
@@ -419,6 +423,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="quit"
+                  data-testid="dsh-navbar-item-quit"
                   textValue={t('menu.quit')}
                   onAction={() => handleFileAction('quit')}
                 >
@@ -437,13 +442,14 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
             >
               {t('app.config')}
             </Button>
-            <Dropdown.Popover className="rounded-md min-w-55">
+            <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
               <Dropdown.Menu>
                 {CONFIG_TABS.map(item => (
                   <Dropdown.Item
                     key={item.id}
                     className="rounded-md"
                     id={item.id}
+                    data-testid={`dsh-navbar-item-${item.id}`}
                     textValue={t(item.labelKey)}
                     onAction={() => handleOpenConfig(item.id)}
                   >
@@ -463,11 +469,12 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
             >
               {t('app.help')}
             </Button>
-            <Dropdown.Popover className="rounded-md min-w-55">
+            <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
               <Dropdown.Menu>
                 <Dropdown.Item
                   className="rounded-md"
                   id="copy-run-logs"
+                  data-testid="dsh-navbar-item-copy-run-logs"
                   textValue={t('menu.run_logs')}
                   onAction={() => onHelpAction('copy-run-logs')}
                 >
@@ -476,6 +483,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="check-update"
+                  data-testid="dsh-navbar-item-check-update"
                   textValue={t('menu.check_update')}
                   onAction={() => onHelpAction('check-update')}
                 >
@@ -489,6 +497,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="about"
+                  data-testid="dsh-navbar-item-about"
                   textValue={t('menu.about')}
                   onAction={() => onHelpAction('about')}
                 >
@@ -497,6 +506,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="documentation"
+                  data-testid="dsh-navbar-item-documentation"
                   textValue={t('menu.documentation')}
                   onAction={() => onHelpAction('documentation')}
                 >

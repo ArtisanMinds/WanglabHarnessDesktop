@@ -12,6 +12,7 @@
  * 派生。因此只重定向 home 根即可隔离，绝不写用户真实的 `~/.dsh.dev` 与 Store。
  */
 
+import type { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { readdir, rm, stat } from 'node:fs/promises'
@@ -123,14 +124,24 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   // 触发异步垃圾回收清理（不阻塞当前应用启动）
   void purgeStaleHomes()
   resetTestStore()
-  mkdirSync(downloadCacheDir, { recursive: true })
 
   const home = makeHome(keepHome)
+
+  // 禁用下载的运行绝不会**写**缓存，却会**读**它：共享缓存里若已有一份可用的
+  // Node/dsh/pnpm，`runtime_ready()` 会为真，装配流程随之分叉（不再停在
+  // 「找不到 dsh CLI」），禁用页与「无 iframe 接收方」的断言就变成依赖上一次
+  // 运行的运气。因此禁用下载且调用方没指定缓存时，改用本次运行独占的空目录，
+  // 收尾随 scratch home 一起删除。
+  const cacheDir = disableDownload && options.downloadCacheDir === undefined
+    ? join(home, 'download-cache')
+    : downloadCacheDir
+  mkdirSync(cacheDir, { recursive: true })
+
   const profile = join(home, 'home')
   const env: Record<string, string> = {
     USERPROFILE: profile,
     HOME: profile,
-    DSH_DOWNLOAD_CACHE_DIR: downloadCacheDir,
+    DSH_DOWNLOAD_CACHE_DIR: cacheDir,
     ...(disableDownload ? { DSH_E2E_DISABLE_DOWNLOAD: '1' } : {}),
   }
 
@@ -152,18 +163,21 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   let stopped = false
 
   const stop = async (): Promise<void> => {
-    if (stopped) return
+    if (stopped)
+      return
     stopped = true
 
     if (browser !== undefined) {
       try {
         await cleanupWdioSession(browser)
-      } catch (error) {
+      }
+      catch (error) {
         log(`会话清理告警：${(error as Error).message}`)
       }
     }
 
-    if (keepHome) return
+    if (keepHome)
+      return
 
     // 探测 WebDriver 端口以等待 WebView2 子进程释放资源
     for (let i = 0; i < 20 && (await isPortBusy(WEBDRIVER_PORT)); i++) {
@@ -176,7 +190,8 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
         rmSync(home, { recursive: true, force: true })
         log(`收尾完成（${Date.now() - startedAt}ms）`)
         return
-      } catch (error) {
+      }
+      catch (error) {
         if (attempt === 3) {
           log(`scratch 未删除（残留 ${home}）：${(error as Error).message}`)
           return
@@ -191,7 +206,8 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     await focusMainWindow(browser)
     log(`应用就绪（${Date.now() - startedAt}ms）`)
     return { browser, home, binaryPath, stop }
-  } catch (error) {
+  }
+  catch (error) {
     await stop()
     throw error
   }
@@ -253,7 +269,8 @@ function execPowerShell(script: string): Promise<string> {
  * 按**可执行文件路径**比对，避免误判正式版实例。
  */
 async function hasLiveProcess(binaryPath: string): Promise<boolean> {
-  if (process.platform !== 'win32') return false
+  if (process.platform !== 'win32')
+    return false
 
   const script = `Get-CimInstance Win32_Process -Filter "Name='${APP_PROCESS_NAME}.exe'" | Select-Object -ExpandProperty ExecutablePath`
   const output = await execPowerShell(script)
@@ -261,7 +278,7 @@ async function hasLiveProcess(binaryPath: string): Promise<boolean> {
 
   return output
     .split(/\r?\n/)
-    .some((line) => line.trim().toLowerCase() === target)
+    .some(line => line.trim().toLowerCase() === target)
 }
 
 // ============================================================================
@@ -271,13 +288,13 @@ async function hasLiveProcess(binaryPath: string): Promise<boolean> {
 /**
  * 前置校验：不满足即 fail，**不自动强杀用户进程**。
  */
-export async function assertPreconditions(options: { port?: number; binaryPath?: string } = {}): Promise<void> {
+export async function assertPreconditions(options: { port?: number, binaryPath?: string } = {}): Promise<void> {
   const port = options.port ?? APP_PORT
   const binaryPath = options.binaryPath ?? defaultBinaryPath()
 
   if (!existsSync(binaryPath)) {
     throw new Error(
-      `二进制不存在：${binaryPath}；先在 src-tauri/ 下运行 \`tauri build --debug --no-bundle\`（必须带 custom-protocol，否则应用走 devUrl 而不嵌 dist）。`
+      `二进制不存在：${binaryPath}；先在 src-tauri/ 下运行 \`tauri build --debug --no-bundle\`（必须带 custom-protocol，否则应用走 devUrl 而不嵌 dist）。`,
     )
   }
 
@@ -287,7 +304,7 @@ export async function assertPreconditions(options: { port?: number; binaryPath?:
 
   if (await isPortBusy(WEBDRIVER_PORT)) {
     throw new Error(
-      `WebDriver 端口 ${WEBDRIVER_PORT} 已被占用（多半是另一个桌面实例在跑）；此时会话会静默挂到对方的窗口上，必须先释放。本校验不自动杀进程。`
+      `WebDriver 端口 ${WEBDRIVER_PORT} 已被占用（多半是另一个桌面实例在跑）；此时会话会静默挂到对方的窗口上，必须先释放。本校验不自动杀进程。`,
     )
   }
 
@@ -313,7 +330,8 @@ let isStaleHomesPurged = false
  * 异步清理历史运行残留的 scratch home（每个进程只执行一次，非阻塞）。
  */
 export async function purgeStaleHomes(): Promise<void> {
-  if (isStaleHomesPurged) return
+  if (isStaleHomesPurged)
+    return
   isStaleHomesPurged = true
 
   const root = tmpdir()
@@ -323,7 +341,8 @@ export async function purgeStaleHomes(): Promise<void> {
   try {
     const entries = await readdir(root)
     for (const entry of entries) {
-      if (!entry.startsWith(SCRATCH_PREFIX)) continue
+      if (!entry.startsWith(SCRATCH_PREFIX))
+        continue
       const targetPath = join(root, entry)
 
       try {
@@ -332,11 +351,13 @@ export async function purgeStaleHomes(): Promise<void> {
           await rm(targetPath, { recursive: true, force: true })
           removedCount++
         }
-      } catch {
+      }
+      catch {
         // 忽略单个目录清理失败（仍被占用或无权限）
       }
     }
-  } catch {
+  }
+  catch {
     // 忽略读取临时根目录失败
   }
 
@@ -353,7 +374,8 @@ function makeHome(keep: boolean): string {
   mkdirSync(join(profile, 'AppData', 'Local'), { recursive: true })
   mkdirSync(join(profile, 'AppData', 'Roaming'), { recursive: true })
 
-  if (keep) log(`KEEP_HOME：${home}`)
+  if (keep)
+    log(`KEEP_HOME：${home}`)
   return home
 }
 
@@ -364,9 +386,8 @@ async function focusMainWindow(browser: WebdriverIO.Browser): Promise<void> {
       const handles = await browser.getWindowHandles()
       return handles.includes(MAIN_WEBVIEW)
     },
-    { timeout: 30_000, timeoutMsg: `未找到主窗口 webview：${MAIN_WEBVIEW}` }
+    { timeout: 30_000, timeoutMsg: `未找到主窗口 webview：${MAIN_WEBVIEW}` },
   )
 
   await browser.switchToWindow(MAIN_WEBVIEW)
 }
-
