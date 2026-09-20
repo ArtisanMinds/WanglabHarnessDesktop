@@ -10,6 +10,8 @@
   "status.installing": "Installing dependencies...",
   "status.updating": "Updating DeepSeek Harness...",
   "status.error": "Startup failed",
+  "status.download_disabled": "Downloads disabled by environment",
+  "status.download_disabled_detail": "The DSH_E2E_DISABLE_DOWNLOAD=1 environment variable disables automatic dependency downloads, so this launch installs neither the Node nor the dsh runtime and assembly stops at \"dsh CLI missing\". This is the expected shape of a test environment, not a startup failure.",
   "status.loading": "Loading plugins…",
   "status.loading_plugins": "Loading plugins…",
   "status.loading_internal": "Loading internal plugins…",

@@ -10,6 +10,8 @@
   "status.installing": "正在安装依赖...",
   "status.updating": "正在更新 DeepSeek Harness...",
   "status.error": "启动失败",
+  "status.download_disabled": "下载已被环境禁用",
+  "status.download_disabled_detail": "环境变量 DSH_E2E_DISABLE_DOWNLOAD=1 已禁用依赖自动下载，本次启动不会安装 Node / dsh 运行时，装配因此停在「找不到 dsh CLI」。这是测试环境的预期形态，不是启动故障。",
   "status.loading": "Loading plugins…",
   "status.loading_plugins": "Loading plugins…",
   "status.loading_internal": "Loading internal plugins…",
