@@ -93,6 +93,8 @@ The first run downloads the Node runtime and Harness core (if `dsh` is already i
 **System requirements:** Windows 10+ · macOS 10.15+ · Linux (AppImage / .deb) · network on first launch · Harness core **0.1.5-rc.2** or later
 
 > **Linux Wayland note (PikaOS / GNOME Wayland / Ubuntu 22.04+):** AppImage may crash or render black on Wayland due to WebKitGTK; the app auto-fixes the common case. <details><summary>If it still crashes / renders black:</summary><br>**Prefer `.deb`** (verified on PikaOS 4 Wayland), or manually run `WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 ./AppImage`. If icons do not appear, copy the app's `hicolor` icons to `~/.local/share/icons` and run `update-desktop-database`.<br></details>
+>
+> **Rolling-release Linux starts and dies at once (Arch / CachyOS / Fedora, …):** older AppImages bundled the build image's (Ubuntu 22.04) display-stack libs such as `libwayland-client`. A newer host Mesa is ABI-incompatible with them, so `WebKitWebProcess` calls `abort()` — the app shows **no window and no logs at all**. The build now strips these libs (see `.github/workflows/build-linux.yml` and `scripts/fix-appimage-host-libs.sh`); use a release built after that change. If you are still affected, use the `.deb`, or `LD_PRELOAD=/usr/lib/libwayland-client.so.0 ./AppImage` (adjust the path for your distro).
 
 ## Community
 
