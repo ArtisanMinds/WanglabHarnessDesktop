@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDirectory } from 'dsh-tauri'
@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { configFile } from './config-file'
 import { openInEditor } from './config-file.utils'
 
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, readFile: vi.fn(actual.readFile) }
+})
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
   return { ...actual, openDirectory: vi.fn() }
@@ -32,6 +36,38 @@ describe('config file editor preference', () => {
     expect(await configFile.load()).toEqual({ editor: 'system', command: '' })
     expect(await configFile.open()).toEqual({ ok: true, path: join(home, 'settings.yaml'), opened: 'file' })
     expect(openInEditor).toHaveBeenCalledWith(join(home, 'settings.yaml'), { editor: 'system', command: '' })
+  })
+
+  it.each([
+    ['malformed JSON', '{'],
+    ['invalid shape', 'null'],
+    ['unknown editor', '{"editor":"unknown","command":""}'],
+    ['empty custom command', '{"editor":"custom","command":"  "}'],
+  ])('recovers from %s and allows saving a new preference', async (_, content) => {
+    const path = join(home, 'dsh-tauri-model-config', 'editor.json')
+    await mkdir(join(home, 'dsh-tauri-model-config'))
+    await writeFile(path, content)
+    await writeFile(join(home, 'settings.yaml'), 'models: {}\n')
+
+    expect(await configFile.load()).toEqual({ editor: 'system', command: '' })
+    expect(await configFile.open()).toEqual({ ok: true, path: join(home, 'settings.yaml'), opened: 'file' })
+    expect(openInEditor).toHaveBeenCalledWith(join(home, 'settings.yaml'), { editor: 'system', command: '' })
+    expect(await readFile(path, 'utf8')).toBe(content)
+
+    await configFile.save({ editor: 'vscode', command: '' })
+    expect(await configFile.load()).toEqual({ editor: 'vscode', command: '' })
+  })
+
+  it.each(['EACCES', 'EIO'])('reports %s instead of falling back to the system editor', async (code) => {
+    await writeFile(join(home, 'settings.yaml'), 'models: {}\n')
+    const error = Object.assign(new Error(code), { code })
+    vi.mocked(readFile).mockRejectedValueOnce(error)
+    await expect(configFile.load()).rejects.toBe(error)
+
+    vi.mocked(readFile).mockRejectedValueOnce(error)
+    expect(await configFile.open()).toEqual({ ok: false, path: join(home, 'settings.yaml'), error: code })
+    expect(openInEditor).not.toHaveBeenCalled()
+    expect(openDirectory).not.toHaveBeenCalled()
   })
 
   it('persists a custom editor and uses it on the next open', async () => {

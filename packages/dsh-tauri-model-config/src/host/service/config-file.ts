@@ -10,13 +10,20 @@ import { openInEditor } from './config-file.utils'
 
 export const configFile = defineService({
   async load(): Promise<EditorPreference> {
+    let content: string
     try {
-      return parseEditorPreference(JSON.parse(await readFile(preferencePath(), 'utf8')))
+      content = await readFile(preferencePath(), 'utf8')
     }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT')
         return { editor: 'system', command: '' }
       throw error
+    }
+    try {
+      return parseEditorPreference(JSON.parse(content))
+    }
+    catch {
+      return { editor: 'system', command: '' }
     }
   },
 
