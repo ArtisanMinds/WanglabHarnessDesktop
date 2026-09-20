@@ -9,6 +9,7 @@
  */
 
 import { clickWhenReady, openMenu } from './navbar-menu'
+import { ensureShellInteractive } from './onboarding'
 import {
   CONFIG_DIALOG,
   CONFIG_DIALOG_CLOSE,
@@ -56,6 +57,9 @@ export async function isConfigDialogOpen(browser: WebdriverIO.Browser): Promise<
  */
 export async function openConfigTab(browser: WebdriverIO.Browser, tab: string): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt++) {
+    // dsh 的引导弹层会随 iframe 重建再次出现并把遮罩镜像到导航栏（见 support/onboarding.ts），
+    // 因此每次点导航栏前都先确保它可点。
+    await ensureShellInteractive(browser)
     await openMenu(browser, NAVBAR_MENU_CONFIG)
     await clickWhenReady(browser, navbarMenuItem(tab))
 

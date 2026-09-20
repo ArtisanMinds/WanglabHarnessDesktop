@@ -12,11 +12,11 @@
 | [`../specs/plugin.test.md`](../specs/plugin.test.md) | 插件测试规范：L2/L3 宿主分层、真实挂载流程、断言准则、依赖替身规则 |
 | [`progressive.md`](./progressive.md) | 推进规则与**进度台账**：单批单卡、审核阻塞、批次状态 |
 | [`desktop/00-overview.md`](./desktop/00-overview.md) | 桌面端总览：环境事实、前置校验、数据目录隔离、追踪矩阵、缺口 |
-| [`desktop/01-window-boot.md`](./desktop/01-window-boot.md) … [`29-system-integration.md`](./desktop/29-system-integration.md) | 桌面端用例，单文件即一个批次 |
+| [`desktop/01-window-shell.md`](./desktop/01-window-shell.md) … [`11-assembly-isolation-privacy.md`](./desktop/11-assembly-isolation-privacy.md) | 桌面端用例，单文件即一个批次（可含多个业务模块） |
 | [`plugins/00-overview.md`](./plugins/00-overview.md) | 插件总览：分层策略、可立即运行的部分、追踪矩阵、缺口 |
-| [`plugins/01-host-lane-skeleton.md`](./plugins/01-host-lane-skeleton.md) … [`18-cross-plugin-desktop.md`](./plugins/18-cross-plugin-desktop.md) | 插件用例，单文件即一个批次 |
+| [`plugins/01-dsh-host-and-core-contract.md`](./plugins/01-dsh-host-and-core-contract.md) … [`16-cross-plugin-desktop.md`](./plugins/16-cross-plugin-desktop.md) | 插件用例，单文件即一个批次 |
 
-**用例规模**：桌面端 29 个文件 / **275** 条；插件 18 个文件 / **170** 条。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体。
+**用例规模**：桌面端 11 个文件 / **109** 条 E2E（另有 106 条下沉「单元测试层」，共用文件内连续编号）；插件 16 个文件 / **170** 条。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体。
 
 ---
 

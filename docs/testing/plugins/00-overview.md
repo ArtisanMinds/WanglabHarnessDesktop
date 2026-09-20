@@ -18,7 +18,7 @@
 | L3 桌面端宿主 E2E | 真实 Tauri 窗口（`deepseek-harness-desktop.exe`） | Vitest `desktop` project + WebdriverIO（内嵌 WebDriver server） | 依赖 Tauri 桥的插件与壳层集成 |
 
 - **纳入范围**：`packages/` 下 10 个产品可见插件、核心桥接包 `dsh-tauri`、编排骨架、插件生命周期治理（清单/监控、禁用启用、升级卸载、快照、预装引导、异常修复、档案与补丁隔离、内置插件自愈）。
-- **不纳入范围**：`source/`（vendored dsh 核心）、`archive/`、`test/archive/`、上游核心自身的功能正确性；以及同构桌面端套件已覆盖的**界面层断言**（`../desktop/08`–`../desktop/11`、`../desktop/13`）。
+- **不纳入范围**：`source/`（vendored dsh 核心）、`archive/`、`test/archive/`、上游核心自身的功能正确性；以及同构桌面端套件已覆盖的**界面层断言**（`../desktop/02`、`../desktop/06`、`../desktop/07`）。
 
 **覆盖策略**：按「先证明地基、再证明插件自报产物、最后证明桌面端集成」推进；每条用例只断言外部可观察事实（HTTP 字节、DOM 标记、窗口集合），不接受插件自我报告。
 
@@ -51,24 +51,22 @@
 | 编号 | 文件 | 被测对象 | 主层级 | 对应批次 |
 | --- | --- | --- | --- | --- |
 | 00 | `00-overview.md` | 总览、前置、追踪矩阵 | — | — |
-| 01 | `01-host-lane-skeleton.md` | 编排骨架（scratch 宿主 + 挂载 + 随机端口） | L2 | 批次 1 |
-| 02 | `02-dsh-tauri-core.md` | 核心桥接包 `dsh-tauri` | L2 | 批次 2（本套新增） |
-| 03 | `03-dsh-tauri-pet.md` | 桌宠插件（SSE → 客户端挂载 → 桌面端窗口） | L2 → L3 | 批次 3 |
-| 04 | `04-dsh-tauri-rightclick.md` | 右键菜单与外部打开 | L2 → L3 | 批次 4+ |
-| 05 | `05-dsh-tauri-session.md` | 会话归档与打开目录 | L2 → L3 | 批次 4+ |
-| 06 | `06-dsh-tauri-worktree.md` | 工作树面板与路由 | L2 → L3 | 批次 4+ |
-| 07 | `07-dsh-tauri-ui.md` | 壳层槽位注入（导航/侧栏/设置） | L2 → L3 | 批次 4+ |
-| 08 | `08-dsh-tauri-panel-extension.md` | 扩展管理面板（技能 / MCP / 市场） | L2 → L3 | 批次 4+ |
-| 09 | `09-dsh-tauri-panel-scheduler.md` | 定时任务面板 | L2 → L3 | 批次 4+ |
-| 10 | `10-dsh-tauri-turnrewind.md` | 回合级回滚 | L2 → L3 | 批次 4+ |
-| 11 | `11-dsh-tauri-model-config.md` | 模型配置 | L2 → L3 | 批次 4+ |
-| 12 | `12-plugin-inventory-and-watch.md` | 插件清单真值、文件监控与事件推送 | L3 | 批次 4+ |
-| 13 | `13-plugin-lifecycle-commands.md` | 禁用/启用/升级/卸载/快照的落盘副作用 | L3 | 批次 4+ |
-| 14 | `14-preinstall-and-preset.md` | 预装引导、预设字段与指纹判定 | L3 | 批次 4+ |
-| 15 | `15-plugin-error-and-recovery.md` | 异常落盘、日志定位、修复与安全模式 | L3 | 批次 4+ |
-| 16 | `16-profile-and-patch-isolation.md` | 跨档案隔离与补丁层 / pnpm-workspace 治理 | L3 | 批次 4+ |
-| 17 | `17-internal-plugins.md` | 内置插件离线物化、自愈与弃用清理 | L3 | 批次 4+ |
-| 18 | `18-cross-plugin-desktop.md` | 跨插件共存、禁用与降级 | L3 | 批次 4+ |
+| 01 | `01-dsh-host-and-core-contract.md` | 编排骨架（scratch 宿主 + 挂载 + 随机端口）与共享路由契约（OPTIONS/405/403/413） | L2 | 批次 1–2 |
+| 02 | `02-dsh-tauri-pet.md` | 桌宠插件（SSE → 客户端挂载 → 桌面端窗口） | L2 → L3 | 批次 3 |
+| 03 | `03-dsh-tauri-rightclick.md` | 右键菜单与外部打开 | L2 → L3 | 批次 4+ |
+| 04 | `04-dsh-tauri-session.md` | 会话归档与打开目录 | L2 → L3 | 批次 4+ |
+| 05 | `05-dsh-tauri-worktree.md` | 工作树面板与路由 | L2 → L3 | 批次 4+ |
+| 06 | `06-dsh-tauri-ui.md` | 壳层槽位注入（导航/侧栏/设置） | L2 → L3 | 批次 4+ |
+| 07 | `07-dsh-tauri-panel-extension.md` | 扩展管理面板（技能 / MCP / 市场） | L2 → L3 | 批次 4+ |
+| 08 | `08-dsh-tauri-panel-scheduler.md` | 定时任务面板 | L2 → L3 | 批次 4+ |
+| 09 | `09-dsh-tauri-turnrewind.md` | 回合级回滚 | L2 → L3 | 批次 4+ |
+| 10 | `10-dsh-tauri-model-config.md` | 模型配置 | L2 → L3 | 批次 4+ |
+| 11 | `11-plugin-inventory-and-watch.md` | 插件清单真值、文件监控与事件推送 | L3 | 批次 4+ |
+| 12 | `12-plugin-lifecycle-commands.md` | 禁用/启用/升级/卸载/快照的落盘副作用 | L3 | 批次 4+ |
+| 13 | `13-preinstall-and-preset.md` | 预装引导、预设字段与指纹判定 | L3 | 批次 4+ |
+| 14 | `14-plugin-error-and-recovery.md` | 异常落盘、日志定位、修复、安全模式与内置插件离线物化自愈 | L3 | 批次 4+ |
+| 15 | `15-profile-and-patch-isolation.md` | 跨档案隔离与补丁层 / pnpm-workspace 治理 | L3 | 批次 4+ |
+| 16 | `16-cross-plugin-desktop.md` | 跨插件共存、禁用与降级 | L3 | 批次 4+ |
 
 > `dsh-tauri-bundle`、`dsh-tauri-tsdown` 是打包/构建工具包（无 `exports["./client"]`，见各自 `package.json`），不属于产品可见插件，不在本套用例范围。
 
@@ -108,13 +106,13 @@
 
 ## 6. 建议执行顺序
 
-1. **冒烟子集**（最小可信集）：`01` 全部 → `02` 全部 → `03` 的 `TC-PET-L2-03-001` / `TC-PET-L2-03-002`。
-2. **核心扩展（L2 可立即运行）**：`04`–`11` 中全部 `-L2-*` 用例；每条只依赖 `pnpm build:plugins` 与 scratch 宿主。
-3. **桌面端集成**：`03`、`04`、`06`、`07`、`18` 的 `-L3-*` 用例（需先补 `data-testid` 与 `desktop` project，见 §8 G3/G4）。
+1. **冒烟子集**（最小可信集）：`01` 全部（编排骨架 + 共享路由契约）→ `02` 的 `TC-PET-L2-02-001` / `TC-PET-L2-02-002`。
+2. **核心扩展（L2 可立即运行）**：`03`–`10` 中全部 `-L2-*` 用例；每条只依赖 `pnpm build:plugins` 与 scratch 宿主。
+3. **桌面端集成**：`02`、`03`、`05`、`06`、`16` 的 `-L3-*` 用例（需先补 `data-testid` 与 `desktop` project，见 §8 G3/G4）。
 4. **客户端渲染层**：全部 `-C-*` 用例（需先引入浏览器驱动，见 §8 G2）。
-5. **需真实会话/凭据的用例**：`07` 的 `TC-UI-L2-07-003/004`、`10` 的 undo 业务码、`11` 的端点探测成功路径（见 §8 G9）。
-6. **治理批次**：`12` → `13` → `14` → `15` → `16` → `17`。
-7. **跨插件集成**：`18`。
+5. **需真实会话/凭据的用例**：`06` 的 `TC-UI-L2-06-003/004`、`09` 的 undo 业务码、`10` 的端点探测成功路径（见 §8 G9）。
+6. **治理批次**：`11` → `12` → `13` → `14` → `15`。
+7. **跨插件集成**：`16`。
 
 ---
 
@@ -124,24 +122,22 @@
 
 | 文件 | Case ID 前缀 | 条数 | 层级分布 |
 | --- | --- | --- | --- |
-| `01-host-lane-skeleton.md` | `TC-HOST-L2-01-*` | 6 | L2 |
-| `02-dsh-tauri-core.md` | `TC-CORE-L2-02-*` | 6 | L2 |
-| `03-dsh-tauri-pet.md` | `TC-PET-L2-03-*` / `-C-03-*` / `-L3-03-*` | 13 | L2 → L3 |
-| `04-dsh-tauri-rightclick.md` | `TC-RC-L2-04-*` / `-C-04-*` / `-L3-04-*` | 11 | L2 → L3 |
-| `05-dsh-tauri-session.md` | `TC-SESS-L2-05-*` / `-C-05-*` / `-L3-05-*` | 11 | L2 → L3 |
-| `06-dsh-tauri-worktree.md` | `TC-WT-L2-06-*` / `-C-06-*` / `-L3-06-*` | 10 | L2 → L3 |
-| `07-dsh-tauri-ui.md` | `TC-UI-L2-07-*` / `-C-07-*` / `-L3-07-*` | 10 | L2 → L3 |
-| `08-dsh-tauri-panel-extension.md` | `TC-EXT-L2-08-*` / `-C-08-*` / `-L3-08-*` | 13 | L2 → L3 |
-| `09-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-09-*` / `-C-09-*` / `-L3-09-*` | 11 | L2 → L3 |
-| `10-dsh-tauri-turnrewind.md` | `TC-REW-L2-10-*` / `-C-10-*` / `-L3-10-*` | 8 | L2 → L3 |
-| `11-dsh-tauri-model-config.md` | `TC-MC-L2-11-*` / `-C-11-*` / `-L3-11-*` | 9 | L2 → L3 |
-| `12-plugin-inventory-and-watch.md` | `TC-INV-L3-12-*` | 8 | L3 |
-| `13-plugin-lifecycle-commands.md` | `TC-LIFE-L3-13-*` | 12 | L3 |
-| `14-preinstall-and-preset.md` | `TC-PRE-L3-14-*` | 9 | L3 |
-| `15-plugin-error-and-recovery.md` | `TC-REC-L3-15-*` | 9 | L3 |
-| `16-profile-and-patch-isolation.md` | `TC-ISO-L3-16-*` | 8 | L3 |
-| `17-internal-plugins.md` | `TC-INT-L3-17-*` | 8 | L3 |
-| `18-cross-plugin-desktop.md` | `TC-XP-L3-18-*` / `-L2-18-*` | 8 | L2 + L3 |
+| `01-dsh-host-and-core-contract.md` | `TC-HOST-L2-01-*` / `TC-CORE-L2-01-*` | 12 | L2 |
+| `02-dsh-tauri-pet.md` | `TC-PET-L2-02-*` / `-C-02-*` / `-L3-02-*` | 13 | L2 → L3 |
+| `03-dsh-tauri-rightclick.md` | `TC-RC-L2-03-*` / `-C-03-*` / `-L3-03-*` | 11 | L2 → L3 |
+| `04-dsh-tauri-session.md` | `TC-SESS-L2-04-*` / `-C-04-*` / `-L3-04-*` | 11 | L2 → L3 |
+| `05-dsh-tauri-worktree.md` | `TC-WT-L2-05-*` / `-C-05-*` / `-L3-05-*` | 10 | L2 → L3 |
+| `06-dsh-tauri-ui.md` | `TC-UI-L2-06-*` / `-C-06-*` / `-L3-06-*` | 10 | L2 → L3 |
+| `07-dsh-tauri-panel-extension.md` | `TC-EXT-L2-07-*` / `-C-07-*` / `-L3-07-*` | 13 | L2 → L3 |
+| `08-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-08-*` / `-C-08-*` / `-L3-08-*` | 11 | L2 → L3 |
+| `09-dsh-tauri-turnrewind.md` | `TC-REW-L2-09-*` / `-C-09-*` / `-L3-09-*` | 8 | L2 → L3 |
+| `10-dsh-tauri-model-config.md` | `TC-MC-L2-10-*` / `-C-10-*` / `-L3-10-*` | 9 | L2 → L3 |
+| `11-plugin-inventory-and-watch.md` | `TC-INV-L3-11-*` | 8 | L3 |
+| `12-plugin-lifecycle-commands.md` | `TC-LIFE-L3-12-*` | 12 | L3 |
+| `13-preinstall-and-preset.md` | `TC-PRE-L3-13-*` | 9 | L3 |
+| `14-plugin-error-and-recovery.md` | `TC-REC-L3-14-*` / `TC-INT-L3-14-*` | 17 | L3 |
+| `15-profile-and-patch-isolation.md` | `TC-ISO-L3-15-*` | 8 | L3 |
+| `16-cross-plugin-desktop.md` | `TC-XP-L3-16-*` / `-L2-16-*` | 8 | L2 + L3 |
 
 合计 **170** 条。`-C-*` 表示客户端浏览器层（当前未接线），`-L3-*` 表示桌面端宿主层（当前待接线）。
 
@@ -150,18 +146,18 @@
 | 来源条目 | 覆盖文件 | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
 | `plugin.test.md` §5（L2 执行流程 1–9 步） | `01` | 正向 / 异常 / 边界 | 端口冲突、宿主提前退出分支未覆盖 |
-| `plugin.test.md` §6（必须断言项、禁止项） | `02`–`11` | 正向 / 异常 | 「零崩溃」需浏览器层，见 G2 |
-| `plugin.test.md` §8 批次 3（pet） | `03` | 正向 / 异常 | 客户端渲染用例依赖 Playwright |
-| `plugin.test.md` §8 批次 4+（worktree） | `06` | 正向 / 异常 | 真实 git 创建链路未覆盖 |
-| `plugin.test.md` §8 批次 4+（其余插件） | `04`、`05`、`07`–`11` | 正向 / 异常 / 边界 | 各文件末节列出未覆盖分支 |
-| 归档 `06-plugin/01`（列表与监控） | `12` | 正向 / 异常 / 边界 | 界面层由 `../desktop/09` 承接 |
-| 归档 `06-plugin/02`（升级与卸载） | `13` | 正向 / 异常 | 界面层由 `../desktop/09` 承接 |
-| 归档 `06-plugin/04`、`01-install/04`（预装引导） | `14` | 正向 / 异常 / 边界 | 界面层由 `../desktop/08` 承接 |
-| 归档 `06-plugin/03`、`01-install/05`（异常与恢复） | `15` | 正向 / 异常 / 边界 | 界面层由 `../desktop/10`、`../desktop/11` 承接 |
-| 归档 `05-profile/05`、`06-plugin/03`（档案与补丁治理） | `16` | 正向 / 异常 / 边界 | 权限类分支标为手工 |
-| `src-tauri/resources/README.md:76`（内置插件随包分发与自愈） | `17` | 正向 / 异常 / 边界 | 归档套件无对应用例 |
+| `plugin.test.md` §6（必须断言项、禁止项） | `01`–`10` | 正向 / 异常 | 「零崩溃」需浏览器层，见 G2 |
+| `plugin.test.md` §8 批次 3（pet） | `02` | 正向 / 异常 | 客户端渲染用例依赖 Playwright |
+| `plugin.test.md` §8 批次 4+（worktree） | `05` | 正向 / 异常 | 真实 git 创建链路未覆盖 |
+| `plugin.test.md` §8 批次 4+（其余插件） | `03`、`04`、`06`–`10` | 正向 / 异常 / 边界 | 各文件末节列出未覆盖分支 |
+| 归档 `06-plugin/01`（列表与监控） | `11` | 正向 / 异常 / 边界 | 界面层由 `../desktop/06` 承接 |
+| 归档 `06-plugin/02`（升级与卸载） | `12` | 正向 / 异常 | 界面层由 `../desktop/06` 承接 |
+| 归档 `06-plugin/04`、`01-install/04`（预装引导） | `13` | 正向 / 异常 / 边界 | 界面层由 `../desktop/06` 承接 |
+| 归档 `06-plugin/03`、`01-install/05`（异常与恢复） | `14` | 正向 / 异常 / 边界 | 界面层由 `../desktop/07` 承接 |
+| 归档 `05-profile/05`、`06-plugin/03`（档案与补丁治理） | `15` | 正向 / 异常 / 边界 | 权限类分支标为手工 |
+| `src-tauri/resources/README.md:76`（内置插件随包分发与自愈） | `14` | 正向 / 异常 / 边界 | 归档套件无对应用例 |
 | `desktop.test.md` §5（`data-testid`） | 全部 L3 用例 | 前置约束 | 壳层当前 0 个 `data-testid`，见 G3 |
-| `desktop.test.md` §6（端口/目录隔离） | `01`、`12`、`16`、`18` | 边界 | 端口「固定」表述与实现冲突，见 G5 |
+| `desktop.test.md` §6（端口/目录隔离） | `01`、`11`、`15`、`16` | 边界 | 端口「固定」表述与实现冲突，见 G5 |
 | `progressive.md` §1（单批单卡） | 全部文件 | 流程约束 | 每个编号文件视为一个批次 |
 
 ### 7.3 高风险路径的正向 / 异常 / 边界覆盖
@@ -169,16 +165,16 @@
 | 高风险路径 | 正向 | 异常 | 边界 |
 | --- | --- | --- | --- |
 | 宿主编排（挂载 + 启动） | TC-HOST-L2-01-001 | TC-HOST-L2-01-003、TC-HOST-L2-01-004 | TC-HOST-L2-01-005 |
-| 共享路由契约 | TC-CORE-L2-02-001、TC-CORE-L2-02-002 | TC-CORE-L2-02-003、TC-CORE-L2-02-004、TC-CORE-L2-02-006 | TC-CORE-L2-02-005 |
-| 桌面端窗口与启动 | TC-XP-L3-18-001、TC-XP-L3-18-007 | TC-XP-L3-18-003、TC-XP-L3-18-005 | TC-XP-L3-18-004、TC-XP-L3-18-006 |
+| 共享路由契约 | TC-CORE-L2-01-001、TC-CORE-L2-01-002 | TC-CORE-L2-01-003、TC-CORE-L2-01-004、TC-CORE-L2-01-006 | TC-CORE-L2-01-005 |
+| 桌面端窗口与启动 | TC-XP-L3-16-001、TC-XP-L3-16-007 | TC-XP-L3-16-003、TC-XP-L3-16-005 | TC-XP-L3-16-004、TC-XP-L3-16-006 |
 | 插件路由真实响应 | 各文件 L2 正向 | 各文件 L2 异常 | 各文件 L2 边界 |
 | 客户端挂载产物 | 各文件 `-C-001` | 各文件 `-C-003`/`-C-004` | 各文件 `-C-002`/`-C-004` |
-| 清单真值与事件 | TC-INV-L3-12-001、TC-INV-L3-12-002、TC-INV-L3-12-004 | TC-INV-L3-12-006 | TC-INV-L3-12-003、TC-INV-L3-12-005、TC-INV-L3-12-007、TC-INV-L3-12-008 |
-| 插件写操作 | TC-LIFE-L3-13-001、TC-LIFE-L3-13-005、TC-LIFE-L3-13-007、TC-LIFE-L3-13-009 | TC-LIFE-L3-13-002、TC-LIFE-L3-13-003、TC-LIFE-L3-13-004、TC-LIFE-L3-13-006、TC-LIFE-L3-13-008、TC-LIFE-L3-13-010 | TC-LIFE-L3-13-011 |
-| 预装引导 | TC-PRE-L3-14-003、TC-PRE-L3-14-005 | TC-PRE-L3-14-004、TC-PRE-L3-14-007 | TC-PRE-L3-14-002、TC-PRE-L3-14-006、TC-PRE-L3-14-008、TC-PRE-L3-14-009 |
-| 异常定位与修复 | TC-REC-L3-15-001、TC-REC-L3-15-003、TC-REC-L3-15-004、TC-REC-L3-15-006 | TC-REC-L3-15-007、TC-REC-L3-15-008 | TC-REC-L3-15-002、TC-REC-L3-15-005、TC-REC-L3-15-009 |
-| 档案与补丁隔离 | TC-ISO-L3-16-001、TC-ISO-L3-16-002、TC-ISO-L3-16-003、TC-ISO-L3-16-005、TC-ISO-L3-16-008 | TC-ISO-L3-16-006、TC-ISO-L3-16-007 | TC-ISO-L3-16-004 |
-| 内置插件自愈 | TC-INT-L3-17-001、TC-INT-L3-17-003、TC-INT-L3-17-006 | TC-INT-L3-17-002、TC-INT-L3-17-004 | TC-INT-L3-17-005、TC-INT-L3-17-007、TC-INT-L3-17-008 |
+| 清单真值与事件 | TC-INV-L3-11-001、TC-INV-L3-11-002、TC-INV-L3-11-004 | TC-INV-L3-11-006 | TC-INV-L3-11-003、TC-INV-L3-11-005、TC-INV-L3-11-007、TC-INV-L3-11-008 |
+| 插件写操作 | TC-LIFE-L3-12-001、TC-LIFE-L3-12-005、TC-LIFE-L3-12-007、TC-LIFE-L3-12-009 | TC-LIFE-L3-12-002、TC-LIFE-L3-12-003、TC-LIFE-L3-12-004、TC-LIFE-L3-12-006、TC-LIFE-L3-12-008、TC-LIFE-L3-12-010 | TC-LIFE-L3-12-011 |
+| 预装引导 | TC-PRE-L3-13-003、TC-PRE-L3-13-005 | TC-PRE-L3-13-004、TC-PRE-L3-13-007 | TC-PRE-L3-13-002、TC-PRE-L3-13-006、TC-PRE-L3-13-008、TC-PRE-L3-13-009 |
+| 异常定位与修复 | TC-REC-L3-14-001、TC-REC-L3-14-003、TC-REC-L3-14-004、TC-REC-L3-14-006 | TC-REC-L3-14-007、TC-REC-L3-14-008 | TC-REC-L3-14-002、TC-REC-L3-14-005、TC-REC-L3-14-009 |
+| 档案与补丁隔离 | TC-ISO-L3-15-001、TC-ISO-L3-15-002、TC-ISO-L3-15-003、TC-ISO-L3-15-005、TC-ISO-L3-15-008 | TC-ISO-L3-15-006、TC-ISO-L3-15-007 | TC-ISO-L3-15-004 |
+| 内置插件自愈 | TC-INT-L3-14-001、TC-INT-L3-14-003、TC-INT-L3-14-006 | TC-INT-L3-14-002、TC-INT-L3-14-004 | TC-INT-L3-14-005、TC-INT-L3-14-007、TC-INT-L3-14-008 |
 
 ---
 
@@ -194,11 +190,11 @@
 | G6 | 事实 | 插件 client 入口仅在内嵌 frame 内生效（`window.parent !== window`） | 所有 `-C-*` 与 `-L3-*` 用例必须构造 iframe 环境；顶层页面断言槽位必然失败 |
 | G7 | 假设 | 各插件可被单独挂载（`DSH_E2E_PLUGIN=<pkg>`）；需要核心桥时通过 `DSH_E2E_ALSO=dsh-tauri` 一并挂载 | 若某插件强依赖其它插件，需在其文件中追加 `also` 说明 |
 | G8 | 缺口 | `test/e2e/.artifacts/` 仅有文档约定与 `.gitignore`，无实现 | 失败产物（截图 / stdout）需在接线时补齐，否则失败定位只能依赖日志 |
-| G9 | 缺口 | 会话类用例（`10` turnrewind、`07` ui 的部分分支）需要真实会话，scratch 宿主当前无造会话手段 | 相关用例标记「待补」，是本套文档最大的功能盲区 |
-| G10 | 事实 | 插件写操作类用例（`13`、`14`、`16`、`17`）会真实改写档案文件；`17` 还会改写**应用资源目录** | 用例结束必须恢复原状，未恢复即判失败 |
-| G11 | 分歧 | 归档套件引用的预设插件（`dshmarket`、`dsh-better-sidebar`、`dsh-notification`、`dsh-win-terminal-inspector`）与现行 `preset-plugins.json`（3 条）不一致，且其中 4 个包已进入 `deprecated-plugins.json` | `14` 的用例一律以**运行时清单内容**为准，不硬编码归档包名 |
-| G12 | 缺口 | 事件类断言的读取通道未定：iframe 只能调 `dsh://tauri:invoke` 白名单内的 9 条命令，无法在页面内订阅 `dsh-plugins-updated` / `preinstall-log` 等事件 | `12`、`14` 的事件计数需由壳层测试侧记录后再回读，接线方式待定 |
-| G13 | 缺口 | 系统级前置无法在页面内构造：目录不可写（`16` TC-ISO-L3-16-007）、非 Windows 平台（`14` TC-PRE-L3-14-002） | 相关用例标 `[自动化] 否（手工）` 或按平台跳过，不写成 `it()` |
+| G9 | 缺口 | 会话类用例（`09` turnrewind、`06` ui 的部分分支）需要真实会话，scratch 宿主当前无造会话手段 | 相关用例标记「待补」，是本套文档最大的功能盲区 |
+| G10 | 事实 | 插件写操作类用例（`12`、`13`、`15`、`14`）会真实改写档案文件；`14` 还会改写**应用资源目录** | 用例结束必须恢复原状，未恢复即判失败 |
+| G11 | 分歧 | 归档套件引用的预设插件（`dshmarket`、`dsh-better-sidebar`、`dsh-notification`、`dsh-win-terminal-inspector`）与现行 `preset-plugins.json`（3 条）不一致，且其中 4 个包已进入 `deprecated-plugins.json` | `13` 的用例一律以**运行时清单内容**为准，不硬编码归档包名 |
+| G12 | 缺口 | 事件类断言的读取通道未定：iframe 只能调 `dsh://tauri:invoke` 白名单内的 9 条命令，无法在页面内订阅 `dsh-plugins-updated` / `preinstall-log` 等事件 | `11`、`13` 的事件计数需由壳层测试侧记录后再回读，接线方式待定 |
+| G13 | 缺口 | 系统级前置无法在页面内构造：目录不可写（`15` TC-ISO-L3-15-007）、非 Windows 平台（`13` TC-PRE-L3-13-002） | 相关用例标 `[自动化] 否（手工）` 或按平台跳过，不写成 `it()` |
 
 ---
 
