@@ -4,7 +4,7 @@
 > 规范来源：[E2E 测试规范](../../specs/desktop.test.md)、[桌面端开发规范](../../specs/agents.desktop.md)
 > 流程来源：[渐进式测试推进规则](../progressive.md)
 > 同构套件：[插件用例集](../plugins/00-overview.md)
-> 状态：批次日进行中——`00` 总览已落地，`01`–`29` 用例文档待接线（见 §8 G2/G3/G4）
+> 状态：批次日进行中——`00` 总览已落地，`01`–`03` 已接线，`04`–`29` 待接线（见 §8 G2/G3/G4）
 
 ---
 
@@ -37,7 +37,7 @@
 3. **用例文档目录**：`desktop.test.md` §3.2 写 `docs/testing/desktop/<序号>-<测试项>.md`，未定义 `00` 的用途。本次要求「从 00 编号开始」，**`00` 用作总览**（对齐插件套件），用例本体从 `01` 起，`01`–`06` 文件名与 §7 路线图逐字一致。
 4. **端口是否固定**：`desktop.test.md` §6 称 Debug 固定 `3081`、不可动态修改；实现侧存在占用后逐级递增（`src-tauri/src/service/workflow/launch.rs:66`）且 `src-tauri/capabilities/default.json:4` 明示 port is NOT fixed。**本套以「默认 3081 + 运行前实测空闲」为准**，不假设端口绝对不变（见 §8 G5）。
 5. **优先级口径**：用例编写通用口径为 P0–P3，本仓规范为 P1–P5。**以本仓规范为准**（见 §4），不混用。
-6. **`data-testid` 前置**：`desktop.test.md` §5 要求 E2E 必须用 `data-testid`；壳层（`src/`）当前 `data-testid` 数量为 **0**。因此本套全部用例标注 `[自动化] 待接线`，并在每个文件末尾给出「选择器契约（待补）」（见 §8 G3）。
+6. **`data-testid` 前置**：`desktop.test.md` §5 要求 E2E 必须用 `data-testid`；壳层（`src/`）已随 `01`–`03` 批次补齐所需选择器，常量统一登记在 `test/e2e/support/selectors.ts`。未接线批次的用例仍标注 `[自动化] 待接线`，并在各自文件末尾给出「选择器契约（待补）」（见 §8 G3）。
 7. **E2E 是否允许 Mock 后端**：`desktop.test.md` §1 禁止在 E2E 层 Mock 后端命令。本套中「构造失败态」一律通过**真实前置**达成（改坏 `cordis.patch.yml`、占用端口、指向不可达更新源），不引入命令级 Mock。
 
 ---
@@ -217,7 +217,7 @@
 | `desktop.test.md` §7 批次 6（档案） | `05` | 正向 / 异常 / 边界 | — |
 | `desktop.test.md` §7 批次 7（iframe） | `06` | 正向 / 异常 | 跨源 postMessage 校验分支未覆盖 |
 | `desktop.test.md` §6（端口/目录隔离） | `01`、`12`、`13` | 边界 | 端口「固定」表述与实现冲突，见 G5 |
-| `desktop.test.md` §5（`data-testid`） | 全部 | 前置约束 | 壳层当前 0 个，见 G3 |
+| `desktop.test.md` §5（`data-testid`） | 全部 | 前置约束 | 选择器随批次逐批补齐，见 G3 |
 | `agents.desktop.md` §2（端口/数据隔离） | `01`、`13` | 正向 / 边界 | — |
 | `agents.desktop.md` §6 issue #525/#526（补丁层） | `11` | 异常 | 隔离失败（`PATCH_LAYER_QUARANTINE_FAILED`）未覆盖 |
 | `agents.desktop.md` §6 issue #596（核心基线） | `14` | 异常 | 需构造低于基线的本地核心 |
@@ -260,9 +260,9 @@
 | 编号 | 类型 | 内容 | 影响 |
 | --- | --- | --- | --- |
 | G1 | 事实 | 前端产物 `dist/` 与 debug 二进制是否最新，取决于最近一次 `pnpm build` / `cargo build` | 二进制陈旧时全部用例的失败不可归因，需先重建 |
-| G2 | 缺口 | `desktop` project 尚未配置（无 `vitest.desktop.config.ts`、无 `test:e2e:desktop` 脚本、`test/e2e/specs/` 不存在） | 全部 273 条用例标注 `[自动化] 待接线`，不得写成可直接运行的 `it()` |
-| G3 | 缺口 | `test/e2e/support/selectors.ts` 仍不存在；壳层 `data-testid` 仅 `01` 批次声明的 3 个（`dsh-shell-root`、`dsh-navbar-root`、`dsh-navbar-dev-chip`），`02` 及后续批次所需选择器均待补 | 每个文件末尾的「选择器契约」即为该批次接线前置；未补齐前无法定位元素 |
-| G4 | 缺口 | 桌面端缺少宿主编排：现有 `test/e2e/support/dsh-host.ts` 只编排插件 L2 的 `dsh web` 进程 | L3 用例需另建「拉起真实二进制 + 绑定 WDIO 会话 + 收尾」的编排 |
+| G2 | 已解决 | `desktop` project 已配置：`vitest.desktop.config.ts`、`test:e2e:desktop` 脚本、`test/e2e/desktop/` 均就位 | 已接线批次为 `01`（7 条）、`02`（8 条）、`03`（5 条） |
+| G3 | 已解决 | `test/e2e/support/selectors.ts` 已建立；壳层选择器随 `01`–`03` 批次逐批补齐（`03` 批次补 `dsh-config-*` 与导航项 `aria-current` 选中态） | 后续批次仍须按「先补选择器、再写用例」推进 |
+| G4 | 已解决 | L3 宿主编排已落地：`test/e2e/support/desktop-host.ts`（拉起真实二进制 + 绑定 WDIO 会话 + 收尾），菜单操作为 `test/e2e/support/navbar-menu.ts` | 运行前置：`dist/` 与 `tauri build --debug --no-bundle` 产物 |
 | G5 | 冲突 | `desktop.test.md` §6 称 debug 端口固定 `3081` 不可改；实现存在占用递增逻辑（`launch.rs:66`），`capabilities/default.json:4` 亦声明 NOT fixed | 端口前置按「实测空闲」执行，不假设端口恒定 |
 | G6 | 缺口 | 失败产物目录 `test/e2e/.artifacts/` 仅有文档约定与 `.gitignore`，无实现 | 失败定位在接线前只能依赖日志 |
 | G7 | 假设 | 需要联网的用例（`08`、`09`、`14`、`16`）默认允许联网；断网分支已在各用例 `[前置条件]` 中单独标注 | 离线环境下这些用例应被跳过而非判失败 |

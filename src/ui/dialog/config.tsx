@@ -51,8 +51,8 @@ export function ConfigDialog(props: ConfigDialogProps) {
     <Modal isOpen={disclosure.visible} onOpenChange={disclosure.cancel}>
       <Modal.Backdrop>
         <Modal.Container size="lg">
-          <Modal.Dialog className="w-[800px] max-w-[calc(100vw-48px)] h-[min(720px,calc(100vh-96px))] pr-2.5">
-            <Modal.CloseTrigger />
+          <Modal.Dialog data-testid="dsh-config-dialog" className="w-[800px] max-w-[calc(100vw-48px)] h-[min(720px,calc(100vh-96px))] pr-2.5">
+            <Modal.CloseTrigger data-testid="dsh-config-dialog-close" />
             <Modal.Header className="mb-3">
               <Modal.Heading>
                 {t('app.config')}
@@ -66,6 +66,8 @@ export function ConfigDialog(props: ConfigDialogProps) {
                     return (
                       <button
                         key={item.value}
+                        data-testid={`dsh-config-nav-${item.value}`}
+                        aria-current={isActive ? 'true' : undefined}
                         onClick={() => setActiveTab(item.value)}
                         className={cn(
                           'text-foreground h-[40px] rounded-md flex items-center gap-2 py-[9px] px-[16px] hover:bg-background-secondary cursor-pointer',
@@ -75,7 +77,7 @@ export function ConfigDialog(props: ConfigDialogProps) {
                         <item.icon className="w-5 h-5 mr-2" />
                         <span>{item.label}</span>
                         <If cond={item.value === 'plugins' && abnormalCount > 0}>
-                          <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-danger text-[10px] font-semibold leading-none text-white">
+                          <span data-testid="dsh-config-nav-plugins-badge" className="ml-auto flex size-5 items-center justify-center rounded-full bg-danger text-[10px] font-semibold leading-none text-white">
                             {abnormalCount}
                           </span>
                         </If>
@@ -84,7 +86,7 @@ export function ConfigDialog(props: ConfigDialogProps) {
                   })}
                 </nav>
               </aside>
-              <div className="flex flex-col flex-1 overflow-auto min-h-0 pr-2.5">
+              <div data-testid="dsh-config-panel-body" className="flex flex-col flex-1 overflow-auto min-h-0 pr-2.5">
                 <Switch value={activeTab} as="div">
                   <Case cond="application">
                     <ConfigDebug />

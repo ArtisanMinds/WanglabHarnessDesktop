@@ -57,7 +57,7 @@
 | 00 | 总览、前置与追踪矩阵 | `00-overview.md` | 已验证 | 索引/前置/矩阵/缺口已核对；G3 选择器事实随 `01` 批次同步 |
 | 01 | 窗口启动、几何约束、启动前置校验 | `01-window-boot.md` | 已实现 | 7 条已接线并跑通；005 改手工（G-D01-4） |
 | 02 | 壳层导航栏与条件渲染 | `02-shell-navigation.md` | 已实现 | 8 条已接线（`TC-DSK-L3-02-001`～`004`、`007`、`008`、`010`、`011`）；`005`/`006` 暂缓（G-D02-1/2）；`009` 手工 |
-| 03 | 配置对话框打开/定位/切换/关闭 | `03-config-dialog.md` | 提案中 | 7 条 |
+| 03 | 配置对话框打开/定位/切换/关闭 | `03-config-dialog.md` | 已实现 | 5 条已接线并跑通（`TC-DSK-L3-03-001`～`004`、`007`）；`005`/`006` 暂缓（G-D03-1/2）；补 `dsh-config-*` 选择器与「应用」面板标题 |
 | 04 | 语言即时切换与持久化、主题自适应 | `04-locale-theme.md` | 提案中 | 6 条 |
 | 05 | 档案列表、新建、克隆、删除 | `05-profile.md` | 提案中 | 8 条 |
 | 06 | iframe 渲染条件、加载状态机、boot 桥 | `06-harness-embed.md` | 提案中 | 7 条 |
@@ -85,7 +85,7 @@
 | 28 | 静默下载、退出自动安装、版本护栏、更新摘要与路径守卫 | `28-desktop-update-internals.md` | 提案中 | 12 条 |
 | 29 | 系统操作集成、路径守卫、跨平台打包、Windows 极简模式 | `29-system-integration.md` | 提案中 | 14 条 |
 
-合计 `01`–`29` 共 **275** 条用例。`desktop` project 已建立，用例落在 `test/e2e/desktop/`；`01` 批次 7 条、`02` 批次 8 条已接线，其余批次尚无自动化产物。
+合计 `01`–`29` 共 **275** 条用例。`desktop` project 已建立，用例落在 `test/e2e/desktop/`；`01` 批次 7 条、`02` 批次 8 条、`03` 批次 5 条已接线，其余批次尚无自动化产物。
 
 ### 4.2 插件 (`docs/testing/plugins/`)
 
@@ -131,3 +131,6 @@
 | 2026-09 | 用例编号改为文件内连续：桌面端 `TC-DSK-L3-<文件序号>-<序号>`、插件 `TC-<业务域>-<层级>-<文件序号>-<序号>`；新增用例不再顺延后续文件（桌面端 274 → 275 条） |
 | 2026-09 | 禁用下载时渲染「下载已被环境禁用」页替代启动失败页（`RuntimeInfo::auto_download_disabled` → `setup.tsx`），布局与失败页同源；新增 `TC-DSK-L3-02-011` 守门 |
 | 2026-09 | 桌面端 E2E 车道加固：会话建立后显式切到主窗口 webview `main`（默认窗口可能落在桌宠 `pet`），`assertPreconditions` 增加 WebDriver 端口 4445 占用校验（被别的实例占住时会静默挂到对方窗口） |
+| 2026-09 | 批次 `03` 实现：配置对话框 5 条接线（`005` 需服务运行中、`006` 需异常插件夹具，暂缓）；`config.tsx` 补 `dsh-config-dialog` / `-close` / `-nav-*` / `-nav-plugins-badge` / `-panel-body` 并给导航项加 `aria-current` 选中态；`Panel.Header` 增加 `testId` 与可选 `description`，据此给「应用」面板补上标题（原三面板自持标题、它独缺）；菜单操作从 `02` 抽出为 `test/e2e/support/navbar-menu.ts` 供两批复用 |
+| 2026-09 | 批次 `03` 运行验证：桌面端全车道 `01`+`02`+`03` 共 20 条全绿；修正 `TC-DSK-L3-03-007` 的尺寸断言——HeroUI `modal__container` 的入场缩放动画（`matrix3d(scale)` 起手 ~1.03）会让 `getBoundingClientRect()` 把对话框读大最多 3%，断言前须等尺寸稳定（G-D03-6） |
+| 2026-09 | 批次 `03` CI 加固：windows runner 上对话框偶发在打开后 ~100–200ms 被收起（G-D03-7）。用例侧修两处竞态——`closeDialog()` 改为等节点从 DOM 卸载并排空 overlastic 退场窗口（`duration = 300`）后再重开；导航项点击改为每轮重新定位（`waitForClickable()` 只认首次句柄，节点被替换后必然轮询到超时）。失败信息附现场快照（`pageMark`/`navbar`/`disabledPage`/`url`） |

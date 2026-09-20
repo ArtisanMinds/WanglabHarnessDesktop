@@ -21,20 +21,24 @@ const LOG_LIMIT = 5
  */
 export interface PanelHeaderProps {
   title: string | ReactNode
-  description: string
+  description?: string
   className?: string
   action?: ReactNode
+  /** 标题元素的 `data-testid`（E2E 定位用；`title` 为节点时忽略） */
+  testId?: string
 }
 
 /** 配置面板头部：标题 + 说明；className 用于叠加 sticky / 背景等定位类。 */
-function Header({ title, description, className, action }: PanelHeaderProps) {
+function Header({ title, description, className, action, testId }: PanelHeaderProps) {
   return (
     <div className={cn('space-y-2', className)}>
       <div className="flex items-center justify-between gap-3">
-        {typeof title === 'string' ? <Typography type="h4">{title}</Typography> : title}
+        {typeof title === 'string' ? <Typography type="h4" data-testid={testId}>{title}</Typography> : title}
         {action}
       </div>
-      <Typography color="muted" type="body-sm">{description}</Typography>
+      <If cond={Boolean(description)}>
+        <Typography color="muted" type="body-sm">{description}</Typography>
+      </If>
     </div>
   )
 }

@@ -220,6 +220,8 @@
 
 跨用例复用的常量统一收录于 `test/e2e/support/selectors.ts`（`01` 批次的选择器也已改引该模块）。
 
+**菜单操作已抽出**：展开 / 收起 / 读取菜单的公共逻辑（含下面的清理口径）收敛在 `test/e2e/support/navbar-menu.ts`，由 `02` 与 `03` 共用。
+
 **菜单清理口径**：菜单展开时 react-aria 会铺一层全屏 `data-testid="underlay"`（`position: fixed` + `pointer-events: auto`）接管外部点击，触发器和导航栏都被它遮住——再点一次触发器既不可靠（先被外部点击关掉、又被自身 press 打开），也过不了 WebdriverIO 的「被遮挡即不可点击」判定。收起一律用 `Escape`，且必须先等到 `document.activeElement` 的 `role` 为 `menu`（焦点未就位时按键会被丢掉，实测竞态）。
 
 ---
