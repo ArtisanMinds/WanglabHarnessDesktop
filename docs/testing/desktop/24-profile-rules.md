@@ -54,78 +54,9 @@
 [预期结果] 1. 三次创建均成功返回。2. 对应 `id` 依次为 `my-work-space`、`dev-stage`、`a-b-c`。3. 目录名与 `id` 一致：小写、连续分隔符合并为一个 `-`、首尾 `-` 被去除。
 [清理] 删除本用例新建的三个档案目录；`DELETE /session/<id>`
 
-### [P2] 验证非字母数字字符被丢弃而非转为 `-`
-
-[Case ID] TC-DSK-L3-24-002
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/profile/mod.rs:289`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 配置对话框打开在「档案」面板；`profiles/` 为空或与测试名无冲突
-[测试数据] 名称 `a.b/c`、`A+B`、`中文档案`
-[测试步骤] 1. 用 `a.b/c` 新建并读取 `id`。2. 用 `A+B` 新建并读取 `id`。3. 用 `中文档案` 新建。
-[预期结果] 1. `id` 为 `abc`：`.` 与 `/` 被丢弃，不产生分隔符。2. `id` 为 `ab`：`+` 被丢弃，不产生分隔符。3. 返回 `PROFILE_INVALID_NAME`，不创建目录。
-[清理] 删除前两步新建的档案目录
-
 ---
 
-## 3. 创建与克隆的校验与错误码
-
-### [P2] 验证空名与规范化后为空的名称返回不同错误码
-
-[Case ID] TC-DSK-L3-24-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/profile/mod.rs:308`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 可调用 `create_profile` 命令（界面或命令层）
-[测试数据] 名称 `   `（三个空格）、`中文档案`、`...`
-[测试步骤] 1. 用纯空白名请求创建。2. 用 `中文档案` 请求创建。3. 用 `...` 请求创建。
-[预期结果] 1. 返回 `PROFILE_EMPTY_NAME: profile name is empty`，未落盘。2. 返回 `PROFILE_INVALID_NAME: profile name has no usable characters`，未落盘。3. 返回同一 `PROFILE_INVALID_NAME`（符号被丢弃后规范化为空），未落盘。
-[清理] 无需清理（均未落盘）
-
-### [P2] 验证 64 字符上限按规范化结果比较
-
-[Case ID] TC-DSK-L3-24-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/profile/mod.rs:308`、`:320`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] `profiles/` 下不存在同名档案
-[测试数据] 名称 64 个 `a`；名称 65 个 `a`；名称 64 个 `a` 加一个 `.`（原始 65 字符）
-[测试步骤] 1. 用 64 个 `a` 创建。2. 用 65 个 `a` 创建。3. 用 64 个 `a` 加 `.` 创建。
-[预期结果] 1. 创建成功，`id` 为 64 个 `a`。2. 返回 `PROFILE_NAME_TOO_LONG: profile id exceeds 64 characters`。3. 创建成功，`id` 仍为 64 个 `a`——上限比较的是规范化后的 id，原始输入长度不计。
-[清理] 删除第 1、3 步创建的档案目录
-
-### [P3] [反向] 验证保留名与已存在目录不会被静默重建
-
-[Case ID] TC-DSK-L3-24-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/profile/mod.rs:320`、`:324`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 已存在一个档案 `dev-check`，其 `package.json` 内容已记录
-[测试数据] 名称 `web`、`WEB`、`dev-check`
-[测试步骤] 1. 用 `web` 请求创建。2. 用 `WEB` 请求创建。3. 用 `dev-check` 请求创建并复查该档案的 `package.json`。
-[预期结果] 1. 返回 `PROFILE_RESERVED: this name is reserved`。2. 返回同一 `PROFILE_RESERVED`（规范化后等于 `web`）。3. 返回 `PROFILE_EXISTS: profile dev-check already exists`，且既有 `package.json` 内容与记录值逐字一致——`create` 不幂等。
-[清理] 删除 `dev-check` 档案目录
-
-### [P4] 验证只有 `web` 被保留，引导与安全档案名不被拦截
-
-[Case ID] TC-DSK-L3-24-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 低频
-[追踪] `src-tauri/src/service/profile/mod.rs:42`、`:51`、`:59`、`:569`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 使用全新的 `$E2E_HOME/home/.dsh.dev`（§5.3），`profiles/` 下不存在 `tauri` 与 `safe`
-[测试数据] 名称 `tauri`、`safe`；克隆对话框显式名 `Web`
-[测试步骤] 1. 用 `tauri` 创建。2. 用 `safe` 创建。3. 在克隆对话框用显式名 `Web` 克隆任一档案。
-[预期结果] 1. 创建成功——`create` 不拦截引导档案名。2. 创建成功——`create` 不拦截安全档案名。3. 返回 `PROFILE_RESERVED`：`clone_with_root` 对显式名套用同一套五项校验。
-[清理] 删除本用例新建的两个档案目录
-
----
-
-## 4. 初始化形态与幂等
+## 3. 初始化形态与幂等
 
 ### [P1] 验证新档案落盘为四个文件且形态固定
 
@@ -140,35 +71,9 @@
 [预期结果] 1. 创建成功。2. 目录下恰含 `package.json`、`cordis.patch.yml`、`pnpm-workspace.yaml`、`.npmrc`。3. `name` 为 `dsh-profile-init-check`；`private` 为 `true`；`dependencies` 为空对象；`dsh.profile.bundles` 为 `@deepseek-ai/dsh-base` 与 `@deepseek-ai/dsh-web-app`。4. `cordis.patch.yml` 为 3 行注释加 `[]`；`pnpm-workspace.yaml` 含 `packages`、`nodeLinker: hoisted`、`autoInstallPeers: false`、`minimumReleaseAgeExclude: zod@4.4.3`；`.npmrc` 含 `confirmModulesPurge=false`。
 [清理] 删除档案目录；`DELETE /session/<id>`
 
-### [P2] 验证重复初始化幂等且不覆盖用户编辑
-
-[Case ID] TC-DSK-L3-24-008
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/profile/mod.rs:879`、`:888`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 存在一个已初始化的档案；可触发一次初始化（启动链路或插件操作链路）
-[测试数据] 手工改写后的 `cordis.patch.yml`、`pnpm-workspace.yaml`、`package.json`
-[测试步骤] 1. 改写该档案的 `cordis.patch.yml`、`pnpm-workspace.yaml` 与 `package.json`。2. 触发一次档案初始化。3. 复查三个文件内容。
-[预期结果] 1. 改写成功。2. 初始化成功返回。3. 三个文件与改写值逐字一致：`package.json` 仅在缺失时写入，patch 与 workspace 由 `!exists()` 守卫，均不覆盖。
-[清理] 恢复改写的档案内容或删除档案目录
-
-### [P2] 验证半初始化目录被补齐核心层，不可写目录在预检阶段报错
-
-[Case ID] TC-DSK-L3-24-009
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/profile/mod.rs:884`、`:732`、`:879`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 可手工构造档案目录；可调整目录属主/权限
-[测试数据] 仅含 `@deepseek-ai/dsh-base` 的 `package.json` 的目录；无 `package.json` 的目录；当前用户不可写的目录
-[测试步骤] 1. 构造只有 `dsh-base` 的档案目录并触发初始化，读取 `dsh.profile.bundles`。2. 构造无 `package.json` 的目录并触发初始化，读取目录内容。3. 构造当前用户不可写的目录并触发初始化。
-[预期结果] 1. 核心 web 层被前插补回（`dsh-base` → `dsh-web-app` 顺序），既有插件条目不被删除。2. 按 web 模板写入 `package.json`，并补齐其余三个文件。3. 在建目录与写清单之前返回含 `PROFILE_MKDIR` 的错误——写权限预检先于落盘。
-[清理] 删除构造的目录；恢复目录属主与权限
-
 ---
 
-## 5. 隔离性与回退
+## 4. 隔离性与回退
 
 ### [P1] 验证各档案独立持有元数据与依赖目录
 
@@ -183,44 +88,31 @@
 [预期结果] 1. 两个档案目录均创建成功。2. 依赖条目只出现在 `iso-a` 的 `package.json` 与 `node_modules` 中，`iso-b` 不受影响。3. 解析目录分别为 `$E2E_HOME/home/.dsh.dev/profiles/iso-a` 与 `.../profiles/iso-b`，由 `active_profile` 决定。
 [清理] 删除两个档案目录；`DELETE /session/<id>`
 
-### [P2] 验证活动档案回退与删除守卫的错误码
+## 5. 单元测试层（已从 L3 E2E 裁剪）
 
-[Case ID] TC-DSK-L3-24-011
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/profile/mod.rs:211`、`:337`、`:532`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 记录当前 `active_profile` 原值；存在一个活动档案
-[测试数据] store 中 `active_profile` 置为 空串 / `web` / 不存在的 `ghost`
-[测试步骤] 1. 把 `active_profile` 置为空串后读取活动档案。2. 置为 `web` 后读取。3. 置为 `ghost` 后读取，并调用 `set_active_profile('ghost')`。4. 分别对 `web` 与当前活动档案请求删除。
-[预期结果] 1. 活动档案回退为 `web`。2. 仍回退为 `web`。3. 读取回退为 `web`；`set_active_profile('ghost')` 返回 `PROFILE_NOT_FOUND: profile ghost does not exist`。4. `web` 返回 `PROFILE_DEFAULT_NOT_REMOVABLE`；活动档案返回 `PROFILE_ACTIVE_NOT_REMOVABLE`，两者目录均保留。
-[清理] 恢复 `active_profile` 原值；`DELETE /session/<id>`
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
 
-### [P3] [反向] 验证 home 层补丁跨档案生效
-
-[Case ID] TC-DSK-L3-24-012
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/bridge/lifecycle.rs:349`
-[自动化] 待接线（`test/e2e/desktop/24-profile-rules.e2e.ts`）
-[前置条件] 存在两个可用档案；`$E2E_HOME/home/.dsh.dev/cordis.patch.yml` 可写且已备份（§5.3）
-[测试数据] home 层 `$E2E_HOME/home/.dsh.dev/cordis.patch.yml` 中一条可解析的补丁条目
-[测试步骤] 1. 在 `$E2E_HOME/home/.dsh.dev/cordis.patch.yml` 写入一条可解析补丁条目。2. 在普通档案下启动服务并确认该条目生效。3. 切到安全档案 `safe` 后启动服务并确认该条目是否生效。
-[预期结果] 1. 写入成功。2. 普通档案的服务反映该 home 层条目。3. 安全档案同样反映该条目——home 层作用于所有档案，安全档案不是隔离边界。
-[清理] 还原 `$E2E_HOME/home/.dsh.dev/cordis.patch.yml`；切回原档案并重启；`DELETE /session/<id>`
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-24-002` | 验证非字母数字字符被丢弃而非转为 `-` | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-003` | 验证空名与规范化后为空的名称返回不同错误码 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-004` | 验证 64 字符上限按规范化结果比较 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-005` | 验证保留名与已存在目录不会被静默重建 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-006` | 验证只有 `web` 被保留，引导与安全档案名不被拦截 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-008` | 验证重复初始化幂等且不覆盖用户编辑 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-009` | 验证半初始化目录被补齐核心层，不可写目录在预检阶段报错 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-011` | 验证活动档案回退与删除守卫的错误码 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-24-012` | 验证 home 层补丁跨档案生效 | 纯逻辑断言，下沉单元测试层 |
 
 ---
 
 ## 6. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| 名称规范化 | 196、197 | 正向 / 边界 | 展示名推导（`mod.rs:224`）未覆盖 |
-| 校验顺序与错误码 | 198、199、200、201 | 异常 / 边界 / 低频 | 落盘类错误（`PROFILE_MANIFEST_PARSE_FAILED`、`PROFILE_MANIFEST_READ_FAILED`）未覆盖 |
-| 初始化形态与幂等 | 202、203、204 | 正向 / 边界 / 异常 | 非 web 表面档案（headless/acp/sdk）刻意不被改写，未覆盖 |
-| 隔离面 | 205、207 | 正向 / 边界 | 「完整隔离」被 home 层打破，见 207 |
-| 回退与删除守卫 | 206 | 异常 | 删除不存在的档案与 `PROFILE_REMOVE_FAILED` 未覆盖 |
-| 列表形态 | — | — | 跳过点目录与 `node_modules`、`web` 合成行、默认优先排序（`mod.rs:254`、`:283`）**未覆盖** |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src-tauri/src/service/profile/mod.rs:289`；`src-tauri/src/service/profile/mod.rs:1043`` | `TC-DSK-L3-24-001` | 正向 |
+| ``src-tauri/src/service/profile/mod.rs:879`、`:707`、`:888`` | `TC-DSK-L3-24-007` | 正向 |
+| ``src-tauri/src/service/profile/mod.rs:99`；`src-tauri/src/service/plugin/installed.rs:37`` | `TC-DSK-L3-24-010` | 正向 |
 
 ---
 

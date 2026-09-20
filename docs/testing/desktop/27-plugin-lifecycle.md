@@ -89,19 +89,6 @@
 [预期结果] 1. 记录成功。2. 命令返回成功。3. 日志含 `dsh plugin update` 的实时输出行。4. 版本高于记录值；该插件 `error` 为空（成功后清除历史错误）；服务恢复健康。
 [清理] 还原插件版本；`DELETE /session/<id>`
 
-### [P3] [反向] 验证升级未落地时报 PLUGIN_UPDATE_NO_CHANGE
-
-[Case ID] TC-DSK-L3-27-002
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/plugin/install/single.rs:365`、`:370`、`:376`、`:74`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 某已安装插件的 spec 被 catalog 条目钉死，使 pnpm 以 0 退出但依赖指纹不变
-[测试数据] 命令 `update_dsh_plugin`；日志标记 `PLUGIN_UPDATE_NO_CHANGE`
-[测试步骤] 1. 记录升级前的依赖指纹（lock 中 `specifier @ version`）。2. 调用 `update_dsh_plugin`。3. 读取命令错误返回。4. 重新记录该插件的依赖指纹与 `get_dsh_plugins` 中的 `error`。
-[预期结果] 1. 记录成功。2. 调用被接受。3. 错误以 `PLUGIN_UPDATE_NO_CHANGE` 开头，含当前版本与「the profile pins this dependency」说明。4. 指纹与步骤 1 一致（确实未落地）；`error.action` 为 `update` 且 `error.message` 为同一错误，不报成功。
-[清理] 移除钉死条目后重新升级；`DELETE /session/<id>`
-
 ### [P2] 验证卸载成功且级联删除该插件快照
 
 [Case ID] TC-DSK-L3-27-003
@@ -115,50 +102,9 @@
 [预期结果] 1. `exists` 为真。2. 命令返回成功。3. 无错误返回。4. 列表中不再出现该 id（`is_installed` 复核为假，故未触发离线兜底）；快照 `exists` 为假（级联清理）。
 [清理] 重新安装该插件；`DELETE /session/<id>`
 
-### [P3] [反向] 验证卸载不存在的插件如实报错且不改动其它插件
-
-[Case ID] TC-DSK-L3-27-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/plugin.rs:157`；`src-tauri/src/service/plugin/install/single.rs:116`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 使用一个既不在 profile `dependencies` 也无 `node_modules` 入口的 id
-[测试数据] 命令 `remove_dsh_plugin`（入参 `{id: "dsh-nonexistent-probe"}`）
-[测试步骤] 1. 记录当前插件集合。2. 调用 `remove_dsh_plugin`。3. 读取命令返回。4. 再次读取插件集合。
-[预期结果] 1. 记录成功。2. 调用被接受。3. 返回错误且信息非空（`is_installed` 为假故不走离线兜底，命令行退出码如实上报）。4. 集合与记录完全一致，未误伤其它插件。
-[清理] `DELETE /session/<id>`
-
 ---
 
 ## 3. 禁用、启用与快照还原
-
-### [P2] 验证禁用只移出 bundles 且启用可原地恢复
-
-[Case ID] TC-DSK-L3-27-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/plugin/disable.rs:274`、`:303`、`:299`、`:382`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 存在非内置、已安装、未被禁用的第三方插件
-[测试数据] 命令 `disable_dsh_plugin`、`enable_dsh_plugin`、`get_dsh_plugins`
-[测试步骤] 1. 调用 `disable_dsh_plugin` 并读取 profile 两个文件。2. 读取 `get_dsh_plugins` 中该插件字段。3. 调用 `enable_dsh_plugin`（不传确认标志）。4. 再次读取 profile 两个文件与列表字段。
-[预期结果] 1. 命令成功；该 id 已从 `dsh.profile.bundles` 移除，`dependencies` 中仍保留；`disabled-plugins.json` 有条目且 `reason` 为 `user`。2. `bundled` 为假、`disabled` 为真（包体未删除）。3. 命令成功（无配置覆盖时无需确认）。4. 该 id 回到 `bundles`；禁用清单条目已移除；`bundled` 为真、`disabled` 为假。
-[清理] `DELETE /session/<id>`
-
-### [P3] [反向] 验证配置覆盖禁用时未确认则拒绝启用且不改写配置
-
-[Case ID] TC-DSK-L3-27-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/plugin/disable.rs:370`、`:368`、`:375`、`:376`、`:132`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 某插件在 `cordis.patch.yml` 中有 `disabled: true` 的顶层条目
-[测试数据] 命令 `enable_dsh_plugin`（先后以缺省与 `true` 传 `clearConfigOverride`）
-[测试步骤] 1. 读取该插件 `patchDisabled` 与 `cordis.patch.yml` 内容。2. 调用 `enable_dsh_plugin` 不传确认标志。3. 读取错误返回与 `cordis.patch.yml`。4. 传 `clearConfigOverride: true` 再次调用，并读取该文件与 `bundles`。
-[预期结果] 1. `patchDisabled` 为真。2. 返回 `ENABLE_CONFIG_OVERRIDE`。3. 文件逐字节未变（绝不静默绕过更高优先级的覆盖）。4. 调用成功；仅该插件的禁用条目被摘除，其它配置键原样保留；该 id 已加回 `bundles`。
-[清理] 恢复 `cordis.patch.yml`；`DELETE /session/<id>`
-
----
 
 ### [P2] 验证快照创建、覆盖与删除幂等
 
@@ -173,127 +119,36 @@
 [预期结果] 1. 返回含 `id`/`created`/`size`，`includeConfig` 为假。2. 第二次成功且整体替换，归档仍只有一份。3. `exists` 为真、`created` 不早于首次、`hasSnapshot` 为真。4. 两次删除均返回成功（幂等）；`exists` 为假、`size` 为 0。
 [清理] `DELETE /session/<id>`
 
-### [P2] 验证还原后版本回到快照态并写回清单引用
+## 4. 单元测试层（已从 L3 E2E 裁剪）
 
-[Case ID] TC-DSK-L3-27-008
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/plugin/snapshot.rs:586`、`:650`、`:655`、`:665`、`:680`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 已对某第三方插件创建快照；之后该插件升级到更高版本
-[测试数据] 命令 `restore_plugin`、`get_dsh_plugins`、`get_plugin_backup`
-[测试步骤] 1. 记录快照态版本与快照 `created`。2. 升级该插件并确认版本已变高。3. 调用 `restore_plugin`。4. 读取插件版本、profile 清单引用与快照存在性。
-[预期结果] 1. 记录成功。2. 版本高于快照态。3. 命令成功（内部停服务后走三阶段切换与还原后核验）。4. 版本回到快照态；该 id 在 `dependencies` 与 `dsh.profile.bundles` 中均被引用；快照 `exists` 仍为真（还原不删快照）。
-[清理] 升级回最新；`DELETE /session/<id>`
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
 
-### [P3] [反向] 验证无快照与核心包还原被拒绝
-
-[Case ID] TC-DSK-L3-27-009
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/plugin/snapshot.rs:596`、`:588`、`:590`；`src-tauri/src/service/plugin/recovery/mod.rs:49`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 存在一个无快照的第三方插件；另有一个 `@deepseek-ai/` 前缀的核心包
-[测试数据] 命令 `restore_plugin`、`snapshot_plugin`
-[测试步骤] 1. 对无快照插件调用 `restore_plugin`。2. 读取错误返回。3. 对核心包调用 `snapshot_plugin`。4. 对核心包调用 `restore_plugin` 并读取错误返回。
-[预期结果] 1. 调用被接受。2. 返回 `SNAPSHOT_NOT_FOUND: <id> 无快照`，且该插件目录未被改动。3. 创建成功（快照创建不限范围，属只读操作）。4. 返回 `SNAPSHOT_RESTORE_REFUSED`，核心/官方包不允许还原。
-[清理] 删除为验证创建的快照；`DELETE /session/<id>`
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-27-002` | 验证升级未落地时报 PLUGIN_UPDATE_NO_CHANGE | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-004` | 验证卸载不存在的插件如实报错且不改动其它插件 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-005` | 验证禁用只移出 bundles 且启用可原地恢复 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-006` | 验证配置覆盖禁用时未确认则拒绝启用且不改写配置 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-008` | 验证还原后版本回到快照态并写回清单引用 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-009` | 验证无快照与核心包还原被拒绝 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-011` | 验证恢复定位的唯一归属与恢复卸载 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-012` | 验证未安装或被卸载的内置插件在启动前被强制重装 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-013` | 验证路径失效的内置插件按当前捆绑目录重建 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-27-014` | 验证插件文件变化经 2 秒防抖后推送列表 | 纯逻辑断言，下沉单元测试层 |
 
 ---
 
-## 4. 异常注册表、恢复卸载与内置插件自愈
+## 5. 追踪矩阵
 
-### [P3] 验证运行期异常上报后持久化并推送修复界面
-
-[Case ID] TC-DSK-L3-27-010
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/plugin.rs:166`、`:172`、`:178`、`:186`；`src-tauri/src/service/plugin/errors.rs:31`、`:53`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 应用处于 `ready`；某已安装插件可被构造运行期异常
-[测试数据] 命令 `report_plugin_error`（入参 `{id, error, action}`）；事件 `plugin-recovery-required`、`dsh-plugins-updated`
-[测试步骤] 1. 调用 `report_plugin_error`。2. 读取桌面数据目录下的 `plugin-errors.json`。3. 读取两个事件。4. 重启应用后再次读取 `get_dsh_plugins` 中该插件的 `error`。
-[预期结果] 1. 命令返回成功。2. 该 id 有条目，`action` 等于传入值（未传时缺省为 `runtime`），`at` 为 unix 秒级时间戳字符串。3. 两个事件均到达；`plugin-recovery-required` 载荷的 `plugins` 含该 id、`reason` 为 `runtime`、`rawError` 等于上报原文。4. 重启后记录仍在且列表 `error` 非空（持久化于桌面数据目录，不随重启丢失）。
-[清理] 调用 `recover_plugin` 清除该异常；`DELETE /session/<id>`
-
-### [P2] 验证恢复定位的唯一归属与恢复卸载
-
-[Case ID] TC-DSK-L3-27-011
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/plugin.rs:195`、`:207`；`src-tauri/src/service/plugin/recovery/mod.rs:118`、`:124`、`:161`、`:163`、`:176`、`:185`、`:186`；`src-tauri/src/service/plugin/recovery/ownership.rs:217`、`:244`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 存在一个可卸的第三方插件（已安装、在 `bundles` 中、且在 `cordis.patch.yml` 中有条目）；profile 清单存在
-[测试数据] 命令 `detect_plugin_recovery`（入参 `{logs}`）、`recover_plugin`（先后取核心包 id 与第三方 id）
-[测试步骤] 1. 构造一组启动日志，错误特征唯一归属到该第三方插件。2. 调用 `detect_plugin_recovery` 并读取 `PluginRecoveryInfo`。3. 构造归属不唯一（同一错误可被两个根插件解释）的日志，再次调用。4. 对核心包 id 调用 `recover_plugin`。5. 对第三方插件 id 调用 `recover_plugin`。6. 读取 profile 清单、`node_modules` 入口、`cordis.patch.yml` 与 `pnpm-lock.yaml`。
-[预期结果] 1. 日志构造完成。2. `plugins` 恰含该根插件 id（唯一归属才返回）；`reason` 为对应判别键；`rawError` 非空。3. `plugins` 为空（证据不唯一时绝不瞎猜，也不误删）。4. 返回 `PLUGIN_RECOVERY_REFUSED: refusing to remove core/official package <id>`，核心包目录未被删除。5. 调用成功（离线精准，不经网络也不走 `dsh plugin remove`）。6. 该 id 已从 `dependencies` 与 `bundles` 移除；`node_modules/<id>` 入口不存在；该插件在 `cordis.patch.yml` 中的条目被剥离而其它配置保留；`pnpm-lock.yaml` 已被删除；该插件错误记录已清除。
-[清理] 重新安装该插件；`DELETE /session/<id>`
-
-### [P2] 验证未安装或被卸载的内置插件在启动前被强制重装
-
-[Case ID] TC-DSK-L3-27-012
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/plugin/internal/mod.rs:241`、`:628`、`:632`、`:633`、`:505`、`:491`；`src-tauri/src/service/workflow/launch.rs:474`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 可写档案；某内置插件（`internal == true`）先被用户从面板卸载，其捆绑目录仍存在
-[测试数据] 命令 `remove_dsh_plugin`、`ensure_internal_plugins`、`get_dsh_plugins`；事件 `internal-plugins-phase`；日志标记 `INTERNAL_PLUGIN_NEEDS_REINSTALL`
-[测试步骤] 1. 卸载该内置插件并确认其已离开列表与 `bundles`。2. 重启应用并等待启动完成。3. 读取启动日志与自愈阶段事件序列。4. 读取 `get_dsh_plugins` 中该条目的 `internal`、`bundled` 与 `node_modules` 入口状态。
-[预期结果] 1. 卸载成功。2. 启动完成且服务健康。3. 日志含 `INTERNAL_PLUGIN_NEEDS_REINSTALL`（自愈不因用户卸载而放弃）并标出 `dep_ok=false` 或 `link_ok=false`；事件序列为 `loading`/`waiting` → `progress`/`checking` → `progress`/`installing` → `done`/`done`，其间含 `progress`/`heartbeat` 且间隔约 5 秒。4. 该插件回到列表且 `internal` 与 `bundled` 均为真，依赖声明指向当前捆绑目录、入口真实存在（内置插件不可被永久移除）。
-[清理] `DELETE /session/<id>`
-
-### [P4] 验证路径失效的内置插件按当前捆绑目录重建
-
-[Case ID] TC-DSK-L3-27-013
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/plugin/internal/mod.rs:624`、`:630`、`:707`、`:709`；`src-tauri/src/service/plugin/preset.rs:315`、`:317`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 某内置插件已安装，但 profile 中其 `link:`/`file:` 声明指向的旧捆绑目录已不存在（模拟应用升级移动资源目录）
-[测试数据] 命令 `ensure_internal_plugins`；日志标记 `INTERNAL_PLUGIN_ENTRY_HEALTHY`
-[测试步骤] 1. 读取 profile 中该插件的依赖声明值。2. 读取 `bundled_plugin_dir` 解析出的当前捆绑目录与预期 spec。3. 触发 `ensure_internal_plugins`。4. 读取自愈后的声明值与 `node_modules` 入口状态。
-[预期结果] 1. 声明值指向已不存在的旧路径。2. 解析结果与声明值不匹配（`dep_matches_spec` 为假），而入口链接本身健康（`link_ok` 为真）。3. 调用成功。4. 声明值改写为当前捆绑目录的 spec；入口被保留而非删除重建（日志含 `INTERNAL_PLUGIN_ENTRY_HEALTHY`，避免重解析点创建后的随机回读失败），入口可解析。
-[清理] `DELETE /session/<id>`
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src-tauri/src/bridge/plugin.rs:148`；`src-tauri/src/service/plugin/install/single.rs:49`、`:353`` | `TC-DSK-L3-27-001` | 正向 |
+| ``src-tauri/src/bridge/plugin.rs:157`；`src-tauri/src/service/plugin/install/single.rs:116`、`:143`` | `TC-DSK-L3-27-003` | 正向 |
+| ``src-tauri/src/service/plugin/snapshot.rs:358`、`:376`、`:440`、`:476`、`:481`` | `TC-DSK-L3-27-007` | 正向 |
 
 ---
 
-## 5. 文件监控
-
-### [P3] [反向] 验证插件文件变化经 2 秒防抖后推送列表
-
-[Case ID] TC-DSK-L3-27-014
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/plugin/watch.rs:30`、`:320`、`:333`、`:338`、`:345`、`:26`、`:357`；`src-tauri/src/service/scheduler/mod.rs:16`、`:24`
-[自动化] 待接线（`test/e2e/desktop/27-plugin-lifecycle.e2e.ts`）
-[前置条件] 监控轮询运行中；可连续多次改写 profile 插件文件（模拟 pnpm 连续写盘）
-[测试数据] 事件 `dsh-plugins-updated`；改写目标：profile `package.json`、插件 `package.json`、`cordis.patch.yml`、`disabled-plugins.json`
-[测试步骤] 1. 订阅 `dsh-plugins-updated` 并清空历史。2. 在 2 秒窗口内连续多次改写 profile `package.json` 的依赖版本。3. 读取事件次数、时间戳与载荷。4. 仅改写 `disabled-plugins.json`，再读取事件次数与内容。
-[预期结果] 1. 订阅成功。2. 改写被接受。3. 窗口内的连续变化合并为一次推送（2 秒防抖），载荷为完整插件列表且版本为最后一次改写值；指纹与上次已推送值一致时不再重复推送。4. 仅改写禁用清单也使指纹变化并触发一次推送（该文件被纳入指纹），列表中的 `disabled` 字段随之变化。
-[清理] 恢复被改写文件；`DELETE /session/<id>`
-
----
-
-## 6. 追踪矩阵
-
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| 升级 | 234、235 | 正向 / 异常 | 升级后入口补构建路径（`artifact.rs:219`、`:253`）与 `PLUGIN_ENTRY_MISSING`（`:321`）、`PNPM_NOT_FOUND`（`:246`）**未覆盖** |
-| 卸载 | 236、237 | 正向 / 异常 | 受保护包「命令成功但仍在清单」的告警分支（`single.rs:135`）**未覆盖** |
-| 禁用 / 启用 | 238、239 | 正向 / 异常 | `ENABLE_NOT_INSTALLED`（`disable.rs:355`）与 `ENABLE_NOT_DISABLED`（`:363`）**未覆盖** |
-| 快照 | 240、242 | 正向 / 异常 | 归档完整性校验失败（`snapshot.rs:320`）需构造损坏归档，**未覆盖** |
-| 还原 | 241、242 | 正向 / 异常 | 三阶段切换的中途失败回滚（`snapshot.rs:652`、`:662`、`:671`）**未覆盖** |
-| 异常注册表 | 243 | 异常 | 已恢复 install 错误的过滤规则（`watch.rs:233`）与写入错误码 `PLUGIN_ERRORS_*`（`errors.rs:45`-`:49`）**未覆盖** |
-| 恢复定位与卸载 | 244 | 正向 | 「唯一归属才返回、否则为空」与拒绝核心包已覆盖；8 类原因（`reason`）的判别与呈现归 `10-plugin-recovery.md`；`PLUGIN_RECOVERY_NO_MANIFEST`（`recovery/mod.rs:169`）**未覆盖** |
-| 内置插件自愈 | 245、246 | 正向 / 边界 | 孤儿内置插件卸载（`internal/mod.rs:600`）、`INTERNAL_PLUGIN_SOURCE_MISSING` 阻断（`:620`）与离线自建链接兜底（`:732`、`:740`）**未覆盖** |
-| 自愈阶段事件 | 245 | 正向 | 600 秒绝对超时（`:469`）与取消分支（`:481`、`:487`）**未覆盖** |
-| 文件监控 | 247 | 异常 | 指纹为 `None`（profile 被移除）时推送空列表（`watch.rs:350`）与 `force_emit` 的立即推送（`:258`）**未覆盖** |
-| 并发收敛 | — | — | 共享 flight 串行化（`internal/mod.rs:302`、`:344`）**未覆盖**，依赖子进程计数能力 |
-| 预装插件完整性自检 | — | — | `verify.rs:71` 的 `pnpm install` 修复与 `PNPM_INSTALL_FAILED`（`:157`）、`PRESET_PLUGIN_STILL_MISSING`（`:121`）归 `08-preinstall-onboarding.md` |
-
----
-
-## 7. 缺口与假设
+## 6. 缺口与假设
 
 - **G-D27-1**：`PLUGIN_UPDATE_NO_CHANGE`（`single.rs:370`）的复现需要一个把依赖钉死的 profile（典型是 `pnpm-workspace.yaml` 的 `catalog:` 条目）。测试档案默认不写 catalog，接线时须先构造该前置，否则该用例不可执行。
 - **G-D27-2**：升级、卸载、还原与恢复卸载都会停掉服务（`single.rs:278`；`snapshot.rs:604`），彼此强耦合，必须一条用例一个批次推进，且每条自带「恢复插件状态 + 等待服务健康」的清理。

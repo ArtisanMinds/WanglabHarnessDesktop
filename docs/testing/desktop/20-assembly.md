@@ -102,115 +102,7 @@
 
 ---
 
-## 3. 复用、跳过与自愈
-
-### [P2] 验证四项就绪时 runtime_ready 为真且不触发安装
-
-[Case ID] TC-DSK-L3-20-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/lifecycle.rs:424`、`:222`；`src/store/modules/harness/store.ts:522`
-[自动化] 待接线（同上）
-[前置条件] 四项依赖均已就绪；`installed=true`
-[测试数据] 无
-[测试步骤] 1. 调用 `runtime_ready`。2. 记录 `install-progress` 事件数量。3. 调用 `install_dependencies` 并读取返回值。
-[预期结果] 1. `runtime_ready` 返回真。2. 事件数量为 0（未发起任何下载）。3. 返回 `Ok(false)`，日志为 `Dependencies already installed and up to date, skipping installation`。
-[清理] `DELETE /session/<id>`
-
-### [P2] 验证运行时文件在盘但记录显示未安装时自愈补记
-
-[Case ID] TC-DSK-L3-20-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/lifecycle.rs:103`、`:182`
-[自动化] 待接线（同上）
-[前置条件] 四项依赖文件均在盘，但 store `installed=false`；**断网**（验证自愈不依赖网络）
-[测试数据] 断开网络或指向不可达源
-[测试步骤] 1. 调用 `install_dependencies`。2. 读取返回值与 store 的 `installed`。3. 读取 `dsh_pkg_commit` / `dsh_pkg_tag` 是否被修正。
-[预期结果] 1. 返回 `Ok(false)`（未发生安装）。2. `installed` 被补记为真。3. 若记录滞后于磁盘产物，`dsh_pkg_commit` 与 `dsh_pkg_tag` 被修正为磁盘实际版本，且**不重新下载**。
-[清理] 恢复网络；`DELETE /session/<id>`
-
-### [P2] 验证本机兼容 Node 被复用而不下载内置运行时
-
-[Case ID] TC-DSK-L3-20-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/download/installable.rs:44`；`src-tauri/src/config/runtime.rs:112`、`:524`
-[自动化] 待接线（同上）
-[前置条件] PATH 中存在兼容版本 Node（major≥24，或 major=22 且 minor≥19）；无捆绑运行时；AIB 未强制捆绑
-[测试数据] 本地 Node 版本如 `v22.22.0` 或 `v24.x`
-[测试步骤] 1. 调用 `install_dependencies`。2. 读取事件中是否出现 Node 任务的 download 阶段。3. 读取 `get_runtime_info().node_version`。
-[预期结果] 1. 安装成功。2. Node 任务被 `skip_phases(2)` 跳过，不出现其下载阶段。3. `node_version` 为本机复用版本，且日志含 `Detected compatible local Node.js`。
-[清理] `DELETE /session/<id>`
-
-### [P2] 验证用户已装 pnpm 时跳过捆绑 pnpm
-
-[Case ID] TC-DSK-L3-20-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/download/installable.rs:101`；`src-tauri/src/service/cli/path/pnpm.rs:17`、`:89`
-[自动化] 待接线（同上）
-[前置条件] PATH 中存在用户 pnpm；无捆绑 pnpm
-[测试数据] 用户 pnpm 路径（非应用自身 bin 目录）
-[测试步骤] 1. 调用 `install_dependencies`。2. 读取 Pnpm 任务是否被跳过。3. 读取启动时注入的 `DSH_PNPM` 值。
-[预期结果] 1. 安装成功。2. Pnpm 任务被跳过，日志含 `Detected user-installed pnpm, skipping bundled pnpm`。3. `DSH_PNPM` 指向用户 pnpm 的绝对路径，而非应用自身 shim。
-[清理] `DELETE /session/<id>`
-
-### [P3] [反向] 验证本机 Node 为 v23 时不兼容并回退内置运行时
-
-[Case ID] TC-DSK-L3-20-007
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/config/runtime.rs:524`、`:243`
-[自动化] 待接线（同上）
-[前置条件] PATH 中的 Node 为 major 23（不受支持）；无捆绑运行时
-[测试数据] 本地 Node `v23.x`
-[测试步骤] 1. 调用 `install_dependencies`。2. 读取 Node 二进制解析结果。3. 读取 `get_runtime_info().node_version`。
-[预期结果] 1. 本地 v23 不被采用。2. 解析回退到捆绑运行时（并把捆绑 Node 前插 PATH）。3. `node_version` 为捆绑版本 `v22.22.0` 而非 v23。
-[清理] `DELETE /session/<id>`
-
-### [P3] [反向] 验证安装过程中重复触发安装被抑制
-
-[Case ID] TC-DSK-L3-20-008
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/lifecycle.rs:19`、`:79`
-[自动化] 待接线（同上）
-[前置条件] 触发一次耗时装配
-[测试数据] 在装配未完成时并发再调用 `install_dependencies`
-[测试步骤] 1. 触发首次安装。2. 在安装进行中并发调用 `install_dependencies`。3. 读取第二次的返回值与日志。
-[预期结果] 1. 首次安装进行中。2. 第二次调用立即返回。3. 返回 `Ok(false)`，日志含 `Installation process already running, skipping`；`install-progress` 事件序列不出现交叠重放。
-[清理] 等待首次装配收敛；`DELETE /session/<id>`
-
----
-
-## 4. 下载失败与完整性
-
-### [P3] [反向] 验证官方源失败时切换镜像兜底成功
-
-[Case ID] TC-DSK-L3-20-009
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/workflow/install.rs:155`；`src-tauri/src/service/download/core.rs:35`
-[自动化] 待接线（同上）
-[前置条件] 构造 dsh 官方源不可达、`ghfast.top` 可达
-[测试数据] 屏蔽 `github.com` 或指向不可达的 primary
-[测试步骤] 1. 触发装配。2. 读取切换源时的进度事件 `detail`。3. 等待 Dsh 任务完成。
-[预期结果] 1. 装配被触发。2. 出现 `主下载源不可用，已切换镜像源重试（{host}）` 的 detail 与 `Primary download source failed` 告警。3. Dsh 任务最终成功（镜像兜底生效）；**Node/pnpm/Git 无镜像回退**，其失败直接报错。
-[清理] 恢复网络；`DELETE /session/<id>`
-
-### [P3] [反向] 验证 SHA-256 摘要缺失时安全中止
-
-[Case ID] TC-DSK-L3-20-010
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/workflow/install.rs:188`；`src-tauri/src/service/download/core.rs:304`
-[自动化] 待接线（同上）
-[前置条件] 构造 release 元数据中缺少可信摘要
-[测试数据] 缺失 `dsh_latest.digest`
-[测试步骤] 1. 触发装配。2. 读取返回错误。3. 读取磁盘是否产生新的 dsh 目录。
-[预期结果] 1. 装配被触发。2. 报错 `DSH_INTEGRITY_UNAVAILABLE: trusted release digest is required`（Node 侧对应 `INTEGRITY_METADATA_MISSING`）。3. 未落盘新版本，已装版本保持完好；**不降级跳过校验**。
-[清理] 恢复元数据源；`DELETE /session/<id>`
+## 3. 下载失败与完整性
 
 ### [P3] [反向] 验证摘要不匹配时安装失败且旧版本完好
 
@@ -225,69 +117,42 @@
 [预期结果] 1. 记录成功。2. 报错 `INTEGRITY_CHECK_FAILED: SHA-256 mismatch, expected {e}, got {a}`。3. 已装版本目录**未被替换**（提交阶段未执行）；本次可能残留 `.{leaf}.installing-{pid}` 暂存目录，且该目录在下次安装开头被清理。
 [清理] 清理可能残留的暂存目录；`DELETE /session/<id>`
 
-### [P3] [反向] 验证下载中断自动重试并给出可判定错误
+## 4. 单元测试层（已从 L3 E2E 裁剪）
 
-[Case ID] TC-DSK-L3-20-012
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/download/core.rs:100`、`:162`
-[自动化] 待接线（同上）
-[前置条件] 构造下载过程中反复断开连接
-[测试数据] 持续中断传输，使 5 次重试全部失败
-[测试步骤] 1. 触发装配。2. 等待重试耗尽。3. 读取错误信息与已下载字节提示。
-[预期结果] 1. 装配被触发。2. 自动重试 5 次（退避 2/4/8/8s）。3. 报错 `DOWNLOAD_INTERRUPTED: 下载中断（网络传输被重置），已自动重试 5 次仍失败，已下载约 X MB，请检查网络后重试`，且状态复位为非运行中。
-[清理] 恢复网络；`DELETE /session/<id>`
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
 
-### [P4] [反向] 验证非白名单下载源被拒绝
-
-[Case ID] TC-DSK-L3-20-013
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/download/core.rs:251`、`:39`
-[自动化] 待接线（同上）
-[前置条件] 构造非 https 或不在主机白名单内的下载 URL
-[测试数据] 如 `http://example.com/x.zip`、`https://evil.example/x.zip`、空 URL
-[测试步骤] 1. 以非白名单 URL 触发下载。2. 读取错误。
-[预期结果] 1. 下载被拒绝。2. 分别报 `DOWNLOAD_URL_INVALID` / `DOWNLOAD_SOURCE_UNTRUSTED: {url}` / `DOWNLOAD_URL_EMPTY`，且不发起实际网络请求。
-[清理] `DELETE /session/<id>`
-
-### [P4] 验证 Windows 追加 Git 任务且非 Windows 不出现
-
-[Case ID] TC-DSK-L3-20-014
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/workflow/install.rs:93`、`:95`；`src-tauri/src/service/download/installable.rs:111`、`:133`
-[自动化] 待接线（同上）
-[前置条件] 分别在 Windows 与非 Windows 上执行；Windows 侧允许构造「系统 Git 缺失」以观察捆绑 MinGit 安装
-[测试数据] Windows：8 阶段、任务 `Git 环境`；非 Windows：6 阶段、无 Git 任务
-[测试步骤] 1. 在 Windows 上读取任务列表与阶段总数。2. 在非 Windows 上读取任务列表与阶段总数。3. Windows 上构造系统 Git 存在时读取 Git 任务是否被跳过。
-[预期结果] 1. Windows 任务列表含 4 个任务（8 阶段），出现 `Git 环境`。2. 非 Windows 仅 3 个任务（6 阶段），`git_runtime_ready` 恒真且不出现 Git 任务。3. 系统 Git 命中时 Git 任务被跳过（不下载 MinGit）；缺失时下载对应架构的 MinGit，不支持的架构报 `MINGIT_PLATFORM_UNSUPPORTED: windows {arch}`。
-[清理] `DELETE /session/<id>`
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-20-003` | 验证四项就绪时 runtime_ready 为真且不触发安装 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-004` | 验证运行时文件在盘但记录显示未安装时自愈补记 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-005` | 验证本机兼容 Node 被复用而不下载内置运行时 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-006` | 验证用户已装 pnpm 时跳过捆绑 pnpm | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-007` | 验证本机 Node 为 v23 时不兼容并回退内置运行时 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-008` | 验证安装过程中重复触发安装被抑制 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-009` | 验证官方源失败时切换镜像兜底成功 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-010` | 验证 SHA-256 摘要缺失时安全中止 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-012` | 验证下载中断自动重试并给出可判定错误 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-013` | 验证非白名单下载源被拒绝 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-20-014` | 验证 Windows 追加 Git 任务且非 Windows 不出现 | 纯逻辑断言，下沉单元测试层 |
 
 ---
 
 ## 5. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| `install_dependencies` 编排与自愈 | 149、151、152、156 | 正向 / 异常 | 自愈的「记录滞后」分支（`HealUpToDate`）未单独覆盖 |
-| 任务顺序与进度阶段 | 150、162 | 正向 / 边界 | TGZ 的 `progress = -1.0` 分支未覆盖（需 TGZ 源） |
-| 本机 Node / pnpm 复用 | 153、154、155 | 正向 / 异常 | ABI 不匹配强制捆绑运行时的分支**未覆盖**（需构造原生模块 ABI 冲突） |
-| 镜像兜底 | 157 | 异常 | `"{last}（已尝试 N 个下载源）"` 的全败文案未单独断言 |
-| 摘要校验 | 158、159 | 异常 | Node 的 `SHASUMS256.txt` 拉取失败分支未单独覆盖 |
-| 传输重试 | 160 | 异常 | Range 断点续传的「续传自 N 字节」未做字节级断言 |
-| URL 白名单 | 161 | 边界 | 白名单内各主机的逐一放行未覆盖 |
-| Git / MinGit | 162 | 边界 | 非 Windows 的 `INSTALL_TASK_INVALID` 分支实际不可达，未覆盖 |
-| 提交阶段失败回滚 | — | — | `INSTALL_RECOVERY_FAILED` / `INSTALL_BACKUP_FAILED` / `INSTALL_COMMIT_FAILED` 三个分支**未覆盖**（需制造 rename 失败） |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src-tauri/src/bridge/lifecycle.rs:86`、`:234`；`src-tauri/src/service/workflow/install.rs:53`` | `TC-DSK-L3-20-001` | 正向 |
+| ``src-tauri/src/service/workflow/install.rs:53`、`:98`、`:142`、`:207`；`src-tauri/src/service/download/progress.rs:105`` | `TC-DSK-L3-20-002` | 正向 |
+| ``src-tauri/src/service/download/core.rs:277`、`:412`、`:518`` | `TC-DSK-L3-20-011` | 异常 |
 
 ---
 
 ## 6. 缺口与假设
 
-- **G-D20-1**：本文件是整个套件中**最依赖真实网络**的部分。按 `00-overview.md` G7，离线环境应整体跳过 `TC-DSK-L3-20-008`–`TC-DSK-L3-20-011`，而非判为失败。
-- **G-D20-2**：`TC-DSK-L3-19-007`–`TC-DSK-L3-20-003` 需要「全新装配态」。`setting.installed=false` 的唯一写入点是启动时 node/dsh 二进制缺失（`launch.rs:170`），因此接线时应通过隔离数据目录 + 删除 `dependencies/dsh` 来构造，**不得改动开发者本机真实 `~/.dsh.dev`**（按 `00-overview.md` §5.3，`~/.dsh.dev` 在测试中一律指 `$E2E_HOME/home/.dsh.dev`）。
+- **G-D20-1**：本文件是整个套件中**最依赖真实网络**的部分。按 `00-overview.md` G7，离线环境应整体跳过摘要校验相关用例（`TC-DSK-L3-20-011`），而非判为失败。
+- **G-D20-2**：`TC-DSK-L3-20-001` 需要「全新装配态」。`setting.installed=false` 的唯一写入点是启动时 node/dsh 二进制缺失（`launch.rs:170`），因此接线时应通过隔离数据目录 + 删除 `dependencies/dsh` 来构造，**不得改动开发者本机真实 `~/.dsh.dev`**（按 `00-overview.md` §5.3，`~/.dsh.dev` 在测试中一律指 `$E2E_HOME/home/.dsh.dev`）。
 - **G-D20-3**：首装进度为**等权阶段**（Windows 8 阶段 / 非 Windows 6 阶段），归档旧文档中的「下载 0-50、解压 50-100」只适用于核心槽位下载（`service/core/version.rs:517`）。`TC-DSK-L3-20-001` 明确断言这一点，不得按旧文档改写。
 - **G-D20-4**：前端对 `percentage` 做单调过滤（`store.ts:335`），因此断言必须取「非递减」而非「严格递增」；`payload.type` 是字段名（源为 `r#type`），旧文档中的 `phase` 命名不存在。
 - **G-D20-5**：`install-progress` 有 50ms 节流（`progress.rs:55`），断言事件条数时不可依赖固定数量，只可依赖顺序与取值集合。
 - **G-D20-6**：三个提交阶段失败分支（`INSTALL_RECOVERY_FAILED` / `INSTALL_BACKUP_FAILED` / `INSTALL_COMMIT_FAILED`）需要制造 rename 失败（如句柄独占），构造成本高，登记为已知盲区。
-- **假设**：默认在 Windows 上执行；`TC-DSK-L3-20-013` 的平台分支需两平台各跑一次。Node/pnpm 走地域二选一（非回退），因此 `TC-DSK-L3-20-008` 的镜像兜底断言只对 Dsh 核心任务成立。
+- **假设**：默认在 Windows 上执行；Node/pnpm 走地域二选一（非回退），镜像兜底断言只对 Dsh 核心任务成立。

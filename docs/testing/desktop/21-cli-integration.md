@@ -54,91 +54,9 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 [预期结果] 1. `enabled=false`、`shim_exists=false`、`path_registered=false`。2. 开关被接受且无错误提示。3. `enabled=true`、`shim_exists=true`、`bin_dir` 与 `shim_path` 为非空绝对路径，且 `shim_path` 指向的文件确实存在。
 [清理] 关闭开关并复原 PATH；`DELETE /session/<id>`
 
-### [P2] 验证重复启用保持幂等
-
-[Case ID] TC-DSK-L3-21-002
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/cli/core.rs:48`；`src-tauri/src/service/cli/path/registry.rs:73`
-[自动化] 待接线（同上）
-[前置条件] CLI link 已启用
-[测试数据] 连续执行 2 次 `ensure`
-[测试步骤] 1. 记录 shim 内容与 PATH 文本。2. 再次执行启用。3. 比对 shim 内容与 PATH 文本。
-[预期结果] 1. 记录成功。2. 第二次执行成功返回。3. shim 内容一致；用户 PATH 中 bin 目录**仅出现一次**（不重复追加）。
-[清理] 关闭开关；`DELETE /session/<id>`
-
-### [P2] 验证关闭命令行集成后 shim 与 PATH 被清理
-
-[Case ID] TC-DSK-L3-21-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/cli/core.rs:83`；`src-tauri/src/service/cli/path/mod.rs:137`
-[自动化] 待接线（同上）
-[前置条件] CLI link 已启用
-[测试数据] 无
-[测试步骤] 1. 关闭开关并等待返回。2. 读取 `get_cli_link_status`。3. 读取 shim 目录与用户 PATH。
-[预期结果] 1. 关闭被接受。2. `enabled=false`、`shim_exists=false`、`path_registered=false`。3. shim 文件被移除；bin 目录从用户 PATH 中移除。
-[清理] `DELETE /session/<id>`
-
 ---
 
-## 3. shim 内容与解析优先级
-
-### [P2] 验证 Windows shim 的路径转义与行尾符合约定
-
-[Case ID] TC-DSK-L3-21-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/cli/shim/mod.rs:40`、`:46`；`build.rs:24`、`:110`
-[自动化] 待接线（同上）
-[前置条件] Windows；CLI link 已启用；安装路径或用户名包含需要转义的字符
-[测试数据] 路径含 `%`（如用户名或目录含百分号）；先构造该场景
-[测试步骤] 1. 读取 `dsh.cmd` 内容。2. 读取 `dsh.ps1` 内容。3. 检查行尾字节。
-[预期结果] 1. `dsh.cmd` 中的 `%` 被写成 `%%`。2. `dsh.ps1` 使用单引号包裹并把 `'` 写成 `''`（**不是** `'\''`）。3. 所有 `.cmd` 文件行尾为 CRLF（无孤立 LF）。
-[清理] 关闭开关；`DELETE /session/<id>`
-
-### [P2] 验证 Unix shim 的单引号转义
-
-[Case ID] TC-DSK-L3-21-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/cli/shim/mod.rs:52`；`build.rs:140`、`:349`
-[自动化] 待接线（同上）
-[前置条件] macOS 或 Linux；CLI link 已启用；主目录路径含单引号
-[测试数据] `$HOME` 含 `'` 的场景
-[测试步骤] 1. 读取 `dsh` 与 `pnpm` sh shim 内容。2. 检查路径参数中的单引号处理。
-[预期结果] 1. 读取成功。2. 路径参数中的 `'` 被写成 `'\''`，使 shim 在含单引号的主目录下仍可正确执行。
-[清理] 关闭开关；`DELETE /session/<id>`
-
-### [P3] 验证 shim 内 Node 解析优先级
-
-[Case ID] TC-DSK-L3-21-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/cli/shim/templates.rs:16`、`:57`、`:97`
-[自动化] 待接线（同上）
-[前置条件] CLI link 已启用；已安装捆绑运行时
-[测试数据] 依次构造：① 设置 `DSH_NODE` 指向一个存在的 node；② `DSH_NODE` 不存在但 PATH 中有兼容 Node；③ 两者都不存在
-[测试步骤] 1. 在情形 ① 下用新终端执行 `dsh --version`。2. 在情形 ② 下执行。3. 在情形 ③ 下执行。
-[预期结果] 1. 使用 `DSH_NODE` 指定的 node。2. 使用 PATH 中的兼容 Node。3. 回退到捆绑 `runtime/node.exe`（并把其目录前插 PATH）；若捆绑也缺失则打印 `Node.js runtime not found.` 并以 exit 1 结束。
-[清理] 清理环境变量；`DELETE /session/<id>`
-
-### [P3] 验证 shim 内 pnpm 解析优先级且拒绝自身 shim
-
-[Case ID] TC-DSK-L3-21-007
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/cli/shim/build.rs:179`、`:267`、`:316`；`src-tauri/src/service/cli/path/pnpm.rs:96`、`:161`
-[自动化] 待接线（同上）
-[前置条件] CLI link 已启用
-[测试数据] 依次构造：① `DSH_PREFER_BUNDLED_PNPM=1`；② `DSH_PNPM` 指向用户 pnpm；③ 仅 PATH 中有用户 pnpm；④ 全无
-[测试步骤] 1. 在情形 ① 下执行 `pnpm --version`。2. 在情形 ② 下执行。3. 在情形 ③ 下执行。4. 在情形 ④ 下执行。
-[预期结果] 1. 使用捆绑 pnpm。2. 使用 `DSH_PNPM` 指定的 pnpm。3. 使用 PATH 中的用户 pnpm，且**跳过应用自身 bin 目录**。4. 回退到捆绑 `pnpm.cjs`；若仍缺失则打印 `[pnpm] pnpm not found.` 并以 exit 1 结束。
-[清理] 清理环境变量；`DELETE /session/<id>`
-
----
-
-## 4. 用户命令保护与平台行为
+## 3. 用户命令保护与平台行为
 
 ### [P3] [反向] 验证用户自装的同名 dsh 不被覆盖
 
@@ -166,60 +84,31 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 [预期结果] 1. 启用成功。2. 悬空链接被删除并替换为常规 shim 文件（不再是符号链接）。3. `shim_exists=true`。
 [清理] 移除 shim；关闭开关；`DELETE /session/<id>`
 
-### [P3] [反向] 验证 debug 构建不注册 PATH 且不写 dsh shim
+## 4. 单元测试层（已从 L3 E2E 裁剪）
 
-[Case ID] TC-DSK-L3-21-010
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/cli/core.rs:58`、`:86`；`src-tauri/src/service/cli/shim/write.rs:132`
-[自动化] 待接线（同上）
-[前置条件] 运行的是 **Debug** 构建
-[测试数据] 观察点：用户 PATH 文本、shim 目录内容
-[测试步骤] 1. 启用 CLI link。2. 读取用户 PATH 与 shim 目录。3. 关闭 CLI link 并再次读取。
-[预期结果] 1. 启用成功。2. 用户 PATH **未被修改**（debug 不注册）；shim 目录中**没有 dsh shim**，但存在 pnpm shim。3. 关闭时同样不修改 PATH（不注销）。
-[清理] `DELETE /session/<id>`
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
 
-### [P4] 验证 Windows PATH 写回保留原注册表类型
-
-[Case ID] TC-DSK-L3-21-011
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/cli/path/registry.rs:10`、`:73`、`:131`
-[自动化] 待接线（同上）
-[前置条件] Windows；`HKCU\Environment\Path` 为 `REG_EXPAND_SZ`
-[测试数据] 记录写前值类型与文本
-[测试步骤] 1. 记录 `Path` 的类型与原始文本。2. 启用 CLI link。3. 读取 `Path` 的类型与文本。
-[预期结果] 1. 记录成功（类型为 `REG_EXPAND_SZ`）。2. 启用成功。3. 类型仍为 `REG_EXPAND_SZ`；原始条目全部保留，仅追加 bin 目录；已广播 `WM_SETTINGCHANGE`。
-[清理] 还原 `Path`；`DELETE /session/<id>`
-
-### [P4] [反向] 验证读取 PATH 失败时中止而非视作空 PATH
-
-[Case ID] TC-DSK-L3-21-012
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/cli/path/registry.rs:91`；`src-tauri/src/service/cli/path/mod.rs:155`
-[自动化] 待接线（同上）
-[前置条件] Windows；构造注册表读取失败（如权限不足或键不存在）
-[测试数据] 记录 `HKCU\Environment\Path` 原值
-[测试步骤] 1. 使读取失败。2. 触发 CLI link 启用。3. 读取注册表中的 `Path`。
-[预期结果] 1. 读取失败条件就绪。2. 启用返回错误，错误串为 `PATH_REG_READ_FAILED: failed to read user PATH` 或 `REG_OPEN_FAILED:`。3. `Path` **未被覆盖为空**（原有条目完整保留）。
-[清理] 还原注册表状态；`DELETE /session/<id>`
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-21-002` | 验证重复启用保持幂等 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-003` | 验证关闭命令行集成后 shim 与 PATH 被清理 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-004` | 验证 Windows shim 的路径转义与行尾符合约定 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-005` | 验证 Unix shim 的单引号转义 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-006` | 验证 shim 内 Node 解析优先级 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-007` | 验证 shim 内 pnpm 解析优先级且拒绝自身 shim | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-010` | 验证 debug 构建不注册 PATH 且不写 dsh shim | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-011` | 验证 Windows PATH 写回保留原注册表类型 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-21-012` | 验证读取 PATH 失败时中止而非视作空 PATH | 纯逻辑断言，下沉单元测试层 |
 
 ---
 
 ## 5. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| `ensure` 状态与幂等 | 163、164、165 | 正向 | `ensure_shims`（不注册 PATH）分支未单独覆盖 |
-| Windows 转义与行尾 | 166 | 边界 | `%` 转义的运行期生效只做内容断言，未实际执行含 `%` 路径 |
-| Unix 转义 | 167 | 边界 | 需真实含单引号的主目录，构造成本高 |
-| shim 内 Node 解析 | 168 | 正向 | 预发布版本被拒的分支未覆盖 |
-| shim 内 pnpm 解析 | 169 | 正向 | 自身 shim 识别（≤16KiB + 头部标记）的边界未覆盖 |
-| 用户命令保护 | 170、171 | 异常 | 非本应用生成的判定只按头部标记，未覆盖「恰好含标记」的伪造场景 |
-| debug 隔离 | 172 | 异常 | — |
-| 注册表类型保留与读取失败 | 173、174 | 边界 | Unix rc 的备份/回滚路径（`BACKUP_RC_FAILED` 等）**未覆盖** |
-| Unix rc 幂等块 | — | — | 注入到文件末尾、只更新自身块的断言**未覆盖**（需 Unix 环境） |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src-tauri/src/service/cli/core.rs:48`、`:29`；`src-tauri/src/bridge/config.rs:91`` | `TC-DSK-L3-21-001` | 正向 |
+| ``src-tauri/src/service/cli/shim/write.rs:70`、`:55`；`src-tauri/src/service/cli/core.rs:20`` | `TC-DSK-L3-21-008` | 异常 |
+| ``src-tauri/src/service/cli/shim/write.rs:24`；`build.rs:24`（issue #581）` | `TC-DSK-L3-21-009` | 异常 |
 
 ---
 

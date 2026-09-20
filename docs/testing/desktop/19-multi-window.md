@@ -57,19 +57,6 @@
 [预期结果] 1. 读取成功。2. 读取成功。3. 两者同源；两个 iframe 各自独立存在（窗口 B 的 iframe 不依赖窗口 A 的渲染，实例标识不同）。
 [清理] 关闭第二个窗口；`DELETE /session/<id>`
 
-### [P4] 验证新窗口继承同一服务地址
-
-[Case ID] TC-DSK-L3-19-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/desktop/builder.rs:617`
-[自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-19-001 通过
-[测试数据] 观察点：各窗口内 `get_runtime_info().service_url`
-[测试步骤] 1. 在窗口 A 中读取 `service_url`。2. 在窗口 B 中读取 `service_url`。3. 比较两者。
-[预期结果] 1. 读取成功。2. 读取成功。3. 两者完全相等（共享同一 DSH 服务实例，不重复拉起服务）。
-[清理] 关闭第二个窗口；`DELETE /session/<id>`
-
 ### [P3] 验证关闭其中一个窗口不影响另一个
 
 [Case ID] TC-DSK-L3-19-004
@@ -85,54 +72,7 @@
 
 ---
 
-## 3. 缩放
-
-### [P2] 验证缩放快捷键 Ctrl+0 重置为 100%
-
-[Case ID] TC-DSK-L3-19-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src/layout/components/iframe.tsx:78`、`:122-128`；`src/utils/zoom.ts:16-27`
-[自动化] 待接线（同上）
-[前置条件] 应用处于 `ready`；当前缩放为 150%
-[测试数据] 快捷键 `Ctrl+0`；观察点 `window.innerWidth`
-[测试步骤] 1. 记录当前 `window.innerWidth`。2. 在壳层焦点下按下 `Ctrl+0`。3. 等待缩放应用。4. 再次读取 `window.innerWidth` 与已保存缩放值。
-[预期结果] 1. 记录成功。2. 快捷键被接受。3. 应用完成。4. `window.innerWidth` 恢复为 100% 下的基准宽度（允许 ±2px 误差）；已保存缩放值为 `1`。
-[清理] 缩放改回 `1`；`DELETE /session/<id>`
-
-### [P2] 验证 iframe 内缩放桥消息被宿主处理
-
-[Case ID] TC-DSK-L3-19-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src/layout/components/iframe.tsx:112-115`、`:171-175`；`src/utils/zoom.ts:29-41`
-[自动化] 待接线（同上）
-[前置条件] 应用处于 `ready`；当前缩放为 100%
-[测试数据] 桥消息 `{ type: 'dsh://zoom-shortcut', action: 'increase' }`；另测 `decrease` 与 `reset`
-[测试步骤] 1. 由 iframe 侧发出 `increase` 桥消息。2. 等待缩放应用。3. 读取已保存缩放值。4. 依次发出 `decrease` 与 `reset`，每次读取已保存缩放值。
-[预期结果] 1. 消息发出成功。2. 应用完成。3. 已保存缩放值为 `1.1`。4. `decrease` 后为 `1.0`（不低于下限 `0.5`）；`reset` 后为 `1`。
-[清理] 缩放改回 `1`；`DELETE /session/<id>`
-
----
-
-## 4. 导航命令
-
-### [P4] 验证「新聊天」向 iframe 发送新建会话命令
-
-[Case ID] TC-DSK-L3-19-007
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src/layout/components/webview.tsx:71`；`src/layout/components/navbar.tsx:222-225`
-[自动化] 待接线（同上）
-[前置条件] 应用处于 `ready`；已安装 `dsh-tauri`
-[测试数据] 桥消息 `{ type: 'dsh://session:new' }`；菜单项 id `new-chat`
-[测试步骤] 1. 打开「文件」菜单并点击「新聊天」。2. 读取 iframe 侧收到的桥消息。3. 对「打开文件夹」重复（期望 `dsh://workspace:add`）。
-[预期结果] 1. 点击被接受。2. iframe 侧收到 `type` 为 `dsh://session:new` 的消息。3. 第二次收到 `type` 为 `dsh://workspace:add` 的消息。
-[清理] `DELETE /session/<id>`
-
----
-
-## 5. 选择器契约（待补）
+## 3. 选择器契约（待补）
 
 | `data-testid` | 元素 | 状态 |
 | --- | --- | --- |
@@ -140,23 +80,20 @@
 
 ---
 
-## 6. 追踪矩阵
+## 4. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| 新建窗口 | 142、144 | 正向 / 边界 | 建窗失败分支（`WINDOW_CREATE_FAILED`）**未覆盖** |
-| 窗口隔离 | 143、145 | 正向 / 异常 | 两窗口并发操作同一档案时的状态一致性**未覆盖** |
-| 缩放快捷键 | 146 | 正向 | 增大/减小快捷键未逐条覆盖（与桥消息同源） |
-| 缩放桥 | 147 | 正向 | 非法 `action` 被忽略的分支**未覆盖** |
-| 导航命令 | 148 | 边界 | 只断言消息发出，未断言 iframe 内实际新建会话 |
-| 平台缩放降级 | — | — | macOS < 11 不支持 `pageZoom` 的分支**未覆盖**（与 `13` G-D13-4 同源） |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src/layout/components/navbar.tsx:239-247`、`:388-395`；`src-tauri/src/desktop/window.rs:144-149`` | `TC-DSK-L3-19-001` | 正向 |
+| ``src-tauri/src/desktop/builder.rs:617-626`` | `TC-DSK-L3-19-002` | 正向 |
+| ``src-tauri/src/lib.rs:51`（`RunEvent::ExitRequested` 语义）` | `TC-DSK-L3-19-004` | 异常 |
 
 ---
 
-## 7. 缺口与假设
+## 5. 缺口与假设
 
-- **G-D19-1**：TC-DSK-L3-19-004 关闭第二个窗口时，若实现把「最后一个窗口关闭」与「应用退出」绑定，则该用例会终止会话。需先确认 `RunEvent::ExitRequested` 的判定条件（`src-tauri/src/lib.rs:51` 附近），再决定清理顺序。
+- **G-D19-1**：`TC-DSK-L3-19-004` 关闭第二个窗口时，若实现把「最后一个窗口关闭」与「应用退出」绑定，则该用例会终止会话。需先确认 `RunEvent::ExitRequested` 的判定条件（`src-tauri/src/lib.rs:51` 附近），再决定清理顺序。
 - **G-D19-2**：多窗口共享同一 DSH 服务，因此两窗口并发写同一档案（如同时改设置）时的一致性**未覆盖**，属高价值补充项。
 - **G-D19-3**：缩放的实际视觉系数无回读接口（`use-zoom-factor.ts:20-26`），本文件以 `window.innerWidth` 作为代理指标。该代理在极端缩放（`0.5`/`2.0`）下仍应成立，但属近似断言（`00-overview.md` G10）。
-- **G-D19-4**：TC-DSK-L3-19-007 只断言宿主发出了桥消息；iframe 内是否真的新建会话取决于 `dsh-tauri` 的接收实现，归 [插件用例集](../plugins/00-overview.md)。
+- **G-D19-4**：「新聊天」下发新建会话命令属纯消息协议断言（宿主是否发出桥消息），已从 L3 台账裁剪；iframe 内是否真的新建会话取决于 `dsh-tauri` 的接收实现，归 [插件用例集](../plugins/00-overview.md)。
 - **假设**：额外窗口与主窗口共享同一前端产物与同一 WebView 数据目录，因此缩放设置与语言设置在窗口间一致。

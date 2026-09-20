@@ -47,45 +47,6 @@
 [预期结果] 1. 进入 `error` 状态。2. 根节点存在；全屏标记为真。3. `Setup` 错误内容不存在（被替换而非叠加）。
 [清理] 移除问题插件；`DELETE /session/<id>`
 
-### [P2] 验证恢复页列出问题插件与原因标题
-
-[Case ID] TC-DSK-L3-10-002
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src/ui/plugin/recovery.tsx:13-22`、`:100-136`
-[自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-10-001 通过
-[测试数据] 选择器 `dsh-recovery-plugin-id`、`dsh-recovery-reason`、`dsh-recovery-raw-error`
-[测试步骤] 1. 读取插件 id 列表。2. 读取原因标题。3. 读取原始错误区块。
-[预期结果] 1. id 列表与后端上报的 `info.plugins` 完全一致，每项带「问题插件」标记。2. 原因标题与 `info.reason` 对应的文案一致且非空。3. 原始错误区块内容等于 `info.rawError`（为空时显示 `—`）。
-[清理] 移除问题插件；`DELETE /session/<id>`
-
-### [P2] 验证「暂不处理」关闭运行期对话框
-
-[Case ID] TC-DSK-L3-10-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src/ui/plugin/recovery.tsx:172-174`；`src/layout/index.tsx:149-152`
-[自动化] 待接线（同上）
-[前置条件] 应用仍处于 `ready`，且已构造运行期插件异常（对话框而非全屏页）
-[测试数据] 选择器 `dsh-recovery-dismiss`
-[测试步骤] 1. 读取对话框可见性。2. 点击「暂不处理」。3. 再次读取可见性。4. 读取 iframe 存在性。
-[预期结果] 1. 对话框可见。2. 点击被接受。3. 对话框不可见。4. iframe 仍存在（应用未被卸载或阻断）。
-[清理] 清除插件异常；`DELETE /session/<id>`
-
-### [P4] 验证恢复次数耗尽时显示提示
-
-[Case ID] TC-DSK-L3-10-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src/ui/plugin/recovery.tsx:125-127`
-[自动化] 待接线（同上）
-[前置条件] 构造 `exhausted == true` 的恢复态（连续恢复后仍失败）
-[测试数据] 选择器 `dsh-recovery-exhausted`
-[测试步骤] 1. 读取耗尽提示节点。2. 读取恢复动作入口是否仍可用。
-[预期结果] 1. 节点存在且文案非空，提示恢复次数已用尽。2. 卸载与重启入口仍可用（不因耗尽而锁死）。
-[清理] 移除问题插件；`DELETE /session/<id>`
-
 ---
 
 ## 3. 恢复动作
@@ -116,19 +77,6 @@
 [预期结果] 1. 按钮存在。2. 入参集合仅包含确有快照的那个插件 id（不含无快照插件，避免 `SNAPSHOT_NOT_FOUND` 导致整体失败）。
 [清理] 清除插件异常；`DELETE /session/<id>`
 
-### [P4] 验证安全模式入口可用
-
-[Case ID] TC-DSK-L3-10-007
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src/ui/plugin/recovery.tsx:166-171`；`src/store/modules/harness/store.ts:669`
-[自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-10-001 通过
-[测试数据] 选择器 `dsh-recovery-safe-mode`
-[测试步骤] 1. 点击「安全模式」。2. 等待服务启动收敛。3. 读取服务状态与插件列表。
-[预期结果] 1. 点击被接受。2. 收敛完成。3. 服务健康；第三方插件未挂载（最小预设生效）。
-[清理] 退出安全模式；`DELETE /session/<id>`
-
 ---
 
 ## 4. 选择器契约（待补）
@@ -151,15 +99,11 @@
 
 ## 5. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| 全屏页 vs 对话框的区分 | 072、074 | 正向 | 区分条件（`status` 与 `recovery.required`）已覆盖；两者同时为真时的优先级未覆盖 |
-| 原因映射（8 类） | 073 | 正向 | 只覆盖 1 类原因；其余 7 类（`duplicate_route`/`duplicate_loader_entry`/`cannot_resolve_bundle`/`no_dsh_bundle`/`slot_conflict`/`load_failed`/`runtime`）需各自构造，**未覆盖** |
-| 多插件分支 | 077 | 异常 | 单/多插件文案分支只覆盖多插件场景 |
-| 快照还原 | 077 | 异常 | 还原成功路径未覆盖（会停服务） |
-| 卸载并重检测 | 076 | 正向 | — |
-| 安全模式 | 078 | 边界 | 与 `11` 的 TC-DSK-L3-11-008 同源，属有意重复的入口差异（恢复页 vs 错误页） |
-| 恢复耗尽 | 075 | 边界 | 需连续恢复失败的构造能力 |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src/layout/components/webview.tsx:50-55`；`src/ui/plugin/recovery.tsx:86-99`` | `TC-DSK-L3-10-001` | 正向 |
+| ``src/ui/plugin/recovery.tsx:153-162`；`src/store/modules/recovery/store.ts`` | `TC-DSK-L3-10-005` | 正向 |
+| ``src/ui/plugin/recovery.tsx:45-64`、`:141-152`；issue #303` | `TC-DSK-L3-10-006` | 异常 |
 
 ---
 

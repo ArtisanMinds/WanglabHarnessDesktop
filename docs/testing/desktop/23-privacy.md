@@ -52,32 +52,6 @@
 [预期结果] 1. 读取成功。2. 监听地址全部为 `127.0.0.1:<port>` 或 `[::1]:<port>`，不存在 `0.0.0.0` 或具体外部网卡地址。3. 非回环地址连接失败。
 [清理] `DELETE /session/<id>`
 
-### [P2] 验证回环健康探测不受代理环境变量影响
-
-[Case ID] TC-DSK-L3-23-002
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/workflow/utils.rs:15`、`:32`
-[自动化] 待接线（`test/e2e/desktop/23-privacy.e2e.ts`）
-[前置条件] 服务处于运行中；启动应用前已设置指向不可达地址的 `HTTP_PROXY` 与 `ALL_PROXY`
-[测试数据] `HTTP_PROXY=http://127.0.0.1:1`、`ALL_PROXY=http://127.0.0.1:1`
-[测试步骤] 1. 在上述代理变量下启动应用并等待服务运行中。2. 调用 `proxy_health_check`。3. 读取返回值语义。
-[预期结果] 1. 服务进入运行中。2. 命令成功返回。3. 返回值为 `healthy - {ready}/{total} client modules ready` 语义，不出现代理引起的连接失败错误。
-[清理] 清除代理变量并重启应用；`DELETE /session/<id>`
-
-### [P4] 验证目标端口被他人占用时不误判为就绪
-
-[Case ID] TC-DSK-L3-23-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/task/tick_check_dsh_process/mod.rs:16`；`src-tauri/src/service/workflow/utils.rs:130`
-[自动化] 待接线（`test/e2e/desktop/23-privacy.e2e.ts`）
-[前置条件] 服务已停止（本应用不持有服务进程）；测试侧在 store 端口上启动一个返回 HTTP 200 的本地 Web 服务
-[测试数据] 测试侧服务响应 `/` 为 HTTP 200；store 端口 `3081`
-[测试步骤] 1. 停止应用的服务并确认不再持有进程。2. 在 `3081` 上启动测试侧 HTTP 服务。3. 读取界面连接状态与 `proxy_health_check` 返回值。
-[预期结果] 1. 服务停止，本应用不持有进程。2. 测试侧服务成功监听 `3081`。3. 连接状态不显示运行中；`proxy_health_check` 返回 `HARNESS_NOT_OWNED` 语义，未因端口上的 HTTP 200 而报告健康。
-[清理] 结束测试侧服务并重新拉起 Harness；`DELETE /session/<id>`
-
 ---
 
 ## 3. 无遥测与最小暴露
@@ -95,32 +69,6 @@
 [预期结果] 1. 读取成功。2. `DSH_TELEMETRY_DISABLED` 存在且值为 `1`，不存在未关闭遥测的取值。
 [清理] `DELETE /session/<id>`
 
-### [P2] 验证运行期信息只含本机环境字段
-
-[Case ID] TC-DSK-L3-23-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/config/runtime.rs:587`；`src-tauri/src/bridge/system_os.rs:21`；`src/ui/config/debug.tsx:21`
-[自动化] 待接线（`test/e2e/desktop/23-privacy.e2e.ts`）
-[前置条件] 应用处于 `ready`；服务处于运行中
-[测试数据] 期望字段集：`app_version`、`dsh_version`、`node_version`、`service_url`、`data_dir`、`log_path`、`platform`、`arch`
-[测试步骤] 1. 调用 `get_runtime_info` 并读取返回对象的键集合。2. 读取 `service_url`、`data_dir`、`platform` 与 `arch` 的值。3. 在返回对象中查找凭据类字段。
-[预期结果] 1. 键集合恰为上述 8 个字段，无多余字段。2. `service_url` 指向 `http://127.0.0.1:<port>`；`data_dir` 为本机用户目录下的路径；`platform` 与 `arch` 与本机一致。3. 不存在令牌、密钥、代理或远端地址类字段。
-[清理] `DELETE /session/<id>`
-
-### [P3] [反向] 验证非 http 协议的外部链接被拒绝
-
-[Case ID] TC-DSK-L3-23-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/system_os.rs:239`
-[自动化] 待接线（`test/e2e/desktop/23-privacy.e2e.ts`）
-[前置条件] 应用处于 `ready`；可经测试编排直接调用 `open_external_url`
-[测试数据] 非法值：`file:///C:/Windows/System32/calc.exe`、`javascript:alert(1)`、`ftp://127.0.0.1/x`、空串
-[测试步骤] 1. 依次以每个非法值调用 `open_external_url`。2. 读取每次的错误返回。3. 读取系统上是否出现由这些调用拉起的新进程。
-[预期结果] 1. 四次调用均被拒绝。2. 每次错误均以 `EXTERNAL_URL_INVALID:` 开头并回显传入值。3. 未出现由这四次调用拉起的新进程。
-[清理] `DELETE /session/<id>`
-
 ### [P4] 验证文件系统命令拒绝允许根之外的路径
 
 [Case ID] TC-DSK-L3-23-007
@@ -136,47 +84,28 @@
 
 ---
 
-## 4. 日志与支持包
+## 4. 单元测试层（已从 L3 E2E 裁剪）
 
-### [P2] 验证运行日志四段结构与本机落盘
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
 
-[Case ID] TC-DSK-L3-23-008
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/system_os.rs:164`、`:165`、`:167`、`:198`
-[自动化] 待接线（`test/e2e/desktop/23-privacy.e2e.ts`）
-[前置条件] 服务处于运行中；本次会话已产生过服务日志与前端日志
-[测试数据] 期望四段标题：`### 环境信息`、`### 服务日志`、`### 前台日志`、`### 后台日志`
-[测试步骤] 1. 调用 `read_run_logs` 并读取返回文本。2. 按标题切分文本，核对段数与顺序。3. 读取环境段内容。4. 对照磁盘上的三个日志文件路径。
-[预期结果] 1. 命令成功返回纯文本。2. 文本恰含四个标题且顺序与上述一致。3. 环境段含 app 版本、dsh 版本、node 版本、os 与 arch。4. `log_path` 指向本机 `logs` 目录下的服务日志；磁盘上同时存在 `desktop.log` 与 `desktop.frontdesk.log`。
-[清理] `DELETE /session/<id>`
-
-### [P4] 验证前台日志段行数上限为服务段的一半
-
-[Case ID] TC-DSK-L3-23-009
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/bridge/system_os.rs:164`、`:165`、`:167`
-[自动化] 待接线（`test/e2e/desktop/23-privacy.e2e.ts`）
-[前置条件] 服务处于运行中；服务日志与前端日志均已超过 100 行
-[测试数据] `MAX_LINES = 100`；前端段期望上限 50 行
-[测试步骤] 1. 令前端产生多于 100 行日志。2. 调用 `read_run_logs`。3. 分别统计「服务日志」段与「前台日志」段的文本行数。
-[预期结果] 1. 前端日志成功落盘。2. 命令成功返回。3. 服务段行数不超过 100；前台段行数不超过 50，且均取各自文件的末尾行。
-[清理] `DELETE /session/<id>`
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-23-002` | 验证回环健康探测不受代理环境变量影响 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-23-003` | 验证目标端口被他人占用时不误判为就绪 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-23-005` | 验证运行期信息只含本机环境字段 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-23-006` | 验证非 http 协议的外部链接被拒绝 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-23-008` | 验证运行日志四段结构与本机落盘 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-23-009` | 验证前台日志段行数上限为服务段的一半 | 纯逻辑断言，下沉单元测试层 |
 
 ---
 
 ## 5. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| 回环监听边界 | 187、189 | 正向 / 边界 | 只断言监听地址集合；dsh 自身默认绑定策略归上游，未在此断言 |
-| 代理隔离 | 188 | 正向 | `no_proxy()` 的实际生效路径无法在页面内直接观测，只能由健康探测结果反推 |
-| 遥测关闭 | 190 | 正向 | 需读取子进程环境块；仅断言注入值，不断言 dsh 内部是否另有上报通道 |
-| 运行时信息暴露面 | 191 | 正向 | 只断言键集合与字段语义，不断言各字段在 UI 的呈现细节（归 `13`） |
-| 外部协议白名单 | 192 | 异常 | 只覆盖非 http(s) 拒绝；`http(s)` 放行分支归 `16` |
-| 路径白名单 | 193 | 边界 | 符号链接逃逸与「路径存在但不可 canonicalize」分支**未覆盖** |
-| 日志本机留存 | 194、195 | 正向 / 边界 | 「后台日志剔除 `frontend:` 行」的兜底分支**未覆盖**（需旧版残留日志） |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src-tauri/src/config/constants.rs:48`；`src-tauri/src/config/format.rs:4`；`src-tauri/src/service/workflow/launch.rs:640`、`:753`` | `TC-DSK-L3-23-001` | 正向 |
+| ``src-tauri/src/service/workflow/launch.rs:510`；`src-tauri/src/service/plugin/install/env.rs:39`` | `TC-DSK-L3-23-004` | 正向 |
+| ``src-tauri/src/bridge/system_os.rs:55`、`:66`；`src-tauri/src/bridge/guard.rs:18`、`:50`` | `TC-DSK-L3-23-007` | 边界 |
 
 ---
 

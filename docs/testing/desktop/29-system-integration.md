@@ -89,58 +89,6 @@
 [预期结果] 1. 返回成功（无错误文本）。2. 未出现 `REVEAL_PATH_REJECTED`，调用被交给系统文件管理器。
 [清理] 删除构造的文件；`DELETE /session/<id>`
 
-### [P3] [反向] 验证拒绝定位允许根之外的文件
-
-[Case ID] TC-DSK-L3-29-002
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/system_os.rs:55-57`；`src-tauri/src/bridge/guard.rs:50-61`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`；可在系统临时目录（不在任何允许根内）放置一个文件
-[测试数据] 路径 = `<系统临时目录>/dsh-guard-probe.txt`
-[测试步骤] 1. 调用 `reveal_in_folder` 传入该路径。2. 读取错误文本。3. 读取文件管理器唤起记录。
-[预期结果] 1. 返回失败。2. 错误文本以 `REVEAL_PATH_REJECTED` 开头且包含该路径。3. 未发生文件夹定位动作。
-[清理] 删除构造的文件；`DELETE /session/<id>`
-
-### [P3] [反向] 验证拒绝打开允许根之外的目录
-
-[Case ID] TC-DSK-L3-29-003
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/system_os.rs:66-68`；`src-tauri/src/bridge/guard.rs:50-61`；`src/ui/config/core.tsx:216-226`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`；系统临时目录存在（不在任何允许根内）
-[测试数据] 路径 = `<系统临时目录>`；选择器 `dsh-config-core-open-dir`
-[测试步骤] 1. 调用 `open_dir` 传入该目录。2. 读取错误文本。3. 从「核心」面板点击「打开目录」并读取界面提示。
-[预期结果] 1. 返回失败。2. 错误文本以 `OPEN_DIR_REJECTED` 开头且包含该路径。3. 界面出现「打开目录失败」语义的提示（`core.open_dir_failed`），且目录未被打开。
-[清理] 关闭配置对话框；`DELETE /session/<id>`
-
-### [P2] 验证打开数据目录时先创建再交给系统
-
-[Case ID] TC-DSK-L3-29-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/system_os.rs:74-95`；`src/ui/config/debug.tsx:173-179`、`:280-289`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`；`get_runtime_info` 已可返回 `data_dir`；该目录可被临时改名为不存在
-[测试数据] 选择器 `dsh-config-reveal-data-dir`；观察点：`data_dir` 指向的目录
-[测试步骤] 1. 记录 `data_dir` 并把该目录改名为不存在。2. 点击「打开数据目录」。3. 读取命令返回与目录存在性。
-[预期结果] 1. 记录成功，目录当前不存在。2. 命令成功返回（无危险提示）。3. 目录已在调用后创建，并已交给系统文件管理器。
-[清理] 恢复被改名的数据目录；关闭配置对话框；`DELETE /session/<id>`
-
-### [P3] [反向] 验证拒绝非 http(s) 方案的外部链接
-
-[Case ID] TC-DSK-L3-29-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/bridge/system_os.rs:239-242`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`
-[测试数据] URL = `file:///C:/Windows/System32/calc.exe`（方案非 http(s)）
-[测试步骤] 1. 调用 `open_external_url` 传入该 URL。2. 读取错误文本。3. 用合法 `https://` URL 再调用一次并读取返回。
-[预期结果] 1. 返回失败。2. 错误文本为 `EXTERNAL_URL_INVALID: {url}`。3. 合法 URL 返回成功，系统浏览器被唤起。
-[清理] 关闭被拉起的浏览器标签（人工）；`DELETE /session/<id>`
-
 ---
 
 ## 3. 日志与运行时诊断
@@ -157,45 +105,6 @@
 [测试步骤] 1. 调用 `read_run_logs`。2. 读取返回文本中的段标题。3. 分段统计行数并读取环境段字段。
 [预期结果] 1. 调用成功返回文本。2. 依次出现 `### 环境信息`、`### 服务日志`、`### 前台日志`、`### 后台日志` 四段。3. 服务段与后台段各不超过 100 行、前台段不超过 50 行；环境段含 app 版本、dsh 版本、node 版本、os 与 arch。
 [清理] `DELETE /session/<id>`
-
-### [P2] 验证服务日志按 64 KiB 取尾且不截断多字节字符
-
-[Case ID] TC-DSK-L3-29-007
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/system_os.rs:122-138`、`:132`、`:111-118`；`src/ui/config/debug.tsx:69-73`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`；服务日志文件大于 64 KiB 且含中文（多字节）字符
-[测试数据] 默认调用（不传 `maxBytes`）与显式 `maxBytes: 16384`（`LOG_TAIL_MAX_BYTES`，`src/store/modules/harness/constants.ts:28`）
-[测试步骤] 1. 读取日志文件字节数。2. 调用 `read_service_logs` 不传上限并读取返回长度与首字符。3. 传 `maxBytes: 16384` 再调用一次并读取返回长度。
-[预期结果] 1. 文件大于 64 KiB。2. 返回字节数不超过 65536，且等于文件尾部的完整文本（起点落在字符边界、无替换字符）。3. 返回字节数不超过 16384 且为同一尾部文本的后缀。
-[清理] `DELETE /session/<id>`
-
-### [P2] 验证清空服务日志后回读为空
-
-[Case ID] TC-DSK-L3-29-008
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/bridge/system_os.rs:142-145`、`:127-129`；`src/ui/config/debug.tsx:98-108`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`；服务日志文件非空；配置对话框打开在「应用」面板
-[测试数据] 选择器 `dsh-config-clear-service-logs`、`dsh-config-service-logs`
-[测试步骤] 1. 读取日志面板内容确认非空。2. 点击清空按钮。3. 等待回读周期后读取日志面板与日志文件。
-[预期结果] 1. 面板内容非空。2. 清空成功并出现「日志已清空」语义提示。3. 面板显示空态文案；日志文件字节数为 0。
-[清理] 关闭配置对话框；`DELETE /session/<id>`
-
-### [P3] [反向] 验证无持有进程时健康检查返回可区分的失败信号
-
-[Case ID] TC-DSK-L3-29-009
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/workflow/health.rs:47-53`、`:60-63`；`src-tauri/src/bridge/system_os.rs:15-18`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready` 后主动停止 Harness，或在新实例启动瞬间探测
-[测试数据] 两种状态：无持有进程且 `launch` 已结束；`launch` 仍在进行（守卫未释放）
-[测试步骤] 1. 在「无持有进程且启动已结束」状态下调用 `proxy_health_check` 并读取错误文本。2. 在「启动进行中」状态下再次调用并读取错误文本。3. 对比两次前缀。
-[预期结果] 1. 错误以 `HARNESS_NOT_OWNED: no Harness process is owned by this app` 开头。2. 错误以 `HARNESS_NOT_READY: Harness service is still starting` 开头。3. 两次前缀不同（前者快速失败，后者可继续轮询）。
-[清理] 重新拉起服务；`DELETE /session/<id>`
 
 ---
 
@@ -214,65 +123,9 @@
 [预期结果] 1. 遗留块存在。2. 流程完成且无 `PATCH_*` 错误。3. patch 中不再含 `win-terminal-inspector`，且未追加新的挂载块；日志出现「provides the official Windows process inspector」。
 [清理] 恢复 patch 文件原始内容；`DELETE /session/<id>`
 
-### [P2] 验证 rc.6/rc.7 已装插件时写入显式入口挂载并创作 preset
-
-[Case ID] TC-DSK-L3-29-011
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/workflow/win_inspector.rs:45-49`、`:419-427`、`:328-333`、`:369-395`；`src-tauri/src/service/plugin/install/mod.rs:387-391`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] Windows 宿主；活动核心版本为 `0.1.0-rc.6` 或 `0.1.0-rc.7`；profile `package.json` 的 `dependencies` 含 `dsh-win-terminal-inspector`；`${DSH_HOME}/.agent-presets/minimal-win/` 不存在；`DSH_GIT_BASH_PATH` 指向存在的 `bash.exe`
-[测试数据] 环境变量 `DSH_GIT_BASH_PATH`；观察点 patch 文件与 `${DSH_HOME}/.agent-presets/minimal-win/`
-[测试步骤] 1. 触发一次会调用 `win_inspector::apply` 的流程。2. 读取 patch 文件中的挂载块。3. 读取 preset 目录内的两个文件内容。
-[预期结果] 1. 流程成功（无 `PATCH_*` 错误）。2. 存在 `- insert:` 块，含 `id: win-terminal-inspector` 与 `name: ./node_modules/dsh-win-terminal-inspector/index.js`，且不含裸包名写法。3. `agent.cordis.yml` 的 `shellPath` 等于被测的 `bash.exe` 且 `shellArgs` 为 `--noprofile --norc -i`；同目录存在 `preset.yml`；persistent-shell 组内 `sandbox-policy` 的 `mode` 为 `danger-full-access`。
-[清理] 删除构造的 preset 目录；恢复 patch 与 profile 清单；清除 `DSH_GIT_BASH_PATH`；`DELETE /session/<id>`
-
-### [P4] 验证挂载幂等且遗留裸包名被迁移为显式入口
-
-[Case ID] TC-DSK-L3-29-012
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/workflow/win_inspector.rs:106-134`、`:224-228`、`:600-626`（单元测试 `ensure_patch_upgrades_existing_bare_name_entry`）
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] Windows 宿主；旧核心版本；插件已装入；patch 内本插件块的 `name` 为裸包名 `dsh-win-terminal-inspector`
-[测试数据] patch 文件预置内容：`- insert:` + `id: win-terminal-inspector` + `name: dsh-win-terminal-inspector`
-[测试步骤] 1. 触发 `win_inspector::apply`。2. 读取 patch 文件全文并记录。3. 再次触发 `apply` 并再次读取全文。
-[预期结果] 1. 写入成功。2. 该块的 `name` 已迁移为 `./node_modules/dsh-win-terminal-inspector/index.js`，裸包名写法消失。3. 第二次调用后文件内容与第一次逐字相同（未重复追加、未再次改写）。
-[清理] 恢复 patch 文件原始内容；`DELETE /session/<id>`
-
 ---
 
-## 5. 平台门控与档案自愈
-
-### [P4] 验证非 Windows 平台极简模式修复为无操作
-
-[Case ID] TC-DSK-L3-29-013
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/workflow/win_inspector.rs:695-706`、`:712-714`、`:716-724`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] macOS 或 Linux 宿主；应用处于 `ready`
-[测试数据] 观察点：`win_inspector::apply` 返回值与档案目录改动、`git_bash_bin_dirs` 返回值
-[测试步骤] 1. 触发一次会调用 `win_inspector::apply` 的流程。2. 对比触发前后活动档案目录的文件清单与 patch 内容。3. 读取 `git_bash_bin_dirs` 的返回。
-[预期结果] 1. 调用返回 `Ok`。2. 档案目录无任何新增或改写（未创建 `minimal-win` preset、未改 patch）。3. `git_bash_bin_dirs` 返回空集合。
-[清理] `DELETE /session/<id>`
-
-### [P4] 验证 pnpm-workspace 多文档被自愈归一化为单文档
-
-[Case ID] TC-DSK-L3-29-014
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/profile/mod.rs:123-152`、`:164-171`、`:191-202`；`src-tauri/src/service/plugin/install/mod.rs:213`
-[自动化] 待接线（`test/e2e/desktop/29-system-integration.e2e.ts`）
-[前置条件] 应用处于 `ready`；活动档案的 `pnpm-workspace.yaml` 已被改写成含 `---` 分隔符的多文档 YAML（前后两份都是映射，含同名键）
-[测试数据] 文件内容示例：`packages:\n  - .\n---\nnodeLinker: hoisted\n`
-[测试步骤] 1. 写入多文档内容并记录。2. 触发一次会调用 `ensure_profile_pnpm_policy` 的流程（插件安装）。3. 读取文件全文与桌面端日志。
-[预期结果] 1. 写入成功，文件确为多文档。2. 流程成功，未返回 `PROFILE_WORKSPACE_INVALID_YAML`。3. 文件已被回写为单文档映射，同名键取后一份的值；日志出现 `PROFILE_WORKSPACE_MULTI_DOCUMENT: normalized …`。
-[清理] 恢复 `pnpm-workspace.yaml` 原始内容；`DELETE /session/<id>`
-
----
-
-## 6. 选择器契约（待补）
+## 5. 选择器契约（待补）
 
 | `data-testid` | 元素 | 状态 |
 | --- | --- | --- |
@@ -284,21 +137,31 @@
 
 ---
 
+## 6. 单元测试层（已从 L3 E2E 裁剪）
+
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
+
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-29-002` | 验证拒绝定位允许根之外的文件 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-003` | 验证拒绝打开允许根之外的目录 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-005` | 验证拒绝非 http(s) 方案的外部链接 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-007` | 验证服务日志按 64 KiB 取尾且不截断多字节字符 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-009` | 验证无持有进程时健康检查返回可区分的失败信号 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-011` | 验证 rc.6/rc.7 已装插件时写入显式入口挂载并创作 preset | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-012` | 验证挂载幂等且遗留裸包名被迁移为显式入口 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-013` | 验证非 Windows 平台极简模式修复为无操作 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-29-014` | 验证 pnpm-workspace 多文档被自愈归一化为单文档 | 纯逻辑断言，下沉单元测试层 |
+
+---
+
 ## 7. 追踪矩阵
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| `reveal_in_folder` 允许根 | 260、261 | 正向 / 异常 | 符号链接指向根外的场景未构造；根不存在时的降级（`guard.rs:38-43` 只保留已存在根）**未覆盖** |
-| `open_dir` 允许根 | 262 | 异常 | 本地核心包目录作为允许根的**正向**用例未覆盖（需本地核心环境） |
-| `reveal_data_dir` | 263 | 正向 | 系统文件管理器实际呈现属系统表面，见 G-D29-1 |
-| `open_external_url` 方案校验 | 264 | 异常 | 大小写变体（`HTTPS://`）未覆盖，见 G-D29-2 |
-| 运行日志四段 | 265 | 正向 | 后台段剔除 `frontend:` 行的效果未单独断言 |
-| 服务日志读取/清空 | 266、267 | 正向 | `maxBytes` 极值（0、超大）未覆盖 |
-| 健康检查失败信号 | 268 | 异常 | 模块未就绪的 `healthy - n/m` 分支（`health.rs:90-92`）**未覆盖** |
-| Windows 极简模式 | 269、270、271 | 正向 / 边界 | preset「已存在即跳过」（`win_inspector.rs:381-384`）与「Git Bash 未找到则跳过」（`:370-375`）**未覆盖** |
-| 平台门控 | 272 | 边界 | — |
-| 档案 YAML 自愈 | 273 | 边界 | 真语法错误（不合法的 YAML）保持报错的分支**未覆盖** |
-| 跨平台打包与托盘 | 全局 | — | 归 §8 缺口，见 G-D29-3 / G-D29-4 |
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src-tauri/src/bridge/system_os.rs:52-58`；`src-tauri/src/bridge/guard.rs:18-34`；`src/layout/index.tsx:113-118`` | `TC-DSK-L3-29-001` | 正向 |
+| ``src-tauri/src/bridge/system_os.rs:164`、`:165`、`:167`、`:198-210`、`:216-222`；`src/layout/components/setup.tsx:28`` | `TC-DSK-L3-29-006` | 正向 |
+| ``src-tauri/src/service/workflow/win_inspector.rs:398-406`、`:410-418`；`src-tauri/src/service/plugin/install/single.rs:391-395`` | `TC-DSK-L3-29-010` | 正向 |
 
 ---
 
