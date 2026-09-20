@@ -35,10 +35,10 @@ readonly EXCLUDED_LIBS=(
 readonly SQUASHFS_COMPRESSION=zstd
 readonly SQUASHFS_BLOCK_SIZE=131072
 
-# 在镜像中扫描 squashfs 4.0 superblock：magic "hsqs"，且 s_major/s_minor == 4/0，
-# block_size 为 2 的幂且在 [4096, 1048576]，compression 在 1..6。Type-2 AppImage 的
-# 尾部是 ELF runtime，正文里还可能出现字面量 "hsqs"，因此必须按 superblock 字段校验，
-# 而不是命中第一个 magic 就返回（实测镜像里第一个 "hsqs" 是误报）。
+# 在镜像中扫描 squashfs 4.0 superblock：magic "hsqs"，版本字段 s_major/s_minor == 4/0，
+# block_size 为 2 的幂且在 [4096, 1048576]，compression 在 1..6，block_log 与 block_size 自洽。
+# Type-2 AppImage 的尾部是 ELF runtime，正文里还可能出现字面量 "hsqs"，因此必须逐个按
+# superblock 字段校验，而不是命中第一个 magic 就返回（实测镜像里第一个 "hsqs" 是误报）。
 detect_squashfs_offset() {
   local file="$1"
   python3 - "$file" <<'PY'
@@ -57,9 +57,11 @@ while True:
     start = index + 1
     if index + 32 > len(data):
         continue
-    magic, _inodes, _mtime, block_size, _fragments, compression, block_log, _flags = \
-        struct.unpack_from('<IIIIIHHH', data, index)
+    (magic, _inodes, _mtime, block_size, _fragments, compression, block_log,
+     _flags, _no_ids, s_major, s_minor) = struct.unpack_from('<IIIIIHHHHHH', data, index)
     if magic != 0x73717368:
+        continue
+    if s_major != 4 or s_minor != 0:
         continue
     if block_size < 4096 or block_size > 1048576 or block_size & (block_size - 1):
         continue
