@@ -409,13 +409,6 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = win_inspector::apply(&app_handle) {
         log::warn!("win32 terminal support apply failed: {e}");
     }
-    // alpha 的 iframe 无法稳定完成 SameSite=Strict browser-session Cookie 交换：
-    // 补丁让 dsh 接受 `--skip-auth`，仅在桌面端显式传该标志时跳过 browser-session
-    // 层（保留 Host/Origin fence）；普通 `dsh web` 不受影响。旧核心无锚点时
-    // patch_dsh 安全跳过，不改变旧版行为。
-    if let Err(e) = crate::service::patch::alpha_auth::apply(&app_handle) {
-        log::warn!("alpha --skip-auth patch failed: {e}");
-    }
     // renderer 的 SlotOutlet 一行导出补丁（dsh-tauri-ui 设置侧边栏依赖）：只补
     // 活动核心的 dsh-client-ui-renderer lib/client.js，已含导出即跳过（幂等；核心
     // 换版本后自动重打，上游官方导出后自动退休）。最佳努力：失败只告警，不阻断
@@ -580,6 +573,12 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
         envs.insert("DSH_PREFER_BUNDLED_PNPM".to_string(), "1".to_string());
     }
 
+    // 内嵌 WebView 是 `tauri.localhost` 下的跨源沙箱 iframe，`SameSite=Strict` 的
+    // browser-session Cookie 不会被携带。载体标记交给 dsh-tauri-connection 插件：
+    // 只有该标记在场时它才覆写 connection 的鉴权闸门，因此同一 profile 下独立运行
+    // 的 `dsh web` 不受影响（取代原先对核心 JS 打的 `--skip-auth` 磁盘补丁）。
+    envs.insert("DSH_TAURI_EMBEDDED".to_string(), "1".to_string());
+
     // 日志文件（前端日志面板读取）。
     // 每次真实启动前轮转：只保留最近 3 次启动的日志，旧文件后退为
     // `dsh-web.log.1` / `dsh-web.log.2`，避免单文件随多次启动无限增长。
@@ -591,12 +590,6 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     // rc.8 起 `dsh web` 默认在系统浏览器打开 UI；桌面端内嵌 WebView，不需要
     // 浏览器，追加 `--no-open` 关闭（老版本无此标志时按版本判定不传）。
     let no_open = web_supports_no_open_flag(&app_handle, &dsh_binary_path);
-
-    // 版本判定打不到 alpha 的 web-startup 选项表（见 web_supports_no_open_flag）。
-    // alpha 的浏览器会话 Cookie 在沙箱跨源 iframe 上下文无法完成交换，因此桌面端
-    // 显式追加 `--skip-auth`：只有核心（经上面的 alpha_auth 补丁，或上游官方合并）
-    // 确实支持该标志才传，避免旧核心把未知选项当成错误退出。
-    let skip_auth = crate::service::patch::alpha_auth::web_startup_supports_skip_auth(&app_handle);
 
     // 补丁层悬空 insert 预检：手写的 `insert` 条目在包被卸载（市场会拒绝卸载
     // 「仍被用户补丁引用」的插件，用户于是改走手工删依赖 / pnpm remove）或本地
@@ -644,9 +637,6 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
             ];
             if no_open {
                 args.push(OsString::from("--no-open"));
-            }
-            if skip_auth {
-                args.push(OsString::from("--skip-auth"));
             }
 
             // 只负责 spawn 并返回管道/PID/句柄：探测与重试期间不登记、不挂
@@ -758,9 +748,6 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
             if no_open {
                 cmd.arg("--no-open");
             }
-            if skip_auth {
-                cmd.arg("--skip-auth");
-            }
             cmd.envs(&envs)
                 .current_dir(config::get_dsh_install_path(&app_handle))
                 // 核心修正：提供一个空的 stdin 防止 setRawMode 报错
@@ -803,9 +790,6 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
                                             .arg(setting.port.to_string());
                                         if no_open {
                                             cmd.arg("--no-open");
-                                        }
-                                        if skip_auth {
-                                            cmd.arg("--skip-auth");
                                         }
                                         cmd.envs(&envs)
                                             .current_dir(config::get_dsh_install_path(&app_handle))

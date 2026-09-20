@@ -102,7 +102,7 @@ docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
 ```
 
 > **鉴权说明**：上游只接受「根路径 `GET /?token=<...>` 换 Cookie」这一条通道——`/` 之外的请求带 query token 或 Authorization 头都不认。交换成功返回 303 + `Set-Cookie`（host-only、`Path=/`、`HttpOnly`、`SameSite=Strict`、无 `Secure`），此后 `/api` 与插件自有路由都必须带回该 Cookie，否则 401。
-> 桌面端内嵌 WebView 走的是另一条路（`alpha_auth` 补丁提供的 `--skip-auth`），**L2 不复用该参数**：npm 上的核心没有这个补丁，且绕过鉴权会让「未鉴权」与「路由丢失」在测试里不可区分。
+> 桌面端内嵌 WebView 走的是另一条路（`dsh-tauri-connection` 插件在 `DSH_TAURI_EMBEDDED=1` 时覆写 connection 的两道鉴权闸门，见 [connection.proposal.md](./connection.proposal.md)），**L2 不复用该通道**：npm 上的核心没有这个插件，且绕过鉴权会让「未鉴权」与「路由丢失」在测试里不可区分。
 >
 > **核心解析**：`DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录，依次尝试。仓库刻意**不**把 `@deepseek-ai/dsh` 装进依赖树——它会与本仓 catalog 的 `@deepseek-ai/dsh-*` 形成双树，profile 组合时取到不匹配的实例。三者皆无时**直接抛错**，不提供「跳过」开关：一旦可跳过，CI 会在什么都没断言的情况下报绿。
 >
