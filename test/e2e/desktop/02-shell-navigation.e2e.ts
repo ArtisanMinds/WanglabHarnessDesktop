@@ -57,11 +57,16 @@ let stop: () => Promise<void>
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+/** 展开中的菜单项数量。WDIO 的 `ChainablePromiseArray.length` 本身是 Promise，需二次 await。 */
+async function menuItemCount(): Promise<number> {
+  return await (await browser.$$(MENU_ITEM)).length
+}
+
 async function openMenu(trigger: string): Promise<void> {
   const button = await browser.$(trigger)
   await button.waitForClickable()
   await button.click()
-  await browser.waitUntil(async () => (await browser.$$(MENU_ITEM)).length > 0, {
+  await browser.waitUntil(async () => (await menuItemCount()) > 0, {
     timeout: 5_000,
     timeoutMsg: `菜单未展开：${trigger}`,
   })
@@ -81,7 +86,7 @@ async function openMenu(trigger: string): Promise<void> {
  */
 async function closeMenu(): Promise<void> {
   await browser.keys(['Escape'])
-  await browser.waitUntil(async () => (await browser.$$(MENU_ITEM)).length === 0, {
+  await browser.waitUntil(async () => (await menuItemCount()) === 0, {
     timeout: 5_000,
     timeoutMsg: '菜单未收起（Escape）',
   })
@@ -127,12 +132,14 @@ async function readMenuGeometry(): Promise<{
 }
 
 /** 窗口是否处于最大化（Tauri window 插件，主窗口 label 固定为 `main`）。 */
-function isMaximized(): Promise<boolean> {
-  return browser.execute(() => {
+async function isMaximized(): Promise<boolean> {
+  // 脚本内 `invoke` 是异步的，`execute` 的返回类型因此是 Promise<Promise<boolean>>；
+  // 运行时 WebDriver 会等脚本返回的 promise 落定，这里 await 两次把类型也对齐。
+  return await browser.execute(async () => {
     const internals = (window as unknown as {
       __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>) => Promise<boolean> }
     }).__TAURI_INTERNALS__
-    return internals.invoke('plugin:window|is_maximized', { label: 'main' })
+    return await internals.invoke('plugin:window|is_maximized', { label: 'main' })
   })
 }
 
@@ -281,9 +288,11 @@ describe.skipIf(process.platform === 'darwin')('壳层导航栏', () => {
     const title = locale.toLowerCase().startsWith('zh')
       ? DOWNLOAD_DISABLED_TITLES['zh-CN']
       : DOWNLOAD_DISABLED_TITLES['en-US']
-    const text = (await disabled.getText()).replace(/\s+/g, '')
+    // 断言前统一去空白：`getText` 的换行/空格随语言与折行变化，英文标题自带空格。
+    const compact = (value: string) => value.replace(/\s+/g, '')
+    const text = compact(await disabled.getText())
 
-    expect(text).toContain(title)
+    expect(text).toContain(compact(title))
     expect(text).toContain(DISABLE_ENV_MARKER)
   })
 })
