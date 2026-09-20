@@ -57,8 +57,8 @@
 | 00 | 总览、前置与追踪矩阵 | `00-overview.md` | 已验证 | 索引/前置/矩阵/缺口已核对；G3 选择器事实随 `01` 批次同步 |
 | 01 | 窗口启动、几何约束、启动前置校验 | `01-window-boot.md` | 已实现 | 7 条已接线并跑通；005 改手工（G-D01-4） |
 | 02 | 壳层导航栏与条件渲染 | `02-shell-navigation.md` | 已实现 | 8 条已接线（`TC-DSK-L3-02-001`～`004`、`007`、`008`、`010`、`011`）；`005`/`006` 暂缓（G-D02-1/2）；`009` 手工 |
-| 03 | 配置对话框打开/定位/切换/关闭 | `03-config-dialog.md` | 已实现 | 5 条已接线并跑通（`TC-DSK-L3-03-001`～`004`、`007`）；`005`/`006` 暂缓（G-D03-1/2）；补 `dsh-config-*` 选择器与「应用」面板标题 |
-| 04 | 语言即时切换与持久化、主题自适应 | `04-locale-theme.md` | 提案中 | 6 条 |
+| 03 | 配置对话框打开/定位/切换/关闭 | `03-config-dialog.md` | 已验证 | 5 条已接线并跑通（`TC-DSK-L3-03-001`～`004`、`007`）；`005`/`006` 暂缓（G-D03-1/4）；补 `dsh-config-*` 选择器与「应用」面板标题；PR #623 合并 |
+| 04 | 语言即时切换与持久化、主题自适应 | `04-locale-theme.md` | 已实现 | 5 条已接线并跑通（`TC-DSK-L3-04-001`～`005`）；`006` 暂缓（需 `serviceHealthy` 才有 iframe，G-D04-5）；补 `dsh-config-language-*` 选择器与 E2E 独占 WebView2 profile |
 | 05 | 档案列表、新建、克隆、删除 | `05-profile.md` | 提案中 | 8 条 |
 | 06 | iframe 渲染条件、加载状态机、boot 桥 | `06-harness-embed.md` | 提案中 | 7 条 |
 | 07 | 服务重启/停止/外部打开、进程退出 | `07-harness-lifecycle.md` | 提案中 | 7 条 |
@@ -134,3 +134,7 @@
 | 2026-09 | 批次 `03` 实现：配置对话框 5 条接线（`005` 需服务运行中、`006` 需异常插件夹具，暂缓）；`config.tsx` 补 `dsh-config-dialog` / `-close` / `-nav-*` / `-nav-plugins-badge` / `-panel-body` 并给导航项加 `aria-current` 选中态；`Panel.Header` 增加 `testId` 与可选 `description`，据此给「应用」面板补上标题（原三面板自持标题、它独缺）；菜单操作从 `02` 抽出为 `test/e2e/support/navbar-menu.ts` 供两批复用 |
 | 2026-09 | 批次 `03` 运行验证：桌面端全车道 `01`+`02`+`03` 共 20 条全绿；修正 `TC-DSK-L3-03-007` 的尺寸断言——HeroUI `modal__container` 的入场缩放动画（`matrix3d(scale)` 起手 ~1.03）会让 `getBoundingClientRect()` 把对话框读大最多 3%，断言前须等尺寸稳定（G-D03-6） |
 | 2026-09 | 批次 `03` CI 加固：windows runner 上对话框偶发在打开后 ~100–200ms 被收起（G-D03-7）。用例侧修两处竞态——`closeDialog()` 改为等节点从 DOM 卸载并排空 overlastic 退场窗口（`duration = 300`）后再重开；导航项点击改为每轮重新定位（`waitForClickable()` 只认首次句柄，节点被替换后必然轮询到超时）。失败信息附现场快照（`pageMark`/`navbar`/`disabledPage`/`url`） |
+| 2026-09 | 批次 `03` 合并（PR #623），台账置「已验证」 |
+| 2026-09 | 批次 `04` 实现：语言与主题 5 条接线（`006` 需 iframe 即全装配车道，暂缓）；`debug.tsx` 语言下拉补 `dsh-config-language-select` 与两个选项的 `data-testid`；配置对话框生命周期从 `03` 抽出为 `test/e2e/support/config-dialog.ts` 供后续批次复用；harness 增加 `homeDir`（复用隔离根重启）、`resetStore`、`stop({ keepHome })` |
+| 2026-09 | E2E 独占 WebView2 profile：`app_local_data_dir()` 由 `SHGetKnownFolderPath` 解析，重定向 `LOCALAPPDATA` 无效，原先 debug 构建的 `EBWebView-dev`（含 localStorage）与用户开发会话共用——E2E 切语言会污染开发会话。新增 `DSH_E2E_WEBVIEW_DATA_DIR`（仅 `is_e2e_run()` 下生效）并由 harness 指到 scratch home，实测开发 profile 时间戳不再变化 |
+| 2026-09 | 批次 `04` 运行验证：桌面端全车道 `01`–`04` 共 25 条全绿（`01` 7、`02` 8、`03` 5、`04` 5） |
