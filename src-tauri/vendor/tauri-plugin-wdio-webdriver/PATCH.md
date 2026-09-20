@@ -48,4 +48,5 @@ Delete this directory and the `[patch.crates-io]` block plus its comment in
 `src-tauri/Cargo.toml`. `Cargo.lock` regains the `source` + `checksum` lines for the
 registry copy.
 
-Upstream issue: pending.
+Upstream issue: <https://github.com/webdriverio/desktop-mobile/issues/665>
+(offers the fix upstream; drop this directory once it ships).
