@@ -127,9 +127,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build core packages
-        run: pnpm --filter dsh-tauri build && pnpm --filter dsh-tauri-ui build
-
       - name: Build Plugins
         run: pnpm build:plugins
 
@@ -142,9 +139,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # 只有 main 写缓存：PR 每次生成的条目会挤掉 main 的暖缓存，
+          # 而 10 GB 上限是仓库级共享的（PR 只读、不写）。
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # dist 已由上一步的 build:plugins 前置链路产出；这里显式再跑一次前端构建，
-      # 并清空 beforeBuildCommand 避免重复触发 pnpm build（其 prebuild 会重跑插件构建）。
+      # 根 dist/ 只能由 vite build 产出（build:plugins 仅构建 packages/*，不生成 dist），
+      # 而 frontendDist 指向 ../dist：缺失会让应用走 devUrl、页面为空。
       - name: Build frontend
         run: pnpm exec vite build
 
@@ -198,6 +198,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # 同上：PR 只读缓存，避免每轮生成新条目挤掉 main 的暖缓存。
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Run tests
         run: cargo test --all-features --locked
