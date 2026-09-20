@@ -15,11 +15,15 @@ pub enum DshTheme {
     System,
 }
 
-const DEFAULT_THEME: DshTheme = DshTheme::Dark;
+/// 未设置过主题偏好时的回退值：跟随系统外观。
+///
+/// 首次进入（`settings.yaml` 不存在）或偏好值缺失/非法时都走这里；回退成固定
+/// 深色会让「跟随系统」的默认体验失效（浅色系统上启动即深色）。
+const DEFAULT_THEME: DshTheme = DshTheme::System;
 
 static LAST_EMITTED: OnceLock<Mutex<Option<DshTheme>>> = OnceLock::new();
 
-/// 读取 dsh 主题偏好；settings.yaml 缺失或解析失败时回退为深色
+/// 读取 dsh 主题偏好；settings.yaml 缺失或解析失败时回退为跟随系统
 pub fn get_dsh_theme(app_handle: &AppHandle) -> DshTheme {
     let settings_path = get_dsh_data_path(app_handle).join("settings.yaml");
     let content = match fs::read_to_string(&settings_path) {
@@ -104,4 +108,36 @@ pub fn check_and_emit_theme(app_handle: &AppHandle) {
     let _ = app_handle.emit("dsh-theme-updated", &theme);
     #[cfg(target_os = "macos")]
     apply_window_theme(app_handle, theme);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 首次进入（`settings.yaml` 不存在）与偏好值非法时都回退「跟随系统」；
+    /// 回退固定深色会让浅色系统上的默认外观失效（首次进入即深色）。
+    #[test]
+    fn default_theme_follows_system() {
+        assert_eq!(DEFAULT_THEME, DshTheme::System);
+    }
+
+    #[test]
+    fn parses_known_preference_values() {
+        let cases = [
+            ("ui-theme:\n  preference: dark\n", DshTheme::Dark),
+            ("ui-theme:\n  preference: light\n", DshTheme::Light),
+            ("ui-theme:\n  preference: system\n", DshTheme::System),
+        ];
+        for (content, expected) in cases {
+            assert_eq!(parse_theme_preference(content), Some(expected), "content={content:?}");
+        }
+    }
+
+    /// 未知取值与整段缺失都返回 `None`，由调用方回退 `DEFAULT_THEME`。
+    #[test]
+    fn rejects_unknown_and_missing_preference() {
+        assert_eq!(parse_theme_preference("ui-theme:\n  preference: blue\n"), None);
+        assert_eq!(parse_theme_preference("ui-theme:\n  density: compact\n"), None);
+        assert_eq!(parse_theme_preference("editor:\n  fontSize: 12\n"), None);
+    }
 }
