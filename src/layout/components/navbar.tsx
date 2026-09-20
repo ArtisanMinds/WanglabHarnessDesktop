@@ -534,7 +534,11 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
         onPointerDown={onDragRegionPointerDown}
       />
 
-      <div className="absolute" style={dshStyle.marked || {}} />
+      {/* 纯装饰：把 dsh 页面遮罩（`_mask_`）的底色/毛玻璃镜像到导航栏下沿，让两段观感连续。
+          必须 `pointer-events-none`——`getOverlayMarkedStyle()` 会把遮罩的 `inset` 原样搬过来，
+          遮罩铺满时这个绝对定位层就盖住整条导航栏，菜单按钮将既不响应真实点击、也过不了
+          E2E 的遮挡判定。 */}
+      <div className="absolute pointer-events-none" style={dshStyle.marked || {}} />
 
       {/* 「更新可用」chip：紧跟「帮助」右侧。检测到新版本即出现（安装包此时已在静默下载），
           点击进入更新对话框查看进度 / 打开已下载的安装包。macOS 的「帮助」在原生菜单栏，
