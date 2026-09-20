@@ -260,9 +260,9 @@
 | 编号 | 类型 | 内容 | 影响 |
 | --- | --- | --- | --- |
 | G1 | 事实 | 前端产物 `dist/` 与 debug 二进制是否最新，取决于最近一次 `pnpm build` / `cargo build` | 二进制陈旧时全部用例的失败不可归因，需先重建 |
-| G2 | 已解决 | `desktop` project 已配置：`vitest.desktop.config.ts`、`test:e2e:desktop` 脚本、`test/e2e/desktop/` 均就位 | 已接线批次为 `01`（7 条）、`02`（8 条）、`03`（5 条）、`04`（5 条） |
-| G3 | 已解决 | `test/e2e/support/selectors.ts` 已建立；壳层选择器随 `01`–`04` 批次逐批补齐（`03` 批次补 `dsh-config-*` 与导航项 `aria-current` 选中态；`04` 批次补 `dsh-config-language-*`） | 后续批次仍须按「先补选择器、再写用例」推进 |
-| G4 | 已解决 | L3 宿主编排已落地：`test/e2e/support/desktop-host.ts`（拉起真实二进制 + 绑定 WDIO 会话 + 收尾），菜单操作为 `test/e2e/support/navbar-menu.ts`、配置对话框生命周期为 `test/e2e/support/config-dialog.ts` | 运行前置：`dist/` 与 `tauri build --debug --no-bundle` 产物 |
+| G2 | 已解决 | `desktop` project 已配置：`vitest.desktop.config.ts`、`test:e2e:desktop` 脚本、`test/e2e/desktop/` 均就位 | 已接线批次为 `01`（7 条）、`02`（8 条）、`03`（5 条）、`04`（6 条） |
+| G3 | 已解决 | `test/e2e/support/selectors.ts` 已建立；壳层选择器随 `01`–`04` 批次逐批补齐（`03` 批次补 `dsh-config-*` 与导航项 `aria-current` 选中态；`04` 批次补 `dsh-config-language-*` / `dsh-shell-iframe` / `dsh-setup-preinstall-skip`） | 后续批次仍须按「先补选择器、再写用例」推进 |
+| G4 | 已解决 | L3 宿主编排已落地：`test/e2e/support/desktop-host.ts`（拉起真实二进制 + 绑定 WDIO 会话 + 收尾），菜单操作为 `test/e2e/support/navbar-menu.ts`、配置对话框生命周期为 `test/e2e/support/config-dialog.ts` | 运行前置：`dist/` 与 `tauri build --debug --no-bundle` 产物；`04` 起含**真实装配车道**用例（不置 `disableDownload`，需可装配的运行时缓存） |
 | G5 | 冲突 | `desktop.test.md` §6 称 debug 端口固定 `3081` 不可改；实现存在占用递增逻辑（`launch.rs:66`），`capabilities/default.json:4` 亦声明 NOT fixed | 端口前置按「实测空闲」执行，不假设端口恒定 |
 | G6 | 缺口 | 失败产物目录 `test/e2e/.artifacts/` 仅有文档约定与 `.gitignore`，无实现 | 失败定位在接线前只能依赖日志 |
 | G7 | 假设 | 需要联网的用例（`08`、`09`、`14`、`16`）默认允许联网；断网分支已在各用例 `[前置条件]` 中单独标注 | 离线环境下这些用例应被跳过而非判失败 |

@@ -58,7 +58,7 @@
 | 01 | 窗口启动、几何约束、启动前置校验 | `01-window-boot.md` | 已实现 | 7 条已接线并跑通；005 改手工（G-D01-4） |
 | 02 | 壳层导航栏与条件渲染 | `02-shell-navigation.md` | 已实现 | 8 条已接线（`TC-DSK-L3-02-001`～`004`、`007`、`008`、`010`、`011`）；`005`/`006` 暂缓（G-D02-1/2）；`009` 手工 |
 | 03 | 配置对话框打开/定位/切换/关闭 | `03-config-dialog.md` | 已验证 | 5 条已接线并跑通（`TC-DSK-L3-03-001`～`004`、`007`）；`005`/`006` 暂缓（G-D03-1/4）；补 `dsh-config-*` 选择器与「应用」面板标题；PR #623 合并 |
-| 04 | 语言即时切换与持久化、主题自适应 | `04-locale-theme.md` | 已实现 | 5 条已接线并跑通（`TC-DSK-L3-04-001`～`005`）；`006` 暂缓（需 `serviceHealthy` 才有 iframe，G-D04-5）；补 `dsh-config-language-*` 选择器与 E2E 独占 WebView2 profile |
+| 04 | 语言即时切换与持久化、主题自适应 | `04-locale-theme.md` | 已实现 | 6 条已接线并跑通（`TC-DSK-L3-04-001`～`006`）；`006` 走真实装配车道；补 `dsh-config-language-*` / `dsh-shell-iframe` / `dsh-setup-preinstall-skip` 选择器、E2E 独占 WebView2 profile，并修复首次进入主题默认与导航栏装饰层遮挡 |
 | 05 | 档案列表、新建、克隆、删除 | `05-profile.md` | 提案中 | 8 条 |
 | 06 | iframe 渲染条件、加载状态机、boot 桥 | `06-harness-embed.md` | 提案中 | 7 条 |
 | 07 | 服务重启/停止/外部打开、进程退出 | `07-harness-lifecycle.md` | 提案中 | 7 条 |
@@ -138,3 +138,6 @@
 | 2026-09 | 批次 `04` 实现：语言与主题 5 条接线（`006` 需 iframe 即全装配车道，暂缓）；`debug.tsx` 语言下拉补 `dsh-config-language-select` 与两个选项的 `data-testid`；配置对话框生命周期从 `03` 抽出为 `test/e2e/support/config-dialog.ts` 供后续批次复用；harness 增加 `homeDir`（复用隔离根重启）、`resetStore`、`stop({ keepHome })` |
 | 2026-09 | E2E 独占 WebView2 profile：`app_local_data_dir()` 由 `SHGetKnownFolderPath` 解析，重定向 `LOCALAPPDATA` 无效，原先 debug 构建的 `EBWebView-dev`（含 localStorage）与用户开发会话共用——E2E 切语言会污染开发会话。新增 `DSH_E2E_WEBVIEW_DATA_DIR`（仅 `is_e2e_run()` 下生效）并由 harness 指到 scratch home，实测开发 profile 时间戳不再变化 |
 | 2026-09 | 批次 `04` 运行验证：桌面端全车道 `01`–`04` 共 25 条全绿（`01` 7、`02` 8、`03` 5、`04` 5） |
+| 2026-09 | 批次 `04` 补 `TC-DSK-L3-04-006`（语言切换不重建 iframe）：该用例要验真实 iframe，改走**真实装配车道**（不置 `disableDownload`）。为让该车道可跑：预装引导跳过编排（`test/e2e/support/preinstall.ts`）、`stop()` 收掉被强杀应用遗留的 dsh 子进程（`killOrphanHarness`）、真实车道下点击统一改为每轮重新定位（`clickWhenReady`）。全车道 26 条全绿 |
+| 2026-09 | 修复**首次进入主题默认**：`theme.rs` 的 `DEFAULT_THEME` 由 `Dark` 改为 `System`（无 `settings.yaml` 与偏好非法时都跟随系统），`use-theme-adaptive.ts` 的折算同步覆盖「偏好尚未取到」窗口；新增 Rust 单测 `config::theme::tests`，`TC-DSK-L3-04-005` 增加「首次进入必须回退 system」断言 |
+| 2026-09 | 修复**导航栏被装饰层盖住**：`navbar.tsx` 镜像 dsh 遮罩样式的绝对定位层在遮罩铺满时（`inset: 0`）覆盖整条导航栏，菜单按钮既不响应真实点击也过不了 E2E 遮挡判定；补 `pointer-events-none` |
