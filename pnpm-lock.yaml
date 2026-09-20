@@ -662,9 +662,6 @@ importers:
       dsh-tauri-ui:
         specifier: workspace:*
         version: link:../dsh-tauri-ui
-      react-if-lite:
-        specifier: catalog:runtime
-        version: 0.1.0(react@19.2.8)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: catalog:dsh
@@ -696,6 +693,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      react-if-lite:
+        specifier: catalog:runtime
+        version: 0.1.0(react@19.2.8)
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)

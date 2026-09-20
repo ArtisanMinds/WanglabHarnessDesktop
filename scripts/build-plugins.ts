@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
+import { relativeSpecifiers } from './build-plugins.utils'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
 const PACKAGES_ROOT = join(REPO_ROOT, 'packages')
@@ -123,16 +124,6 @@ const RUNTIME_CONDITIONS = ['node', 'import', 'require'] as const
 const FALLBACK_CONDITION = 'default'
 
 const RUNTIME_FILE_PATTERN = /\.(?:js|cjs|mjs)$/
-
-/** 逐条取出相对 import/require 的说明符；保持 exec 循环以免依赖迭代协议。 */
-function relativeSpecifiers(source: string): string[] {
-  const pattern = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"](\.[^'"]*)['"]/g
-  const specifiers: string[] = []
-  for (let match = pattern.exec(source); match !== null; match = pattern.exec(source)) {
-    specifiers.push(match[1])
-  }
-  return specifiers
-}
 
 interface PackageManifest {
   dependencies?: Record<string, string>
