@@ -2,7 +2,7 @@
  * L3 桌面端 E2E：壳层导航栏。
  *
  * 用例来源：docs/testing/desktop/02-shell-navigation.md，一个 `it()` 对应一条用例。
- * 编排：test/e2e/support/desktop-host.ts
+ * 编排：test/e2e/support/desktop-host.ts；菜单操作：test/e2e/support/navbar-menu.ts
  *
  * 运行：pnpm test:e2e:desktop -- --run test/e2e/desktop/02-shell-navigation.e2e.ts
  *   前置：`dist/` 已由 `vite build` 产出，且 Debug 二进制经
@@ -17,13 +17,12 @@
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { startDesktopApp } from '../support/desktop-host'
+import { closeMenu, openMenu, readMenu, readMenuGeometry } from '../support/navbar-menu'
 import {
   NAVBAR_DRAG_REGION,
   NAVBAR_MENU_CONFIG,
   NAVBAR_MENU_FILE,
   NAVBAR_MENU_HELP,
-  NAVBAR_MENU_ITEM_PREFIX,
-  NAVBAR_MENU_ITEMS,
   NAVBAR_ROOT,
   SETUP_DISABLED,
   SETUP_ERROR,
@@ -55,84 +54,6 @@ let browser: WebdriverIO.Browser
 let stop: () => Promise<void>
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-/** 展开中的菜单项数量。WDIO 的 `ChainablePromiseArray.length` 本身是 Promise，需二次 await。 */
-async function menuItemCount(): Promise<number> {
-  return await (await browser.$$(NAVBAR_MENU_ITEMS)).length
-}
-
-async function openMenu(trigger: string): Promise<void> {
-  const button = await browser.$(trigger)
-  await button.waitForClickable()
-  await button.click()
-  await browser.waitUntil(async () => (await menuItemCount()) > 0, {
-    timeout: 5_000,
-    timeoutMsg: `菜单未展开：${trigger}`,
-  })
-  // 菜单项先入 DOM、焦点后落到 `role="menu"`；Escape 由菜单自身消费，
-  // 焦点未就位就发键会被丢掉（实测的竞态）。
-  await browser.waitUntil(
-    () => browser.execute(() => document.activeElement?.getAttribute('role') === 'menu'),
-    { timeout: 5_000, timeoutMsg: `菜单未获得焦点：${trigger}` },
-  )
-}
-
-/**
- * 收起菜单用 Escape 而不是再点一次触发器：菜单展开时 react-aria 会铺一层
- * 全屏 `data-testid="underlay"`（`position: fixed` + `pointer-events: auto`）
- * 接管外部点击，触发器和导航栏都被它遮住，第二次点击既不可靠也过不了
- * WebdriverIO 的「被遮挡即不可点击」判定。
- */
-async function closeMenu(): Promise<void> {
-  await browser.keys(['Escape'])
-  await browser.waitUntil(async () => (await menuItemCount()) === 0, {
-    timeout: 5_000,
-    timeoutMsg: '菜单未收起（Escape）',
-  })
-}
-
-/** 读取展开中菜单的「id / 文案 / 是否禁用」，顺序即渲染顺序。 */
-async function readMenu(): Promise<{ ids: string[], texts: string[], disabled: Record<string, boolean> }> {
-  const ids: string[] = []
-  const texts: string[] = []
-  const disabled: Record<string, boolean> = {}
-
-  for (const item of await browser.$$(NAVBAR_MENU_ITEMS)) {
-    // id 从 testid 反推（`dsh-navbar-item-<id>`），不再依赖 react-aria 的 `data-key`
-    const testid = (await item.getAttribute('data-testid')) ?? ''
-    const id = testid.startsWith(NAVBAR_MENU_ITEM_PREFIX)
-      ? testid.slice(NAVBAR_MENU_ITEM_PREFIX.length)
-      : testid
-    ids.push(id)
-    texts.push((await item.getText()).trim())
-    disabled[id] = (await item.getAttribute('aria-disabled')) === 'true'
-      || (await item.getAttribute('data-disabled')) === 'true'
-  }
-
-  return { ids, texts, disabled }
-}
-
-/** 读取展开中菜单的渲染几何：弹层宽度与每个菜单项的宽度 / 文本是否被裁切。 */
-async function readMenuGeometry(): Promise<{
-  popoverWidth: number
-  items: { id: string, width: number, clipped: boolean }[]
-}> {
-  return browser.execute((itemPrefix: string) => {
-    const popover = document.querySelector('[data-testid="dsh-navbar-menu-popover"]')
-    const nodes = Array.from(document.querySelectorAll(`[data-testid^="${itemPrefix}"]`)) as HTMLElement[]
-    return {
-      popoverWidth: popover ? Math.round(popover.getBoundingClientRect().width) : 0,
-      items: nodes.map((node) => {
-        const testid = node.getAttribute('data-testid') ?? ''
-        return {
-          id: testid.startsWith(itemPrefix) ? testid.slice(itemPrefix.length) : testid,
-          width: Math.round(node.getBoundingClientRect().width),
-          clipped: node.scrollWidth > node.clientWidth + 1,
-        }
-      }),
-    }
-  }, NAVBAR_MENU_ITEM_PREFIX)
-}
 
 /** 窗口是否处于最大化（Tauri window 插件，主窗口 label 固定为 `main`）。 */
 async function isMaximized(): Promise<boolean> {
@@ -191,26 +112,26 @@ describe.skipIf(process.platform === 'darwin')('壳层导航栏', () => {
   it('TC-DSK-L3-02-002 验证「配置」菜单包含四个面板入口', async () => {
     const locale = await browser.execute(() => navigator.language) as string
 
-    await openMenu(NAVBAR_MENU_CONFIG)
-    const menu = await readMenu()
-    await closeMenu()
+    await openMenu(browser, NAVBAR_MENU_CONFIG)
+    const menu = await readMenu(browser)
+    await closeMenu(browser)
 
     expect(menu.ids).toEqual(['application', 'profiles', 'plugins', 'harness'])
     expect(menu.texts).toEqual(expectedConfigTexts(locale))
   })
 
   it('TC-DSK-L3-02-003 验证「帮助」菜单包含四个入口', async () => {
-    await openMenu(NAVBAR_MENU_HELP)
-    const menu = await readMenu()
-    await closeMenu()
+    await openMenu(browser, NAVBAR_MENU_HELP)
+    const menu = await readMenu(browser)
+    await closeMenu(browser)
 
     expect(menu.ids).toEqual(['copy-run-logs', 'check-update', 'about', 'documentation'])
   })
 
   it('TC-DSK-L3-02-004 验证「文件」菜单包含五个入口', async () => {
-    await openMenu(NAVBAR_MENU_FILE)
-    const menu = await readMenu()
-    await closeMenu()
+    await openMenu(browser, NAVBAR_MENU_FILE)
+    const menu = await readMenu(browser)
+    await closeMenu(browser)
 
     expect(menu.ids).toEqual(['new-window', 'new-chat', 'open-folder', 'close', 'quit'])
   })
@@ -219,9 +140,9 @@ describe.skipIf(process.platform === 'darwin')('壳层导航栏', () => {
     const hasIframe = await browser.execute(() => document.querySelector('iframe') != null)
     expect(hasIframe, '本用例要求 iframe 未挂载（无协议接收方）').toBe(false)
 
-    await openMenu(NAVBAR_MENU_FILE)
-    const menu = await readMenu()
-    await closeMenu()
+    await openMenu(browser, NAVBAR_MENU_FILE)
+    const menu = await readMenu(browser)
+    await closeMenu(browser)
 
     expect(menu.disabled['new-chat']).toBe(true)
     expect(menu.disabled['open-folder']).toBe(true)
@@ -263,9 +184,9 @@ describe.skipIf(process.platform === 'darwin')('壳层导航栏', () => {
     const viewport = await browser.execute(() => window.innerWidth) as number
 
     for (const trigger of [NAVBAR_MENU_FILE, NAVBAR_MENU_CONFIG, NAVBAR_MENU_HELP]) {
-      await openMenu(trigger)
-      const geometry = await readMenuGeometry()
-      await closeMenu()
+      await openMenu(browser, trigger)
+      const geometry = await readMenuGeometry(browser)
+      await closeMenu(browser)
 
       expect(geometry.items.length, `菜单项缺失：${trigger}`).toBeGreaterThan(0)
       // 只断言「文本没被裁切」这一不变量：弹层宽度下有壳层的 `min-w-55`（220px）、

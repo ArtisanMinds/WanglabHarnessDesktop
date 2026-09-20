@@ -48,3 +48,32 @@ export const SETUP_ERROR = '[data-testid="dsh-setup-error"]'
 
 /** 「下载已被环境禁用」页根节点；`DSH_E2E_DISABLE_DOWNLOAD=1` 时替代失败页。 */
 export const SETUP_DISABLED = '[data-testid="dsh-setup-disabled"]'
+
+/** 配置对话框根节点（`Modal.Dialog`）。 */
+export const CONFIG_DIALOG = '[data-testid="dsh-config-dialog"]'
+
+/** 配置对话框关闭触发器。 */
+export const CONFIG_DIALOG_CLOSE = '[data-testid="dsh-config-dialog-close"]'
+
+/** 配置对话框右侧面板的滚动容器。 */
+export const CONFIG_PANEL_BODY = '[data-testid="dsh-config-panel-body"]'
+
+/** 当前面板自持的标题（各面板 `Panel.Header`）。 */
+export const CONFIG_PANEL_TITLE = '[data-testid="dsh-config-panel-title"]'
+
+/** 「插件」导航项上的异常角标。 */
+export const CONFIG_NAV_PLUGINS_BADGE = '[data-testid="dsh-config-nav-plugins-badge"]'
+
+/** 四个面板标识，顺序即左侧导航渲染顺序。 */
+export const CONFIG_TABS = ['application', 'profiles', 'plugins', 'harness'] as const
+
+/** 单个左侧导航项的选择器；`tab` 取 `ConfigTab` 值域。 */
+export function configNav(tab: string): string {
+  return `[data-testid="dsh-config-nav-${tab}"]`
+}
+
+/**
+ * 导航项选中态标记。选中项带 `aria-current="true"`，其余不渲染该属性——
+ * 选中态只此一处机器可读，不得依赖 `bg-background-secondary` 等类名。
+ */
+export const CONFIG_NAV_SELECTED_ATTR = 'aria-current'
