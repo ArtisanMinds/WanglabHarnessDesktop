@@ -12,6 +12,7 @@
     "prebuild": "pnpm build:plugins",
     "build": "tsc && vite build",
     "build:plugins": "tsx scripts/build-plugins.ts",
+    "build:debug": "tsx scripts/build-debug.ts",
     "genapi": "genapi",
     "preview": "vite preview",
     "tauri": "tauri",

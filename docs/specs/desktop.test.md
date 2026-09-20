@@ -65,24 +65,30 @@ tauri::Builder::default()
 ### 3.2 用例文档目录
 
 * `docs/specs/desktop.test.md`：本规范文档
-* `docs/testing/desktop/<序号>-<测试项>.md`：桌面端用例（如 `01-window-boot.md`）
-* `docs/testing/plugins/<序号>-<插件名>.md`：插件用例（如 `03-dsh-tauri-pet.md`）
+* `docs/testing/desktop/<序号>-<测试项>.md`：桌面端用例（如 `01-window-shell.md`），单文件即一个批次，可含多个业务模块
+* `docs/testing/plugins/<序号>-<插件名>.md`：插件用例（如 `02-dsh-tauri-pet.md`）
 
 ---
 
 ## 4. 用例文档规范
 
-每个文档需包含元信息区，并按 `##` 划分具体用例：
+每个文件需包含元信息区；`##` 划分业务模块（`## <n>. <模块名>（原 \`<源文件>\`）`），`###` 划分模块内小节与具体用例（用例标题为 `### [Px] 验证…`）：
 
 ```markdown
-# 窗口启动
+# 主窗口与基础壳层 UI
 
-> 层级：E2E（真实）
-> 自动化：`test/e2e/desktop/01-window-boot.e2e.ts`
+> 层级：L3（真实 Tauri 窗口）
+> 自动化：`test/e2e/desktop/01-window-shell.e2e.ts`
 > 前置：桌面端 Debug 二进制已构建；3081 端口空闲；无 Dev 实例运行
 
-## [P1] 验证应用启动后主窗口存在且标题正确
-[层级] E2E（真实）
+## 1. 窗口启动
+
+### 事实基线
+…
+
+### [P1] 验证应用启动后主窗口存在且标题正确
+[Case ID] TC-DSK-L3-01-001
+[层级] L3（真实 Tauri 窗口）
 [自动化] 是
 [前置条件] 二进制存在；端口 3081 空闲
 [测试步骤] 1. 启动应用。 2. 读取当前窗口句柄与标题。
@@ -91,7 +97,7 @@ tauri::Builder::default()
 ```
 
 * **规范约束**：
-* **编号**：`TC-DSK-L3-<文件序号>-<用例序号>`，如 `TC-DSK-L3-02-003`。文件序号取用例文档序号（`docs/testing/desktop/<序号>-*.md`），用例序号在文件内从 `001` 起连续，**不跨文件连续**——新增用例只影响本文件，不会波及后续文件。
+* **编号**：`TC-DSK-L3-<文件序号>-<用例序号>`，如 `TC-DSK-L3-02-003`。文件序号取用例文档序号（`docs/testing/desktop/<序号>-*.md`）；用例序号在文件内从 `001` 起连续（**含「单元测试层」小节里的条目**），**不跨文件连续**——新增用例只影响本文件，不会波及后续文件。一个文件含多个业务模块时，模块顺序即编号顺序。
 * **优先级**：`P1`（核心正向）、`P2`（基本正向）、`P3`（核心异常）、`P4`（边界）、`P5`（低频）。
 * **命名**：标题以「验证」开头，反向用例标注 `[反向]`。手工用例标记 `[自动化] 否（手工）`，严禁编写为 `it()`。
 * **断言**：步骤与预期结果须编号严格对应；单用例仅变更单一变量。
@@ -169,23 +175,22 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 
 ### 桌面端路线图
 
-* **1**：应用启动后主窗口存在且标题正确 (`desktop/01-window-boot.md`)
-* **2**：壳层根节点渲染且页面无未捕获错误 (`desktop/01-window-boot.md`)
-* **3**：导航栏存在且折叠/展开按钮响应正常 (`desktop/02-shell-navigation.md`)
-* **4**：配置对话框的打开与关闭 (`desktop/03-config-dialog.md`)
-* **5**：语言切换即时生效 (`desktop/04-locale-theme.md`)
-* **6**：档案列表展示与新建操作 (`desktop/05-profile.md`)
-* **7**：内置 DSH 界面 Iframe 加载完成 (`desktop/06-harness-embed.md`)
-* **8+**：`07`–`29` 按文档序号逐条推进（服务生命周期、装配、隔离、隐私、错误矩阵、状态机、插件生命周期、更新内部、系统集成）
+* **1**：应用启动后主窗口存在且标题正确 (`desktop/01-window-shell.md`)
+* **2**：壳层根节点渲染且页面无未捕获错误 (`desktop/01-window-shell.md`)
+* **3**：导航栏存在且折叠/展开按钮响应正常 (`desktop/01-window-shell.md`)
+* **4**：配置对话框的打开与关闭 (`desktop/02-config-locale.md`)
+* **5**：语言切换即时生效 (`desktop/02-config-locale.md`)
+* **6**：档案列表展示与新建操作 (`desktop/03-profile.md`)
+* **7**：内置 DSH 界面 Iframe 加载完成 (`desktop/04-harness-embed.md`)
+* **8+**：`05`–`11` 按文档序号逐条推进（核心与服务生命周期、插件面板与引导、异常恢复与错误页、备份还原、更新与内部机制、系统集成、装配与隔离隐私）
 
 ### 插件侧路线图
 
 批次号 = `docs/testing/plugins/` 下的文档序号，清单见该目录 `00-overview.md` §3。
 
-* **1**：编排骨架——脚手架挂载并拉起 `dsh web` 随机端口 (`plugins/01-host-lane-skeleton.md`)
-* **2**：共享路由契约（OPTIONS/405/403/413）(`plugins/02-dsh-tauri-core.md`)
-* **3**：`dsh-tauri-pet` SSE 路由连上并收到首帧，随后客户端挂载与 L3 窗口 (`plugins/03-dsh-tauri-pet.md`)
-* **4+**：`04`–`18` 先 Host 后 Client 逐条推进，`18` 为跨插件与壳层集成收尾
+* **1**：编排骨架与共享路由契约——脚手架挂载并拉起 `dsh web` 随机端口，并守住 OPTIONS/405/403/413 共享契约 (`plugins/01-dsh-host-and-core-contract.md`)
+* **2**：`dsh-tauri-pet` SSE 路由连上并收到首帧，随后客户端挂载与 L3 窗口 (`plugins/02-dsh-tauri-pet.md`)
+* **3+**：`03`–`15` 先 Host 后 Client 逐条推进，`16` 为跨插件与壳层集成收尾
 * **准入标准**：独立运行 ≥ 5 次无 Flake、失败时能精确定位步骤、文档与 `it()` 严格对应、不依赖上一次运行遗留状态。
 
 ---
@@ -200,9 +205,13 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 pnpm test                 # 执行全量测试 (unit + e2e)
 pnpm test:unit            # 仅执行单元测试
 pnpm test:e2e:plugin      # 仅执行插件 E2E (需提前运行 pnpm build:plugins)
+pnpm test:e2e:desktop     # 仅执行桌面端 L3 E2E (需提前运行 pnpm build:debug)
+pnpm build:debug          # 产出 dist/ 与内嵌前端的 debug 二进制 (桌面端 L3 前置)
 vitest --project unit -- <file> # 运行指定单文件测试
 
 ```
+
+`build:debug` 与 CI 的 `desktop-e2e` 作业同口径：`build:plugins` → `vite build` → `tauri build --debug --no-bundle`（临时 config 清空 `beforeBuildCommand`，避免重复触发 `pnpm build`）。缺 `dist/` 时应用走 `devUrl`、页面为空，选择器全部找不到。
 
 ### 8.2 Vitest Project 配置
 

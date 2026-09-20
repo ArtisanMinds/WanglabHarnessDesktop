@@ -3,7 +3,7 @@
 定义桌面端与插件测试逐条补齐的协作流程与进度台账。
 
 > **规范参考**：测试方案详见 [桌面端测试规范](../specs/desktop.test.md) 与 [插件测试规范](../specs/plugin.test.md)。
-> **编号口径**：批次号 = 用例文档序号（桌面端 `00`–`29`、插件 `00`–`18`），与两个 `00-overview.md` §3 的清单逐行对应；不另设 `D*` / `B*` / `PP*` 别名。
+> **编号口径**：批次号 = 用例文档序号（桌面端 `00`–`11`、插件 `00`–`16`），与两个 `00-overview.md` §3 的清单逐行对应；不另设 `D*` / `B*` / `PP*` 别名。
 
 ---
 
@@ -52,66 +52,46 @@
 
 ### 4.1 桌面端 (`docs/testing/desktop/`)
 
-| 批次 | 用例 / 基础设施 | 对应文档 | 状态 | 备注 |
-| --- | --- | --- | --- | --- |
-| 00 | 总览、前置与追踪矩阵 | `00-overview.md` | 已验证 | 索引/前置/矩阵/缺口已核对；G3 选择器事实随 `01` 批次同步 |
-| 01 | 窗口启动、几何约束、启动前置校验 | `01-window-boot.md` | 已实现 | 7 条已接线并跑通；005 改手工（G-D01-4） |
-| 02 | 壳层导航栏与条件渲染 | `02-shell-navigation.md` | 已实现 | 8 条已接线（`TC-DSK-L3-02-001`～`004`、`007`、`008`、`010`、`011`）；`005`/`006` 暂缓（G-D02-1/2）；`009` 手工 |
-| 03 | 配置对话框打开/定位/切换/关闭 | `03-config-dialog.md` | 已验证 | 5 条已接线并跑通（`TC-DSK-L3-03-001`～`004`、`007`）；`005`/`006` 暂缓（G-D03-1/4）；补 `dsh-config-*` 选择器与「应用」面板标题；PR #623 合并 |
-| 04 | 语言即时切换与持久化、主题自适应 | `04-locale-theme.md` | 已验证 | 6 条已接线并跑通（`TC-DSK-L3-04-001`～`006`）；`006` 走真实装配车道；补 `dsh-config-language-*` / `dsh-shell-iframe` / `dsh-setup-preinstall-skip` 选择器、E2E 独占 WebView2 profile，修复首次进入主题默认，并 vendored patch 驱动以打通跨域 iframe；全车道 26 条绿 |
-| 05 | 档案列表、新建、克隆、删除 | `05-profile.md` | 提案中 | 3 条（001、002、006）；003 下沉单元测试层，004/005/007/008 已裁剪 |
-| 06 | iframe 渲染条件、加载状态机、boot 桥 | `06-harness-embed.md` | 提案中 | 3 条（001、005、007）；004 下沉单元测试层 |
-| 07 | 服务重启/停止/外部打开、进程退出 | `07-harness-lifecycle.md` | 提案中 | 3 条（001、003、005）；007 下沉单元测试层 |
-| 08 | 预装插件引导页与默认勾选 | `08-preinstall-onboarding.md` | 提案中 | 3 条（001、002、007）；003/005 下沉单元测试层 |
-| 09 | 插件列表与写操作（禁用/快照/卸载） | `09-plugin-panel.md` | 提案中 | 3 条（001、006、007）；003/004/005 已裁剪 |
-| 10 | 插件异常全屏恢复页与运行期对话框 | `10-plugin-recovery.md` | 提案中 | 3 条（001、005、006）；004 下沉单元测试层 |
-| 11 | 非插件类启动失败错误页与恢复动作 | `11-startup-error.md` | 提案中 | 3 条（001、004、007）；005/006 下沉单元测试层 |
-| 12 | 窗口按钮、托盘菜单、退出语义、几何持久化 | `12-window-tray.md` | 提案中 | 3 条（001、003、005） |
-| 13 | 端口、缩放、开机自启、关闭行为、CLI link、日志 | `13-application-settings.md` | 提案中 | 3 条（001、002、004）；006 下沉单元测试层 |
-| 14 | 核心列表、切换、下载、卸载、基线兼容 | `14-core-management.md` | 提案中 | 3 条（001、004、006）；002/005/008 下沉单元测试层 |
-| 15 | 备份创建、还原、还原为新档案、删除 | `15-backup-restore.md` | 提案中 | 3 条（001、002、005） |
-| 16 | 应用更新检测、提示、破坏性更改确认 | `16-update.md` | 提案中 | 3 条（001、003、005）；007 下沉单元测试层 |
-| 17 | （已删除）桌宠窗口 | — | 已移出 | 桌宠窗口与资源由插件用例集 `plugins/03-dsh-tauri-pet.md` 承载 |
-| 18 | 通知桥、下载落盘与提示、剪贴板图片 | `18-notification-download.md` | 提案中 | 7 条（未裁剪，含 Linux 剪贴板回包 `type` 修复同步） |
-| 19 | 多窗口隔离、缩放快捷键与桥、导航命令 | `19-multi-window.md` | 提案中 | 3 条（001、002、004）；006/007 已裁剪 |
-| 20 | 首次装配、任务编排、进度阶段、下载失败与完整性 | `20-assembly.md` | 提案中 | 3 条（001、002、011）；其余 11 条下沉单元测试层 |
-| 21 | shim 与 PATH 注册、转义规则、解析优先级、用户命令保护 | `21-cli-integration.md` | 提案中 | 3 条（001、008、009）；其余 9 条下沉单元测试层 |
-| 22 | 端口默认值与占用回退、子进程启动、数据目录隔离 | `22-isolation.md` | 提案中 | 4 条（001、002、006、009）；其余 8 条下沉单元测试层 |
-| 23 | 本地监听边界、无遥测、日志与支持包、路径守卫 | `23-privacy.md` | 提案中 | 3 条（001、004、007）；其余 6 条下沉单元测试层 |
-| 24 | 档案名称规则、创建/克隆校验、初始化形态、档案隔离 | `24-profile-rules.md` | 提案中 | 3 条（001、007、010）；其余 9 条下沉单元测试层 |
-| 25 | 核心标识与查找、切换与回滚、下载/卸载错误码矩阵 | `25-core-error-matrix.md` | 提案中 | 3 条（003、005、010）；其余 11 条下沉单元测试层 |
-| 26 | 状态迁移与事件、健康检查、进程韧性与孤儿清扫 | `26-service-state-machine.md` | 提案中 | 3 条（001、002、009）；其余 9 条下沉单元测试层 |
-| 27 | 插件升级/卸载/快照、异常注册表、恢复、内置插件自愈 | `27-plugin-lifecycle.md` | 提案中 | 3 条（001、003、007）；其余 11 条下沉单元测试层 |
-| 28 | 静默下载、退出自动安装、版本护栏、更新摘要与路径守卫 | `28-desktop-update-internals.md` | 提案中 | 3 条（002、003、010）；其余 9 条下沉单元测试层 |
-| 29 | 系统操作集成、路径守卫、跨平台打包、Windows 极简模式 | `29-system-integration.md` | 提案中 | 3 条（001、006、010）；其余 11 条下沉单元测试层 |
+| 编号 | 业务/功能模块分组 | 状态 | 详细状态说明与核心逻辑收敛 |
+| --- | --- | --- | --- |
+| 00 | 总览与追溯矩阵 | 已验证 | 索引/前置/矩阵/缺口已核对；G3 选择器事实随 `01` 批次同步。 |
+| 01 | 主窗口与基础壳层 UI | 已实现 | 窗口启动与导航：7 条跑通（005 改手工，G-D01-4）；Shell 导航 8 条已接线（006/005 暂缓，G-D01-6、G-D01-7；009 手工）。托盘与控制：3 条提案中（001、003、005），涵盖托盘菜单、退出语义与几何持久化。 |
+| 02 | 配置管理与多语言主题 | 已验证 | 配置对话框：5 条跑通，PR #623 已合并。语言/主题：6 条跑通（全车道 26 条绿），完成跨域 iframe patch 驱动。应用设置：3 条提案中（001、002、004；006 下沉单测），涵盖端口/开机自启/日志等。 |
+| 03 | 档案管理与校验规则 | 提案中 | 档案 CRUD：3 条（001、002、006）；003 下沉单测，004/005/007/008 已裁剪。规则与隔离：3 条（001、007、010）；其余 9 条下沉单测。 |
+| 04 | 嵌入容器与 Boot 桥 | 提案中 | iframe 渲染/桥：3 条（001、005、007）；004 下沉单测。多窗口与隔离：3 条（001、002、004）；006/007 已裁剪，含缩放/导航命令桥。 |
+| 05 | 核心与服务生命周期 | 提案中 | Lifecycle/控制：3 条（001、003、005）；007 下沉单测。核心管理：3 条（001、004、006）；002/005/008 下沉单测。状态机与错误处理：核心错误矩阵 3 条（003、005、010，其余 11 条下沉）；状态迁移与孤儿清扫 3 条（001、002、009，其余 9 条下沉）。 |
+| 06 | 插件面板、引导与生命周期 | 提案中 | 预装引导：3 条（001、002、007）；003/005 下沉单测。写操作/面板：3 条（001、006、007）；003/004/005 已裁剪。高级生命周期：3 条（001、003、007）；其余 11 条下沉单测（含桌宠原 `17` 模块移至 `plugins/02-dsh-tauri-pet.md` 承载）。 |
+| 07 | 异常恢复与全屏错误页 | 提案中 | 插件恢复：3 条（001、005、006）；004 下沉单测。启动错误：3 条（001、004、007）；005/006 下沉单测。 |
+| 08 | 备份还原与数据安全 | 提案中 | 备份还原：3 条（001、002、005），涵盖创建、还原、还原为新档案及删除。 |
+| 09 | 应用更新与内部机制 | 提案中 | 更新 UI/提示：3 条（001、003、005）；007 下沉单测。静默/内部机制：3 条（002、003、010）；其余 9 条下沉单测。 |
+| 10 | 系统集成与桥接服务 | 提案中 | 系统桥与通知：7 条未裁剪（含 Linux 剪贴板回包 `type` 修复）。CLI 集成：3 条（001、008、009）；其余 9 条下沉单测。系统集成：3 条（001、006、010）；其余 11 条下沉单测。 |
+| 11 | 装配、网络隔离与隐私 | 提案中 | 首次装配：3 条（001、002、011）；其余 11 条下沉单测。隔离/端口：4 条（001、002、006、009）；其余 8 条下沉单测。隐私/日志：3 条（001、004、007）；其余 6 条下沉单测。 |
 
-合计 `01`–`29` 共 **109** 条 L3 用例（另有 106 条纯后端逻辑条目标记为「单元测试层」，不计入 E2E）；`17` 批次已移出至插件用例集。`desktop` project 已建立，用例落在 `test/e2e/desktop/`；`01` 批次 7 条、`02` 批次 8 条、`03` 批次 5 条、`04` 批次 6 条已接线，其余批次尚无自动化产物。
+合计 `01`–`11` 共 **109** 条 L3 用例（另有 **106** 条纯后端逻辑条目标记为「单元测试层」，不计入 E2E）；`17` 批次已移出至插件用例集。`desktop` project 已建立，用例落在 `test/e2e/desktop/`；`01` 批次 15 条、`02` 批次 11 条已接线，其余批次尚无自动化产物。
 
 ### 4.2 插件 (`docs/testing/plugins/`)
 
 | 批次 | 用例 / 基础设施 | 对应文档 | 状态 | 备注 |
 | --- | --- | --- | --- | --- |
 | 00 | 总览、前置与追踪矩阵 | `00-overview.md` | 提案中 | 不承载用例本体 |
-| 01 | 编排骨架（scratch 宿主 + 挂载 + 随机端口） | `01-host-lane-skeleton.md` | 提案中 | 编排代码 `test/e2e/support/dsh-host.ts` 已落地，用例文件待建 |
-| 02 | 共享路由契约（OPTIONS/405/403/413） | `02-dsh-tauri-core.md` | 提案中 | - |
-| 03 | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | `03-dsh-tauri-pet.md` | 已实现 | SSE 首帧用例已迁至 `test/e2e/plugins/`；客户端与 L3 待接线 |
-| 04 | `dsh-tauri-rightclick` | `04-dsh-tauri-rightclick.md` | 提案中 | - |
-| 05 | `dsh-tauri-session` | `05-dsh-tauri-session.md` | 提案中 | - |
-| 06 | `dsh-tauri-worktree` | `06-dsh-tauri-worktree.md` | 提案中 | - |
-| 07 | `dsh-tauri-ui` | `07-dsh-tauri-ui.md` | 提案中 | - |
-| 08 | `dsh-tauri-panel-extension` | `08-dsh-tauri-panel-extension.md` | 提案中 | - |
-| 09 | `dsh-tauri-panel-scheduler` | `09-dsh-tauri-panel-scheduler.md` | 提案中 | - |
-| 10 | `dsh-tauri-turnrewind` | `10-dsh-tauri-turnrewind.md` | 提案中 | - |
-| 11 | `dsh-tauri-model-config` | `11-dsh-tauri-model-config.md` | 提案中 | - |
-| 12 | 插件清单真值、文件监控与事件推送 | `12-plugin-inventory-and-watch.md` | 提案中 | - |
-| 13 | 禁用/启用/升级/卸载/快照的落盘副作用 | `13-plugin-lifecycle-commands.md` | 提案中 | - |
-| 14 | 预装引导、预设字段与指纹判定 | `14-preinstall-and-preset.md` | 提案中 | - |
-| 15 | 异常落盘、日志定位、修复与安全模式 | `15-plugin-error-and-recovery.md` | 提案中 | - |
-| 16 | 跨档案隔离与补丁层 / pnpm-workspace 治理 | `16-profile-and-patch-isolation.md` | 提案中 | - |
-| 17 | 内置插件离线物化、自愈与弃用清理 | `17-internal-plugins.md` | 提案中 | - |
-| 18 | 跨插件与壳层集成（收尾） | `18-cross-plugin-desktop.md` | 提案中 | - |
+| 01 | 编排骨架与共享路由契约 | `01-dsh-host-and-core-contract.md` | 提案中 | 编排代码 `test/e2e/support/dsh-host.ts` 已落地；包含 OPTIONS/405/403/413 契约 |
+| 02 | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | `02-dsh-tauri-pet.md` | 已实现 | SSE 首帧用例已迁至 `test/e2e/plugins/`；客户端与 L3 待接线 |
+| 03 | `dsh-tauri-rightclick` | `03-dsh-tauri-rightclick.md` | 提案中 | - |
+| 04 | `dsh-tauri-session` | `04-dsh-tauri-session.md` | 提案中 | - |
+| 05 | `dsh-tauri-worktree` | `05-dsh-tauri-worktree.md` | 提案中 | - |
+| 06 | `dsh-tauri-ui` | `06-dsh-tauri-ui.md` | 提案中 | - |
+| 07 | `dsh-tauri-panel-extension` | `07-dsh-tauri-panel-extension.md` | 提案中 | - |
+| 08 | `dsh-tauri-panel-scheduler` | `08-dsh-tauri-panel-scheduler.md` | 提案中 | - |
+| 09 | `dsh-tauri-turnrewind` | `09-dsh-tauri-turnrewind.md` | 提案中 | - |
+| 10 | `dsh-tauri-model-config` | `10-dsh-tauri-model-config.md` | 提案中 | - |
+| 11 | 插件清单、文件监控与事件推送 | `11-plugin-inventory-and-watch.md` | 提案中 | - |
+| 12 | 插件生命周期指令与落盘副作用 | `12-plugin-lifecycle-commands.md` | 提案中 | 涵盖禁用/启用/升级/卸载/快照 |
+| 13 | 预装引导、预设字段与指纹判定 | `13-preinstall-and-preset.md` | 提案中 | - |
+| 14 | 异常落盘、日志定位与安全恢复机制 | `14-plugin-error-and-recovery.md` | 提案中 | 涵盖异常落盘、日志定位、修复、安全模式及离线物化自愈 |
+| 15 | 跨档案隔离与 pnpm-workspace 治理 | `15-profile-and-patch-isolation.md` | 提案中 | 涵盖补丁层与工作区治理 |
+| 16 | 跨插件与壳层集成（收尾） | `16-cross-plugin-desktop.md` | 提案中 | - |
 
-合计 `01`–`18` 共 **170** 条用例。L2 运行前需先跑一次 `pnpm build:plugins`，插件产物当前未构建。
+合计 `01`–`16` 共 **170** 条用例。L2 运行前需先跑一次 `pnpm build:plugins`，插件产物当前未构建。
 
 ---
 
@@ -129,17 +109,19 @@
 | 2026-09 | 批次 `00` 验证通过：索引、前置、追踪矩阵与缺口清单核对无误；补 `docs/testing/README.md` 作为文档入口 |
 | 2026-09 | 批次 `02` 实现：导航栏 7 条接线（`013`/`014` 暂缓、`017` 手工）；修复 `webview.tsx` 无条件下发 iframe 回调（死按钮）、拖拽区双击被原生/网页两侧各切一次互相抵消（G-D02-4/5）、三个 `Dropdown.Popover` 的 `w-5!` 把菜单压成 20px 竖条（G-D02-7，视口 < 48rem 时暴露）；选择器常量收敛到 `test/e2e/support/selectors.ts`；同步 `01` 批次的导航栏高度断言改为亚像素容差（非 100% 显示缩放下回传 44.0000038） |
 | 2026-09 | 用例编号改为文件内连续：桌面端 `TC-DSK-L3-<文件序号>-<序号>`、插件 `TC-<业务域>-<层级>-<文件序号>-<序号>`；新增用例不再顺延后续文件（桌面端 274 → 275 条） |
-| 2026-09 | 禁用下载时渲染「下载已被环境禁用」页替代启动失败页（`RuntimeInfo::auto_download_disabled` → `setup.tsx`），布局与失败页同源；新增 `TC-DSK-L3-02-011` 守门 |
+| 2026-09 | 禁用下载时渲染「下载已被环境禁用」页替代启动失败页（`RuntimeInfo::auto_download_disabled` → `setup.tsx`），布局与失败页同源；新增 `TC-DSK-L3-02-011`守门 |
 | 2026-09 | 桌面端 E2E 车道加固：会话建立后显式切到主窗口 webview `main`（默认窗口可能落在桌宠 `pet`），`assertPreconditions` 增加 WebDriver 端口 4445 占用校验（被别的实例占住时会静默挂到对方窗口） |
 | 2026-09 | 批次 `03` 实现：配置对话框 5 条接线（`005` 需服务运行中、`006` 需异常插件夹具，暂缓）；`config.tsx` 补 `dsh-config-dialog` / `-close` / `-nav-*` / `-nav-plugins-badge` / `-panel-body` 并给导航项加 `aria-current` 选中态；`Panel.Header` 增加 `testId` 与可选 `description`，据此给「应用」面板补上标题（原三面板自持标题、它独缺）；菜单操作从 `02` 抽出为 `test/e2e/support/navbar-menu.ts` 供两批复用 |
-| 2026-09 | 批次 `03` 运行验证：桌面端全车道 `01`+`02`+`03` 共 20 条全绿；修正 `TC-DSK-L3-03-007` 的尺寸断言——HeroUI `modal__container` 的入场缩放动画（`matrix3d(scale)` 起手 ~1.03）会让 `getBoundingClientRect()` 把对话框读大最多 3%，断言前须等尺寸稳定（G-D03-6） |
+| 2026-09 | 批次 `03` 运行验证：桌面端全车道 `01`+`02`+`03` 共 20 条全绿；修正 `TC-DSK-L3-03-007`的尺寸断言——HeroUI `modal__container` 的入场缩放动画（`matrix3d(scale)` 起手 ~1.03）会让 `getBoundingClientRect()` 把对话框读大最多 3%，断言前须等尺寸稳定（G-D03-6） |
 | 2026-09 | 批次 `03` CI 加固：windows runner 上对话框偶发在打开后 ~100–200ms 被收起（G-D03-7）。用例侧修两处竞态——`closeDialog()` 改为等节点从 DOM 卸载并排空 overlastic 退场窗口（`duration = 300`）后再重开；导航项点击改为每轮重新定位（`waitForClickable()` 只认首次句柄，节点被替换后必然轮询到超时）。失败信息附现场快照（`pageMark`/`navbar`/`disabledPage`/`url`） |
 | 2026-09 | 批次 `03` 合并（PR #623），台账置「已验证」 |
 | 2026-09 | 批次 `04` 实现：语言与主题 5 条接线（`006` 需 iframe 即全装配车道，暂缓）；`debug.tsx` 语言下拉补 `dsh-config-language-select` 与两个选项的 `data-testid`；配置对话框生命周期从 `03` 抽出为 `test/e2e/support/config-dialog.ts` 供后续批次复用；harness 增加 `homeDir`（复用隔离根重启）、`resetStore`、`stop({ keepHome })` |
 | 2026-09 | E2E 独占 WebView2 profile：`app_local_data_dir()` 由 `SHGetKnownFolderPath` 解析，重定向 `LOCALAPPDATA` 无效，原先 debug 构建的 `EBWebView-dev`（含 localStorage）与用户开发会话共用——E2E 切语言会污染开发会话。新增 `DSH_E2E_WEBVIEW_DATA_DIR`（仅 `is_e2e_run()` 下生效）并由 harness 指到 scratch home，实测开发 profile 时间戳不再变化 |
 | 2026-09 | 批次 `04` 运行验证：桌面端全车道 `01`–`04` 共 25 条全绿（`01` 7、`02` 8、`03` 5、`04` 5） |
 | 2026-09 | 批次 `04` 补 `TC-DSK-L3-04-006`（语言切换不重建 iframe）：该用例要验真实 iframe，改走**真实装配车道**（不置 `disableDownload`）。为让该车道可跑：预装引导跳过编排（`test/e2e/support/preinstall.ts`）、`stop()` 收掉被强杀应用遗留的 dsh 子进程（`killOrphanHarness`）、真实车道下点击统一改为每轮重新定位（`clickWhenReady`）。全车道 26 条全绿 |
-| 2026-09 | 修复**首次进入主题默认**：`theme.rs` 的 `DEFAULT_THEME` 由 `Dark` 改为 `System`（无 `settings.yaml` 与偏好非法时都跟随系统），`use-theme-adaptive.ts` 的折算同步覆盖「偏好尚未取到」窗口；新增 Rust 单测 `config::theme::tests`，`TC-DSK-L3-04-005` 增加「首次进入必须回退 system」断言 |
-| 2026-09 | 纠正**导航栏装饰层**的理解：该层镜像 dsh 页面遮罩，dsh 弹官方模态（如首次进入的 apiKey 引导）时遮罩铺满，此时壳层**就该**不可点，因此**不**加 `pointer-events-none`（先前误加，已撤销）。随之 `TC-DSK-L3-04-006` 的 `afterEach` 语言归一改为「导航栏被遮罩时跳过」，不因此判失败（G-D04-7） |
-| 2026-09 | 打通**跨域 iframe**（`TC-DSK-L3-04-006` 的前置基础设施）：上游 `tauri-plugin-wdio-webdriver` 1.4.0 用 JS 模拟帧上下文（`frame.contentWindow.eval`），壳层 `tauri://localhost` 与内嵌 dsh `http://127.0.0.1:<port>` 跨域时 `contentDocument` 为 `null`，任何帧内脚本必然超时。以 `[patch.crates-io]` 指向 `src-tauri/vendor/tauri-plugin-wdio-webdriver`，Windows 路径改用原生 `ICoreWebView2Frame2::ExecuteScript`（引擎按帧路由，不受同源策略约束）；`frame_context` 为空时行为不变，深层嵌套帧仍回退上游路径。探针实测跨域帧内脚本从 167s 超时变为 173ms 正确返回。待上游支持后删除 vendor 与 `[patch.crates-io]`（`PATCH.md` 记载移除步骤；已提上游 issue [desktop-mobile#665](https://github.com/webdriverio/desktop-mobile/issues/665)） |
-| 2026-09 | **桌面端用例范围收敛（275 → 109）**：桌面端用例过多且与插件用例集存在重叠，按「P1 全保留 + 每批次补足 3 条（安全边界优先）」重定范围，保留 **109** 条 L3 E2E 用例。被裁条目分两类：① 断言对象为**后端纯逻辑**（函数/时序/协议、转义、状态机细节）的 **106 条**下沉为「单元测试层」，在各文档同名小节保留记录，不计入 E2E；② 无用户可见后果或重复断言面的 UI 细节**直接删除**。`17` 桌宠批次整章移出，改由插件用例集 `plugins/03-dsh-tauri-pet.md`（`TC-PET-L3-03-001`～`004`）承载，桌面端不再维护桌宠用例。`18` 批次保持原样（7 条），以避免与 main 的 Linux 剪贴板修复冲突。已接线的 `01`–`04`（26 条）不受影响 |
+| 2026-09 | 修复**首次进入主题默认**：`theme.rs` 的 `DEFAULT_THEME` 由 `Dark` 改为 `System`（无 `settings.yaml` 与偏好非法时都跟随系统），`use-theme-adaptive.ts` 的折算同步覆盖「偏好尚未取到」窗口；新增 Rust 单测 `config::theme::tests`，`TC-DSK-L3-04-005`增加「首次进入必须回退 system」断言 |
+| 2026-09 | 纠正**导航栏装饰层**的理解：该层镜像 dsh 页面遮罩，dsh 弹官方模态（如首次进入的 apiKey 引导）时遮罩铺满，此时壳层**就该**不可点，因此**不**加 `pointer-events-none`（先前误加，已撤销）。随之 `TC-DSK-L3-04-006`的 `afterEach` 语言归一改为「导航栏被遮罩时跳过」，不因此判失败（G-D04-7） |
+| 2026-09 | 打通**跨域 iframe**（`TC-DSK-L3-04-006`的前置基础设施）：上游 `tauri-plugin-wdio-webdriver` 1.4.0 用 JS 模拟帧上下文（`frame.contentWindow.eval`），壳层 `tauri://localhost` 与内嵌 dsh `http://127.0.0.1:<port>` 跨域时 `contentDocument` 为 `null`，任何帧内脚本必然超时。以 `[patch.crates-io]` 指向 `src-tauri/vendor/tauri-plugin-wdio-webdriver`，Windows 路径改用原生 `ICoreWebView2Frame2::ExecuteScript`（引擎按帧路由，不受同源策略约束）；`frame_context` 为空时行为不变，深层嵌套帧仍回退上游路径。探针实测跨域帧内脚本从 167s 超时变为 173ms 正确返回。待上游支持后删除 vendor 与 `[patch.crates-io]`（`PATCH.md` 记载移除步骤；已提上游 issue [desktop-mobile#665](https://github.com/webdriverio/desktop-mobile/issues/665)） |
+| 2026-09 | **桌面端用例范围收敛（275 → 109）**：桌面端用例过多且与插件用例集存在重叠，按「P1 全保留 + 每批次补足 3 条（安全边界优先）」重定范围，保留 **109** 条 L3 E2E 用例。被裁条目分两类：① 断言对象为**后端纯逻辑**（函数/时序/协议、转义、状态机细节）的 **106 条**下沉为「单元测试层」，在各文档同名小节保留记录，不计入 E2E；② 无用户可见后果或重复断言面的 UI 细节**直接删除**。`17` 桌宠批次整章移出，改由插件用例集 `plugins/02-dsh-tauri-pet.md`（`TC-PET-L3-02-001`～`004`）承载，桌面端不再维护桌宠用例。`18` 批次保持原样（7 条），以避免与 main 的 Linux 剪贴板修复冲突。已接线的 `01`–`04`（26 条）不受影响 |
+| 2026-09 | **插件用例文档合并（19 → 17 个文件，用例总数不变 170 条）**：`01-host-lane-skeleton.md` + `02-dsh-tauri-core.md` → `01-dsh-host-and-core-contract.md`（编排骨架 + 共享路由契约）；`17-internal-plugins.md` 并入 `14-plugin-error-and-recovery.md`（异常与恢复 + 离线物化自愈）；`03`–`16` 顺移一位、`18` → `16`。用例编号按合并后文件序号重排（`TC-<域>-<层>-<文件序号>-<序号>`），`TC-HOST-L2-01-*`、`TC-CORE-L2-01-*`、`TC-REC-L3-14-*`、`TC-INT-L3-14-*` 四个前缀并存；`plugins/00-overview.md` §3/§6/§7、`docs/testing/README.md` 与插件文档内交叉引用同步 |
+| 2026-09 | **桌面端用例文档合并（29 → 11 个文件，用例总数不变：109 条 E2E + 106 条单元测试层）**：按业务分组合并为 `01`–`11`，`TC-DSK-L3-*` 与 `G-D*` 编号按「新文件序号 + 文件内连续」重排（含「单元测试层」条目）；E2E 代码同步合并为 `test/e2e/desktop/01-window-shell.e2e.ts` 与 `test/e2e/desktop/02-config-locale.e2e.ts`，已接线的 26 条编号随之更新 |

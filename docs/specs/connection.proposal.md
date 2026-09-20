@@ -139,7 +139,7 @@ packages/dsh-tauri-connection/
 * `packages/dsh-tauri-tsdown/src/index.ts`：`DshConfigOptions.client` 接受 `false`，
   让纯宿主插件不再被迫产出浏览器半区。
 * `README.md` / `README.en.md` / `README.es.md`：插件清单登记新包。
-* `docs/specs/upstram.sync.md` §5.2、`docs/specs/plugin.test.md`、`docs/testing/plugins/02-dsh-tauri-core.md`
+* `docs/specs/upstram.sync.md` §5.2、`docs/specs/plugin.test.md`、`docs/testing/plugins/01-dsh-host-and-core-contract.md`
   中指向旧补丁的表述。
 
 `--no-open` 与 `web_supports_no_open_flag` 保持不动。

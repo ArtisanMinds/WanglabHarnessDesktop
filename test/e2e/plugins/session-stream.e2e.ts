@@ -6,7 +6,7 @@
  * 「路由已注册且 handler 跑起来了」的正向证据。
  *
  * 无浏览器：本用例只走 HTTP，先把编排骨架跑稳；客户端渲染（Bundle Slot 挂载、
- * DOM 节点）待 `docs/testing/plugins/03-dsh-tauri-pet.md` 的客户端部分接线。
+ * DOM 节点）待 `docs/testing/plugins/02-dsh-tauri-pet.md` 的客户端部分接线。
  */
 
 import { expect, inject, test } from 'vitest'
