@@ -1,46 +1,58 @@
-import { statSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { defineService, openDirectory, openUrl } from 'dsh-tauri'
+import type { EditorPreference } from '../../shared/editor.types'
+import type { ConfigOpenResult } from './config-file.types'
+import { readFile, stat } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { defineService, openDirectory, writeAtomic } from 'dsh-tauri'
+import { PLUGIN_ID } from '../../shared/constants'
+import { parseEditorPreference } from '../../shared/editor'
 import { resolveSettingsFilePath } from '../utils/paths'
-
-export type ConfigOpenResult
-  = | { ok: true, path: string, opened: 'file' | 'directory' }
-    | { ok: false, path: string, error: string }
-
-function isFile(path: string): boolean {
-  try {
-    return statSync(path).isFile()
-  }
-  catch {
-    return false
-  }
-}
+import { openInEditor } from './config-file.utils'
 
 export const configFile = defineService({
-  /** 模型配置所在的 DSH 设置文档路径（`$DSH_HOME/settings.yaml`）。 */
-  resolvePath(): string {
-    return resolveSettingsFilePath()
+  async load(): Promise<EditorPreference> {
+    try {
+      return parseEditorPreference(JSON.parse(await readFile(preferencePath(), 'utf8')))
+    }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        return { editor: 'system', command: '' }
+      throw error
+    }
   },
 
-  /**
-   * 用系统默认程序打开模型配置文件。
-   *
-   * 文档尚未落盘时退而打开它所在的目录：`settings.yaml` 只在第一次写入时创建，
-   * 空手打开一个不存在的路径在任何平台上都只会静默失败。
-   * @returns 实际打开的路径与目标类型，或宿主侧自己的失败文案。
-   */
+  async save(preference: EditorPreference): Promise<EditorPreference> {
+    const normalized = parseEditorPreference(preference)
+    await writeAtomic(preferencePath(), JSON.stringify(normalized))
+    return normalized
+  },
+
   async open(): Promise<ConfigOpenResult> {
     const path = resolveSettingsFilePath()
     try {
-      const servesFile = isFile(path)
+      const servesFile = await isFile(path)
       if (servesFile)
-        await openUrl(path)
+        await openInEditor(path, await configFile.load())
       else
         await openDirectory(dirname(path))
-      return { ok: true, path, opened: servesFile ? 'file' : 'directory' }
+      return { ok: true, path: servesFile ? path : dirname(path), opened: servesFile ? 'file' : 'directory' }
     }
     catch (error) {
       return { ok: false, path, error: error instanceof Error ? error.message : String(error) }
     }
   },
 })
+
+function preferencePath(): string {
+  return join(dirname(resolveSettingsFilePath()), PLUGIN_ID, 'editor.json')
+}
+
+async function isFile(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isFile()
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return false
+    throw error
+  }
+}
