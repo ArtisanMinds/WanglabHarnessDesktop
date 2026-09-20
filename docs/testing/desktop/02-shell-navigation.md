@@ -199,6 +199,8 @@
 [清理] `DELETE /session/<id>`
 
 > **口径**：`disableDownload` 只截断网络下载，装配与失败路径照旧执行（`desktop.test.md` §6.1）；壳层只是不再把「找不到 dsh CLI」呈现为故障。因此本批其余用例（菜单结构、禁用项、拖拽区）仍按真实观测结果断言。
+>
+> **缓存必须空**：共享下载缓存里若已有一份可用的 Node/dsh/pnpm，`runtime_ready()` 会为真，装配流程随之分叉（不再停在「找不到 dsh CLI」），禁用页就不会出现。因此 `startDesktopApp({ disableDownload: true })` 未显式指定缓存时，脚手架改用本次运行独占的空缓存目录，收尾随 scratch home 一起删除——禁用页与「无 iframe 接收方」两类断言都不再依赖上一次运行的遗留。
 
 ## 6. 选择器契约
 
@@ -211,6 +213,10 @@
 | `dsh-navbar-drag-region` | 空白拖拽区 | `navbar.tsx:522` | 已补 |
 | `dsh-setup-disabled` | 「下载已被环境禁用」页根节点 | `setup.tsx` → `loadable.tsx` | 已补 |
 | `dsh-setup-error` | 装配失败页根节点 | `setup.tsx` → `loadable.tsx` | 已补 |
+| `dsh-navbar-menu-popover` | 下拉弹层根节点（三个菜单共用，仅展开时挂载） | `navbar.tsx` 三处 `Dropdown.Popover` | 已补 |
+| `dsh-navbar-item-<id>` | 菜单项（`<id>` 取 `Dropdown.Item` 的 `id`，如 `dsh-navbar-item-new-chat`） | `navbar.tsx` 各 `Dropdown.Item` | 已补 |
+
+菜单内容一律按 testid 定位：全部菜单项用前缀选择器 `[data-testid^="dsh-navbar-item-"]` 收集，单个菜单项用 `navbarMenuItem(id)`；**不使用** `[role="menuitem"]` 之类的角色/层级选择器（`desktop.test.md` §5）。菜单项 id 也从 testid 反推，不再读 react-aria 的 `data-key`。
 
 跨用例复用的常量统一收录于 `test/e2e/support/selectors.ts`（`01` 批次的选择器也已改引该模块）。
 

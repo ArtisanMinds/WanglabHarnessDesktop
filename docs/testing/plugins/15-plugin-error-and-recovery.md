@@ -170,7 +170,7 @@
 | `06-plugin/03` 验证 recover_plugin 拒绝卸载核心或官方包 | TC-REC-L3-15-007 | 异常 | — |
 | `06-plugin/03` 验证补丁层 YAML 语法错误可被显式隔离并恢复启动 | TC-REC-L3-15-008 | 异常 | 错误页入口由 `../desktop/11` 断言 |
 | 现行实现新增（悬空 insert 备份） | TC-REC-L3-15-009 | 边界 | — |
-| `06-plugin/03` 验证 pnpm-workspace.yaml 多文档被归一化并恢复插件安装 | TC-ISO-L2-16-002（见 `16-profile-and-patch-isolation.md`） | 正向 | 归 17 |
+| `06-plugin/03` 验证 pnpm-workspace.yaml 多文档被归一化并恢复插件安装 | TC-ISO-L3-16-005（见 `16-profile-and-patch-isolation.md`） | 正向 | 归 17 |
 
 ---
 

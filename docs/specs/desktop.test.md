@@ -151,6 +151,7 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 | 默认不禁用 | 生产语义，`DISABLE_AUTO_DOWNLOAD = false`；仅当 `DSH_E2E_DISABLE_DOWNLOAD=1` 时才禁用 | 绝大多数用例保持真实启动路径 |
 | 下载缓存复用 | `DSH_DOWNLOAD_CACHE_DIR` 覆盖下载基目录（`config/runtime.rs:get_base_dir`），跨用例指向同一稳定目录 | 除首次装配外，后续 L3 用例不再重复下载 |
 | 可清空下载状态 | 脚手架提供 `resetDownloadCache()`，删除缓存目录后再启动 | 专门验证「首次启动的装配流程」本身 |
+| 禁用下载时用空缓存 | `startDesktopApp({ disableDownload: true })` 未显式指定缓存时，改用本次运行独占的空缓存目录（随 scratch home 删除） | 共享缓存里的运行时会让 `runtime_ready()` 为真、装配分叉，禁用页与「无 iframe 接收方」的断言就变成依赖上一次运行 |
 
 * **仅壳层用例必须禁用下载**：只断言壳层（窗口、几何、导航）而不触达 dsh 的批次，一律以 `startDesktopApp({ disableDownload: true })` 启动，避免为无关断言付出下载代价。
 * **禁用下载不等于跳过装配**：禁用只截断网络下载，装配与装配失败路径仍在；但壳层不把由此产生的「找不到 dsh CLI」呈现为故障，而是渲染「下载已被环境禁用」页（`dsh-setup-disabled`，布局与失败页同源），其余断言仍按实际观测结果书写。
