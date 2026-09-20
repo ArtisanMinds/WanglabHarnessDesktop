@@ -361,14 +361,14 @@ export function ConfigDebug() {
             className="w-[80px]"
             aria-label={t('ui.language')}
           >
-            <Select.Trigger className="rounded-md min-h-8! h-8 py-0 items-center">
+            <Select.Trigger data-testid="dsh-config-language-select" className="rounded-md min-h-8! h-8 py-0 items-center">
               <Select.Value />
               <Select.Indicator />
             </Select.Trigger>
             <Select.Popover className="rounded-md">
               <ListBox>
-                <ListBox.Item className="rounded-md min-h-8!" id="zh-CN" textValue={t('ui.languages.zh')}>{t('ui.languages.zh')}</ListBox.Item>
-                <ListBox.Item className="rounded-md min-h-8!" id="en-US" textValue={t('ui.languages.en')}>{t('ui.languages.en')}</ListBox.Item>
+                <ListBox.Item data-testid="dsh-config-language-option-zh" className="rounded-md min-h-8!" id="zh-CN" textValue={t('ui.languages.zh')}>{t('ui.languages.zh')}</ListBox.Item>
+                <ListBox.Item data-testid="dsh-config-language-option-en" className="rounded-md min-h-8!" id="en-US" textValue={t('ui.languages.en')}>{t('ui.languages.en')}</ListBox.Item>
               </ListBox>
             </Select.Popover>
           </Select>
