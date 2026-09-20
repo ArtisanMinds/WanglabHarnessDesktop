@@ -156,4 +156,4 @@
 - **G-XP-1**：本文件多数用例会**改写 `<DSH_E2E_HOME>/home/.dsh.dev` 下的 profile**（禁用/安全模式）。执行前必须确认无 dev 实例运行，并在用例收尾恢复原状；未恢复即视为用例失败。
 - **G-XP-2**：TC-XP-L3-18-003 与 TC-XP-L3-18-006 需要**测试替身插件**（必然抛错 / 让 bundle 挂起）。仓库当前无此类 fixture，属新增基础设施，需单独批次授权。
 - **G-XP-3**：Windows 只注入 3 个垫片、非 Windows 注入 5 个（`src-tauri/src/desktop/notification.rs:324`）。跨平台差异会对 `iterator helpers` / `AbortSignal.any` 相关行为有影响，本文件不覆盖该差异，登记为已知盲区。
-- **假设**：iframe 与宿主同源（`http://127.0.0.1:<port>`），因此 WebDriver 可直接切 frame 并派发事件；若 CSP 收紧，`use-iframe-message.ts:25` 的 origin 校验会成为断言前置。
+- **假设**：iframe 与宿主**跨源**（宿主 `tauri://localhost`，iframe `http://127.0.0.1:<port>`）。WebDriver 切 frame 需要 WebView2 原生帧执行（`ICoreWebView2Frame2::ExecuteScript`），已由 vendored patch 打通（见 `desktop/04-locale-theme.md` §6 与 `src-tauri/vendor/tauri-plugin-wdio-webdriver/PATCH.md`）；上游的 `contentWindow.eval` 模拟在跨域下不可用。若 CSP 收紧，`use-iframe-message.ts:25` 的 origin 校验会成为断言前置。

@@ -534,6 +534,9 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
         onPointerDown={onDragRegionPointerDown}
       />
 
+      {/* 纯装饰：把 dsh 页面遮罩（`_mask_`）的底色/毛玻璃镜像到导航栏下沿，让两段观感连续。
+          dsh 弹模态（如首次进入的 apiKey 对话框）时遮罩铺满，这一层就该盖住导航栏——
+          壳层在 dsh 有模态期间不应可点，不要给它加 `pointer-events-none`。 */}
       <div className="absolute" style={dshStyle.marked || {}} />
 
       {/* 「更新可用」chip：紧跟「帮助」右侧。检测到新版本即出现（安装包此时已在静默下载），

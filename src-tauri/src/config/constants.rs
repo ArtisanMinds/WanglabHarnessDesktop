@@ -121,6 +121,14 @@ pub const E2E_DISABLE_DOWNLOAD_ENV_VAR: &str = "DSH_E2E_DISABLE_DOWNLOAD";
 /// 环境（Node/pnpm/Git）与核心都装在该根下。E2E 每次使用全新 scratch home，
 /// 若不覆盖就会反复重下；把它指向一个稳定目录即可让首次下载在后续运行中复用。
 pub const DOWNLOAD_CACHE_ENV_VAR: &str = "DSH_DOWNLOAD_CACHE_DIR";
+
+/// WebView2 用户数据目录的环境变量：仅在 E2E 运行中生效。
+///
+/// `app_local_data_dir()` 由 `SHGetKnownFolderPath` 解析，重定向 `LOCALAPPDATA`
+/// 无效，因此 debug 构建的 WebView2 profile（`EBWebView-dev`，内含 localStorage）
+/// 会与用户正在使用的开发版共用：E2E 写入的语言等前端状态会污染开发会话，用例
+/// 之间也会互相串。E2E 把它指向 scratch home 即可每次运行独占。
+pub const E2E_WEBVIEW_DATA_DIR_ENV_VAR: &str = "DSH_E2E_WEBVIEW_DATA_DIR";
 pub const STORE_SETTING_KEY: &str = "setting";
 /// Store 中记录主窗口几何（位置/大小/最大化）的键
 pub const STORE_WINDOW_STATE_KEY: &str = "window_state";

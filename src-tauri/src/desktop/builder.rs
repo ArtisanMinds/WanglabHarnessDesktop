@@ -76,6 +76,17 @@ static EXTRA_WINDOW_SEQ: AtomicU64 = AtomicU64::new(0);
 /// 使用不同的 User Data Folder 而失败。开发版与 release 分目录的原因见主窗口。
 #[cfg(windows)]
 fn webview_data_directory(app: &tauri::AppHandle<Wry>) -> std::path::PathBuf {
+    // E2E 独占 profile：`app_local_data_dir()` 走 `SHGetKnownFolderPath`，重定向
+    // `LOCALAPPDATA` 无效，不覆盖就会与用户正在使用的开发版共用 `EBWebView-dev`
+    // （localStorage 等前端状态互相污染）。
+    if crate::config::is_e2e_run() {
+        if let Some(dir) = std::env::var_os(crate::config::E2E_WEBVIEW_DATA_DIR_ENV_VAR) {
+            if !dir.is_empty() {
+                return std::path::PathBuf::from(dir);
+            }
+        }
+    }
+
     let mut directory = app
         .path()
         .app_local_data_dir()

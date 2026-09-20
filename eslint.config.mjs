@@ -9,6 +9,9 @@ export default antfu({
     'AGENTS.*',
     'docs',
     'archive',
+    // vendored 第三方 crate（含其 README/permissions 产物）：格式由上游决定，
+    // 只保留本仓对其的 patch 说明（PATCH.md 由人读，不参与 lint）
+    'src-tauri/vendor',
     // genapi 产物：格式由生成器（prettier 默认）决定，不由项目 eslint 规约
     'packages/*/src/client/apis/index.ts',
     'packages/*/src/client/apis/index.type.ts',

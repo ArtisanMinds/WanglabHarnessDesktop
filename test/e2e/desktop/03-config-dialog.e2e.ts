@@ -16,21 +16,22 @@
 
 import process from 'node:process'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import {
+  closeConfigDialog,
+  configShellState,
+  isConfigDialogOpen,
+  markConfigDialogPage,
+  openConfigTab,
+} from '../support/config-dialog'
 import { startDesktopApp } from '../support/desktop-host'
-import { openMenu } from '../support/navbar-menu'
 import {
   CONFIG_DIALOG,
-  CONFIG_DIALOG_CLOSE,
   CONFIG_NAV_SELECTED_ATTR,
   CONFIG_PANEL_BODY,
   CONFIG_PANEL_TITLE,
   CONFIG_TABS,
   configNav,
-  NAVBAR_MENU_CONFIG,
   NAVBAR_ROOT,
-  navbarMenuItem,
-  SETUP_DISABLED,
-  SETUP_ERROR,
 } from '../support/selectors'
 
 /**
@@ -72,52 +73,6 @@ async function deviceLocale(): Promise<string> {
   return await browser.execute(() => navigator.language) as string
 }
 
-/** 页面级标记：用来区分「对话框被收起」与「整个 webview 被重新加载」。 */
-const PAGE_MARK = '__dshE2eConfigDialogMark'
-
-/**
- * 失败时的现场快照。CI（windows-2025 runner）上对话框偶发在打开后 ~100–200ms 被收起，
- * 元素句柄随即变成游离节点，只看错误信息无法区分「弹层被收起」和「页面被重新加载」。
- */
-async function shellState(): Promise<string> {
-  return await browser.execute((selectors: Record<string, string>, markKey: string) => {
-    const has = (selector: string) => Boolean(document.querySelector(selector))
-    const marked = (window as unknown as Record<string, unknown>)[markKey] === 1
-    return [
-      `navbar=${has(selectors.navbar)}`,
-      `dialog=${has(selectors.dialog)}`,
-      `disabledPage=${has(selectors.disabled)}`,
-      `errorPage=${has(selectors.error)}`,
-      `pageMark=${marked}`,
-      `url=${location.href}`,
-    ].join(' ')
-  }, { navbar: NAVBAR_ROOT, dialog: CONFIG_DIALOG, disabled: SETUP_DISABLED, error: SETUP_ERROR }, PAGE_MARK)
-}
-
-/**
- * 打开「配置」菜单并选择目标面板；菜单项点击后对话框才挂载。
- *
- * `closeDialog()` 之后重开时，上一个 overlay 实例的 `vanish()` 仍在退场窗口内（overlastic
- * `duration = 300`），偶发把刚挂载的新对话框一起摘掉。这里对「打开后立刻被收起」重试一次；
- * 其余断言保持严格口径（G-D03-7）。
- */
-async function openConfigTab(tab: string): Promise<void> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    await openMenu(browser, NAVBAR_MENU_CONFIG)
-    const item = await browser.$(navbarMenuItem(tab))
-    await item.waitForClickable()
-    await item.click()
-
-    const dialog = await browser.$(CONFIG_DIALOG)
-    await dialog.waitForDisplayed({ timeout: 10_000 })
-
-    await browser.pause(400)
-    if (await isDialogOpen())
-      return
-  }
-  throw new Error(`配置对话框打开后立即被收起（重试后仍失败）：${tab}；现场：${await shellState()}`)
-}
-
 /** 点击导航项：每次轮询都重新查询元素。 */
 async function clickNav(tab: string): Promise<void> {
   // `waitForClickable()` 只认首次取到的句柄，句柄一旦游离就永远轮询到超时；
@@ -148,34 +103,6 @@ async function panelTitle(): Promise<string> {
   const node = await browser.$(CONFIG_PANEL_TITLE)
   await node.waitForDisplayed({ timeout: 10_000 })
   return (await node.getText()).trim()
-}
-
-async function isDialogOpen(): Promise<boolean> {
-  const dialog = await browser.$(CONFIG_DIALOG)
-  return await dialog.isExisting() && await dialog.isDisplayed()
-}
-
-/**
- * 收起对话框并等它真正离开 DOM。
- *
- * 每次打开都是新的 overlay 实例；残留没走完就再开，会叠出两层对话框，
- * 后续 `$` 取到的是第一层，面板定位断言会失去意义。
- * 另外必须等过 overlastic 的退场窗口（`duration = 300`）：`isDisplayed()` 为假只说明
- * 弹层开始退场，`vanish()` 尚未执行，此时重开会与上一个实例的卸载竞争（G-D03-7）。
- */
-async function closeDialog(): Promise<void> {
-  const trigger = await browser.$(CONFIG_DIALOG_CLOSE)
-  await trigger.waitForClickable()
-  await trigger.click()
-  await browser.waitUntil(async () => !(await isDialogOpen()), {
-    timeout: 10_000,
-    timeoutMsg: '配置对话框未关闭',
-  })
-  await browser.waitUntil(async () => !(await (await browser.$(CONFIG_DIALOG)).isExisting()), {
-    timeout: 10_000,
-    timeoutMsg: '配置对话框未从 DOM 卸载',
-  })
-  await browser.pause(400)
 }
 
 /** 视口与对话框边界（CSS 像素），并顺带读回内部滚动容器的溢出策略与页面总高。 */
@@ -216,7 +143,7 @@ async function waitForDialogSettled(): Promise<void> {
     }, { timeout: 10_000, interval: 150, timeoutMsg: '对话框尺寸未稳定（入场动画未结束？）' })
   }
   catch (err) {
-    throw new Error(`${(err as Error).message}；现场：${await shellState()}`)
+    throw new Error(`${(err as Error).message}；现场：${await configShellState(browser)}`)
   }
 }
 
@@ -238,9 +165,7 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
     stop = app.stop
     await (await browser.$(NAVBAR_ROOT)).waitForDisplayed()
     // 页面级标记：整个用例期间都应存在，用来区分「弹层被收起」与「webview 被重载」
-    await browser.execute((markKey: string) => {
-      (window as unknown as Record<string, unknown>)[markKey] = 1
-    }, PAGE_MARK)
+    await markConfigDialogPage(browser)
   })
 
   afterAll(async () => {
@@ -249,16 +174,16 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
 
   // 每条用例自带开/关，不依赖上一条留下的对话框状态
   afterEach(async () => {
-    if (await isDialogOpen())
-      await closeDialog()
+    if (await isConfigDialogOpen(browser))
+      await closeConfigDialog(browser)
   })
 
   it('TC-DSK-L3-03-001 验证「配置 → 应用」打开对话框并默认定位「应用」面板', async () => {
     const titles = expectedTitles(await deviceLocale())
 
-    await openConfigTab('application')
+    await openConfigTab(browser, 'application')
 
-    expect(await isDialogOpen(), '对话框未打开').toBe(true)
+    expect(await isConfigDialogOpen(browser), '对话框未打开').toBe(true)
     expect(await readNavStates()).toEqual({
       application: true,
       profiles: false,
@@ -273,7 +198,7 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
   it('TC-DSK-L3-03-002 验证左侧导航可切换四个面板', async () => {
     const titles = expectedTitles(await deviceLocale())
 
-    await openConfigTab('application')
+    await openConfigTab(browser, 'application')
 
     for (const tab of CONFIG_TABS) {
       await clickNav(tab)
@@ -299,28 +224,28 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
     const titles = expectedTitles(await deviceLocale())
 
     for (const tab of ['profiles', 'plugins', 'harness', 'application']) {
-      await openConfigTab(tab)
+      await openConfigTab(browser, tab)
 
-      expect(await isDialogOpen(), `对话框未打开：${tab}`).toBe(true)
+      expect(await isConfigDialogOpen(browser), `对话框未打开：${tab}`).toBe(true)
       // 全程不点导航项：对话框出现后落点即目标面板
       expect(await panelTitle(), `未直接定位到目标面板：${tab}`).toBe(titles[tab])
       expect((await readNavStates())[tab], `导航项未选中：${tab}`).toBe(true)
 
-      await closeDialog()
+      await closeConfigDialog(browser)
     }
   })
 
   it('TC-DSK-L3-03-004 验证关闭触发器关闭对话框且可再次打开', async () => {
     const titles = expectedTitles(await deviceLocale())
 
-    await openConfigTab('application')
-    expect(await isDialogOpen()).toBe(true)
+    await openConfigTab(browser, 'application')
+    expect(await isConfigDialogOpen(browser)).toBe(true)
 
-    await closeDialog()
-    expect(await isDialogOpen(), '关闭后对话框仍可见').toBe(false)
+    await closeConfigDialog(browser)
+    expect(await isConfigDialogOpen(browser), '关闭后对话框仍可见').toBe(false)
 
-    await openConfigTab('application')
-    expect(await isDialogOpen(), '对话框无法再次打开').toBe(true)
+    await openConfigTab(browser, 'application')
+    expect(await isConfigDialogOpen(browser), '对话框无法再次打开').toBe(true)
     // 新实例从 `props.tab` 起算，不残留上一次会话的面板
     expect(await panelTitle()).toBe(titles.application)
   })
@@ -328,7 +253,7 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
   it('TC-DSK-L3-03-007 验证对话框尺寸不超出视口', async () => {
     const origin = await browser.getWindowSize()
 
-    await openConfigTab('application')
+    await openConfigTab(browser, 'application')
 
     await waitForDialogSettled()
     expectWithinViewport(await readDialogBox())

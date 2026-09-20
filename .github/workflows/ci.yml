@@ -121,17 +121,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # build:plugins 的产物只由 packages/** 与锁文件/构建脚本决定，未变时直接复用，
+      # 省掉整轮（32~55s）。命中即跳过下方 Build Plugins，故新增输入时必须同步扩充 key。
+      # key 取 restore 的 cache-primary-key：save 时 packages/*/dist 已生成，
+      # 在彼处重新 hashFiles 会得到不同的值。
+      - name: Restore bundled plugins
+        id: plugins_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            src-tauri/resources/node_modules
+            packages/*/dist
+          key: plugins-${{ runner.os }}-${{ hashFiles('packages/**', 'scripts/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build core packages
-        run: pnpm --filter dsh-tauri build && pnpm --filter dsh-tauri-ui build
-
       - name: Build Plugins
+        if: steps.plugins_cache.outputs.cache-hit != 'true'
         run: pnpm build:plugins
+
+      - name: Save bundled plugins
+        if: steps.plugins_cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            src-tauri/resources/node_modules
+            packages/*/dist
+          key: ${{ steps.plugins_cache.outputs.cache-primary-key }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -142,9 +162,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # 只有 main 写缓存：PR 每次生成的条目会挤掉 main 的暖缓存，
+          # 而 10 GB 上限是仓库级共享的（PR 只读、不写）。
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # dist 已由上一步的 build:plugins 前置链路产出；这里显式再跑一次前端构建，
-      # 并清空 beforeBuildCommand 避免重复触发 pnpm build（其 prebuild 会重跑插件构建）。
+      # 根 dist/ 只能由 vite build 产出（build:plugins 仅构建 packages/*，不生成 dist），
+      # 而 frontendDist 指向 ../dist：缺失会让应用走 devUrl、页面为空。
       - name: Build frontend
         run: pnpm exec vite build
 
@@ -198,6 +221,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # 同上：PR 只读缓存，避免每轮生成新条目挤掉 main 的暖缓存。
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Run tests
         run: cargo test --all-features --locked

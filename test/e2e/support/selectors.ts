@@ -8,6 +8,14 @@
 /** 壳层根节点（`src/layout/index.tsx`）。 */
 export const SHELL_ROOT = '[data-testid="dsh-shell-root"]'
 
+/**
+ * 内嵌 dsh 页面的 iframe（`src/layout/components/iframe.tsx`）。
+ *
+ * 仅在 `harness.serviceHealthy` 为真时挂载；重建由 `key={harness.iframeKey}` 驱动，
+ * 因此「元素实例是否被替换」是「iframe 是否被重建」的判据。
+ */
+export const SHELL_IFRAME = '[data-testid="dsh-shell-iframe"]'
+
 /** 导航栏根容器（`src/layout/components/navbar.tsx`）。 */
 export const NAVBAR_ROOT = '[data-testid="dsh-navbar-root"]'
 
@@ -49,6 +57,13 @@ export const SETUP_ERROR = '[data-testid="dsh-setup-error"]'
 /** 「下载已被环境禁用」页根节点；`DSH_E2E_DISABLE_DOWNLOAD=1` 时替代失败页。 */
 export const SETUP_DISABLED = '[data-testid="dsh-setup-disabled"]'
 
+/**
+ * 首次装配「安装推荐插件」引导页的跳过按钮。
+ *
+ * 三处（有变更 / 无变更 / 安装失败）互斥渲染，因此同一 testid 只会命中一个。
+ */
+export const SETUP_PREINSTALL_SKIP = '[data-testid="dsh-setup-preinstall-skip"]'
+
 /** 配置对话框根节点（`Modal.Dialog`）。 */
 export const CONFIG_DIALOG = '[data-testid="dsh-config-dialog"]'
 
@@ -77,3 +92,25 @@ export function configNav(tab: string): string {
  * 选中态只此一处机器可读，不得依赖 `bg-background-secondary` 等类名。
  */
 export const CONFIG_NAV_SELECTED_ATTR = 'aria-current'
+
+/**
+ * 「应用」面板的语言下拉触发器（`Select.Trigger`）。触发器文本即当前语言文案，
+ * 因此「读取当前值」与「点击展开」共用同一个观察点。
+ */
+export const CONFIG_LANGUAGE_SELECT = '[data-testid="dsh-config-language-select"]'
+
+/** 语言下拉的两个选项；规范禁止文本定位，选项必须可被 testid 命中。 */
+export const CONFIG_LANGUAGE_OPTION_ZH = '[data-testid="dsh-config-language-option-zh"]'
+export const CONFIG_LANGUAGE_OPTION_EN = '[data-testid="dsh-config-language-option-en"]'
+
+/** 语言标识（与 i18n 资源、`localStorage` 中记录的值一致）。 */
+export const LANGUAGES = ['zh-CN', 'en-US'] as const
+export type Language = typeof LANGUAGES[number]
+
+/** 单个语言选项的选择器。 */
+export function configLanguageOption(language: Language): string {
+  return language === 'zh-CN' ? CONFIG_LANGUAGE_OPTION_ZH : CONFIG_LANGUAGE_OPTION_EN
+}
+
+/** i18n 持久化 key（`src/i18n/index.detector.ts:7`）。 */
+export const LANGUAGE_STORAGE_KEY = 'deepseek-harness-desktop-language'

@@ -46,19 +46,6 @@
 
 ## 2. 正常路径
 
-### [P2] 验证启动即检查一次并按 10 分钟间隔轮询
-
-[Case ID] TC-DSK-L3-28-001
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src/layout/index.tsx:21`、`:88-89`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 应用可启动到 `ready`；已具备统计 `check_desktop_update` 调用次数的编排手段
-[测试数据] 观察点：`check_desktop_update` 调用记录；轮询间隔常量 `600000`
-[测试步骤] 1. 启动应用并等待壳层就绪。2. 读取启动后第一次更新检查的时机与次数。3. 把编排层时钟推进到下一个轮询周期并再次读取次数。
-[预期结果] 1. 壳层就绪。2. 启动后立即发生一次检查，此前无重复触发。3. 下一次检查落在启动检查之后 10 分钟，间隔内无额外触发。
-[清理] 恢复时钟；`DELETE /session/<id>`
-
 ### [P1] 验证发现正式版后无用户操作即静默下载
 
 [Case ID] TC-DSK-L3-28-002
@@ -85,87 +72,9 @@
 [预期结果] 1. 标记与安装包均存在。2. 应用退出完成。3. 出现「Launching pending desktop installer on exit」记录，且标记已被清除。
 [清理] 删除构造的安装包与标记；`DELETE /session/<id>`
 
-### [P2] 验证打开安装包前先释放 Harness 端口
-
-[Case ID] TC-DSK-L3-28-004
-[层级] L3（真实 Tauri 窗口）
-[类型] 正向
-[追踪] `src-tauri/src/service/update/pending.rs:106-111`；`src-tauri/src/service/update/install.rs:412-416`；`src-tauri/src/service/workflow/process.rs:493-501`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] Harness 服务运行中且由本应用持有；已下载安装包；配置端口已记录
-[测试数据] 选择器 `dsh-update-dialog-install`；观察点：harness 子进程 pid、配置端口占用、`.harness.pid` 标记
-[测试步骤] 1. 记录 harness 子进程 pid、配置端口与 `.harness.pid` 标记。2. 通过对话框「立即更新」打开安装包。3. 重新读取 pid 存活性、端口占用与标记。
-[预期结果] 1. 记录成功。2. 安装包被交给系统默认处理器（命令成功返回）。3. 原 harness 进程已结束，配置端口已释放，`.harness.pid` 标记已清除。
-[清理] 重新拉起服务；关闭被系统拉起的安装器（人工）；`DELETE /session/<id>`
-
 ---
 
 ## 3. 异常与边界
-
-### [P3] [反向] 验证静默下载失败不弹用户可见提示
-
-[Case ID] TC-DSK-L3-28-005
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src/store/modules/desktop-updater/store.ts:94-96`、`:140`；`src/layout/index.tsx:86`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 已构造「检查成功但下载必然失败」的更新结果（资产不可达）
-[测试数据] 观察点：壳层可见提示区、控制台错误收集器、`updateInfo.downloaded`
-[测试步骤] 1. 触发静默下载。2. 等待下载失败返回。3. 读取壳层可见提示与 `downloaded`。
-[预期结果] 1. 下载被发起。2. 失败在超时内返回并写入控制台日志。3. 无面向用户的提示或弹窗；`downloaded` 仍为 `false`。
-[清理] 恢复更新源；清除构造的更新结果；`DELETE /session/<id>`
-
-### [P4] 验证在途下载单飞不重复发起
-
-[Case ID] TC-DSK-L3-28-006
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src/store/modules/desktop-updater/store.ts:16`、`:82-83`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 更新信息已就绪且安装包未下载；已具备统计 `download_desktop_update` 调用次数的编排手段
-[测试数据] 触发方式：检查返回后立即再次触发 `download()`
-[测试步骤] 1. 触发一次静默下载。2. 在该下载完成前再次触发下载。3. 等待下载收敛后读取调用次数。
-[预期结果] 1. 首次下载被发起。2. 第二次触发复用同一在途任务。3. `download_desktop_update` 调用次数为 1。
-[清理] 删除构造的安装包；`DELETE /session/<id>`
-
-### [P4] 验证下载进度仅在更新对话框内展示
-
-[Case ID] TC-DSK-L3-28-007
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src/store/modules/desktop-updater/store.ts:168-176`；`src/ui/dialog/update.tsx:71-86`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 安装包正在下载中
-[测试数据] 选择器 `dsh-navbar-update-chip`、`dsh-update-dialog`、`dsh-update-dialog-progress`
-[测试步骤] 1. 让下载处于进行中。2. 打开更新对话框并读取进度展示。3. 关闭对话框后再次读取页面中的进度展示。
-[预期结果] 1. 下载进行中。2. 对话框内出现进度条与百分比，随事件更新。3. 关闭后主界面不残留进度展示。
-[清理] 等待下载收敛并删除安装包；`DELETE /session/<id>`
-
-### [P3] [反向] 验证待安装版本不高于运行版本时退出不拉起安装器
-
-[Case ID] TC-DSK-L3-28-008
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/update/pending.rs:88-99`；`src-tauri/src/service/update/version.rs:33-38`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 可直接构造 store 键 `desktop_pending_installer`；已下载安装包存在；标记版本等于当前运行版本
-[测试数据] 标记 `{ path: <updates 内安装包>, version: <当前版本> }`
-[测试步骤] 1. 写入 `version` 等于当前运行版本的待安装标记。2. 退出应用。3. 读取日志与安装器拉起痕迹。
-[预期结果] 1. 标记写入成功。2. 应用退出完成。3. 出现「is not newer than running … skipping auto update」记录，且未拉起安装器（避免降级安装）。
-[清理] 删除构造的标记与安装包；`DELETE /session/<id>`
-
-### [P3] [反向] 验证退出拉起前先清除待安装标记
-
-[Case ID] TC-DSK-L3-28-009
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/update/pending.rs:86-88`、`:112-114`；`src-tauri/src/service/update/install.rs:347`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 可构造 store 键 `desktop_pending_installer`；标记指向一个不存在的安装包路径
-[测试数据] 标记 `{ path: <不存在的路径>, version: <高于当前版本> }`
-[测试步骤] 1. 写入指向不存在路径的待安装标记。2. 退出应用。3. 读取退出日志与 store 中的标记状态。
-[预期结果] 1. 标记写入成功。2. 出现打开失败的告警记录（`UPDATE_NOT_FOUND` 路径）。3. 标记已被清除，后续退出不再尝试。
-[清理] 删除构造的标记；`DELETE /session/<id>`
 
 ### [P3] [反向] 验证摘要不匹配时删除半成品并拒绝安装
 
@@ -179,32 +88,6 @@
 [测试步骤] 1. 触发下载。2. 等待校验结果返回。3. 读取 `updates` 目录内容、错误文本与待安装标记。
 [预期结果] 1. 下载被发起。2. 校验失败并返回 `INTEGRITY_CHECK_FAILED` 语义错误。3. `.part` 半成品已删除，最终路径不存在可安装文件，且未登记待安装标记。
 [清理] 清理构造的摘要源与残留文件；`DELETE /session/<id>`
-
-### [P3] [反向] 验证无可信摘要时不启用镜像兜底
-
-[Case ID] TC-DSK-L3-28-011
-[层级] L3（真实 Tauri 窗口）
-[类型] 异常
-[追踪] `src-tauri/src/service/update/install.rs:144-154`、`:240-246`、`:280-285`；`src-tauri/src/service/update/meta.rs:24-27`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 已构造「资产页无 `sha256`」的更新结果，并使官方直连不可达
-[测试数据] 观察点：错误文本中的「已尝试 N 个下载源」与镜像源请求记录
-[测试步骤] 1. 触发下载。2. 等待失败返回。3. 读取错误文本与网络请求记录。
-[预期结果] 1. 下载被发起。2. 失败在超时内返回。3. 错误提示已尝试 1 个下载源；记录「mirror fallback disabled」，未向 ghfast.top 发出请求。
-[清理] 恢复更新源与网络；清除构造的更新结果；`DELETE /session/<id>`
-
-### [P4] 验证安装包路径越界与不存在均被拒绝
-
-[Case ID] TC-DSK-L3-28-012
-[层级] L3（真实 Tauri 窗口）
-[类型] 边界
-[追踪] `src-tauri/src/service/update/install.rs:316-337`、`:333`、`:347`、`:373-374`
-[自动化] 待接线（`test/e2e/desktop/28-desktop-update-internals.e2e.ts`）
-[前置条件] 更新信息已就绪；可在 `updates` 目录外放置一个可执行文件；可构造 `updates` 目录内的不存在路径
-[测试数据] 路径 A：`updates` 目录之外的文件；路径 B：`AppData/updates/<不存在的文件名>`
-[测试步骤] 1. 调用「打开安装包」传入路径 A。2. 调用「打开安装包」传入路径 B。3. 读取两次调用的错误文本与系统处理器拉起痕迹。
-[预期结果] 1. 拒绝并返回 `UPDATE_PATH_REJECTED: installer path is outside updates directory`。2. 拒绝并返回 `UPDATE_NOT_FOUND: {path}`。3. 两次调用均未把文件交给系统默认处理器。
-[清理] 删除构造的路径 A 文件；`DELETE /session/<id>`
 
 ---
 
@@ -220,21 +103,34 @@
 
 ---
 
-## 5. 追踪矩阵
+## 5. 单元测试层（已从 L3 E2E 裁剪）
 
-| 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
-| --- | --- | --- | --- |
-| 检测与轮询 | 248 | 正向 | 10 分钟轮询间隔在真实时钟下不可等待，见 G-D28-2 |
-| 静默下载 | 249、252、253、254 | 正向 / 异常 / 边界 | 下载中断（`.part` 残留后再重试）**未覆盖** |
-| 退出自动安装 | 250、255、256 | 正向 / 异常 | 只断言标记清除与日志；系统安装器实际启动属系统表面，见 G-D28-4 |
-| 交付前停服 | 251 | 正向 | 停服失败分支（`stop` 返回 Err 只告警，`install.rs:413-415`）**未覆盖** |
-| 完整性校验 | 257、258 | 异常 | 校验通过路径由 249 间接覆盖；裸 64hex 摘要格式未单列 |
-| 路径守卫 | 259 | 边界 | 符号链接指向 `updates` 外的场景未构造 |
-| 版本选择规则 | 249、257、258（间接） | — | 资产选择/架构排序归 `16` 与单元测试，见 G-D28-6 |
+本文件下列条目的断言对象是纯逻辑（函数/时序/协议），不需要真实窗口；已从 L3 E2E 台账裁出，保留记录以便由单元测试承接。
+
+| Case ID | 用例 | 裁剪原因 |
+| --- | --- | --- |
+| `TC-DSK-L3-28-001` | 验证启动即检查一次并按 10 分钟间隔轮询 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-004` | 验证打开安装包前先释放 Harness 端口 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-005` | 验证静默下载失败不弹用户可见提示 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-006` | 验证在途下载单飞不重复发起 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-008` | 验证待安装版本不高于运行版本时退出不拉起安装器 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-009` | 验证退出拉起前先清除待安装标记 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-011` | 验证无可信摘要时不启用镜像兜底 | 纯逻辑断言，下沉单元测试层 |
+| `TC-DSK-L3-28-012` | 验证安装包路径越界与不存在均被拒绝 | 纯逻辑断言，下沉单元测试层 |
 
 ---
 
-## 6. 缺口与假设
+## 6. 追踪矩阵
+
+| 实现位置 | 覆盖 Case ID | 类型 |
+| --- | --- | --- |
+| ``src/store/modules/desktop-updater/store.ts:57-64`、`:81-103`；`src-tauri/src/service/update/install.rs:23-36`、`:305`` | `TC-DSK-L3-28-002` | 正向 |
+| ``src-tauri/src/lib.rs:57-67`；`src-tauri/src/service/update/pending.rs:82-83`、`:101-114`` | `TC-DSK-L3-28-003` | 正向 |
+| ``src-tauri/src/service/update/install.rs:289-295`、`:178`、`:202-206`` | `TC-DSK-L3-28-010` | 异常 |
+
+---
+
+## 7. 缺口与假设
 
 - **G-D28-1**：多数用例需要「可控的更新结果」（有更高正式版 / 无摘要 / 摘要不匹配 / 资产不可达）。按 `00-overview.md` §2 第 7 条，E2E 层禁止 Mock 后端命令，因此只能引入**替身更新源**（本地 HTTP 服务）并改写 `REPO_URL` 可达性；真实检查还会触发 GitHub 未认证限流（`src/layout/index.tsx:20-21`），接线前必须解决。
 - **G-D28-2**：TC-DSK-L3-28-001 需要推进编排层时钟才能验证 10 分钟轮询间隔。当前无该能力时，本用例只能退化为断言「启动即检查一次」（`src/layout/index.tsx:88-89`）。

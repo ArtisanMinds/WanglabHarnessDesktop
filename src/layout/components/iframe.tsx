@@ -192,6 +192,7 @@ export function Iframe({ iframeRef }: IframeProps) {
         <iframe
           key={harness.iframeKey}
           ref={iframeRef}
+          data-testid="dsh-shell-iframe"
           className="h-full w-full"
           src={harness.iframeSrc}
           allow="accelerometer; ambient-light-sensor; autoplay; battery; camera; clipboard-read; clipboard-write; display-capture; document-domain; encrypted-media; fullscreen; gamepad; geolocation; gyroscope; hid; idle-detection; keyboard-map; magnetometer; microphone; midi; payment; picture-in-picture; publickey-credentials-get; screen-wake-lock; serial; speaker-selection; usb; web-share; xr-spatial-tracking"
