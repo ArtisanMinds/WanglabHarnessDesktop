@@ -33,6 +33,22 @@ export const APP_PORT = 3081
 /** 应用主窗口标题（`src-tauri/src/desktop/builder.rs:484`）。 */
 export const APP_TITLE = 'Deepseek Harness Desktop'
 
+/**
+ * 主窗口的 webview label，同时也是 WebDriver 的 window handle
+ * （`src-tauri/src/desktop/builder.rs` 的 `WebviewWindowBuilder::new(app, "main", ...)`）。
+ */
+export const MAIN_WEBVIEW = 'main'
+
+/**
+ * 应用内嵌 WebDriver server 的固定端口（`@wdio/tauri-service` 的 embedded provider 默认 4445，
+ * 应用侧由 `TAURI_WEBDRIVER_PORT` 门控）。
+ *
+ * 这是**整机唯一**的资源：另一个桌面实例（别的 worktree 的 E2E、或 `cargo build` 出来的
+ * devUrl 实例）先占住它时，本进程的应用绑不上，而 wdio 仍会连上对方的 driver——
+ * 会话会静默挂到**别人的窗口**上（表现为找不到选择器、甚至跑到桌宠窗口）。
+ */
+export const WEBDRIVER_PORT = 4445
+
 /** 残留实例的进程名（按 `productName` 推导）。 */
 const APP_PROCESS_NAME = 'deepseek-harness-desktop'
 
@@ -142,10 +158,13 @@ export async function assertPreconditions(options: { port?: number, binaryPath?:
   const binaryPath = options.binaryPath ?? defaultBinaryPath()
 
   if (!existsSync(binaryPath))
-    throw new Error(`二进制不存在：${binaryPath}；先运行 \`cargo build\`（在 src-tauri/ 下）。`)
+    throw new Error(`二进制不存在：${binaryPath}；先在 src-tauri/ 下运行 \`tauri build --debug --no-bundle\`（必须带 custom-protocol，否则应用走 devUrl 而不嵌 dist）。`)
 
   if (await isPortBusy(port))
     throw new Error(`端口 ${port} 已被监听（debug 固定端口）；请先停掉 dev/debug 实例。本校验不自动杀进程。`)
+
+  if (await isPortBusy(WEBDRIVER_PORT))
+    throw new Error(`WebDriver 端口 ${WEBDRIVER_PORT} 已被占用（多半是另一个桌面实例在跑）；此时会话会静默挂到对方的窗口上，必须先释放。本校验不自动杀进程。`)
 
   if (await hasLiveProcess(binaryPath))
     throw new Error(`检测到残留桌面实例（${binaryPath}）；请先关闭后再跑 E2E。本校验不自动杀进程。`)
@@ -281,10 +300,27 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
 
   try {
     browser = await startWdioSession(capabilities, { rootDir: REPO_ROOT })
+    await focusMainWindow(browser)
     return { browser, home, binaryPath, stop }
   }
   catch (error) {
     await stop()
     throw error
   }
+}
+
+/**
+ * 把会话切到主窗口（webview label `main`）。
+ *
+ * 应用会同时创建主窗口与桌宠窗口（`pet`），会话落在哪个 webview 上取决于两者
+ * 的创建先后，实测两种都出现过——落在 `pet` 时页面里没有壳层，所有选择器都找不到。
+ * 因此创建会话后必须显式切一次，而不是依赖默认窗口。
+ */
+async function focusMainWindow(browser: WebdriverIO.Browser): Promise<void> {
+  await browser.waitUntil(async () => {
+    const handles = await browser.getWindowHandles()
+    return handles.includes(MAIN_WEBVIEW)
+  }, { timeout: 30_000, timeoutMsg: `未找到主窗口 webview：${MAIN_WEBVIEW}` })
+
+  await browser.switchToWindow(MAIN_WEBVIEW)
 }

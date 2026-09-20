@@ -5,7 +5,8 @@
  * 编排：test/e2e/support/desktop-host.ts
  *
  * 运行：pnpm test:e2e:desktop
- *   前置：`dist/` 与 `src-tauri/target/debug/` 的二进制已按最新源码重建；
+ *   前置：`dist/` 已由 `vite build` 产出，且 Debug 二进制经
+ *         `tauri build --debug --no-bundle` 构建（必须带 custom-protocol，否则走 devUrl）；
  *         3081 空闲；无残留桌面实例。
  */
 
@@ -18,6 +19,7 @@ import {
   defaultBinaryPath,
   startDesktopApp,
 } from '../support/desktop-host'
+import { NAVBAR_DEV_CHIP, NAVBAR_ROOT, SHELL_ROOT } from '../support/selectors'
 
 /**
  * 控制台错误白名单（`01-window-boot.md` G-D01-2）。
@@ -30,10 +32,6 @@ const CONSOLE_ERROR_WHITELIST: readonly RegExp[] = [
   /GPU state invalid/i,
   /Autofill\./,
 ]
-
-const SHELL_ROOT = '[data-testid="dsh-shell-root"]'
-const NAVBAR_ROOT = '[data-testid="dsh-navbar-root"]'
-const DEV_CHIP = '[data-testid="dsh-navbar-dev-chip"]'
 
 let browser: WebdriverIO.Browser
 let stop: () => Promise<void>
@@ -52,15 +50,17 @@ afterAll(async () => {
 })
 
 describe('窗口启动', () => {
-  it('TC-DSK-L3-001 验证应用启动后主窗口存在且标题正确', async () => {
+  it('TC-DSK-L3-01-001 验证应用启动后主窗口存在且标题正确', async () => {
+    // 应用同时会开桌宠窗口（webview `pet`），句柄列表是 `['main']` 还是 `['main','pet']`
+    // 取决于桌宠窗口的创建时机——只断言主窗口在列且当前会话已切到它。
     const handles = await browser.getWindowHandles()
-    expect(handles).toEqual(['main'])
+    expect(handles).toContain('main')
 
     const title = await browser.getTitle()
     expect(title).toBe(APP_TITLE)
   })
 
-  it('TC-DSK-L3-002 验证壳层根节点渲染且页面无未捕获错误', async () => {
+  it('TC-DSK-L3-01-002 验证壳层根节点渲染且页面无未捕获错误', async () => {
     const shell = await browser.$(SHELL_ROOT)
     await shell.waitForDisplayed()
 
@@ -73,15 +73,17 @@ describe('窗口启动', () => {
     expect(unexpected).toEqual([])
   })
 
-  it('TC-DSK-L3-003 验证壳层导航栏高度为 44px', async () => {
+  it('TC-DSK-L3-01-003 验证壳层导航栏高度为 44px', async () => {
     const navbar = await browser.$(NAVBAR_ROOT)
     await navbar.waitForDisplayed()
 
     const height = await navbar.getSize('height')
-    expect(height).toBe(44)
+    // 非 100% 显示缩放下 WebView2 回传的是物理像素换算回来的 CSS 像素，
+    // 44 会变成 44.000003814697266（实测 175%），按亚像素容差判定。
+    expect(height).toBeCloseTo(44, 3)
   })
 
-  it('TC-DSK-L3-004 验证主窗口初始尺寸按 1280×840 申请', async () => {
+  it('TC-DSK-L3-01-004 验证主窗口初始尺寸按 1280×840 申请', async () => {
     // `inner_size(1280, 840)` 是逻辑值，而 WebDriver 读回的 CSS 像素随显示器缩放
     // 变化：实测 150% 下 inner 为 854×560，×dpr 才还原成 1280（G-D01-1）。
     // `screen.*` 同样是 CSS 像素，故一并乘 dpr 换算到同一口径。
@@ -111,25 +113,25 @@ describe('窗口启动', () => {
     expect(height, `高度不足下限：${seen}`).toBeGreaterThanOrEqual(Math.min(840, availH * dpr) - 2)
   })
 
-  // TC-DSK-L3-005（窗口最小尺寸约束 860×620）在本通道不可自动断言：
+  // TC-DSK-L3-01-005（窗口最小尺寸约束 860×620）在本通道不可自动断言：
   // embedded driver 的 SetWindowRect 直接落 SetWindowPos，绕过 tao 的最小尺寸约束，
   // 请求 400×300 会真的变成 400×300。该用例已在文档中改标「否（手工）」，见 G-D01-4。
 
-  it('TC-DSK-L3-006 验证生产构建不显示开发环境标记', async () => {
+  it('TC-DSK-L3-01-006 验证生产构建不显示开发环境标记', async () => {
     // `01` 批次跑的是 `vite build` 产物，`import.meta.env.DEV` 为 false，
     // DEV 标记本就不应渲染。反向（dev 构建下可见）需 `tauri dev` 通道，见 G-D01-5。
-    const chip = await browser.$(DEV_CHIP)
+    const chip = await browser.$(NAVBAR_DEV_CHIP)
     expect(await chip.isExisting()).toBe(false)
   })
 
-  it('TC-DSK-L3-007 [反向] 验证二进制缺失时启动失败并给出可判定错误', async () => {
+  it('TC-DSK-L3-01-007 [反向] 验证二进制缺失时启动失败并给出可判定错误', async () => {
     const missing = `${defaultBinaryPath()}.__missing__`
     expect(existsSync(missing)).toBe(false)
 
     await expect(startDesktopApp({ appBinaryPath: missing, requireBinary: true })).rejects.toThrow(missing)
   })
 
-  it('TC-DSK-L3-008 [反向] 验证默认端口被占用时前置校验直接失败且不强杀进程', async () => {
+  it('TC-DSK-L3-01-008 [反向] 验证默认端口被占用时前置校验直接失败且不强杀进程', async () => {
     const { createServer } = await import('node:net')
     const blocker = createServer()
     await new Promise<void>(resolvePromise => blocker.listen(APP_PORT, '127.0.0.1', resolvePromise))
