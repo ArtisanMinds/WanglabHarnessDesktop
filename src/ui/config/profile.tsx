@@ -246,7 +246,7 @@ export function ConfigProfile() {
 
   return (
     <div className="space-y-3">
-      <Panel.Header title={t('profiles.title')} description={t('profiles.tooltip')} />
+      <Panel.Header title={t('profiles.title')} description={t('profiles.tooltip')} testId="dsh-config-panel-title" />
 
       {/* 加载 / 失败 / 列表 */}
       <Panel.Loadable loading={loading} error={error}>

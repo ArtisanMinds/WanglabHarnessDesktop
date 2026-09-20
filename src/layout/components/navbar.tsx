@@ -1,4 +1,5 @@
 import type { DshPlugin } from '@/types'
+import type { ConfigTab } from '@/ui/dialog/config'
 import {
   LayoutSideContent,
   LayoutSideContentLeft,
@@ -27,7 +28,7 @@ import { writeClipboardText } from '@/utils/clipboard'
 import { toast } from '@/utils/toast'
 
 /**
- * 壳层窗口顶部导航栏（48px，常驻）：
+ * 壳层窗口顶部导航栏（44px，常驻）：
  *
  *   [侧边栏(展开/收起)] [文件][配置][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
  *
@@ -41,7 +42,9 @@ import { toast } from '@/utils/toast'
  * - 文件：新建窗口（Tauri 再开一个 webview）/ 新聊天、打开文件夹（经协议调用 dsh 官方
  *   「新建会话」「添加工作区」，接收方是 dsh-tauri 的 `client/register/navigation.ts`）/
  *   关闭（隐藏到托盘）/ 退出（完整退出）。两条依赖 iframe 的项在回调缺席时禁用。
- * - 帮助：运行日志 / 检查更新 / 关于 Desktop / 文档（系统浏览器打开官方文档站）。
+ * - 配置：应用 / 档案 / 插件 / 核心，直接打开配置对话框并定位到对应面板
+ *   （对话框与角标见 `ui/dialog/config.tsx`）。
+ * - 帮助：运行日志 / 检查更新 / 关于 Desktop。
  * - 空白拖拽区：Tauri 原生 `data-tauri-drag-region`（顶层文档直接生效），
  *   Windows/Linux 上双击切换最大化，macOS 上交由系统标题栏偏好。
  * - macOS：使用原生交通灯，红键后台化、黄键最小化、绿键进入原生全屏；
@@ -49,7 +52,7 @@ import { toast } from '@/utils/toast'
  *   「文件」「帮助」在 macOS 上由原生菜单栏承载（见 `desktop/builder.rs` 的
  *   `install_macos_menu`），本组按钮不渲染。
  *   交通灯的纵向位置由 `src-tauri/src/desktop/builder.rs` 的 `SHELL_NAV_HEIGHT`
- *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-12` 是同一真值；两者的一致性
+ *   推导（视觉圆心 = 栏高 / 2），与下面根元素的 `h-11` 是同一真值；两者的一致性
  *   由 Rust 测试 `shell_nav_height_matches_navbar_height_class` 守住——改这个
  *   class 就必须同步那个常量，否则 CI 失败（issue #524）。
  * - Windows/Linux：右侧窗口按钮直接调用 Tauri API；
@@ -66,14 +69,19 @@ import { toast } from '@/utils/toast'
  */
 const TAURI_PLUGIN_ID = 'dsh-tauri'
 
-/** 官方文档站点（帮助 → 文档）。 */
-const DOCS_URL = 'https://dshtauri.mintlify.site'
-
 /** 「文件」菜单的动作 id（宿主侧统一分发，避免菜单项内散落逻辑）。 */
 type FileAction = 'new-window' | 'new-chat' | 'open-folder' | 'close' | 'quit'
 
 /** 「帮助」菜单的动作 id。 */
-type HelpAction = 'copy-run-logs' | 'check-update' | 'about' | 'documentation'
+type HelpAction = 'copy-run-logs' | 'check-update' | 'about'
+
+/** 「配置」菜单项：直接打开配置对话框并定位到对应面板。 */
+const CONFIG_TABS: { id: ConfigTab, labelKey: string }[] = [
+  { id: 'application', labelKey: 'config.application' },
+  { id: 'profiles', labelKey: 'config.profiles' },
+  { id: 'plugins', labelKey: 'config.plugins' },
+  { id: 'harness', labelKey: 'config.harness' },
+]
 
 /** WKWebView 的 macOS UA 稳定包含 Macintosh，用于切换平台原生窗口 chrome。 */
 function detectMacOS() {
@@ -176,12 +184,6 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     }
   }
 
-  function onDragRegionDoubleClick() {
-    // macOS 的双击标题栏行为由系统偏好决定，不用网页强制覆盖。
-    if (!IS_MACOS)
-      void getCurrentWindow().toggleMaximize()
-  }
-
   function onDragRegionPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     // data-tauri-drag-region 原生只监听鼠标事件（mousedown/mouseup），
     // 触摸屏/笔输入不会触发原生拖拽（见 tauri#13762）。
@@ -200,8 +202,6 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
       void openAboutDialog().catch(() => { })
     else if (key === 'copy-run-logs')
       void copyRunLogs()
-    else if (key === 'documentation')
-      void openDocumentation()
   }
 
   function handleFileAction(key: FileAction) {
@@ -245,18 +245,8 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     }
   }
 
-  /** 帮助 → 文档：交给系统浏览器打开官方文档站 */
-  async function openDocumentation() {
-    try {
-      await invoke('open_external_url', { url: DOCS_URL })
-    }
-    catch (error) {
-      console.error('[Navbar] failed to open documentation:', error)
-    }
-  }
-
-  function handleOpenConfig() {
-    void openConfigDialog().catch(() => { })
+  function handleOpenConfig(tab?: ConfigTab) {
+    void openConfigDialog({ tab }).catch(() => { })
   }
 
   function handleOpenAbout() {
@@ -315,9 +305,6 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
       case 'desktop-restart':
         void store.harness.restart()
         break
-      case 'desktop-documentation':
-        void openDocumentation()
-        break
       case 'desktop-new-window':
         void createWindow()
         break
@@ -333,7 +320,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
   return (
     <div
       className={cn(
-        'relative flex h-12 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
+        'relative flex h-11 w-full flex-none select-none items-center gap-0.5 border-b border-line bg-panel',
         {
           'hidden': IS_MACOS && isFullscreen,
           'pl-20 pr-1.5': IS_MACOS && !isFullscreen,
@@ -341,6 +328,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
         },
       )}
       style={{ background: dshStyle.sidebar?.background }}
+      data-testid="dsh-navbar-root"
     >
       <If cond={onToggleSidebar != null && tauriEnabled}>
         <Button
@@ -349,6 +337,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
           size="sm"
           variant="ghost"
           aria-label={t(sidebarCollapsed ? 'nav.sidebar_expand' : 'nav.sidebar_collapse')}
+          data-testid="dsh-navbar-sidebar-toggle"
           onPress={() => { onToggleSidebar?.() }}
         >
           <If
@@ -365,18 +354,20 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               时禁用而不是留着点了没反应的死按钮，与左侧侧边栏开关同一取舍）。 */}
           <Dropdown>
             <Button
-              className="rounded-lg h-6 text-xs px-1.5"
+              className="rounded-lg h-6 text-[12.5px] px-1.5"
               size="sm"
               variant="ghost"
               aria-label={t('menu.file')}
+              data-testid="dsh-navbar-menu-file"
             >
               {t('menu.file')}
             </Button>
-            <Dropdown.Popover className="rounded-md w-5!">
+            <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
               <Dropdown.Menu>
                 <Dropdown.Item
                   className="rounded-md"
                   id="new-window"
+                  data-testid="dsh-navbar-item-new-window"
                   textValue={t('menu.new_window')}
                   onAction={() => handleFileAction('new-window')}
                 >
@@ -385,6 +376,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="new-chat"
+                  data-testid="dsh-navbar-item-new-chat"
                   isDisabled={onNewChat == null}
                   textValue={t('menu.new_chat')}
                   onAction={() => handleFileAction('new-chat')}
@@ -394,6 +386,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="open-folder"
+                  data-testid="dsh-navbar-item-open-folder"
                   isDisabled={onOpenFolder == null}
                   textValue={t('menu.open_folder')}
                   onAction={() => handleFileAction('open-folder')}
@@ -403,6 +396,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="close"
+                  data-testid="dsh-navbar-item-close"
                   textValue={t('menu.close')}
                   onAction={() => handleFileAction('close')}
                 >
@@ -411,6 +405,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="quit"
+                  data-testid="dsh-navbar-item-quit"
                   textValue={t('menu.quit')}
                   onAction={() => handleFileAction('quit')}
                 >
@@ -419,28 +414,49 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               </Dropdown.Menu>
             </Dropdown.Popover>
           </Dropdown>
-          <Button
-            className="rounded-lg h-6 text-xs px-1.5"
-            size="sm"
-            variant="ghost"
-            onPress={handleOpenConfig}
-          >
-            {t('app.config')}
-          </Button>
           <Dropdown>
             <Button
-              className="rounded-lg h-6 text-xs px-1.5"
+              className="rounded-lg h-6 text-[12.5px] px-1.5"
+              size="sm"
+              variant="ghost"
+              aria-label={t('app.config')}
+              data-testid="dsh-navbar-menu-config"
+            >
+              {t('app.config')}
+            </Button>
+            <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
+              <Dropdown.Menu>
+                {CONFIG_TABS.map(item => (
+                  <Dropdown.Item
+                    key={item.id}
+                    className="rounded-md"
+                    id={item.id}
+                    data-testid={`dsh-navbar-item-${item.id}`}
+                    textValue={t(item.labelKey)}
+                    onAction={() => handleOpenConfig(item.id)}
+                  >
+                    <Label>{t(item.labelKey)}</Label>
+                  </Dropdown.Item>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+          <Dropdown>
+            <Button
+              className="rounded-lg h-6 text-[12.5px] px-1.5"
               size="sm"
               variant="ghost"
               aria-label={t('app.help')}
+              data-testid="dsh-navbar-menu-help"
             >
               {t('app.help')}
             </Button>
-            <Dropdown.Popover className="rounded-md w-5!">
+            <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
               <Dropdown.Menu>
                 <Dropdown.Item
                   className="rounded-md"
                   id="copy-run-logs"
+                  data-testid="dsh-navbar-item-copy-run-logs"
                   textValue={t('menu.run_logs')}
                   onAction={() => onHelpAction('copy-run-logs')}
                 >
@@ -449,6 +465,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="check-update"
+                  data-testid="dsh-navbar-item-check-update"
                   textValue={t('menu.check_update')}
                   onAction={() => onHelpAction('check-update')}
                 >
@@ -462,18 +479,11 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                 <Dropdown.Item
                   className="rounded-md"
                   id="about"
+                  data-testid="dsh-navbar-item-about"
                   textValue={t('menu.about')}
                   onAction={() => onHelpAction('about')}
                 >
                   <Label>{t('menu.about')}</Label>
-                </Dropdown.Item>
-                <Dropdown.Item
-                  className="rounded-md"
-                  id="documentation"
-                  textValue={t('menu.documentation')}
-                  onAction={() => onHelpAction('documentation')}
-                >
-                  <Label>{t('menu.documentation')}</Label>
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown.Popover>
@@ -481,20 +491,25 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
         </div>
       </If>
       <If cond={import.meta.env.DEV}>
-        <Chip size="sm" variant="primary" color="warning" className="text-xs text-background ml-1">
+        <Chip size="sm" variant="primary" color="warning" className="text-xs text-background ml-1" data-testid="dsh-navbar-dev-chip">
           {t('app.dev_env')}
         </Chip>
       </If>
 
       {/* 拖拽区：Tauri 原生拖拽（仅此元素带 data-tauri-drag-region，按钮不受影响）。
+           双击最大化同样由 Tauri 的 drag.js 原生处理（`internal_toggle_maximize`），
+           网页侧不得再挂 onDoubleClick——两边各切一次会互相抵消（见 G-D02-5）。
            touch-none 让触摸被当作拖拽而非滚动/平移手势，配合 onPointerDown 支持触摸/笔。 */}
       <div
         className="min-w-0 flex-1 self-stretch touch-none"
+        data-testid="dsh-navbar-drag-region"
         data-tauri-drag-region
         onPointerDown={onDragRegionPointerDown}
-        onDoubleClick={onDragRegionDoubleClick}
       />
 
+      {/* 纯装饰：把 dsh 页面遮罩（`_mask_`）的底色/毛玻璃镜像到导航栏下沿，让两段观感连续。
+          dsh 弹模态（如首次进入的 apiKey 对话框）时遮罩铺满，这一层就该盖住导航栏——
+          壳层在 dsh 有模态期间不应可点，不要给它加 `pointer-events-none`。 */}
       <div className="absolute" style={dshStyle.marked || {}} />
 
       {/* 「更新可用」chip：紧跟「帮助」右侧。检测到新版本即出现（安装包此时已在静默下载），

@@ -1,7 +1,7 @@
 {
   "name": "wanglab-harness-desktop",
   "type": "module",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "description": "Wanglab Harness Desktop — Create Future Here.",
@@ -17,6 +17,9 @@
     "tauri": "tauri",
     "release": "bumpp --pr",
     "test": "vitest",
+    "test:unit": "vitest --project unit",
+    "test:e2e:plugin": "vitest --project plugin",
+    "test:e2e:desktop": "vitest --project desktop",
     "lint": "eslint",
     "knip": "knip",
     "lint:fix": "eslint . --fix",
@@ -86,6 +89,7 @@
     "@types/react-dom": "catalog:types",
     "@types/semver": "catalog:types",
     "@vitejs/plugin-react": "catalog:build",
+    "@wdio/tauri-service": "catalog:testing",
     "babel-plugin-react-compiler": "catalog:build",
     "bumpp": "catalog:release",
     "changelogithub": "catalog:release",
@@ -102,6 +106,7 @@
     "tsx": "catalog:build",
     "typescript": "catalog:cli",
     "vite": "catalog:build",
-    "vitest": "catalog:testing"
+    "vitest": "catalog:testing",
+    "webdriverio": "catalog:testing"
   }
 }

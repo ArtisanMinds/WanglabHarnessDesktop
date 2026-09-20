@@ -84,7 +84,6 @@ pub fn t(key: &str) -> String {
         "menu.open_folder" => ("打开文件夹", "Open Folder"),
         "menu.close" => ("关闭", "Close"),
         "menu.quit" => ("退出", "Quit"),
-        "menu.documentation" => ("文档", "Documentation"),
         "menu.settings" => ("设置…", "Settings…"),
         "menu.enter_fullscreen" => ("进入全屏幕", "Enter Full Screen"),
         "menu.exit_fullscreen" => ("退出全屏幕", "Exit Full Screen"),

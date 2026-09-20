@@ -36,12 +36,12 @@ use crate::utils::show_main_window;
 /// 壳层（`Navbar`）导航栏高度，单位 CSS px。
 ///
 /// 这是「前端高度类 ↔ 后端交通灯纵向位置」的唯一真值入口：前端
-/// `src/layout/components/navbar.tsx` 根元素的 `h-12` 是它的体现（Tailwind 4
-/// 间距刻度 12 × 4px = 48px），macOS 交通灯的纵向位置也由它推导。issue #524
+/// `src/layout/components/navbar.tsx` 根元素的 `h-11` 是它的体现（Tailwind 4
+/// 间距刻度 11 × 4px = 44px），macOS 交通灯的纵向位置也由它推导。issue #524
 /// 之前两处各写一份数值（`h-11` 与 `24.0`）互不知情，改一处就会错位；现在由
 /// `shell_nav_height_matches_navbar_height_class` 测试把这份耦合显式化——
 /// 改栏高忘了同步另一边，CI 直接失败。
-pub const SHELL_NAV_HEIGHT: u32 = 48;
+pub const SHELL_NAV_HEIGHT: u32 = 44;
 
 /// 交通灯距窗口左边缘的内边距（逻辑像素）。
 #[cfg(target_os = "macos")]
@@ -49,7 +49,7 @@ const TRAFFIC_LIGHT_INSET_X: f64 = 14.0;
 
 /// Wry 保留了 AppKit 原生按钮的纵向 frame 偏移：实测视觉圆心 = 传入 y − 2
 /// （44px 栏高配 y = 24 时圆心为 22px，而非直觉上的 24px）。因此「视觉圆心 =
-/// 栏高 / 2」对应 y = 栏高 / 2 + 2（48px 栏高 → 26）。
+/// 栏高 / 2」对应 y = 栏高 / 2 + 2（44px 栏高 → 24）。
 #[cfg(target_os = "macos")]
 const TRAFFIC_LIGHT_VISUAL_OFFSET: f64 = 2.0;
 
@@ -76,6 +76,17 @@ static EXTRA_WINDOW_SEQ: AtomicU64 = AtomicU64::new(0);
 /// 使用不同的 User Data Folder 而失败。开发版与 release 分目录的原因见主窗口。
 #[cfg(windows)]
 fn webview_data_directory(app: &tauri::AppHandle<Wry>) -> std::path::PathBuf {
+    // E2E 独占 profile：`app_local_data_dir()` 走 `SHGetKnownFolderPath`，重定向
+    // `LOCALAPPDATA` 无效，不覆盖就会与用户正在使用的开发版共用 `EBWebView-dev`
+    // （localStorage 等前端状态互相污染）。
+    if crate::config::is_e2e_run() {
+        if let Some(dir) = std::env::var_os(crate::config::E2E_WEBVIEW_DATA_DIR_ENV_VAR) {
+            if !dir.is_empty() {
+                return std::path::PathBuf::from(dir);
+            }
+        }
+    }
+
     let mut directory = app
         .path()
         .app_local_data_dir()
@@ -312,13 +323,6 @@ pub fn install_macos_menu(app: &tauri::AppHandle<Wry>) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let help_separator = PredefinedMenuItem::separator(app)?;
-    let documentation = MenuItem::with_id(
-        app,
-        "desktop-documentation",
-        crate::config::i18n::t("menu.documentation"),
-        true,
-        None::<&str>,
-    )?;
     let about = MenuItem::with_id(
         app,
         "desktop-about",
@@ -336,7 +340,6 @@ pub fn install_macos_menu(app: &tauri::AppHandle<Wry>) -> tauri::Result<()> {
             &restart,
             &check_update,
             &help_separator,
-            &documentation,
             &about,
         ],
     )?;
@@ -657,7 +660,7 @@ pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::W
         .decorations(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-12 = 48px），
+        // 与主窗口同一真值：附加窗口用的是同一个壳层导航栏（h-11 = 44px），
         // 交通灯必须落在同一水平线上（写死 24.0 会随 #524 的栏高改动错位 4px）。
         .traffic_light_position(tauri::LogicalPosition::new(
             TRAFFIC_LIGHT_INSET_X,
@@ -882,6 +885,7 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
         crate::bridge::restart_harness,
         crate::bridge::enter_safe_mode,
         crate::bridge::quarantine_broken_patch_layers,
+        crate::bridge::strip_unresolved_patch_entries,
         crate::bridge::get_dsh_status,
         crate::bridge::get_preinstall_plugins,
         crate::bridge::get_preinstall_pending,
@@ -972,6 +976,8 @@ pub fn handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static {
 // configure tauri builder
 pub fn builder() -> tauri::Builder<tauri::Wry> {
     let builder = tauri::Builder::default()
+        // E2E：内嵌 WebDriver server（仅在 TAURI_WEBDRIVER_PORT 存在时监听）。
+        .plugin(tauri_plugin_wdio_webdriver::init())
         .manage(crate::desktop::pet_mouse::PetMouseStreamState::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -1001,7 +1007,6 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
             | "desktop-copy-run-logs"
             | "desktop-check-update"
             | "desktop-restart"
-            | "desktop-documentation"
             | "desktop-new-window"
             | "desktop-new-chat"
             | "desktop-open-folder" => {

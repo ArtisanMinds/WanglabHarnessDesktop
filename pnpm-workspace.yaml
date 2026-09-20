@@ -3,7 +3,7 @@ minimumReleaseAgeExcludePrune: true
 minimumReleaseAgeExclude:
   - '@reause/core@0.1.7'
   - '@reause/shared@0.1.7'
-  - dsh-pet-component@0.2.1
+  - dsh-pet-component@0.2.2
 trustPolicyIgnoreAfter: 525600
 shellEmulator: true
 
@@ -51,7 +51,9 @@ patchedDependencies:
 
 allowBuilds:
   '@tailwindcss/oxide': true
+  edgedriver: false
   esbuild: true
+  geckodriver: false
 
 catalog:
   '@genapi/core': ^4.1.4
@@ -118,7 +120,7 @@ catalogs:
     '@overlastic/react': ^0.9.0
     '@reause/core': ^0.1.7
     '@tanstack/react-query': ^5.101.4
-    dsh-pet-component: ^0.2.1
+    dsh-pet-component: ^0.2.2
     i18next: ^26.3.6
     react: ^19.2.8
     react-dom: ^19.2.8
@@ -132,7 +134,9 @@ catalogs:
     '@tauri-apps/cli': ^2.11.4
     '@tauri-apps/plugin-http': ^2.6.0
   testing:
+    '@wdio/tauri-service': ^1.4.0
     vitest: ^4.1.11
+    webdriverio: ^9.31.9
     yaml: ^2.9.0
   types:
     '@types/lodash-es': ^4.17.12

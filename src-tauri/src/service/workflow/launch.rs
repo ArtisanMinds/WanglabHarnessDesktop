@@ -421,17 +421,6 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = win_inspector::apply(&app_handle) {
         log::warn!("win32 terminal support apply failed: {e}");
     }
-    // alpha 的 iframe 无法稳定完成 SameSite=Strict browser-session Cookie 交换：
-    // 补丁让 dsh 接受 `--skip-auth`，仅在桌面端显式传该标志时跳过 browser-session
-    // 层（保留 Host/Origin fence）；普通 `dsh web` 不受影响。配套核心若补丁
-    // 不完整必须立即报错，避免启动后持续 401、让界面一直等待。
-    crate::service::patch::alpha_auth::apply(&app_handle)?;
-    if !crate::service::patch::alpha_auth::web_startup_supports_skip_auth(&app_handle) {
-        return Err(
-            "HARNESS_AUTH_UNAVAILABLE: paired Core desktop authentication support is incomplete"
-                .to_string(),
-        );
-    }
     // renderer 的 SlotOutlet 一行导出补丁（dsh-tauri-ui 设置侧边栏依赖）：只补
     // 活动核心的 dsh-client-ui-renderer lib/client.js，已含导出即跳过（幂等；核心
     // 换版本后自动重打，上游官方导出后自动退休）。最佳努力：失败只告警，不阻断
@@ -450,6 +439,13 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
     // 的请求头保持不变。最佳努力且幂等：目标已含标记或锚点缺失时 patch_dsh 安全跳过。
     if let Err(e) = crate::service::patch::llm_session::apply(&app_handle) {
         log::warn!("pi-ai session header patch failed: {e}");
+    }
+    // WKWebView 点击 `<button>` 不转移焦点：模型座位的 portal 菜单在 mousedown 阶段收到
+    // `relatedTarget` 为 null 的 blur 就直接 close()，菜单在 click 之前卸载，鼠标选择
+    // 模型 / 推理等级变成空操作（键盘 Enter 正常、浏览器正常）。补丁放行该 blur，菜单外的
+    // 点击仍由组件自身的文档级 mousedown 处理器关闭。最佳努力且幂等：锚点缺失时安全跳过。
+    if let Err(e) = crate::service::patch::model_selection::apply(&app_handle) {
+        log::warn!("model selection mouse click patch failed: {e}");
     }
     // worktree 会话以隔离 cwd 执行，但产品归属仍是源 Workspace；放宽上游显式
     // attach 的 cwd 相等约束，其他 cwd 有效性校验保持不变。最佳努力且幂等。
@@ -606,6 +602,12 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
         envs.insert("DSH_PREFER_BUNDLED_PNPM".to_string(), "1".to_string());
     }
 
+    // 内嵌 WebView 是 `tauri.localhost` 下的跨源沙箱 iframe，`SameSite=Strict` 的
+    // browser-session Cookie 不会被携带。载体标记交给 dsh-tauri-connection 插件：
+    // 只有该标记在场时它才覆写 connection 的鉴权闸门，因此同一 profile 下独立运行
+    // 的 `dsh web` 不受影响（取代原先对核心 JS 打的 `--skip-auth` 磁盘补丁）。
+    envs.insert("DSH_TAURI_EMBEDDED".to_string(), "1".to_string());
+
     // 日志文件（前端日志面板读取）。
     // 每次真实启动前轮转：只保留最近 3 次启动的日志，旧文件后退为
     // `dsh-web.log.1` / `dsh-web.log.2`，避免单文件随多次启动无限增长。
@@ -618,11 +620,17 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
     // 浏览器，追加 `--no-open` 关闭（老版本无此标志时按版本判定不传）。
     let no_open = web_supports_no_open_flag(&app_handle, &dsh_binary_path);
 
-    // 版本判定打不到 alpha 的 web-startup 选项表（见 web_supports_no_open_flag）。
-    // alpha 的浏览器会话 Cookie 在沙箱跨源 iframe 上下文无法完成交换，因此桌面端
-    // 显式追加 `--skip-auth`：只有核心（经上面的 alpha_auth 补丁，或上游官方合并）
-    // 确实支持该标志才传，避免旧核心把未知选项当成错误退出。
-    let skip_auth = crate::service::patch::alpha_auth::web_startup_supports_skip_auth(&app_handle);
+    // 补丁层悬空 insert 预检：手写的 `insert` 条目在包被卸载（市场会拒绝卸载
+    // 「仍被用户补丁引用」的插件，用户于是改走手工删依赖 / pnpm remove）或本地
+    // `link:` 源被删后仍留在补丁层里，loader 会在 import 时抛 ERR_MODULE_NOT_FOUND，
+    // 让整棵插件树加载失败——应用彻底起不来，用户只看到一坨 Node 堆栈。上游契约
+    // 是「补丁文件存在却应用不了就大声失败」，这里不改变契约，只把同一结果提前成
+    // 一条可操作的错误（哪个文件、哪一行、哪个包），错误页据此给出「移除悬空条目」
+    // 的一键恢复。必须在所有插件自愈之后：那些步骤会改变安装状态。
+    if let Err(e) = crate::service::plugin::preflight_active_patch_entries(&app_handle) {
+        log::error!("patch layer entry preflight failed: {e}");
+        return Err(e);
+    }
 
     log::info!("Starting Harness process");
 
@@ -658,9 +666,6 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
             ];
             if no_open {
                 args.push(OsString::from("--no-open"));
-            }
-            if skip_auth {
-                args.push(OsString::from("--skip-auth"));
             }
 
             // 只负责 spawn 并返回管道/PID/句柄：探测与重试期间不登记、不挂
@@ -772,9 +777,6 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
             if no_open {
                 cmd.arg("--no-open");
             }
-            if skip_auth {
-                cmd.arg("--skip-auth");
-            }
             cmd.envs(&envs)
                 .current_dir(config::get_dsh_install_path(&app_handle))
                 // 核心修正：提供一个空的 stdin 防止 setRawMode 报错
@@ -817,9 +819,6 @@ async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
                                             .arg(setting.port.to_string());
                                         if no_open {
                                             cmd.arg("--no-open");
-                                        }
-                                        if skip_auth {
-                                            cmd.arg("--skip-auth");
                                         }
                                         cmd.envs(&envs)
                                             .current_dir(config::get_dsh_install_path(&app_handle))

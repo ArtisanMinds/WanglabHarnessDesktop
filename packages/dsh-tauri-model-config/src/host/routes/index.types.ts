@@ -1,3 +1,14 @@
+import type { EditorPreference } from '../../shared/editor.types'
+
+export interface EditorPreferenceBody {
+  preference: EditorPreference
+}
+
+export interface EditorPreferenceResponse {
+  preference?: EditorPreference
+  error?: string
+}
+
 export type HostContext = any
 
 /** 一条归一化后的端点模型条目；缺席字段表示端点没有披露。 */

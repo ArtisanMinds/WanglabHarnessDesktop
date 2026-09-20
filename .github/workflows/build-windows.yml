@@ -83,7 +83,7 @@ jobs:
           }
 
       - name: Test frontend and internal plugins
-        run: pnpm test --run
+        run: pnpm test:unit --run
 
       - name: Test Core record recovery
         shell: powershell

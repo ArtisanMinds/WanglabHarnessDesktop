@@ -3,7 +3,7 @@
  *
  * 插件名、API 前缀与「不可用原因」是两半端共享的线协议面：host 侧路由/账本写入、
  * client 侧 RPC/卡片呈现各自硬编码必然漂移，集中在此由两端共同引用
- * （AGENTS.plugins.md「客户端常量集中规则」）。
+ * （agents.plugins.md「客户端常量集中规则」）。
  */
 
 /** 插件名（诊断元数据 / registrant / 存储目录名）。 */
@@ -38,3 +38,9 @@ export const TURNREWIND_REASON_SNAPSHOT_FAILED = 'TURNREWIND_SNAPSHOT_FAILED'
 
 /** 撤销命中了不允许穿透的目标路径（父级符号链接/junction、非空目录占位）。 */
 export const TURNREWIND_REASON_UNSAFE_PATH = 'TURNREWIND_UNSAFE_PATH'
+
+/**
+ * 工作区锁等待超时：由固定 loopback 端口的内核独占监听句柄串行（host/utils/lock.ts）。
+ * 拿不到锁不代表本轮不能撤销，客户端应呈现为可重试的失败，而非终态错误。
+ */
+export const TURNREWIND_REASON_WORKSPACE_BUSY = 'TURNREWIND_WORKSPACE_BUSY'

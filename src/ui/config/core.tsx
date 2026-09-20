@@ -48,6 +48,7 @@ export function ConfigCore() {
       <Panel.Header
         title={t('core.title')}
         description=""
+        testId="dsh-config-panel-title"
         action={(
           <Tooltip>
             <Button

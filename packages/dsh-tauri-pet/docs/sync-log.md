@@ -21,6 +21,23 @@
 
 ## 同步记录
 
+### 2026 —— dsh-pet-component v0.2.2：Codex 图集逐帧时长（idle 呼吸节奏对齐参考实现）
+
+不是上游同步，而是渲染层依赖升级（`dsh-pet-component@^0.2.1` → `^0.2.2`），
+记录在此以便核对帧节奏与命令面。类型声明只增不改（`dist/index.d.mts` 仅新增 6 行），宿主侧无需改动。
+
+- **逐帧时长**：`CodexPetFrameSpec` 新增可选 `durations?: number[]`（第 N 项 = 第 N 帧的停留时长，
+  缺项/非法项回落 `interval`）；`resolveCodexFrame` 把它并入解析结果，精灵图播放器取值优先级为
+  `durations[index]` > `interval`，并把 `durations.join(',')` 纳入 effect 依赖。
+- **idle 节奏**：内置 `CODEX_ACTIONS.idle` 由匀速 160 ms 改为 `[280, 110, 110, 140, 140, 320]`，
+  对齐参考实现 `dsh-plugin-codex-pets` 的 `IDLE_DURATIONS`（首/末帧为长停留的「呼吸」帧）——
+  此前匀速切帧看起来过快、从不停顿。宿主未自定义 idle 的 `interval`，直接受益。
+- **一次性动作末帧**：提供 `durations` 时末帧时长本身即定格停留（对齐参考实现的 `lastDuration` 语义），
+  不再于末帧后额外多停一个 `interval`；未提供 `durations` 的匀速动作行为不变。
+- **宿主影响**：`<Pet>` props 与 `pet.bubble` 命令面均未变化，`src/pet` 与 `packages/dsh-tauri-pet` 无需改动；
+  `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 登记同步改为 `dsh-pet-component@0.2.2`。
+- 校验：`pnpm typecheck`、`pnpm exec vitest run src/pet test/pet-asset-headers.test.ts`。
+
 ### 2026 —— 修复「气泡一直停在兜底文案（正在分析）、思考与工具文案一闪而过」（核心 0.1.6 流式通道迁移）
 
 不是上游同步，而是**核心事件通道变更**导致的回归，记录在此以免下次升级核心再踩。

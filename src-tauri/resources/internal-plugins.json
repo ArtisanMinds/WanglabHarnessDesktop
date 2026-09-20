@@ -7,6 +7,13 @@
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri"
   },
   {
+    "id": "dsh-tauri-connection",
+    "spec": "dsh-tauri-connection",
+    "name": "DSH Tauri Connection",
+    "description": "Desktop carrier authentication adaptation for the DeepSeek Harness shell: the embedded sandboxed WebView is cross-origin, so it cannot complete the SameSite=Strict browser-session cookie exchange.",
+    "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-connection"
+  },
+  {
     "id": "dsh-tauri-model-config",
     "spec": "dsh-tauri-model-config",
     "name": "DSH Model Config",

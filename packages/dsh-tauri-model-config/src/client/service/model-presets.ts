@@ -5,13 +5,19 @@ import type { PresetRow, PresetTable } from '../../shared/model-presets'
  *
  * 表由宿主侧从 LiteLLM 的模型价目/容量表现取（见 `src/host/service/model-presets.ts`），给出
  * 「支持图片 / 支持思考 / 上下文上限 / 输出上限」四项事实；表里没收录的型号再由家族规则补一条
- * 结论。预设只是起步值：端点披露的容量优先，用户可以随时在高级区改。
+ * 结论。预设只是起步值：端点披露的容量优先，用户可以随时在高级区改；两项能力只写「能」的结论，
+ * 数据集没表态的那一项留空，不会被写成显式的「不支持」。
  */
 
-/** 预设给出的能力；缺席的字段表示预设没有结论。 */
+/**
+ * 预设给出的能力；缺席的字段表示预设没有结论。
+ *
+ * `input` 只可能声明「收图片」，`efforts` 只可能声明「有档位」——预设不做减法：数据集没表态
+ * 的模态与档位不写进模型条目，让它们保持「继承默认」，而不是被写成显式的「不支持」。
+ */
 export interface ModelCapabilityPreset {
   input?: readonly string[]
-  efforts?: Readonly<Record<string, string | null>> | false
+  efforts?: Readonly<Record<string, string | null>>
   contextWindow?: number
   maxTokens?: number
 }
@@ -76,14 +82,25 @@ function ruleFacts(id: string): { vision: boolean, reasoning: boolean } | undefi
   return matched ? { vision, reasoning } : undefined
 }
 
+/**
+ * 把数据集的一行与家族规则合成一条预设。
+ *
+ * 只写「能」的结论：数据集把 0 用作「没有给出这项事实」，家族规则也只按命名补「能」，所以两者
+ * 都没给出结论时该字段缺席。把「未知」写成 `input: ['text']` / `reasoningEfforts: false` 会替用户
+ * 否决掉部署真实具备的能力——本地端点上的模型往往比数据集新，自动配置又会覆盖行内旧值，代价是把
+ * 已经声明的思考与图片能力直接关掉。
+ * @param row - 数据集里该模型的一行事实。
+ * @param rule - 家族规则给出的结论，没有规则命中时为 undefined。
+ * @returns 只含正向结论的预设。
+ */
 function combine(row: PresetRow | undefined, rule: { vision: boolean, reasoning: boolean } | undefined): ModelCapabilityPreset {
   const vision = row?.[0] === 1 || rule?.vision === true
   const reasoning = row?.[1] === 1 || rule?.reasoning === true
   const maxInput = row?.[2] ?? 0
   const maxOutput = row?.[3] ?? 0
   return {
-    input: vision ? ['text', 'image'] : ['text'],
-    efforts: reasoning ? { ...GRADED } : false,
+    ...vision ? { input: ['text', 'image'] } : {},
+    ...reasoning ? { efforts: { ...GRADED } } : {},
     ...maxInput === 0 ? {} : { contextWindow: maxInput },
     ...maxOutput === 0 ? {} : { maxTokens: maxOutput },
   }

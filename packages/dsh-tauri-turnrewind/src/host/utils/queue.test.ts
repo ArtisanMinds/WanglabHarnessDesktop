@@ -6,7 +6,9 @@
  * （否则长期运行的 Host 每见一个工作区就常驻一条 Promise，无界增长）。
  */
 
-import { describe, expect, it } from 'vitest'
+import type { WorkspaceLock } from './lock.types'
+import { describe, expect, it, vi } from 'vitest'
+import { WorkspaceLockTimeoutError } from './lock'
 import { createWorkspaceQueue } from './queue'
 
 const tick = (ms = 0): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
@@ -96,6 +98,174 @@ describe('createWorkspaceQueue', () => {
     const queue = createWorkspaceQueue()
     const value: Payload = await queue.run('ws', async () => ({ ok: true }))
     expect(value).toEqual({ ok: true })
+    await tick(5)
+    expect(queue.size()).toBe(0)
+  })
+})
+
+describe('createWorkspaceQueue — 跨进程锁与等待截止', () => {
+  it('每个任务都包在锁内执行：获取 → 任务 → 释放', async () => {
+    const events: string[] = []
+    const lock: WorkspaceLock = {
+      async run<T>(key: string, task: () => Promise<T>): Promise<T> {
+        events.push(`acquire:${key}`)
+        try {
+          return await task()
+        }
+        finally {
+          events.push(`release:${key}`)
+        }
+      },
+      lockPath: (key: string) => key,
+    }
+
+    const queue = createWorkspaceQueue({ lock })
+    await queue.run('ws', async () => {
+      events.push('task')
+    })
+
+    expect(events).toEqual(['acquire:ws', 'task', 'release:ws'])
+  })
+
+  it('把本次的跨进程等待上限透传给锁（缺省时传 undefined，由锁用自己的默认值）', async () => {
+    const seen: Array<number | undefined> = []
+    const lock: WorkspaceLock = {
+      async run<T>(_key: string, task: () => Promise<T>, lockTimeoutMs?: number): Promise<T> {
+        seen.push(lockTimeoutMs)
+        return task()
+      },
+      lockPath: (key: string) => key,
+    }
+
+    const queue = createWorkspaceQueue({ lock })
+    await queue.run('ws', async () => 'a', 250)
+    await queue.run('ws', async () => 'b')
+
+    expect(seen).toEqual([250, undefined])
+  })
+
+  it('锁获取失败：错误原样透出，且不阻断后续排队者', async () => {
+    let calls = 0
+    const lock: WorkspaceLock = {
+      async run<T>(key: string, task: () => Promise<T>): Promise<T> {
+        calls += 1
+        if (calls === 1)
+          throw new WorkspaceLockTimeoutError(`workspace lock not acquired (key=${key})`)
+        return task()
+      },
+      lockPath: (key: string) => key,
+    }
+
+    const queue = createWorkspaceQueue({ lock })
+    await expect(queue.run('ws', async () => 'never')).rejects.toBeInstanceOf(WorkspaceLockTimeoutError)
+    await expect(queue.run('ws', async () => 'ok')).resolves.toBe('ok')
+    await tick(5)
+    expect(queue.size()).toBe(0)
+  })
+
+  it('队内等待耗时从传给跨进程锁的剩余预算扣除', async () => {
+    vi.useFakeTimers()
+    try {
+      const timeouts: Array<number | undefined> = []
+      const lock: WorkspaceLock = {
+        lockPath: key => key,
+        async run<T>(_key: string, task: () => Promise<T>, timeout?: number): Promise<T> {
+          timeouts.push(timeout)
+          return task()
+        },
+      }
+      const queue = createWorkspaceQueue({ lock })
+      const first = queue.run('ws', () => tick(12))
+      const barrier = queue.run('ws', async () => 'ok', 20, { waitDeadline: Date.now() + 20 })
+      await vi.advanceTimersByTimeAsync(12)
+      await Promise.all([first, barrier])
+      // deadline 从入队前起算：队头的 12ms 排队被扣除，锁只拿到剩余 8ms。
+      expect(timeouts).toEqual([undefined, 8])
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('截止时间只取消尚未开始的任务：队头被占用时调用者按时返回，任务永不执行', async () => {
+    const lock: WorkspaceLock = { lockPath: key => key, run: async (_key, task) => task() }
+    const queue = createWorkspaceQueue({ lock })
+    let releaseHead: () => void = () => {}
+    const head = queue.run('ws', () => new Promise<void>((resolve) => {
+      releaseHead = resolve
+    }))
+    await tick(5)
+
+    const started: string[] = []
+    const barrier = queue.run('ws', async () => {
+      started.push('before')
+    }, 20, { waitDeadline: Date.now() + 20 })
+    await expect(barrier).rejects.toBeInstanceOf(WorkspaceLockTimeoutError)
+    expect(started).toEqual([])
+
+    // 取消是永久的：真正轮到它时也不能执行（否则迟到的 before 会拍到模型改动）。
+    releaseHead()
+    await head
+    await tick(10)
+    expect(started).toEqual([])
+  })
+
+  it('迟到拿锁也不能执行任务：预算过期后即使锁就位也只释放', async () => {
+    const events: string[] = []
+    let releaseAcquire: () => void = () => {}
+    const lock: WorkspaceLock = {
+      lockPath: key => key,
+      run: <T>(_key: string, task: () => Promise<T>): Promise<T> => {
+        events.push('acquire')
+        return new Promise<T>((resolve, reject) => {
+          // startTask 在预算过期后会同步抛错：延后一步让它变成拒绝，而不是砸进测试。
+          releaseAcquire = () => Promise.resolve().then(task).then(resolve, reject)
+        })
+      },
+    }
+    const queue = createWorkspaceQueue({ lock })
+    const attempt = queue.run('ws', async () => {
+      events.push('task')
+    }, 5000, { waitDeadline: Date.now() + 30 })
+
+    await tick(10)
+    // 锁获取还在飞（模拟「邻居刚好释放」前的一瞬），deadline 先到：调用者拿到超时。
+    await expect(attempt).rejects.toBeInstanceOf(WorkspaceLockTimeoutError)
+    releaseAcquire()
+    await tick(10)
+    expect(events).toEqual(['acquire'])
+    await tick(5)
+    expect(queue.size()).toBe(0)
+  })
+
+  it('已开始的任务完整执行：执行开始后等待预算不再生效', async () => {
+    const events: string[] = []
+    const lock: WorkspaceLock = {
+      async run<T>(_key: string, task: () => Promise<T>): Promise<T> {
+        events.push('acquire')
+        try {
+          return await task()
+        }
+        finally {
+          events.push('release')
+        }
+      },
+      lockPath: key => key,
+    }
+    const queue = createWorkspaceQueue({ lock })
+    const started = Date.now()
+    const slow = queue.run('ws', async () => {
+      events.push('task:start')
+      await tick(60)
+      events.push('task:end')
+      return 'done'
+    }, 1000, { waitDeadline: Date.now() + 20 })
+
+    // 任务在预算内开始：一旦开始就必须完整等待——绝不半途放弃 git，也绝不让屏障
+    // 在 before 快照执行中放行（否则模型改动会混进基线）。
+    await expect(slow).resolves.toBe('done')
+    expect(Date.now() - started).toBeGreaterThanOrEqual(60)
+    expect(events).toEqual(['acquire', 'task:start', 'task:end', 'release'])
     await tick(5)
     expect(queue.size()).toBe(0)
   })

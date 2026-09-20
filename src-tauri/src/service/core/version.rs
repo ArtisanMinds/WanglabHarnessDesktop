@@ -238,41 +238,70 @@ async fn switch_app_version(app_handle: &AppHandle, tag: &str) -> Result<(), Str
         .map_err(|e| format!("CORE_SWITCH_STOP_FAILED: {e}"))?;
     }
 
-    // 1. 当前激活目录让出激活位：改名为自己的 tag 槽位（残留槽位先清理）
+    // 1. 当前激活目录让出激活位：改名为自己的 tag 槽位（旧备份先移到临时位置，切换成功后再清理）
     let backup_tag = cur_tag.clone().unwrap_or_else(|| {
-        // 无 tag 记录（旧版安装）：用版本号兜底命名槽位
         format!(
             "dsh-{}",
             config::get_dsh_version(app_handle).unwrap_or_else(|| "unknown".to_string())
         )
     });
     let backup_dir = safe_slot_path(&deps, &backup_tag)?;
-    if active_dir.exists() {
-        if backup_dir.exists() && !download::remove_dir_with_retry(&backup_dir).await {
-            return Err(format!(
-                "CORE_SWITCH_FAILED: cannot clean old backup {}",
-                backup_dir.display()
-            ));
-        }
-        download::rename_with_retry(&active_dir, &backup_dir)
+
+    let holding = deps.join(format!(".backup-holding-{}", std::process::id()));
+    let stale_backup = deps.join(format!(".backup-stale-{}", std::process::id()));
+
+    if backup_dir.exists() {
+        download::rename_with_retry(&backup_dir, &holding)
             .await
             .map_err(|e| {
                 format!(
                     "CORE_SWITCH_FAILED: {} -> {}: {e}",
-                    active_dir.display(),
-                    backup_dir.display()
+                    backup_dir.display(),
+                    holding.display()
                 )
             })?;
     }
 
-    // 2. 目标版本进入激活位；失败回滚
+    if active_dir.exists() {
+        if let Err(e) = download::rename_with_retry(&active_dir, &backup_dir).await {
+            let _ = download::rename_with_retry(&holding, &backup_dir).await;
+            return Err(format!(
+                "CORE_SWITCH_FAILED: {} -> {}: {e}",
+                active_dir.display(),
+                backup_dir.display()
+            ));
+        }
+    }
+
     if let Err(e) = download::rename_with_retry(&target_dir, &active_dir).await {
-        let _ = download::rename_with_retry(&backup_dir, &active_dir).await;
+        let rollback1 = download::rename_with_retry(&backup_dir, &active_dir).await;
+        let rollback2 = if holding.exists() {
+            download::rename_with_retry(&holding, &backup_dir).await
+        } else {
+            Ok::<(), std::io::Error>(())
+        };
         return Err(format!(
-            "CORE_SWITCH_FAILED: {} -> {}: {e}",
+            "CORE_SWITCH_FAILED: {} -> {}: {e} (rollback active: {}, rollback backup: {})",
             target_dir.display(),
-            active_dir.display()
+            active_dir.display(),
+            rollback1.is_ok(),
+            rollback2.is_ok()
         ));
+    }
+
+    if holding.exists() {
+        if !download::remove_dir_with_retry(&holding).await {
+            log::warn!(
+                "CORE_SWITCH_WARNING: failed to remove stale backup {} after successful switch",
+                holding.display()
+            );
+            if let Err(e) = download::rename_with_retry(&holding, &stale_backup).await {
+                log::warn!(
+                    "CORE_SWITCH_WARNING: failed to rename stale backup to {}: {e}",
+                    stale_backup.display()
+                );
+            }
+        }
     }
 
     // 3. 记录切换：tag + commit（commit 从 tags 列表反查，失败保留原值）

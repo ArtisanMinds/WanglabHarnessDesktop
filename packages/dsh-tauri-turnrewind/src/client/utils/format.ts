@@ -1,7 +1,7 @@
 /**
  * client/utils/format.ts — 纯函数：计数文本、文件名、卡片状态判定、文件清单裁剪。
  *
- * 全部为纯函数，便于单测直接锁定（AGENTS.plugins.md「优先测试纯函数」）。
+ * 全部为纯函数，便于单测直接锁定（agents.plugins.md「优先测试纯函数」）。
  * 计数文本供 `ChangeCounts` 的 `title` 使用：视觉是分开着色的两个 span，
  * 但读屏/悬浮提示要拿到同一条「+N -M」文本。
  */
@@ -14,6 +14,7 @@ import {
   TURNREWIND_REASON_SNAPSHOT_FAILED,
   TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
+  TURNREWIND_REASON_WORKSPACE_BUSY,
 } from '../../shared/constants'
 
 /**
@@ -29,6 +30,8 @@ const REASON_KEYS: Record<string, LocaleKey> = {
   [TURNREWIND_REASON_TURN_ACTIVE]: 'turnActiveReason',
   [TURNREWIND_REASON_SNAPSHOT_FAILED]: 'snapshotFailedReason',
   [TURNREWIND_REASON_UNSAFE_PATH]: 'unsafePathReason',
+  // 工作区被另一个宿主进程占用：**可重试**，语义与上面几个终态原因不同（见字典文案）。
+  [TURNREWIND_REASON_WORKSPACE_BUSY]: 'workspaceBusyReason',
 }
 
 /**

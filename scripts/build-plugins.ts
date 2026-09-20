@@ -2,6 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
+import { pathToFileURL } from 'node:url'
+import ts from 'typescript'
 
 const REPO_ROOT = resolve(import.meta.dirname, '..')
 const PACKAGES_ROOT = join(REPO_ROOT, 'packages')
@@ -91,7 +93,7 @@ function verifyMaterialized(root: string): void {
 /**
  * DSH 运行时自行下发的包：`resources/node_modules` 之外还有一份由 src-tauri 服务层
  * 按 local/npm/global 布局单独准备，插件侧只需 `loader.import()` 动态取用
- * （见 docs/AGENTS.desktop.md「host 禁止静态引用 @deepseek-ai/*」）。整段排除即可，
+ * （见 docs/specs/agents.desktop.md「host 禁止静态引用 @deepseek-ai/*」）。整段排除即可，
  * 不必逐个删——它们只被 @deepseek-ai 自身互相引用。
  */
 const RUNTIME_PROVIDED_SCOPES = ['@deepseek-ai'] as const
@@ -124,14 +126,28 @@ const FALLBACK_CONDITION = 'default'
 
 const RUNTIME_FILE_PATTERN = /\.(?:js|cjs|mjs)$/
 
-/** 逐条取出相对 import/require 的说明符；保持 exec 循环以免依赖迭代协议。 */
-function relativeSpecifiers(source: string): string[] {
-  const pattern = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"](\.[^'"]*)['"]/g
+export function relativeSpecifiers(source: string): string[] {
   const specifiers: string[] = []
-  for (let match = pattern.exec(source); match !== null; match = pattern.exec(source)) {
-    specifiers.push(match[1])
-  }
+  const file = ts.createSourceFile('runtime.js', source, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS)
+  ts.forEachChild(file, visit)
   return specifiers
+
+  function visit(node: ts.Node): void {
+    let target: ts.Node | undefined
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      target = node.moduleSpecifier
+    }
+    else if (ts.isCallExpression(node) && (
+      node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && node.expression.text === 'require')
+    )) {
+      target = node.arguments[0]
+    }
+    if (target && ts.isStringLiteralLike(target) && target.text.startsWith('.')) {
+      specifiers.push(target.text)
+    }
+    ts.forEachChild(node, visit)
+  }
 }
 
 interface PackageManifest {
@@ -575,10 +591,13 @@ function main(): void {
   }
 }
 
-try {
-  main()
-}
-catch (error) {
-  console.error(`[build:plugins] ${error instanceof Error ? error.message : error}`)
-  process.exitCode = 1
+const entryPoint = process.argv[1]
+if (entryPoint && import.meta.url === pathToFileURL(resolve(entryPoint)).href) {
+  try {
+    main()
+  }
+  catch (error) {
+    console.error(`[build:plugins] ${error instanceof Error ? error.message : error}`)
+    process.exitCode = 1
+  }
 }

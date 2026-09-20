@@ -9,7 +9,7 @@ import type {
   SidebarBusyAction,
   StartupError,
 } from './types'
-import type { PatchQuarantineReport } from '@/types/plugin'
+import type { PatchEntryStripReport, PatchQuarantineReport } from '@/types/plugin'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import i18next from 'i18next'
@@ -37,6 +37,7 @@ import {
   checkHealthViaProxy,
   generateTimestampedUrl,
   internalPluginReason,
+  notifyPatchEntryStrip,
   notifyPatchQuarantine,
   pollHarnessReadiness,
   startupError,
@@ -83,6 +84,13 @@ export const harness = defineStore({
     status: 'ready' as SetupStatus,
     installer: initialInstaller,
     errorMsg: '',
+    /**
+     * 依赖自动下载被环境禁用（E2E 的 `DSH_E2E_DISABLE_DOWNLOAD=1`）。
+     *
+     * 此时装配必然失败在「找不到 dsh CLI」，但那不是真实故障——Setup 页据此把
+     * 错误态渲染成「下载已被环境禁用」，而不是让 E2E 看起来像启动崩溃。
+     */
+    downloadDisabled: false,
     /** 启动失败时从 dsh 服务日志中读取的真实错误行（Loadable 错误态日志面板） */
     errorLogs: [] as string[],
     /** 识别到插件路由冲突时的针对性提示（Loadable children 展示） */
@@ -503,8 +511,9 @@ export const harness = defineStore({
         catch (err) {
           console.error('[Harness] failed to listen install-progress:', err)
         }
-        const runtimeInfo = await invoke<{ service_url: string }>('get_runtime_info')
+        const runtimeInfo = await invoke<{ service_url: string, auto_download_disabled?: boolean }>('get_runtime_info')
         this.serviceUrl = runtimeInfo.service_url
+        this.downloadDisabled = runtimeInfo.auto_download_disabled === true
         this.iframeSrc = generateTimestampedUrl(runtimeInfo.service_url)
 
         // 已安装过则跳过安装界面，避免每次启动都闪现"正在安装依赖..."
@@ -600,6 +609,7 @@ export const harness = defineStore({
           error.pluginConflictHint,
           error.inotifyLimitHint,
           this.serviceRunning,
+          error.patchLayerHint,
         )
       }
       finally {
@@ -701,6 +711,37 @@ export const harness = defineStore({
       }
       catch (err) {
         console.error('[Harness] quarantine broken patch layers failed:', err)
+        const error = await attachStartupDiagnostics(err)
+        this.fail(
+          error.message,
+          error.logs,
+          error.pluginConflictHint,
+          error.inotifyLimitHint,
+          undefined,
+          error.patchLayerHint,
+        )
+        return
+      }
+      await this.restart()
+    },
+
+    /**
+     * 移除补丁层里解析不到包的 insert 条目并重启：错误页在「补丁层引用了未安装的
+     * 包」时的专用恢复入口（与语法错误的「隔离」入口互斥，见 setup.tsx）。
+     *
+     * 判定与启动前预检完全一致，只剥离悬空条目——同一条目里的其它 insert、其它
+     * 条目与其它配置原样保留，因此不会顺手删掉还能用的插件。改写前先把原文件备份
+     * 成 `.bak-<时间戳>`，结果用 toast 告知备份路径。
+     */
+    async stripUnresolvedPatchEntries() {
+      if (this.busyAction)
+        return
+      try {
+        const report = await invoke<PatchEntryStripReport>('strip_unresolved_patch_entries')
+        notifyPatchEntryStrip(report)
+      }
+      catch (err) {
+        console.error('[Harness] strip unresolved patch entries failed:', err)
         const error = await attachStartupDiagnostics(err)
         this.fail(
           error.message,

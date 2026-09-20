@@ -11,6 +11,7 @@ import { handleAgentStatus } from './events/agent-status'
 import { handlePreStep } from './events/pre-step'
 import { handleSessionDisposed } from './events/session-disposed'
 import { handleSessionEvent } from './events/session-event'
+import { handlePreExecute } from './events/tools-pre-execute'
 import { routes } from './routes'
 import { capture } from './service/capture'
 
@@ -19,6 +20,7 @@ export function apply(ctx: HostContext): void {
   setCurrentHostInstance(ctx)
 
   ctx.on('agent/pre-step', handlePreStep)
+  ctx.on('tools/pre-execute', handlePreExecute)
   ctx.on('session/event', handleSessionEvent)
   ctx.on('agent/status', handleAgentStatus)
   ctx.on('session/disposed', handleSessionDisposed)

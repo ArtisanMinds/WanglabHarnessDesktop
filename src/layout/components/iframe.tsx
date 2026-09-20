@@ -158,7 +158,7 @@ export function Iframe({ iframeRef }: IframeProps) {
       return
     const reqId = data.id
     function reply(dataUrl: string | null) {
-      post({ source: 'dsh://clipboard-image:reply', id: reqId, data_url: dataUrl })
+      post({ type: 'dsh://clipboard-image:reply', id: reqId, data_url: dataUrl })
     }
     void invoke<{ data_url?: string } | null>('read_clipboard_image')
       .then(result => reply(result?.data_url ?? null))
@@ -192,6 +192,7 @@ export function Iframe({ iframeRef }: IframeProps) {
         <iframe
           key={harness.iframeKey}
           ref={iframeRef}
+          data-testid="dsh-shell-iframe"
           className="h-full w-full"
           src={harness.iframeSrc}
           allow="accelerometer; ambient-light-sensor; autoplay; battery; camera; clipboard-read; clipboard-write; display-capture; document-domain; encrypted-media; fullscreen; gamepad; geolocation; gyroscope; hid; idle-detection; keyboard-map; magnetometer; microphone; midi; payment; picture-in-picture; publickey-credentials-get; screen-wake-lock; serial; speaker-selection; usb; web-share; xr-spatial-tracking"
