@@ -27,7 +27,7 @@
   {
     "id": "@xmanrui/dsh-im",
     "spec": "@xmanrui/dsh-im",
-    "name": "DSH-IM",
+    "name": "DSH IM",
     "description": "Connect IM channels (WeChat, Feishu, DingTalk, WeCom, QQ, Slack, Telegram, Discord, WhatsApp, iMessage and more) plus a public AI Office to a local DeepSeek Harness, with bot management in the desktop sidebar.",
     "repoUrl": "https://github.com/xmanrui/dsh-im",
     "recommended": true
