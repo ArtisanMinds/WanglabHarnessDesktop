@@ -187,12 +187,6 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
     }
   }
 
-  function onDragRegionDoubleClick() {
-    // macOS 的双击标题栏行为由系统偏好决定，不用网页强制覆盖。
-    if (!IS_MACOS)
-      void getCurrentWindow().toggleMaximize()
-  }
-
   function onDragRegionPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     // data-tauri-drag-region 原生只监听鼠标事件（mousedown/mouseup），
     // 触摸屏/笔输入不会触发原生拖拽（见 tauri#13762）。
@@ -361,6 +355,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
           size="sm"
           variant="ghost"
           aria-label={t(sidebarCollapsed ? 'nav.sidebar_expand' : 'nav.sidebar_collapse')}
+          data-testid="dsh-navbar-sidebar-toggle"
           onPress={() => { onToggleSidebar?.() }}
         >
           <If
@@ -381,10 +376,11 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               size="sm"
               variant="ghost"
               aria-label={t('menu.file')}
+              data-testid="dsh-navbar-menu-file"
             >
               {t('menu.file')}
             </Button>
-            <Dropdown.Popover className="rounded-md w-5!">
+            <Dropdown.Popover className="rounded-md min-w-55">
               <Dropdown.Menu>
                 <Dropdown.Item
                   className="rounded-md"
@@ -437,10 +433,11 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               size="sm"
               variant="ghost"
               aria-label={t('app.config')}
+              data-testid="dsh-navbar-menu-config"
             >
               {t('app.config')}
             </Button>
-            <Dropdown.Popover className="rounded-md w-5!">
+            <Dropdown.Popover className="rounded-md min-w-55">
               <Dropdown.Menu>
                 {CONFIG_TABS.map(item => (
                   <Dropdown.Item
@@ -462,10 +459,11 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               size="sm"
               variant="ghost"
               aria-label={t('app.help')}
+              data-testid="dsh-navbar-menu-help"
             >
               {t('app.help')}
             </Button>
-            <Dropdown.Popover className="rounded-md w-5!">
+            <Dropdown.Popover className="rounded-md min-w-55">
               <Dropdown.Menu>
                 <Dropdown.Item
                   className="rounded-md"
@@ -516,12 +514,14 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
       </If>
 
       {/* 拖拽区：Tauri 原生拖拽（仅此元素带 data-tauri-drag-region，按钮不受影响）。
+           双击最大化同样由 Tauri 的 drag.js 原生处理（`internal_toggle_maximize`），
+           网页侧不得再挂 onDoubleClick——两边各切一次会互相抵消（见 G-D02-5）。
            touch-none 让触摸被当作拖拽而非滚动/平移手势，配合 onPointerDown 支持触摸/笔。 */}
       <div
         className="min-w-0 flex-1 self-stretch touch-none"
+        data-testid="dsh-navbar-drag-region"
         data-tauri-drag-region
         onPointerDown={onDragRegionPointerDown}
-        onDoubleClick={onDragRegionDoubleClick}
       />
 
       <div className="absolute" style={dshStyle.marked || {}} />
