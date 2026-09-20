@@ -113,6 +113,15 @@ libc = "0.2"
 [target.'cfg(target_os = "linux")'.dependencies]
 tray-icon = { version = "0.25", default-features = false, features = [ "ksni" ] }
 
+# E2E 基础设施：上游 `tauri-plugin-wdio-webdriver` 的帧上下文靠 JS 模拟
+# （`frame.contentWindow.eval`）。壳层是 `tauri://localhost`，内嵌 dsh 是
+# `http://127.0.0.1:<port>`，跨域下 `contentDocument` 为 null、proxy 无 `eval`，
+# 一切帧内脚本必然超时。本地副本改为 WebView2 原生 `ICoreWebView2Frame2::ExecuteScript`
+# （引擎按帧路由，不受同源策略约束）。改动仅限 Windows 路径，其余与上游 1.4.0 一致；
+# 上游支持后删除 vendor 与本节，详见 vendor 目录内 README。
+[patch.crates-io]
+tauri-plugin-wdio-webdriver = { path = "vendor/tauri-plugin-wdio-webdriver" }
+
 [target.'cfg(windows)'.dependencies]
 rfd = "0.16"
 webview2-com = "0.38"
