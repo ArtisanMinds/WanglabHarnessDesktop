@@ -28,11 +28,31 @@ export async function menuItemCount(browser: WebdriverIO.Browser): Promise<numbe
   return await (await browser.$$(NAVBAR_MENU_ITEMS)).length
 }
 
+/**
+ * 重新定位并点击元素。
+ *
+ * 规范要求 E2E 只认 `data-testid`，而真实装配车道（`disableDownload: false`）下壳层会随
+ * 启动状态推进重渲染、换掉节点；`waitForClickable()` 只认首次取到的句柄，句柄一旦游离
+ * 就会一直轮询到超时。这里每次轮询都重新 `$()`，因此对节点替换免疫。
+ */
+export async function clickWhenReady(
+  browser: WebdriverIO.Browser,
+  selector: string,
+  timeout = 10_000,
+): Promise<void> {
+  await browser.waitUntil(async () => {
+    const node = await browser.$(selector)
+    return await node.isExisting() && await node.isClickable()
+  }, { timeout, timeoutMsg: `元素不可点击：${selector}` })
+
+  const node = await browser.$(selector)
+  await node.click()
+}
+
 /** 点击触发器展开菜单，并等到焦点落到菜单上。 */
 export async function openMenu(browser: WebdriverIO.Browser, trigger: string): Promise<void> {
-  const button = await browser.$(trigger)
-  await button.waitForClickable()
-  await button.click()
+  await clickWhenReady(browser, trigger)
+
   await browser.waitUntil(async () => (await menuItemCount(browser)) > 0, {
     timeout: 5_000,
     timeoutMsg: `菜单未展开：${trigger}`,

@@ -198,6 +198,9 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
       }
     }
 
+    // 收掉本车道遗留的 dsh：它是应用独立拉起的进程，应用被强杀时不会被一起带走
+    await killOrphanHarness(cacheDir)
+
     // 探测 WebDriver 端口以等待 WebView2 子进程释放资源
     for (let i = 0; i < 20 && (await isPortBusy(WEBDRIVER_PORT)); i++) {
       await sleep(150)
@@ -289,10 +292,26 @@ function execPowerShell(script: string): Promise<string> {
 }
 
 /**
+ * 收掉本车道遗留的 dsh 服务进程。
+ *
+ * `disableDownload: false` 车道会真的拉起 dsh；它是应用独立拉起的进程，应用被强杀时
+ * 不会被一起带走，残留实例会一直占着 debug 端口，让下一次启动的前置校验（刻意不自动
+ * 杀进程）直接失败。只匹配「命令行里带本次下载缓存目录」的进程，因此不会误伤用户正在
+ * 使用的正式版 / 开发版实例。
+ */
+async function killOrphanHarness(cacheDir: string): Promise<void> {
+  if (process.platform !== 'win32')
+    return
+
+  const pattern = cacheDir.replace(/'/g, '\'\'')
+  const script = `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*${pattern}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`
+  await execPowerShell(script)
+}
+
+/**
  * 指定二进制是否仍有存活进程。
  * 按**可执行文件路径**比对，避免误判正式版实例。
- */
-async function hasLiveProcess(binaryPath: string): Promise<boolean> {
+ */async function hasLiveProcess(binaryPath: string): Promise<boolean> {
   if (process.platform !== 'win32')
     return false
 

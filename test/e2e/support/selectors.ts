@@ -8,6 +8,14 @@
 /** 壳层根节点（`src/layout/index.tsx`）。 */
 export const SHELL_ROOT = '[data-testid="dsh-shell-root"]'
 
+/**
+ * 内嵌 dsh 页面的 iframe（`src/layout/components/iframe.tsx`）。
+ *
+ * 仅在 `harness.serviceHealthy` 为真时挂载；重建由 `key={harness.iframeKey}` 驱动，
+ * 因此「元素实例是否被替换」是「iframe 是否被重建」的判据。
+ */
+export const SHELL_IFRAME = '[data-testid="dsh-shell-iframe"]'
+
 /** 导航栏根容器（`src/layout/components/navbar.tsx`）。 */
 export const NAVBAR_ROOT = '[data-testid="dsh-navbar-root"]'
 
@@ -48,6 +56,13 @@ export const SETUP_ERROR = '[data-testid="dsh-setup-error"]'
 
 /** 「下载已被环境禁用」页根节点；`DSH_E2E_DISABLE_DOWNLOAD=1` 时替代失败页。 */
 export const SETUP_DISABLED = '[data-testid="dsh-setup-disabled"]'
+
+/**
+ * 首次装配「安装推荐插件」引导页的跳过按钮。
+ *
+ * 三处（有变更 / 无变更 / 安装失败）互斥渲染，因此同一 testid 只会命中一个。
+ */
+export const SETUP_PREINSTALL_SKIP = '[data-testid="dsh-setup-preinstall-skip"]'
 
 /** 配置对话框根节点（`Modal.Dialog`）。 */
 export const CONFIG_DIALOG = '[data-testid="dsh-config-dialog"]'

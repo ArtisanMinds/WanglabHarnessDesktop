@@ -25,6 +25,8 @@ import {
   openConfigTab,
 } from '../support/config-dialog'
 import { startDesktopApp } from '../support/desktop-host'
+import { clickWhenReady } from '../support/navbar-menu'
+import { completePreinstall } from '../support/preinstall'
 import {
   CONFIG_LANGUAGE_SELECT,
   CONFIG_TABS,
@@ -35,6 +37,7 @@ import {
   NAVBAR_MENU_FILE,
   NAVBAR_MENU_HELP,
   NAVBAR_ROOT,
+  SHELL_IFRAME,
 } from '../support/selectors'
 
 /** 三个菜单触发器的文案键：`app.config` / `app.help` 与 `menu.*` 同处一张扁平表。 */
@@ -97,13 +100,8 @@ async function storedLanguage(): Promise<string> {
 
 /** 通过「应用」面板的语言下拉切换语言，并等 localStorage 落定。 */
 async function selectLanguage(language: Language): Promise<void> {
-  const trigger = await browser.$(CONFIG_LANGUAGE_SELECT)
-  await trigger.waitForClickable()
-  await trigger.click()
-
-  const option = await browser.$(configLanguageOption(language))
-  await option.waitForClickable()
-  await option.click()
+  await clickWhenReady(browser, CONFIG_LANGUAGE_SELECT)
+  await clickWhenReady(browser, configLanguageOption(language))
 
   await browser.waitUntil(async () => await storedLanguage() === language, {
     timeout: 10_000,
@@ -224,8 +222,10 @@ describe.skipIf(process.platform === 'darwin')('语言与主题', () => {
   it('TC-DSK-L3-04-005 验证主题偏好被折算并应用到根节点', async () => {
     const preference = await themePreference()
     expect(['dark', 'light', 'system'], `非法的主题偏好：${preference}`).toContain(preference)
+    // 首次进入：scratch home 内没有 settings.yaml，必须回退「跟随系统」而不是固定深色
+    expect(preference, '未设置过主题时未回退到系统偏好').toBe('system')
 
-    // `use-theme-adaptive.ts`：preference 为 `system` 时按系统偏好折算
+    // `use-theme-adaptive.ts`：`system`（或偏好尚未取到）按系统偏好折算
     const expected = preference === 'system' ? ((await prefersDark()) ? 'dark' : 'light') : preference
     await browser.waitUntil(async () => await appliedTheme() === expected, {
       timeout: 10_000,
@@ -234,4 +234,59 @@ describe.skipIf(process.platform === 'darwin')('语言与主题', () => {
 
     expect(['dark', 'light']).toContain(await appliedTheme())
   })
+
+  /** iframe 实例身份的页内存储键。 */
+  const IFRAME_MARK = '__dshE2eIframeMark'
+
+  /**
+   * 记录 iframe 的 `src` 与实例身份；第二次调用与第一次记录的实例比对。
+   *
+   * 实例身份取「DOM 节点引用 + 其 `contentWindow`」：`iframe.tsx` 由
+   * `key={harness.iframeKey}` 驱动重建，重建即换节点，因此引用变化就是「被重建」。
+   * 只比对 `src` 不足以发现重建（重建后 src 通常相同）。
+   */
+  async function recordIframe(): Promise<{ src: string, sameInstance: boolean }> {
+    return await browser.execute((iframeSelector: string, markKey: string) => {
+      const store = window as unknown as Record<string, unknown>
+      const el = document.querySelector(iframeSelector) as HTMLIFrameElement | null
+      const src = el?.getAttribute('src') ?? ''
+      const previous = store[markKey] as { el: unknown, win: unknown } | undefined
+      if (!previous) {
+        store[markKey] = { el, win: el?.contentWindow }
+        return { src, sameInstance: true }
+      }
+      return { src, sameInstance: previous.el === el && previous.win === el?.contentWindow }
+    }, SHELL_IFRAME, IFRAME_MARK)
+  }
+
+  it('TC-DSK-L3-04-006 [反向] 验证语言切换不重建 iframe', async () => {
+    // 真实装配车道：iframe 只在 `serviceHealthy` 时渲染，所以这里必须关掉 disableDownload
+    await app.stop()
+    app = await startDesktopApp()
+    browser = app.browser
+    stop = app.stop
+    await (await browser.$(NAVBAR_ROOT)).waitForDisplayed()
+    await markConfigDialogPage(browser)
+
+    // 首次装配要先过「安装推荐插件」引导，服务才会被拉起（引导自身的用例归批次 08）
+    await completePreinstall(browser)
+
+    const iframe = await browser.$(SHELL_IFRAME)
+    await iframe.waitForDisplayed({ timeout: 300_000 })
+
+    const before = await recordIframe()
+    expect(before.src, 'iframe 没有 src').not.toBe('')
+
+    await openConfigTab(browser, 'application')
+    await selectLanguage('en-US')
+    await browser.waitUntil(
+      async () => (await readText(NAVBAR_MENU_CONFIG)) === EXPECTED_MENU_LABELS['en-US'].config,
+      { timeout: 10_000, timeoutMsg: '菜单文案未随语言变更' },
+    )
+    await closeConfigDialog(browser)
+
+    const after = await recordIframe()
+    expect(after.src, '语言切换后 iframe 的 src 变了').toBe(before.src)
+    expect(after.sameInstance, '语言切换重建了 iframe（实例身份变化）').toBe(true)
+  }, 900_000)
 })

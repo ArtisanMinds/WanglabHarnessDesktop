@@ -8,7 +8,7 @@
  *   不会重新定位，必然轮询到超时。
  */
 
-import { openMenu } from './navbar-menu'
+import { clickWhenReady, openMenu } from './navbar-menu'
 import {
   CONFIG_DIALOG,
   CONFIG_DIALOG_CLOSE,
@@ -57,9 +57,7 @@ export async function isConfigDialogOpen(browser: WebdriverIO.Browser): Promise<
 export async function openConfigTab(browser: WebdriverIO.Browser, tab: string): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt++) {
     await openMenu(browser, NAVBAR_MENU_CONFIG)
-    const item = await browser.$(navbarMenuItem(tab))
-    await item.waitForClickable()
-    await item.click()
+    await clickWhenReady(browser, navbarMenuItem(tab))
 
     const dialog = await browser.$(CONFIG_DIALOG)
     await dialog.waitForDisplayed({ timeout: 10_000 })
@@ -79,9 +77,7 @@ export async function openConfigTab(browser: WebdriverIO.Browser, tab: string): 
  * 并排空退场窗口。
  */
 export async function closeConfigDialog(browser: WebdriverIO.Browser): Promise<void> {
-  const trigger = await browser.$(CONFIG_DIALOG_CLOSE)
-  await trigger.waitForClickable()
-  await trigger.click()
+  await clickWhenReady(browser, CONFIG_DIALOG_CLOSE)
   await browser.waitUntil(async () => !(await isConfigDialogOpen(browser)), {
     timeout: 10_000,
     timeoutMsg: '配置对话框未关闭',
