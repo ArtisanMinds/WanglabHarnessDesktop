@@ -121,6 +121,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # build:plugins 的产物只由 packages/** 与锁文件/构建脚本决定，未变时直接复用，
+      # 省掉整轮（32~55s）。命中即跳过下方 Build Plugins，故新增输入时必须同步扩充 key。
+      # key 取 restore 的 cache-primary-key：save 时 packages/*/dist 已生成，
+      # 在彼处重新 hashFiles 会得到不同的值。
+      - name: Restore bundled plugins
+        id: plugins_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            src-tauri/resources/node_modules
+            packages/*/dist
+          key: plugins-${{ runner.os }}-${{ hashFiles('packages/**', 'scripts/**', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json') }}
+
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-node-pnpm
 
@@ -128,7 +141,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Plugins
+        if: steps.plugins_cache.outputs.cache-hit != 'true'
         run: pnpm build:plugins
+
+      - name: Save bundled plugins
+        if: steps.plugins_cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            src-tauri/resources/node_modules
+            packages/*/dist
+          key: ${{ steps.plugins_cache.outputs.cache-primary-key }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
