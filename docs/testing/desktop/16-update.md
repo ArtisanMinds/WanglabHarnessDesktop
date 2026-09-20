@@ -31,7 +31,7 @@
 
 ### [P1] 验证发现新版本时导航栏出现更新入口
 
-[Case ID] TC-DSK-L3-121
+[Case ID] TC-DSK-L3-16-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:532-542`；`src/layout/index.tsx:88-89`
@@ -44,7 +44,7 @@
 
 ### [P2] 验证无更新时提示已是最新
 
-[Case ID] TC-DSK-L3-122
+[Case ID] TC-DSK-L3-16-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:283-295`
@@ -57,12 +57,12 @@
 
 ### [P2] 验证点击更新入口打开更新对话框
 
-[Case ID] TC-DSK-L3-123
+[Case ID] TC-DSK-L3-16-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:278-280`、`:532-540`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-121 通过（更新入口存在）
+[前置条件] TC-DSK-L3-16-001 通过（更新入口存在）
 [测试数据] 选择器 `dsh-navbar-update-chip`、`dsh-update-dialog`
 [测试步骤] 1. 点击更新入口。2. 读取更新对话框可见性与版本信息。
 [预期结果] 1. 点击被接受。2. 对话框可见，包含目标版本号与下载/安装状态信息。
@@ -70,7 +70,7 @@
 
 ### [P4] 验证「应用」面板核心有新版时显示新版本链接
 
-[Case ID] TC-DSK-L3-124
+[Case ID] TC-DSK-L3-16-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/debug.tsx:260-269`
@@ -87,7 +87,7 @@
 
 ### [P3] [反向] 验证检查更新失败时提示失败而非已是最新
 
-[Case ID] TC-DSK-L3-125
+[Case ID] TC-DSK-L3-16-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/navbar.tsx:291-294`
@@ -100,7 +100,7 @@
 
 ### [P3] 验证高于 rc.2 的版本更新前弹破坏性更改确认
 
-[Case ID] TC-DSK-L3-126
+[Case ID] TC-DSK-L3-16-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/index.tsx:135-141`；`src/ui/config/hooks/use-core-breaking-confirm.tsx`
@@ -113,7 +113,7 @@
 
 ### [P4] 验证后台轮询失败不影响其他功能
 
-[Case ID] TC-DSK-L3-127
+[Case ID] TC-DSK-L3-16-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/index.tsx:85-89`（失败一律静默）
@@ -152,8 +152,8 @@
 
 ## 6. 缺口与假设
 
-- **G-D16-1**：本文件的多数用例需要「可控的更新结果」（有更高版本 / 无更高版本 / 检查失败）。当前无测试替身更新源，接线时需引入（例如指向本地 HTTP 服务），否则 TC-DSK-L3-121/123/126 不可达。
+- **G-D16-1**：本文件的多数用例需要「可控的更新结果」（有更高版本 / 无更高版本 / 检查失败）。当前无测试替身更新源，接线时需引入（例如指向本地 HTTP 服务），否则 TC-DSK-L3-16-001/123/126 不可达。
 - **G-D16-2**：真实更新检查会触发 GitHub 未认证限流（60 次/小时/IP，见 `src/layout/index.tsx:20-21`）。测试**不得**依赖真实 GitHub，必须使用替身源。
-- **G-D16-3**：TC-DSK-L3-126 只覆盖「取消中止」。确认后继续执行更新会替换核心并重启服务，破坏性极强，**未覆盖**。
+- **G-D16-3**：TC-DSK-L3-16-006 只覆盖「取消中止」。确认后继续执行更新会替换核心并重启服务，破坏性极强，**未覆盖**。
 - **G-D16-4**：`harness-download-finished` 的下载完成提示归 `18`，本文件不重复。
 - **假设**：`desktopUpdater.check()` 返回非空即表示「有更新」；返回空或抛错分别对应「无更新」与「检查失败」（`navbar.tsx:283-295`）。

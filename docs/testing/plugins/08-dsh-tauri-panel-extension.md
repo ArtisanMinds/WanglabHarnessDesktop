@@ -35,7 +35,7 @@
 
 ### [P1] 验证技能清单在无技能时返回空数组
 
-[Case ID] TC-EXT-L2-001
+[Case ID] TC-EXT-L2-08-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/skills/get.ts:6`
@@ -48,12 +48,12 @@
 
 ### [P3] [反向] 验证查询不存在的技能返回 404
 
-[Case ID] TC-EXT-L2-002
+[Case ID] TC-EXT-L2-08-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/skill/get.ts:6`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001
+[前置条件] 同 TC-EXT-L2-08-001
 [测试数据] `GET /skill?name=definitely-missing`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 404。2. 响应体 `error` 恰为 `skill not found`。
@@ -61,12 +61,12 @@
 
 ### [P2] 验证 MCP 列表结构固定且标记需要重启
 
-[Case ID] TC-EXT-L2-003
+[Case ID] TC-EXT-L2-08-003
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/mcp/get.ts:5`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001
+[前置条件] 同 TC-EXT-L2-08-001
 [测试数据] `GET /mcp`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体字段。
 [预期结果] 1. 状态码 200。2. 响应体含 `servers` 数组与 `restartNeeded: true` 两个字段。
@@ -74,12 +74,12 @@
 
 ### [P3] [反向] 验证 MCP 删除缺 id 返回 400
 
-[Case ID] TC-EXT-L2-004
+[Case ID] TC-EXT-L2-08-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/mcp/delete.ts:7`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001
+[前置条件] 同 TC-EXT-L2-08-001
 [测试数据] `DELETE /mcp`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `error` 恰为 `id is required`。3. 配置文件未被改写。
@@ -87,12 +87,12 @@
 
 ### [P3] [反向] 验证 MCP 切换缺字段返回 400
 
-[Case ID] TC-EXT-L2-005
+[Case ID] TC-EXT-L2-08-005
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/mcp/toggle/post.ts:7`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001
+[前置条件] 同 TC-EXT-L2-08-001
 [测试数据] `POST /mcp/toggle`，body `{ "id": "x" }`（缺 `disabled`）
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `error` 恰为 `id and disabled are required`。
@@ -100,12 +100,12 @@
 
 ### [P4] [反向] 验证打开目录的未知 target 被拒
 
-[Case ID] TC-EXT-L2-006
+[Case ID] TC-EXT-L2-08-006
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/open/dir/post.ts:52`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001
+[前置条件] 同 TC-EXT-L2-08-001
 [测试数据] `POST /open/dir`，body `{ "target": "unknown-target" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `error` 恰为 `unknown target`。3. 无系统打开动作。
@@ -113,12 +113,12 @@
 
 ### [P4] [反向] 验证技能根创建只接受 local / git
 
-[Case ID] TC-EXT-L2-007
+[Case ID] TC-EXT-L2-08-007
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/roots/post.ts:7`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001
+[前置条件] 同 TC-EXT-L2-08-001
 [测试数据] `POST /roots`，body `{ "kind": "svn", "path": "/tmp" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `error` 恰为 `kind must be local or git`。
@@ -126,12 +126,12 @@
 
 ### [P3] [反向] 验证宿主重启在本机无来源头时被拒
 
-[Case ID] TC-EXT-L2-008
+[Case ID] TC-EXT-L2-08-008
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/host/restart/post.ts:18`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-001；请求不携带 `Origin`
+[前置条件] 同 TC-EXT-L2-08-001；请求不携带 `Origin`
 [测试数据] `POST /host/restart`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。3. 确认宿主进程未重启（`baseUrl` 仍可用且进程号不变）。
 [预期结果] 1. 状态码 403。2. 响应体 `error` 恰为 `untrusted origin`。3. 宿主未重启。
@@ -139,12 +139,12 @@
 
 ### [P3] [反向] 验证带转发头的重启请求同样被拒
 
-[Case ID] TC-EXT-L2-009
+[Case ID] TC-EXT-L2-08-009
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/host/routes/host/restart/post.ts:18`
 [自动化] 是
-[前置条件] 同 TC-EXT-L2-008
+[前置条件] 同 TC-EXT-L2-08-008
 [测试数据] 同源 `Origin` + `x-forwarded-for: 10.0.0.1`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 403。2. 响应体 `error` 恰为 `untrusted origin`（转发头视为不可信）。
@@ -156,7 +156,7 @@
 
 ### [P1] 验证扩展面板渲染并按顺序激活首个标签
 
-[Case ID] TC-EXT-C-001
+[Case ID] TC-EXT-C-08-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/client/components/extension-panel.tsx:37`
@@ -169,7 +169,7 @@
 
 ### [P2] 验证技能页空态与主要入口可见
 
-[Case ID] TC-EXT-C-002
+[Case ID] TC-EXT-C-08-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/client/components/skills-tab.tsx:195`
@@ -182,7 +182,7 @@
 
 ### [P3] [反向] 验证市场插件缺席时市场标签不出现且不报错
 
-[Case ID] TC-EXT-C-003
+[Case ID] TC-EXT-C-08-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/client/service/market.ts:32`
@@ -199,7 +199,7 @@
 
 ### [P1] 验证桌面端壳层可打开扩展面板并切换标签
 
-[Case ID] TC-EXT-L3-001
+[Case ID] TC-EXT-L3-08-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/client/register/extension-panel.tsx:39`
@@ -216,15 +216,15 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `/skills` 只读 | TC-EXT-L2-001 | 正向 | — |
-| `/skill` 404 | TC-EXT-L2-002 | 异常 | — |
-| `/mcp` 结构 | TC-EXT-L2-003 | 正向 | — |
-| `/mcp` 与 `/mcp/toggle` 缺参 | TC-EXT-L2-004、TC-EXT-L2-005 | 异常 | — |
-| `/open/dir` target 白名单 | TC-EXT-L2-006 | 边界 | 其余 target 的 404/422 分支需要真实技能与仓库，**未覆盖** |
-| `/roots` kind 校验 | TC-EXT-L2-007 | 异常 | — |
-| `/host/restart` 双重拒绝 | TC-EXT-L2-008、TC-EXT-L2-009 | 异常 | 409「由壳层接管」分支只在壳层内触发，**未覆盖** |
-| 面板与标签 | TC-EXT-C-001、TC-EXT-C-002、TC-EXT-L3-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
-| 市场标签缺席 | TC-EXT-C-003 | 异常 | 依赖未安装市场插件的前置 |
+| `/skills` 只读 | TC-EXT-L2-08-001 | 正向 | — |
+| `/skill` 404 | TC-EXT-L2-08-002 | 异常 | — |
+| `/mcp` 结构 | TC-EXT-L2-08-003 | 正向 | — |
+| `/mcp` 与 `/mcp/toggle` 缺参 | TC-EXT-L2-08-004、TC-EXT-L2-08-005 | 异常 | — |
+| `/open/dir` target 白名单 | TC-EXT-L2-08-006 | 边界 | 其余 target 的 404/422 分支需要真实技能与仓库，**未覆盖** |
+| `/roots` kind 校验 | TC-EXT-L2-08-007 | 异常 | — |
+| `/host/restart` 双重拒绝 | TC-EXT-L2-08-008、TC-EXT-L2-08-009 | 异常 | 409「由壳层接管」分支只在壳层内触发，**未覆盖** |
+| 面板与标签 | TC-EXT-C-08-001、TC-EXT-C-08-002、TC-EXT-L3-08-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
+| 市场标签缺席 | TC-EXT-C-08-003 | 异常 | 依赖未安装市场插件的前置 |
 | 技能写入 / 只读 403 / 422 | — | — | **未覆盖**：会改用户技能目录，留待带备份的专项批次 |
 
 ---

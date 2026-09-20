@@ -38,7 +38,7 @@
 
 ### [P1] 验证 OPTIONS 预检在只声明 GET 的路径上返回 204 并公布 allow
 
-[Case ID] TC-CORE-L2-001
+[Case ID] TC-CORE-L2-02-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:270`
@@ -51,12 +51,12 @@
 
 ### [P2] 验证只声明 GET 的路径接受 HEAD 而不被判 405
 
-[Case ID] TC-CORE-L2-002
+[Case ID] TC-CORE-L2-02-002
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:255`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-CORE-L2-001
+[前置条件] 同 TC-CORE-L2-02-001
 [测试数据] 同一代表路由
 [测试步骤] 1. 对代表路由发起 `HEAD`。2. 读状态码。
 [预期结果] 1. 状态码**不是** 405（GET 隐含 HEAD 的规则生效）。2. 若因 SSE 长连接导致 200 后挂起，用例在读取响应头后立即中止连接，不等待 body。
@@ -64,12 +64,12 @@
 
 ### [P3] [反向] 验证未声明的方法返回 405 且给出可用的 allow
 
-[Case ID] TC-CORE-L2-003
+[Case ID] TC-CORE-L2-02-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:275`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-CORE-L2-001
+[前置条件] 同 TC-CORE-L2-02-001
 [测试数据] 对只声明 GET 的代表路由发 `POST`（body `{}`，`content-type: application/json`）
 [测试步骤] 1. 发起请求。2. 读状态码、`allow` 头、响应体 JSON。
 [预期结果] 1. 状态码 405。2. `allow` 头包含 `GET`。3. 响应体 `error` 字段以 `仅支持 ` 开头且包含 `GET`。
@@ -77,12 +77,12 @@
 
 ### [P3] [反向] 验证异源 Origin 的变更请求被 403 拒绝
 
-[Case ID] TC-CORE-L2-004
+[Case ID] TC-CORE-L2-02-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:286`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-CORE-L2-001；代表路由改为只声明 POST 的 `/api/desktop/dsh-tauri-rightclick/open/url`
+[前置条件] 同 TC-CORE-L2-02-001；代表路由改为只声明 POST 的 `/api/desktop/dsh-tauri-rightclick/open/url`
 [测试数据] 请求头 `Origin: http://evil.example`；`content-type: application/json`；body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 403。2. 响应体 `error` 恰为 `cross-origin-request`。3. 宿主日志中不出现该插件 handler 的执行痕迹（拒绝发生在路由层）。
@@ -90,12 +90,12 @@
 
 ### [P4] [反向] 验证超过 1 MiB 的请求体被 413 终止
 
-[Case ID] TC-CORE-L2-005
+[Case ID] TC-CORE-L2-02-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:128`、`packages/dsh-tauri/src/host/config/constants.ts:13`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-CORE-L2-001；使用只声明 POST 的代表路由
+[前置条件] 同 TC-CORE-L2-02-001；使用只声明 POST 的代表路由
 [测试数据] body 为 `1 MiB + 1 字节` 的 JSON（`{"pad":"<填充>"}`）
 [测试步骤] 1. 发起 `POST`，`content-type: application/json`。2. 读状态码。
 [预期结果] 1. 状态码 413。2. 用例不因连接被中断而抛未处理异常（读取响应前先容错）。
@@ -103,7 +103,7 @@
 
 ### [P2] [反向] 验证未挂载插件的路径返回 404，用于区分「没挂载」与「没鉴权」
 
-[Case ID] TC-CORE-L2-006
+[Case ID] TC-CORE-L2-02-006
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `docs/specs/plugin.test.md` §5 鉴权说明（Cookie 交换下 401 与 404 的区分）
@@ -120,12 +120,12 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `dsh-tauri` 路由契约：OPTIONS 204 | TC-CORE-L2-001 | 正向 | — |
-| 路由契约：GET 隐含 HEAD | TC-CORE-L2-002 | 正向 | SSE 路由会挂起连接，需在读完头后中止 |
-| 路由契约：405 + allow | TC-CORE-L2-003 | 异常 | 与各插件文件中的 405 断言**不重复**：此处只验共享层 |
-| 路由契约：跨源 403 | TC-CORE-L2-004 | 异常 | — |
-| 路由契约：413 bodyLimit | TC-CORE-L2-005 | 边界 | — |
-| `plugin.test.md` §5 鉴权说明：带 Cookie 后 404 与 401 可区分 | TC-CORE-L2-006 | 异常 | — |
+| `dsh-tauri` 路由契约：OPTIONS 204 | TC-CORE-L2-02-001 | 正向 | — |
+| 路由契约：GET 隐含 HEAD | TC-CORE-L2-02-002 | 正向 | SSE 路由会挂起连接，需在读完头后中止 |
+| 路由契约：405 + allow | TC-CORE-L2-02-003 | 异常 | 与各插件文件中的 405 断言**不重复**：此处只验共享层 |
+| 路由契约：跨源 403 | TC-CORE-L2-02-004 | 异常 | — |
+| 路由契约：413 bodyLimit | TC-CORE-L2-02-005 | 边界 | — |
+| `plugin.test.md` §5 鉴权说明：带 Cookie 后 404 与 401 可区分 | TC-CORE-L2-02-006 | 异常 | — |
 
 ---
 

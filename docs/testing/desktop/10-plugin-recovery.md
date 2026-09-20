@@ -36,7 +36,7 @@
 
 ### [P1] 验证启动崩溃时渲染全屏恢复页
 
-[Case ID] TC-DSK-L3-072
+[Case ID] TC-DSK-L3-10-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/webview.tsx:50-55`；`src/ui/plugin/recovery.tsx:86-99`
@@ -49,12 +49,12 @@
 
 ### [P2] 验证恢复页列出问题插件与原因标题
 
-[Case ID] TC-DSK-L3-073
+[Case ID] TC-DSK-L3-10-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/plugin/recovery.tsx:13-22`、`:100-136`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-072 通过
+[前置条件] TC-DSK-L3-10-001 通过
 [测试数据] 选择器 `dsh-recovery-plugin-id`、`dsh-recovery-reason`、`dsh-recovery-raw-error`
 [测试步骤] 1. 读取插件 id 列表。2. 读取原因标题。3. 读取原始错误区块。
 [预期结果] 1. id 列表与后端上报的 `info.plugins` 完全一致，每项带「问题插件」标记。2. 原因标题与 `info.reason` 对应的文案一致且非空。3. 原始错误区块内容等于 `info.rawError`（为空时显示 `—`）。
@@ -62,7 +62,7 @@
 
 ### [P2] 验证「暂不处理」关闭运行期对话框
 
-[Case ID] TC-DSK-L3-074
+[Case ID] TC-DSK-L3-10-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/plugin/recovery.tsx:172-174`；`src/layout/index.tsx:149-152`
@@ -75,7 +75,7 @@
 
 ### [P4] 验证恢复次数耗尽时显示提示
 
-[Case ID] TC-DSK-L3-075
+[Case ID] TC-DSK-L3-10-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/plugin/recovery.tsx:125-127`
@@ -92,12 +92,12 @@
 
 ### [P2] 验证「卸除此插件并继续检测」后重新检测
 
-[Case ID] TC-DSK-L3-076
+[Case ID] TC-DSK-L3-10-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/plugin/recovery.tsx:153-162`；`src/store/modules/recovery/store.ts`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-072 通过
+[前置条件] TC-DSK-L3-10-001 通过
 [测试数据] 选择器 `dsh-recovery-remove`
 [测试步骤] 1. 点击「卸除此插件并继续检测」。2. 读取按钮进行中文案。3. 等待收敛。4. 读取恢复页可见性与问题插件列表。
 [预期结果] 1. 点击被接受。2. 文案切换为「正在卸载」语义。3. 收敛完成。4. 恢复页消失或刷新为新的问题插件集合（不再显示已卸载插件）。
@@ -105,7 +105,7 @@
 
 ### [P3] 验证仅对有快照的插件提供「从快照还原」
 
-[Case ID] TC-DSK-L3-077
+[Case ID] TC-DSK-L3-10-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/plugin/recovery.tsx:45-64`、`:141-152`；issue #303
@@ -118,12 +118,12 @@
 
 ### [P4] 验证安全模式入口可用
 
-[Case ID] TC-DSK-L3-078
+[Case ID] TC-DSK-L3-10-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/plugin/recovery.tsx:166-171`；`src/store/modules/harness/store.ts:669`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-072 通过
+[前置条件] TC-DSK-L3-10-001 通过
 [测试数据] 选择器 `dsh-recovery-safe-mode`
 [测试步骤] 1. 点击「安全模式」。2. 等待服务启动收敛。3. 读取服务状态与插件列表。
 [预期结果] 1. 点击被接受。2. 收敛完成。3. 服务健康；第三方插件未挂载（最小预设生效）。
@@ -158,7 +158,7 @@
 | 多插件分支 | 077 | 异常 | 单/多插件文案分支只覆盖多插件场景 |
 | 快照还原 | 077 | 异常 | 还原成功路径未覆盖（会停服务） |
 | 卸载并重检测 | 076 | 正向 | — |
-| 安全模式 | 078 | 边界 | 与 `11` 的 TC-DSK-L3-086 同源，属有意重复的入口差异（恢复页 vs 错误页） |
+| 安全模式 | 078 | 边界 | 与 `11` 的 TC-DSK-L3-11-008 同源，属有意重复的入口差异（恢复页 vs 错误页） |
 | 恢复耗尽 | 075 | 边界 | 需连续恢复失败的构造能力 |
 
 ---

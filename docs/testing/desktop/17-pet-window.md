@@ -35,7 +35,7 @@
 
 ### [P1] 验证启用桌宠后出现独立置顶窗口
 
-[Case ID] TC-DSK-L3-128
+[Case ID] TC-DSK-L3-17-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:293-310`、`:441-447`；`src/pet/app.tsx:29`
@@ -48,7 +48,7 @@
 
 ### [P2] 验证禁用桌宠后窗口不再可见
 
-[Case ID] TC-DSK-L3-129
+[Case ID] TC-DSK-L3-17-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:419-447`；`src/pet/app.tsx:41`
@@ -61,7 +61,7 @@
 
 ### [P2] 验证桌宠窗口几何持久化
 
-[Case ID] TC-DSK-L3-130
+[Case ID] TC-DSK-L3-17-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:87-109`、`:334`
@@ -78,7 +78,7 @@
 
 ### [P2] 验证桌宠尺寸随设置百分比变化
 
-[Case ID] TC-DSK-L3-131
+[Case ID] TC-DSK-L3-17-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:146-160`；`src/pet/app.tsx:42-45`
@@ -91,7 +91,7 @@
 
 ### [P3] 验证资源解析失败时显示可见提示
 
-[Case ID] TC-DSK-L3-132
+[Case ID] TC-DSK-L3-17-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/pet/app.tsx:76-78`；`src/ui/pet/hint.tsx`
@@ -108,7 +108,7 @@
 
 ### [P4] 验证桌宠窗口右键不弹出上下文菜单
 
-[Case ID] TC-DSK-L3-133
+[Case ID] TC-DSK-L3-17-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/pet/app.tsx:47`
@@ -121,7 +121,7 @@
 
 ### [P5] 验证命中箱外区域鼠标穿透
 
-[Case ID] TC-DSK-L3-134
+[Case ID] TC-DSK-L3-17-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 低频
 [追踪] `src/pet/app.tsx:46`；`src/hooks/use-omit-ignore-cursor-events.ts`
@@ -159,8 +159,8 @@
 
 ## 7. 缺口与假设
 
-- **G-D17-1**：TC-DSK-L3-132 需要「不可解析的宠物资源」。当前宠物资源来自远端 URL 与 IndexedDB 缓存（`agents.desktop.md` §2），测试环境无稳定资源。接线时需注入可控的本地宠物资源与一份「指向已删除宠物」的状态，属关键夹具缺口。
+- **G-D17-1**：TC-DSK-L3-17-005 需要「不可解析的宠物资源」。当前宠物资源来自远端 URL 与 IndexedDB 缓存（`agents.desktop.md` §2），测试环境无稳定资源。接线时需注入可控的本地宠物资源与一份「指向已删除宠物」的状态，属关键夹具缺口。
 - **G-D17-2**：桌宠状态（是否启用、可见、当前宠物、尺寸）由插件侧提供，本套未确认其读写通路（设置项位置）。接线时必须先定位该入口，否则本文件全部用例不可达。
-- **G-D17-3**：`always_on_top` 的实际置顶效果无法通过 WebDriver 断言（属窗口管理器表面）。TC-DSK-L3-128 只断言「存在指向 `pet.html` 的独立窗口」，**置顶未被证明**。
+- **G-D17-3**：`always_on_top` 的实际置顶效果无法通过 WebDriver 断言（属窗口管理器表面）。TC-DSK-L3-17-001 只断言「存在指向 `pet.html` 的独立窗口」，**置顶未被证明**。
 - **G-D17-4**：唤醒锁释放（issue #469）**未覆盖**——它断言的是系统能否息屏，超出 L3 可观察范围。
-- **假设**：桌宠窗口与主窗口共享同一应用进程与数据目录；因此 TC-DSK-L3-130 的「完整退出再启动」会同时恢复主窗口与桌宠窗口的几何。
+- **假设**：桌宠窗口与主窗口共享同一应用进程与数据目录；因此 TC-DSK-L3-17-003 的「完整退出再启动」会同时恢复主窗口与桌宠窗口的几何。

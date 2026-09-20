@@ -33,7 +33,7 @@
 
 ### [P1] 验证服务就绪后 iframe 渲染且指向服务地址
 
-[Case ID] TC-DSK-L3-039
+[Case ID] TC-DSK-L3-06-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] 批次 06；`src/layout/components/iframe.tsx:186-203`
@@ -46,12 +46,12 @@
 
 ### [P2] 验证 iframe 加载完成标记置位
 
-[Case ID] TC-DSK-L3-040
+[Case ID] TC-DSK-L3-06-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:199`；`src/store/modules/harness/store.ts:258`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-039 通过
+[前置条件] TC-DSK-L3-06-001 通过
 [测试数据] 无
 [测试步骤] 1. 等待 iframe `load` 事件触发。2. 读取 iframe 加载完成标记。3. 读取错误覆盖层存在性。
 [预期结果] 1. 事件在超时内触发。2. 标记为真。3. 错误覆盖层不存在。
@@ -59,7 +59,7 @@
 
 ### [P2] 验证服务健康但 iframe 未就绪时显示加载文案
 
-[Case ID] TC-DSK-L3-041
+[Case ID] TC-DSK-L3-06-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:188-191`；`src/store/modules/harness/store.ts:47-51`
@@ -72,12 +72,12 @@
 
 ### [P2] 验证插件 boot 就绪消息被宿主接收
 
-[Case ID] TC-DSK-L3-042
+[Case ID] TC-DSK-L3-06-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:103-105`；`src/store/modules/harness/store.ts:268`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-039 通过；iframe 内插件已装配
+[前置条件] TC-DSK-L3-06-001 通过；iframe 内插件已装配
 [测试数据] 桥消息 `{ type: 'dsh://plugin-boot:ready' }`
 [测试步骤] 1. 由 iframe 侧发出 `dsh://plugin-boot:ready`。2. 等待宿主处理。3. 读取 iframe boot 就绪标记。4. 读取是否触发失败或挂起恢复流程。
 [预期结果] 1. 消息发出成功。2. 处理完成。3. 标记为真。4. 未触发 `handleIframeBootFailure` 或 `recoverIframeBoot`。
@@ -89,7 +89,7 @@
 
 ### [P3] [反向] 验证 iframe 加载失败时显示错误覆盖层与重试入口
 
-[Case ID] TC-DSK-L3-043
+[Case ID] TC-DSK-L3-06-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/iframe.tsx:205-214`；`src/store/modules/harness/store.ts:113-115`
@@ -102,12 +102,12 @@
 
 ### [P3] 验证重试重建 iframe
 
-[Case ID] TC-DSK-L3-044
+[Case ID] TC-DSK-L3-06-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/iframe.tsx:211`；`src/store/modules/harness/store.ts:245`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-043 已使错误覆盖层可见，且失败原因已被移除
+[前置条件] TC-DSK-L3-06-005 已使错误覆盖层可见，且失败原因已被移除
 [测试数据] 观察点：iframe 元素实例标识与 `src`
 [测试步骤] 1. 记录当前 iframe 实例标识与 `src`。2. 点击重试。3. 等待 iframe 重新出现。4. 读取新的实例标识与 `src`。
 [预期结果] 1. 记录成功。2. 点击被接受。3. 新 iframe 出现。4. 实例标识发生变化（`iframeKey` 递增导致节点重建）；`src` 仍与服务地址同源。
@@ -119,12 +119,12 @@
 
 ### [P4] 验证 iframe 的 sandbox 与 allow 属性符合约定
 
-[Case ID] TC-DSK-L3-045
+[Case ID] TC-DSK-L3-06-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/components/iframe.tsx:197-198`；`src-tauri/tauri.conf.json:15`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-039 通过
+[前置条件] TC-DSK-L3-06-001 通过
 [测试数据] 必需 sandbox token：`allow-same-origin`、`allow-scripts`、`allow-popups`、`allow-forms`、`allow-modals`、`allow-downloads`、`allow-storage-access-by-user-activation`
 [测试步骤] 1. 读取 iframe 的 `sandbox` 属性。2. 读取 `allow` 属性。3. 读取当前页面的 CSP `frame-src` 生效值。
 [预期结果] 1. `sandbox` 包含全部必需 token，且不含 `allow-top-navigation`。2. `allow` 非空且包含 `clipboard-read`、`clipboard-write`。3. `frame-src` 允许 `http://127.0.0.1:*`。
@@ -157,7 +157,7 @@
 
 ## 7. 缺口与假设
 
-- **G-D06-1**：TC-DSK-L3-043/044 需要「构造 iframe 加载失败」。由于 `iframeSrc` 由 boot 时生成一次（`store.ts:96-97`），当前无公开入口改写它。接线时需为测试提供受控注入点，或改用「让服务在 iframe 加载前停止」的真实前置。后者更符合「E2E 不 Mock 后端」的约束，但会与 `07` 的服务生命周期用例产生耦合。
+- **G-D06-1**：TC-DSK-L3-06-005/044 需要「构造 iframe 加载失败」。由于 `iframeSrc` 由 boot 时生成一次（`store.ts:96-97`），当前无公开入口改写它。接线时需为测试提供受控注入点，或改用「让服务在 iframe 加载前停止」的真实前置。后者更符合「E2E 不 Mock 后端」的约束，但会与 `07` 的服务生命周期用例产生耦合。
 - **G-D06-2**：`useIframeMessage` 的 origin 校验（`src/hooks/use-iframe-message.ts`）是安全边界，本文件**未覆盖**其拒绝分支。该分支可通过从非同源页面派发 `message` 构造，属高价值补充项。
 - **G-D06-3**：iframe 内 DSH 界面的实际内容（首屏、会话列表）不在本套范围；本套只断言宿主侧的容器与状态。
 - **假设**：`iframeSrc` 与服务地址同源但查询串不同（带 `?t=<时间戳>`，且不含 token，见 `store/utils.ts:37`）；因此用例以「协议 + 主机 + 端口一致」判定，不做全串相等。

@@ -47,7 +47,7 @@
 
 ### [P1] 验证安装依赖期间状态为 Installing
 
-[Case ID] TC-DSK-L3-222
+[Case ID] TC-DSK-L3-26-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/lifecycle.rs:122`、`:123`
@@ -60,7 +60,7 @@
 
 ### [P1] 验证启动经 Starting 收敛为 Running 且重复启动直接 Running
 
-[Case ID] TC-DSK-L3-223
+[Case ID] TC-DSK-L3-26-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/launch.rs:187`、`:190`、`:199`、`:201`；`src-tauri/src/task/tick_check_dsh_process/mod.rs:21`
@@ -73,7 +73,7 @@
 
 ### [P3] [反向] 验证安装失败后状态复位为 Stopped
 
-[Case ID] TC-DSK-L3-224
+[Case ID] TC-DSK-L3-26-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/lifecycle.rs:46`、`:234`、`:247`
@@ -86,7 +86,7 @@
 
 ### [P2] 验证重启收敛为 Stopped 后重新 Starting
 
-[Case ID] TC-DSK-L3-225
+[Case ID] TC-DSK-L3-26-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/process.rs:477`、`:478`；`src-tauri/src/service/workflow/launch.rs:199`、`:201`
@@ -103,7 +103,7 @@
 
 ### [P2] 验证状态事件载荷为状态字符串且与查询结果一致
 
-[Case ID] TC-DSK-L3-226
+[Case ID] TC-DSK-L3-26-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/lifecycle.rs:48`、`:123`、`:235`；`src-tauri/src/service/workflow/launch.rs:190`、`:201`；`src-tauri/src/service/workflow/process.rs:184`、`:478`；`src-tauri/src/task/tick_check_dsh_process/mod.rs:23`、`:31`
@@ -116,7 +116,7 @@
 
 ### [P2] 验证健康检查以客户端模块就绪判定
 
-[Case ID] TC-DSK-L3-227
+[Case ID] TC-DSK-L3-26-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/health.rs:60`、`:90`、`:55`；`src-tauri/src/task/tick_check_dsh_process/mod.rs:11`、`:16`
@@ -129,7 +129,7 @@
 
 ### [P3] [反向] 验证无持有进程或启动进行中的健康检查信号
 
-[Case ID] TC-DSK-L3-228
+[Case ID] TC-DSK-L3-26-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/health.rs:47`、`:60`
@@ -142,7 +142,7 @@
 
 ### [P4] 验证前端探测退避与单次超时
 
-[Case ID] TC-DSK-L3-229
+[Case ID] TC-DSK-L3-26-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/store/modules/harness/constants.ts:11`；`src/store/modules/harness/utils.ts:44`、`:132`；`src-tauri/src/service/workflow/utils.rs:129`
@@ -159,7 +159,7 @@
 
 ### [P3] [反向] 验证持有进程意外退出后状态复位并发事件
 
-[Case ID] TC-DSK-L3-230
+[Case ID] TC-DSK-L3-26-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/process.rs:183`、`:185`；`src-tauri/src/service/workflow/launch.rs:721`
@@ -172,7 +172,7 @@
 
 ### [P4] 验证后端 5 秒 tick 兜底与双重就绪条件
 
-[Case ID] TC-DSK-L3-231
+[Case ID] TC-DSK-L3-26-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/scheduler/mod.rs:5`、`:16`；`src-tauri/src/task/tick_check_dsh_process/mod.rs:11`、`:16`、`:21`、`:31`
@@ -185,7 +185,7 @@
 
 ### [P4] 验证启动去重守卫使并发启动收敛为一次
 
-[Case ID] TC-DSK-L3-232
+[Case ID] TC-DSK-L3-26-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/launch.rs:283`、`:287`、`:294`
@@ -198,7 +198,7 @@
 
 ### [P4] 验证陈旧进程清扫的调用点与 debug 空操作
 
-[Case ID] TC-DSK-L3-233
+[Case ID] TC-DSK-L3-26-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 低频
 [追踪] `src-tauri/src/service/workflow/process.rs:357`；`src-tauri/src/service/workflow/sweep.rs:34`；`src-tauri/src/desktop/builder.rs:102`；`src-tauri/src/service/workflow/launch.rs:304`；`src-tauri/src/service/workflow/install.rs:40`；`src-tauri/src/service/core/version.rs:336`、`:437`
@@ -230,10 +230,10 @@
 
 ## 6. 缺口与假设
 
-- **G-D26-1**：「无被持有进程但状态仍为 Running」的回退分支（`tick_check_dsh_process/mod.rs:31`）需要一个「仅伪造状态而不持有进程」的注入手段。当前无只读诊断入口，TC-DSK-L3-231 只能通过「端口被非 Harness 服务占用」间接覆盖双重条件的另一半。
-- **G-D26-2**：`terminate_stale_harness_processes` 在 debug 构建下是 no-op（`process.rs:357`）。TC-DSK-L3-233 的「被结束」分支只能在 release 构建下验证；L3 测试若跑在 debug 构建，步骤 4 应标记为跳过而非判失败。
+- **G-D26-1**：「无被持有进程但状态仍为 Running」的回退分支（`tick_check_dsh_process/mod.rs:31`）需要一个「仅伪造状态而不持有进程」的注入手段。当前无只读诊断入口，TC-DSK-L3-26-010 只能通过「端口被非 Harness 服务占用」间接覆盖双重条件的另一半。
+- **G-D26-2**：`terminate_stale_harness_processes` 在 debug 构建下是 no-op（`process.rs:357`）。TC-DSK-L3-26-012 的「被结束」分支只能在 release 构建下验证；L3 测试若跑在 debug 构建，步骤 4 应标记为跳过而非判失败。
 - **G-D26-3**：5 秒 tick 是后端兜底（`scheduler/mod.rs:16`），1 秒起退避到 5 秒是前端探测（`constants.ts:11`）。两者周期数值接近但来源不同，接线时不得据前端探测间隔断言后端 tick 周期。
-- **G-D26-4**：`emit_status` 的 9 个调用点中，本文件只覆盖重启（`launch.rs:190`、`:201`；`process.rs:478`）、停止（`lifecycle.rs:235`）、意外退出（`process.rs:184`）与 tick（`tick_check_dsh_process/mod.rs:23`、`:31`）路径；安装失败分支（`lifecycle.rs:48`、`:123`）需与 TC-DSK-L3-224 共用前置。
-- **G-D26-5**：意外退出监视线程（`launch.rs:721`、`:835`）与 5 秒 tick 兜底存在竞态，两者都经 `on_owned_process_exit`（`process.rs:161`，PID 匹配才清、幂等）。TC-DSK-L3-230 断言「事件恰好一次」需要能统计事件次数。
+- **G-D26-4**：`emit_status` 的 9 个调用点中，本文件只覆盖重启（`launch.rs:190`、`:201`；`process.rs:478`）、停止（`lifecycle.rs:235`）、意外退出（`process.rs:184`）与 tick（`tick_check_dsh_process/mod.rs:23`、`:31`）路径；安装失败分支（`lifecycle.rs:48`、`:123`）需与 TC-DSK-L3-26-003 共用前置。
+- **G-D26-5**：意外退出监视线程（`launch.rs:721`、`:835`）与 5 秒 tick 兜底存在竞态，两者都经 `on_owned_process_exit`（`process.rs:161`，PID 匹配才清、幂等）。TC-DSK-L3-26-009 断言「事件恰好一次」需要能统计事件次数。
 - **G-D26-6**：Windows 隐藏控制台分配（`win_spawn.rs:144`、`:147`、`:162`）的效果是「服务进程的孙进程不再各弹一个窗口」，属系统窗口表面，无法在窗口内断言；人工确认项。
 - **假设**：单位枚举 `Status` 序列化为字符串，因此所有事件载荷断言按字符串比较，不按对象字段比较。

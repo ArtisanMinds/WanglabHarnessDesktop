@@ -36,7 +36,7 @@
 
 ### [P1] 验证插件面板列出插件并标注内置项
 
-[Case ID] TC-DSK-L3-062
+[Case ID] TC-DSK-L3-09-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/plugin.tsx:58-61`、`:427-486`
@@ -49,7 +49,7 @@
 
 ### [P2] 验证空列表显示空态
 
-[Case ID] TC-DSK-L3-063
+[Case ID] TC-DSK-L3-09-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/plugin.tsx:420-425`
@@ -62,7 +62,7 @@
 
 ### [P2] 验证仅在有更新或异常时显示升级入口
 
-[Case ID] TC-DSK-L3-064
+[Case ID] TC-DSK-L3-09-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/plugin.tsx:496-516`
@@ -75,7 +75,7 @@
 
 ### [P4] 验证操作进行中同一时间仅允许一项
 
-[Case ID] TC-DSK-L3-065
+[Case ID] TC-DSK-L3-09-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/config/plugin.tsx:82`、`:180-182`
@@ -92,7 +92,7 @@
 
 ### [P2] 验证禁用后可再次启用
 
-[Case ID] TC-DSK-L3-066
+[Case ID] TC-DSK-L3-09-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/plugin.tsx:230-284`、`:533-544`
@@ -105,7 +105,7 @@
 
 ### [P2] 验证插件操作后服务被重新拉起
 
-[Case ID] TC-DSK-L3-067
+[Case ID] TC-DSK-L3-09-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/plugin.tsx:190-194`、`:223-227`
@@ -118,7 +118,7 @@
 
 ### [P3] 验证卸载需确认且取消不生效
 
-[Case ID] TC-DSK-L3-068
+[Case ID] TC-DSK-L3-09-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/config/plugin.tsx:197-228`
@@ -131,7 +131,7 @@
 
 ### [P3] 验证配置覆盖禁用的插件启用前弹确认
 
-[Case ID] TC-DSK-L3-069
+[Case ID] TC-DSK-L3-09-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/config/plugin.tsx:248-271`；issue #399
@@ -144,7 +144,7 @@
 
 ### [P3] 验证快照已存在时覆盖前弹确认
 
-[Case ID] TC-DSK-L3-070
+[Case ID] TC-DSK-L3-09-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/config/plugin.tsx:286-318`
@@ -161,7 +161,7 @@
 
 ### [P3] [反向] 验证异常插件显示危险图标与错误详情
 
-[Case ID] TC-DSK-L3-071
+[Case ID] TC-DSK-L3-09-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/config/plugin.tsx:433-455`；`src/layout/components/iframe.tsx:142-154`
@@ -212,5 +212,5 @@
 
 - **G-D09-1**：本文件的写操作用例**全部会重启服务**，彼此强耦合。按 `progressive.md` 的「单批单卡」，接线时应一个用例一个批次推进，且每条用例自带「恢复插件状态 + 等待服务健康」的清理步骤。
 - **G-D09-2**：多条成功路径未覆盖（卸载成功、还原成功、删除快照成功），原因是它们会不可逆地改变插件集合，破坏其他用例前置。需要独立的可写档案夹具（对应 `00-overview.md` G8）后再补。
-- **G-D09-3**：`refresh_plugin_updates` 依赖 GitHub 探测（Rust 侧 30 分钟缓存）。TC-DSK-L3-064 需要「有更新」的插件，离线环境下不可达；此时应跳过该用例而非判失败。
-- **假设**：插件操作后服务一定会被后端停止，因此前端在 `finally` 中统一 `restart()`（`plugin.tsx:190-194`）；TC-DSK-L3-067 正是对这一行为的断言。
+- **G-D09-3**：`refresh_plugin_updates` 依赖 GitHub 探测（Rust 侧 30 分钟缓存）。TC-DSK-L3-09-003 需要「有更新」的插件，离线环境下不可达；此时应跳过该用例而非判失败。
+- **假设**：插件操作后服务一定会被后端停止，因此前端在 `finally` 中统一 `restart()`（`plugin.tsx:190-194`）；TC-DSK-L3-09-006 正是对这一行为的断言。

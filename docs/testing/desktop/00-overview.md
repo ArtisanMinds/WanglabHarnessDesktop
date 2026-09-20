@@ -79,7 +79,7 @@
 | 28 | `28-desktop-update-internals.md` | 静默下载、退出自动安装、版本护栏、更新摘要与路径守卫 | — |
 | 29 | `29-system-integration.md` | 系统操作集成、路径守卫、跨平台打包、Windows 极简模式、工作区自愈 | — |
 
-合计 **29 个用例文件、273 条用例**（`00` 不承载用例本体）。
+合计 **29 个用例文件、275 条用例**（`00` 不承载用例本体）。
 
 ---
 
@@ -159,7 +159,7 @@
 
 ## 6. 建议执行顺序
 
-1. **冒烟子集**（最小可信集）：`01` 全部 → `03` 的 `TC-DSK-L3-018` → `06` 的 `TC-DSK-L3-039`。
+1. **冒烟子集**（最小可信集）：`01` 全部 → `03` 的 `TC-DSK-L3-03-001` → `06` 的 `TC-DSK-L3-06-001`。
 2. **壳层基础**：`02`、`04`、`05`、`12`。
 3. **服务与插件主线**：`07`、`08`、`09`、`10`、`11`。
 4. **写操作与恢复**：`13`、`14`、`15`、`16`。
@@ -174,37 +174,37 @@
 
 | 文件 | Case ID 区间 | 条数 | 类型分布（正向 / 异常 / 边界 / 低频） |
 | --- | --- | --- | --- |
-| `01-window-boot.md` | `TC-DSK-L3-001` – `008` | 8 | 3 / 2 / 3 / 0 |
-| `02-shell-navigation.md` | `009` – `017` | 9 | 5 / 2 / 1 / 1 |
-| `03-config-dialog.md` | `018` – `024` | 7 | 4 / 2 / 1 / 0 |
-| `04-locale-theme.md` | `025` – `030` | 6 | 3 / 1 / 2 / 0 |
-| `05-profile.md` | `031` – `038` | 8 | 3 / 3 / 2 / 0 |
-| `06-harness-embed.md` | `039` – `045` | 7 | 4 / 2 / 1 / 0 |
-| `07-harness-lifecycle.md` | `046` – `052` | 7 | 4 / 1 / 2 / 0 |
-| `08-preinstall-onboarding.md` | `053` – `061` | 9 | 5 / 3 / 1 / 0 |
-| `09-plugin-panel.md` | `062` – `071` | 10 | 5 / 4 / 1 / 0 |
-| `10-plugin-recovery.md` | `072` – `078` | 7 | 4 / 1 / 2 / 0 |
-| `11-startup-error.md` | `079` – `086` | 8 | 3 / 3 / 2 / 0 |
-| `12-window-tray.md` | `087` – `094` | 8 | 5 / 1 / 2 / 0 |
-| `13-application-settings.md` | `095` – `104` | 10 | 5 / 2 / 3 / 0 |
-| `14-core-management.md` | `105` – `112` | 8 | 3 / 3 / 2 / 0 |
-| `15-backup-restore.md` | `113` – `120` | 8 | 3 / 3 / 2 / 0 |
-| `16-update.md` | `121` – `127` | 7 | 4 / 2 / 1 / 0 |
-| `17-pet-window.md` | `128` – `134` | 7 | 4 / 1 / 1 / 1 |
-| `18-notification-download.md` | `135` – `141` | 7 | 3 / 2 / 2 / 0 |
-| `19-multi-window.md` | `142` – `148` | 7 | 4 / 1 / 2 / 0 |
-| `20-assembly.md` | `149` – `162` | 14 | 6 / 6 / 2 / 0 |
-| `21-cli-integration.md` | `163` – `174` | 12 | 5 / 3 / 4 / 0 |
-| `22-isolation.md` | `175` – `186` | 12 | 7 / 1 / 4 / 0 |
-| `23-privacy.md` | `187` – `195` | 9 | 5 / 1 / 3 / 0 |
-| `24-profile-rules.md` | `196` – `207` | 12 | 3 / 4 / 4 / 1 |
-| `25-core-error-matrix.md` | `208` – `221` | 14 | 2 / 9 / 3 / 0 |
-| `26-service-state-machine.md` | `222` – `233` | 12 | 5 / 3 / 3 / 1 |
-| `27-plugin-lifecycle.md` | `234` – `247` | 14 | 7 / 6 / 1 / 0 |
-| `28-desktop-update-internals.md` | `248` – `259` | 12 | 4 / 5 / 3 / 0 |
-| `29-system-integration.md` | `260` – `273` | 14 | 7 / 4 / 3 / 0 |
+| `01-window-boot.md` | `TC-DSK-L3-01-001` – `TC-DSK-L3-01-008` | 8 | 3 / 2 / 3 / 0 |
+| `02-shell-navigation.md` | `TC-DSK-L3-02-001` – `TC-DSK-L3-02-011` | 11 | 5 / 2 / 3 / 1 |
+| `03-config-dialog.md` | `TC-DSK-L3-03-001` – `TC-DSK-L3-03-007` | 7 | 4 / 2 / 1 / 0 |
+| `04-locale-theme.md` | `TC-DSK-L3-04-001` – `TC-DSK-L3-04-006` | 6 | 3 / 1 / 2 / 0 |
+| `05-profile.md` | `TC-DSK-L3-05-001` – `TC-DSK-L3-05-008` | 8 | 3 / 3 / 2 / 0 |
+| `06-harness-embed.md` | `TC-DSK-L3-06-001` – `TC-DSK-L3-06-007` | 7 | 4 / 2 / 1 / 0 |
+| `07-harness-lifecycle.md` | `TC-DSK-L3-07-001` – `TC-DSK-L3-07-007` | 7 | 4 / 1 / 2 / 0 |
+| `08-preinstall-onboarding.md` | `TC-DSK-L3-08-001` – `TC-DSK-L3-08-009` | 9 | 5 / 3 / 1 / 0 |
+| `09-plugin-panel.md` | `TC-DSK-L3-09-001` – `TC-DSK-L3-09-010` | 10 | 5 / 4 / 1 / 0 |
+| `10-plugin-recovery.md` | `TC-DSK-L3-10-001` – `TC-DSK-L3-10-007` | 7 | 4 / 1 / 2 / 0 |
+| `11-startup-error.md` | `TC-DSK-L3-11-001` – `TC-DSK-L3-11-008` | 8 | 3 / 3 / 2 / 0 |
+| `12-window-tray.md` | `TC-DSK-L3-12-001` – `TC-DSK-L3-12-008` | 8 | 5 / 1 / 2 / 0 |
+| `13-application-settings.md` | `TC-DSK-L3-13-001` – `TC-DSK-L3-13-010` | 10 | 5 / 2 / 3 / 0 |
+| `14-core-management.md` | `TC-DSK-L3-14-001` – `TC-DSK-L3-14-008` | 8 | 3 / 3 / 2 / 0 |
+| `15-backup-restore.md` | `TC-DSK-L3-15-001` – `TC-DSK-L3-15-008` | 8 | 3 / 3 / 2 / 0 |
+| `16-update.md` | `TC-DSK-L3-16-001` – `TC-DSK-L3-16-007` | 7 | 4 / 2 / 1 / 0 |
+| `17-pet-window.md` | `TC-DSK-L3-17-001` – `TC-DSK-L3-17-007` | 7 | 4 / 1 / 1 / 1 |
+| `18-notification-download.md` | `TC-DSK-L3-18-001` – `TC-DSK-L3-18-007` | 7 | 3 / 2 / 2 / 0 |
+| `19-multi-window.md` | `TC-DSK-L3-19-001` – `TC-DSK-L3-19-007` | 7 | 4 / 1 / 2 / 0 |
+| `20-assembly.md` | `TC-DSK-L3-20-001` – `TC-DSK-L3-20-014` | 14 | 6 / 6 / 2 / 0 |
+| `21-cli-integration.md` | `TC-DSK-L3-21-001` – `TC-DSK-L3-21-012` | 12 | 5 / 3 / 4 / 0 |
+| `22-isolation.md` | `TC-DSK-L3-22-001` – `TC-DSK-L3-22-012` | 12 | 7 / 1 / 4 / 0 |
+| `23-privacy.md` | `TC-DSK-L3-23-001` – `TC-DSK-L3-23-009` | 9 | 5 / 1 / 3 / 0 |
+| `24-profile-rules.md` | `TC-DSK-L3-24-001` – `TC-DSK-L3-24-012` | 12 | 3 / 4 / 4 / 1 |
+| `25-core-error-matrix.md` | `TC-DSK-L3-25-001` – `TC-DSK-L3-25-014` | 14 | 2 / 9 / 3 / 0 |
+| `26-service-state-machine.md` | `TC-DSK-L3-26-001` – `TC-DSK-L3-26-012` | 12 | 5 / 3 / 3 / 1 |
+| `27-plugin-lifecycle.md` | `TC-DSK-L3-27-001` – `TC-DSK-L3-27-014` | 14 | 7 / 6 / 1 / 0 |
+| `28-desktop-update-internals.md` | `TC-DSK-L3-28-001` – `TC-DSK-L3-28-012` | 12 | 4 / 5 / 3 / 0 |
+| `29-system-integration.md` | `TC-DSK-L3-29-001` – `TC-DSK-L3-29-014` | 14 | 7 / 4 / 3 / 0 |
 
-合计 **273** 条：正向 125 / 异常 81 / 边界 63 / 低频 4。全部为 `-L3-*`（桌面端宿主层，当前待接线）；其中 `[自动化] 否（手工）` 3 条（`017`、`134`、`136`）。
+合计 **275** 条：正向 125 / 异常 81 / 边界 65 / 低频 4。全部为 `-L3-*`（桌面端宿主层，当前待接线）；其中 `[自动化] 否（手工）` 4 条（`TC-DSK-L3-01-005`、`TC-DSK-L3-02-009`、`TC-DSK-L3-17-007`、`TC-DSK-L3-18-002`）。
 
 ### 7.2 关键来源 → 覆盖位置
 

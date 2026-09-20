@@ -39,7 +39,7 @@
 
 ### [P1] 验证保存合法端口写入设置并提示重启
 
-[Case ID] TC-DSK-L3-095
+[Case ID] TC-DSK-L3-13-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/debug.tsx:141-171`；issue #91
@@ -52,7 +52,7 @@
 
 ### [P3] [反向] 验证非法端口被拒绝保存
 
-[Case ID] TC-DSK-L3-096
+[Case ID] TC-DSK-L3-13-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/config/debug.tsx:143-146`、`:162-170`
@@ -69,7 +69,7 @@
 
 ### [P2] 验证缩放选择后 WebView 缩放生效并持久化
 
-[Case ID] TC-DSK-L3-097
+[Case ID] TC-DSK-L3-13-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/debug.tsx:374-402`、`:126-128`；`src/hooks/use-zoom-factor.ts:143-150`
@@ -82,7 +82,7 @@
 
 ### [P2] 验证开机自启开关持久化
 
-[Case ID] TC-DSK-L3-098
+[Case ID] TC-DSK-L3-13-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/components/launch-on-login.tsx:10-23`
@@ -95,7 +95,7 @@
 
 ### [P2] 验证关闭行为选择持久化
 
-[Case ID] TC-DSK-L3-099
+[Case ID] TC-DSK-L3-13-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/components/close-action.tsx:24-33`
@@ -108,7 +108,7 @@
 
 ### [P3] 验证 CLI link 开关创建与删除 shim
 
-[Case ID] TC-DSK-L3-100
+[Case ID] TC-DSK-L3-13-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/ui/config/debug.tsx:110-120`、`:64-67`
@@ -125,7 +125,7 @@
 
 ### [P2] 验证清空日志后日志面板为空
 
-[Case ID] TC-DSK-L3-101
+[Case ID] TC-DSK-L3-13-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/debug.tsx:98-108`、`:431-433`
@@ -138,7 +138,7 @@
 
 ### [P4] 验证日志面板按固定间隔刷新
 
-[Case ID] TC-DSK-L3-102
+[Case ID] TC-DSK-L3-13-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/config/debug.tsx:69-73`（`refetchInterval: 2000`）
@@ -151,7 +151,7 @@
 
 ### [P4] 验证复制服务地址写入剪贴板
 
-[Case ID] TC-DSK-L3-103
+[Case ID] TC-DSK-L3-13-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/config/debug.tsx:130-139`
@@ -164,7 +164,7 @@
 
 ### [P4] 验证打开数据目录调用系统文件管理器
 
-[Case ID] TC-DSK-L3-104
+[Case ID] TC-DSK-L3-13-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/config/debug.tsx:173-179`、`:280-289`
@@ -212,8 +212,8 @@
 
 ## 7. 缺口与假设
 
-- **G-D13-1**：TC-DSK-L3-098 只验证「开关状态持久化」。开机自启**实际生效**需要真实重新登录操作系统，属手工确认项（`00-overview.md` G9）。
-- **G-D13-2**：TC-DSK-L3-100 会创建/删除 `%LOCALAPPDATA%\deepseek-harness\bin` 下的 shim 并修改用户 `PATH`（`agents.desktop.md` §5）。接线时必须先记录原始状态并在清理时还原，否则会污染开发者本机环境。
+- **G-D13-1**：TC-DSK-L3-13-004 只验证「开关状态持久化」。开机自启**实际生效**需要真实重新登录操作系统，属手工确认项（`00-overview.md` G9）。
+- **G-D13-2**：TC-DSK-L3-13-006 会创建/删除 `%LOCALAPPDATA%\deepseek-harness\bin` 下的 shim 并修改用户 `PATH`（`agents.desktop.md` §5）。接线时必须先记录原始状态并在清理时还原，否则会污染开发者本机环境。
 - **G-D13-3**：端口「避让后回落 `manual_port`」（issue #91）是一条独立且易错的行为，需要「占用配置端口 → 重启 → 断言回落到 `manual_port`」三步构造，**未覆盖**。
 - **G-D13-4**：macOS 10.15 不支持 `WKWebView.pageZoom`（`use-zoom-factor.ts:79-91`），该平台下缩放只维护数值不实际应用。**未覆盖**，需旧版 macOS。
 - **假设**：设置真值由前端与 Rust 共享同一份 `.store.dat`；本文件全部通过运行期回读断言，不直接读写该文件。

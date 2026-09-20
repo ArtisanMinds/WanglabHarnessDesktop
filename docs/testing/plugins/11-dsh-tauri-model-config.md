@@ -30,7 +30,7 @@
 
 ### [P1] 验证预设端点返回固定结构
 
-[Case ID] TC-MC-L2-001
+[Case ID] TC-MC-L2-11-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/host/routes/presets/get.ts:13`
@@ -43,7 +43,7 @@
 
 ### [P3] [反向] 验证断网且无缓存时预设返回 502
 
-[Case ID] TC-MC-L2-002
+[Case ID] TC-MC-L2-11-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-model-config/src/host/service/model-presets.ts:120`
@@ -56,7 +56,7 @@
 
 ### [P3] [反向] 验证端点探测缺少可用 endpoint 时返回 502
 
-[Case ID] TC-MC-L2-003
+[Case ID] TC-MC-L2-11-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-model-config/src/host/service/endpoint-models.ts:77`
@@ -69,12 +69,12 @@
 
 ### [P2] 验证打开配置文件端点返回路径与打开方式
 
-[Case ID] TC-MC-L2-004
+[Case ID] TC-MC-L2-11-004
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/host/routes/config/open/post.ts:12`
 [自动化] 是（会拉起系统文件管理器，仅限受控环境执行）
-[前置条件] 同 TC-MC-L2-003
+[前置条件] 同 TC-MC-L2-11-003
 [测试数据] `POST /config/open`（无 body）
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 200。2. 响应体含 `ok: true`、`path`（绝对路径，指向 scratch `DSH_HOME` 下）、`opened` 且取值为 `file` 或 `directory` 之一。
@@ -82,13 +82,13 @@
 
 ### [P4] 验证设置文件缺失时退回打开目录
 
-[Case ID] TC-MC-L2-005
+[Case ID] TC-MC-L2-11-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-model-config/src/host/service/config-file.ts:35`
 [自动化] 是
 [前置条件] scratch `DSH_HOME/settings.yaml` **不存在**
-[测试数据] 同 TC-MC-L2-004
+[测试数据] 同 TC-MC-L2-11-004
 [测试步骤] 1. 确认文件不存在。2. 发起请求。3. 读 `opened` 字段。
 [预期结果] 1. 状态码 200。2. `opened` 恰为 `directory`。
 [清理] 关闭被拉起的文件管理器
@@ -99,7 +99,7 @@
 
 ### [P1] 验证模型设置分区由本插件接管
 
-[Case ID] TC-MC-C-001
+[Case ID] TC-MC-C-11-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/client/register/models.ts:64`
@@ -112,7 +112,7 @@
 
 ### [P2] 验证引导槽位出现两条 onboarding 行
 
-[Case ID] TC-MC-C-002
+[Case ID] TC-MC-C-11-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/client/register/models.ts:75`
@@ -125,7 +125,7 @@
 
 ### [P3] [反向] 验证预设获取失败时展示错误且不崩溃
 
-[Case ID] TC-MC-C-003
+[Case ID] TC-MC-C-11-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-model-config/src/client/models/ModelsSection.tsx:302`
@@ -142,7 +142,7 @@
 
 ### [P1] 验证桌面端可打开模型设置页并看到提供商卡片
 
-[Case ID] TC-MC-L3-001
+[Case ID] TC-MC-L3-11-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/client/register/models.ts:64`
@@ -159,14 +159,14 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `/presets` 成功结构 | TC-MC-L2-001 | 正向 | 联网依赖需在用例中标注 |
-| 无缓存 + 断网 → 502 | TC-MC-L2-002 | 异常 | 断网构造方式待定 |
-| `/endpoint/models` 无 endpoint → 502 | TC-MC-L2-003 | 异常 | — |
-| `/config/open` 成功 | TC-MC-L2-004 | 正向 | 有真实系统副作用 |
-| 文件缺失 → directory | TC-MC-L2-005 | 边界 | — |
-| 分区接管 | TC-MC-C-001、TC-MC-L3-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
-| 引导槽位 | TC-MC-C-002 | 正向 | 依赖 onboarding 状态 |
-| 失败可见性 | TC-MC-C-003 | 异常 | 需要桩化 `/presets` |
+| `/presets` 成功结构 | TC-MC-L2-11-001 | 正向 | 联网依赖需在用例中标注 |
+| 无缓存 + 断网 → 502 | TC-MC-L2-11-002 | 异常 | 断网构造方式待定 |
+| `/endpoint/models` 无 endpoint → 502 | TC-MC-L2-11-003 | 异常 | — |
+| `/config/open` 成功 | TC-MC-L2-11-004 | 正向 | 有真实系统副作用 |
+| 文件缺失 → directory | TC-MC-L2-11-005 | 边界 | — |
+| 分区接管 | TC-MC-C-11-001、TC-MC-L3-11-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
+| 引导槽位 | TC-MC-C-11-002 | 正向 | 依赖 onboarding 状态 |
+| 失败可见性 | TC-MC-C-11-003 | 异常 | 需要桩化 `/presets` |
 | 端点探测成功（真实 provider） | — | — | **未覆盖**：需要真实 API Key 与外部服务 |
 | `stale: true` 回退 | — | — | **未覆盖**：需要「先有缓存、后断网」的两段式构造 |
 
@@ -174,8 +174,8 @@
 
 ## 6. 缺口与假设
 
-- **G-MC-1**：服务端**从不回显密钥**（`packages/dsh-tauri-model-config/src/host/service/endpoint-models.ts:38`）。TC-MC-L2-003 因此显式断言响应体不含密钥字段——这是一条安全回归断言，不是业务断言。
+- **G-MC-1**：服务端**从不回显密钥**（`packages/dsh-tauri-model-config/src/host/service/endpoint-models.ts:38`）。TC-MC-L2-11-003 因此显式断言响应体不含密钥字段——这是一条安全回归断言，不是业务断言。
 - **G-MC-2**：客户端无可用的 `data-*` 标记（全包无命中），L3 断言只能依赖 slot id、`aria-label` 与 `role`。若后续按 `desktop.test.md` §5 补 `data-testid`，本文件选择器同步更新。
-- **G-MC-3**：slot 互斥依赖 patch 生效（`packages/dsh-tauri-model-config/cordis.patch.yml:4`）。若 E2E 环境未应用 patch，会出现同 id 分区重复——TC-MC-C-001 的「恰好 1 个」断言即为该风险的守卫。
-- **G-MC-4**：TC-MC-L2-002 需要「无缓存 + 外部网络不可达」的环境，构造方式必须在用例的 `[前置条件]` 中显式声明（`desktop.test.md` §6 要求断网用例单独标注）。
+- **G-MC-3**：slot 互斥依赖 patch 生效（`packages/dsh-tauri-model-config/cordis.patch.yml:4`）。若 E2E 环境未应用 patch，会出现同 id 分区重复——TC-MC-C-11-001 的「恰好 1 个」断言即为该风险的守卫。
+- **G-MC-4**：TC-MC-L2-11-002 需要「无缓存 + 外部网络不可达」的环境，构造方式必须在用例的 `[前置条件]` 中显式声明（`desktop.test.md` §6 要求断网用例单独标注）。
 - **假设**：`$DSH_HOME` 在 scratch 宿主内指向临时目录（`packages/dsh-tauri/src/host/config/constants.ts:5`），因此配置文件断言天然隔离。

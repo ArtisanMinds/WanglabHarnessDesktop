@@ -78,7 +78,7 @@
 
 ### [P1] 验证在文件夹中显示允许根内的文件
 
-[Case ID] TC-DSK-L3-260
+[Case ID] TC-DSK-L3-29-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/system_os.rs:52-58`；`src-tauri/src/bridge/guard.rs:18-34`；`src/layout/index.tsx:113-118`
@@ -91,7 +91,7 @@
 
 ### [P3] [反向] 验证拒绝定位允许根之外的文件
 
-[Case ID] TC-DSK-L3-261
+[Case ID] TC-DSK-L3-29-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/system_os.rs:55-57`；`src-tauri/src/bridge/guard.rs:50-61`
@@ -104,7 +104,7 @@
 
 ### [P3] [反向] 验证拒绝打开允许根之外的目录
 
-[Case ID] TC-DSK-L3-262
+[Case ID] TC-DSK-L3-29-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/system_os.rs:66-68`；`src-tauri/src/bridge/guard.rs:50-61`；`src/ui/config/core.tsx:216-226`
@@ -117,7 +117,7 @@
 
 ### [P2] 验证打开数据目录时先创建再交给系统
 
-[Case ID] TC-DSK-L3-263
+[Case ID] TC-DSK-L3-29-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/system_os.rs:74-95`；`src/ui/config/debug.tsx:173-179`、`:280-289`
@@ -130,7 +130,7 @@
 
 ### [P3] [反向] 验证拒绝非 http(s) 方案的外部链接
 
-[Case ID] TC-DSK-L3-264
+[Case ID] TC-DSK-L3-29-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/system_os.rs:239-242`
@@ -147,7 +147,7 @@
 
 ### [P1] 验证运行时诊断文本框返回完整四段
 
-[Case ID] TC-DSK-L3-265
+[Case ID] TC-DSK-L3-29-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/system_os.rs:164`、`:165`、`:167`、`:198-210`、`:216-222`；`src/layout/components/setup.tsx:28`
@@ -160,7 +160,7 @@
 
 ### [P2] 验证服务日志按 64 KiB 取尾且不截断多字节字符
 
-[Case ID] TC-DSK-L3-266
+[Case ID] TC-DSK-L3-29-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/system_os.rs:122-138`、`:132`、`:111-118`；`src/ui/config/debug.tsx:69-73`
@@ -173,7 +173,7 @@
 
 ### [P2] 验证清空服务日志后回读为空
 
-[Case ID] TC-DSK-L3-267
+[Case ID] TC-DSK-L3-29-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/system_os.rs:142-145`、`:127-129`；`src/ui/config/debug.tsx:98-108`
@@ -186,7 +186,7 @@
 
 ### [P3] [反向] 验证无持有进程时健康检查返回可区分的失败信号
 
-[Case ID] TC-DSK-L3-268
+[Case ID] TC-DSK-L3-29-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/health.rs:47-53`、`:60-63`；`src-tauri/src/bridge/system_os.rs:15-18`
@@ -203,7 +203,7 @@
 
 ### [P1] 验证官方内置 inspector 的核心不再挂载社区注入
 
-[Case ID] TC-DSK-L3-269
+[Case ID] TC-DSK-L3-29-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/win_inspector.rs:398-406`、`:410-418`；`src-tauri/src/service/plugin/install/single.rs:391-395`
@@ -216,7 +216,7 @@
 
 ### [P2] 验证 rc.6/rc.7 已装插件时写入显式入口挂载并创作 preset
 
-[Case ID] TC-DSK-L3-270
+[Case ID] TC-DSK-L3-29-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/win_inspector.rs:45-49`、`:419-427`、`:328-333`、`:369-395`；`src-tauri/src/service/plugin/install/mod.rs:387-391`
@@ -229,7 +229,7 @@
 
 ### [P4] 验证挂载幂等且遗留裸包名被迁移为显式入口
 
-[Case ID] TC-DSK-L3-271
+[Case ID] TC-DSK-L3-29-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/win_inspector.rs:106-134`、`:224-228`、`:600-626`（单元测试 `ensure_patch_upgrades_existing_bare_name_entry`）
@@ -246,7 +246,7 @@
 
 ### [P4] 验证非 Windows 平台极简模式修复为无操作
 
-[Case ID] TC-DSK-L3-272
+[Case ID] TC-DSK-L3-29-013
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/win_inspector.rs:695-706`、`:712-714`、`:716-724`
@@ -259,7 +259,7 @@
 
 ### [P4] 验证 pnpm-workspace 多文档被自愈归一化为单文档
 
-[Case ID] TC-DSK-L3-273
+[Case ID] TC-DSK-L3-29-014
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/profile/mod.rs:123-152`、`:164-171`、`:191-202`；`src-tauri/src/service/plugin/install/mod.rs:213`
@@ -308,8 +308,8 @@
 - **G-D29-2**：`open_external_url` 的方案判定是**字面前缀匹配**（`src-tauri/src/bridge/system_os.rs:240`），`HTTPS://` 或 `https:/` 一类变体的行为由实现决定，本套未断言；接线前需要先确认期望语义，否则会把实现的宽松/严格当成缺陷。
 - **G-D29-3**：跨平台打包配置（`bundle.targets = "all"`、macOS `hardenedRuntime` + `Info.plist` + `Entitlements.plist`、Windows NSIS/WiX）是**构建期**事实，无法在真实窗口的页面内断言。本文件只把它们登记为事实基线；若需覆盖，应另立构建产物校验批次（对 `.app` / `.dmg` / `.exe` 的签名与 plist 键做静态检查），不在 L3 页面用例内实现。
 - **G-D29-4**：Linux 托盘（`src-tauri/src/desktop/linux_tray.rs`）的单击唤起与菜单动作是**系统托盘表面**，页面内不可断言；本文件只引用其「失败只告警不阻断启动」的语义（`:35-39`），实际托盘交互归 `12-window-tray.md` 或手工确认。
-- **G-D29-5**：TC-DSK-L3-269 与 TC-DSK-L3-270 需要切换活动核心版本到 `0.1.0-rc.6` / `rc.7` 与 `≥ 0.1.0-rc.8` 两侧。旧 rc 核心可能已无法下载，接线时需准备本地核心（`00-overview.md` 未覆盖该前置）。此外两条用例都会改写 `cordis.patch.yml` 与 `$E2E_HOME/home/.dsh.dev/.agent-presets/`（§5.3），测试必须备份与还原（`00-overview.md` G8）。
-- **G-D29-6**：TC-DSK-L3-272 的「无副作用」断言依赖档案目录的文件清单快照能力，当前无该工具；退化为断言 `apply` 返回 `Ok` 与 `git_bash_bin_dirs` 为空集合。
+- **G-D29-5**：TC-DSK-L3-29-010 与 TC-DSK-L3-29-011 需要切换活动核心版本到 `0.1.0-rc.6` / `rc.7` 与 `≥ 0.1.0-rc.8` 两侧。旧 rc 核心可能已无法下载，接线时需准备本地核心（`00-overview.md` 未覆盖该前置）。此外两条用例都会改写 `cordis.patch.yml` 与 `$E2E_HOME/home/.dsh.dev/.agent-presets/`（§5.3），测试必须备份与还原（`00-overview.md` G8）。
+- **G-D29-6**：TC-DSK-L3-29-013 的「无副作用」断言依赖档案目录的文件清单快照能力，当前无该工具；退化为断言 `apply` 返回 `Ok` 与 `git_bash_bin_dirs` 为空集合。
 - **G-D29-7**：Windows 极简模式的错误串（`PATCH_RENDER_FAILED` / `PATCH_WRITE_FAILED` / `PATCH_PARSE_FAILED` / `PATCH_NOT_ARRAY` / `PATCH_PRUNE_FAILED`）**未覆盖**：需要在写入时制造 YAML 库渲染失败或非法顶层类型，属难以稳定构造的故障注入。
-- **假设**：`read_run_logs` 的四个段标题在无内容时仍然出现（段标题由 `format!` 固定拼接，`src-tauri/src/bridge/system_os.rs:216-222`），因此 TC-DSK-L3-265 的段结构断言不依赖日志是否为空，但行数上限断言依赖日志足够长。
+- **假设**：`read_run_logs` 的四个段标题在无内容时仍然出现（段标题由 `format!` 固定拼接，`src-tauri/src/bridge/system_os.rs:216-222`），因此 TC-DSK-L3-29-006 的段结构断言不依赖日志是否为空，但行数上限断言依赖日志足够长。
 - **假设**：路径守卫的「允许根之外」以系统临时目录为例；`00-overview.md` §5.1 未把临时目录列入允许根，本文件据此假定它必然被拒绝（`src-tauri/src/bridge/guard.rs:18-34`）。

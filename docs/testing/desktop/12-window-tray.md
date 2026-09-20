@@ -33,7 +33,7 @@
 
 ### [P1] 验证最小化按钮最小化窗口
 
-[Case ID] TC-DSK-L3-087
+[Case ID] TC-DSK-L3-12-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:545-554`
@@ -46,7 +46,7 @@
 
 ### [P2] 验证最大化按钮切换最大化
 
-[Case ID] TC-DSK-L3-088
+[Case ID] TC-DSK-L3-12-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:556-565`
@@ -59,7 +59,7 @@
 
 ### [P2] 验证关闭按钮按关闭行为隐藏到托盘
 
-[Case ID] TC-DSK-L3-089
+[Case ID] TC-DSK-L3-12-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:567-576`；`src/ui/config/components/close-action.tsx:24`
@@ -76,12 +76,12 @@
 
 ### [P2] 验证托盘「打开面板」恢复窗口
 
-[Case ID] TC-DSK-L3-090
+[Case ID] TC-DSK-L3-12-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/builder.rs:185`
 [自动化] 待接线（同上）
-[前置条件] 承接 TC-DSK-L3-089（窗口已隐藏到托盘）；平台为 Windows 或 Linux
+[前置条件] 承接 TC-DSK-L3-12-003（窗口已隐藏到托盘）；平台为 Windows 或 Linux
 [测试数据] 托盘菜单项 id `open`
 [测试步骤] 1. 触发托盘菜单项 `open`。2. 等待窗口显示。3. 读取窗口可见性与 iframe 实例标识。
 [预期结果] 1. 触发成功。2. 窗口显示。3. 可见性为真；iframe 实例标识与隐藏前一致（未重载）。
@@ -89,7 +89,7 @@
 
 ### [P2] 验证「文件 → 退出」完整退出
 
-[Case ID] TC-DSK-L3-091
+[Case ID] TC-DSK-L3-12-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:249-257`、`:422-429`
@@ -102,7 +102,7 @@
 
 ### [P3] 验证托盘「退出」完整退出并回收服务
 
-[Case ID] TC-DSK-L3-092
+[Case ID] TC-DSK-L3-12-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/desktop/builder.rs:186`；`src-tauri/src/desktop/window.rs:151-156`
@@ -119,7 +119,7 @@
 
 ### [P4] 验证关闭行为设为退出时关闭按钮直接退出
 
-[Case ID] TC-DSK-L3-093
+[Case ID] TC-DSK-L3-12-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/config/components/close-action.tsx:25-33`；`src/utils/close-action.ts`
@@ -132,7 +132,7 @@
 
 ### [P4] 验证窗口几何在重启后恢复
 
-[Case ID] TC-DSK-L3-094
+[Case ID] TC-DSK-L3-12-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/config/window_state.rs`；`src-tauri/src/desktop/builder.rs:467`
@@ -170,7 +170,7 @@
 
 ## 7. 缺口与假设
 
-- **G-D12-1**：TC-DSK-L3-091/092/093 会终止应用，**无法在同一个 WDIO 会话内继续后续用例**。接线时这些用例必须放在 Spec 末尾，或每个用例独立建会话。
+- **G-D12-1**：TC-DSK-L3-12-005/092/093 会终止应用，**无法在同一个 WDIO 会话内继续后续用例**。接线时这些用例必须放在 Spec 末尾，或每个用例独立建会话。
 - **G-D12-2**：托盘菜单的实际点击无法通过 WebDriver 完成（属系统托盘表面，见 `00-overview.md` G9）。可行路径是程序化触发菜单事件（`MenuEvent`），或由测试编排直接调用与菜单项绑定的同一处理函数。后者会退化为「不测菜单绑定」，须在实现时明确取舍。
 - **G-D12-3**：`close_action` 的归一化逻辑（`normalizeCloseAction`）与后端整对象写入（`update_app_config`）之间存在覆盖风险，属单元测试职责（`test/archive/close-action.test.ts` 已有归档版本）。
 - **假设**：托盘菜单项 id 为 `open` 与 `quit`（`builder.rs:185-186`），Linux 实现（`linux_tray.rs:48-49`）使用相同 id。

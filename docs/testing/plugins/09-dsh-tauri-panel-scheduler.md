@@ -33,7 +33,7 @@
 
 ### [P1] 验证干净环境下任务清单为空
 
-[Case ID] TC-SCH-L2-001
+[Case ID] TC-SCH-L2-09-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/get.ts:8`
@@ -46,12 +46,12 @@
 
 ### [P2] 验证创建任务后清单与账本一致
 
-[Case ID] TC-SCH-L2-002
+[Case ID] TC-SCH-L2-09-002
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/post.ts:6`
 [自动化] 是
-[前置条件] 同 TC-SCH-L2-001
+[前置条件] 同 TC-SCH-L2-09-001
 [测试数据] `{ "name": "e2e-smoke", "prompt": "say hi", "schedule": { "kind": "daily", "time": "09:00" } }`
 [测试步骤] 1. `POST /tasks`。2. 读响应体 `task.id` 与 `task.nextRunAt`。3. `GET /tasks` 搜索 `e2e-smoke`。4. 读 scratch 目录下 `crons/tasks` 文件内容。
 [预期结果] 1. 创建返回 200 且 `ok: true`。2. `task.id` 形如 `task-<uuid>`；`nextRunAt` 为未来时间戳。3. 清单中恰好 1 条同名任务。4. 账本文件为 `{"version":1,"tasks":[…]}` 且含该 id。
@@ -59,12 +59,12 @@
 
 ### [P3] [反向] 验证创建任务缺字段返回 400
 
-[Case ID] TC-SCH-L2-003
+[Case ID] TC-SCH-L2-09-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/post.ts:13`
 [自动化] 是
-[前置条件] 同 TC-SCH-L2-001
+[前置条件] 同 TC-SCH-L2-09-001
 [测试数据] 依次提交 `{}`、缺 `prompt`、`schedule.kind` 为非法值
 [测试步骤] 1. 逐一提交。2. 每次读状态码与响应体。
 [预期结果] 1. 三次均 400。2. 每次响应体含非空 `error` 字符串。3. 清单仍为空（未落盘半成品）。
@@ -72,12 +72,12 @@
 
 ### [P3] [反向] 验证删除任务的两类 400 文案可区分
 
-[Case ID] TC-SCH-L2-004
+[Case ID] TC-SCH-L2-09-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/delete.ts:6`
 [自动化] 是
-[前置条件] 同 TC-SCH-L2-001
+[前置条件] 同 TC-SCH-L2-09-001
 [测试数据] body `{}`；再以 `{ "id": "task-missing" }` 请求
 [测试步骤] 1. 两次 `DELETE /tasks`。2. 读状态码与 `error` 文案。
 [预期结果] 1. 第一次 `error` 为 `缺少任务 id`。2. 第二次 `error` 为 `任务不存在`。3. 两次状态码均为 400。
@@ -85,12 +85,12 @@
 
 ### [P3] [反向] 验证立即执行不存在的任务返回 400
 
-[Case ID] TC-SCH-L2-005
+[Case ID] TC-SCH-L2-09-005
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/run/post.ts:6`
 [自动化] 是
-[前置条件] 同 TC-SCH-L2-001
+[前置条件] 同 TC-SCH-L2-09-001
 [测试数据] `POST /tasks/run`，body `{ "id": "task-missing" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `error` 恰为 `任务不存在`。3. `GET /history` 无新增记录。
@@ -98,12 +98,12 @@
 
 ### [P4] 验证执行记录删除的两类 400 文案可区分
 
-[Case ID] TC-SCH-L2-006
+[Case ID] TC-SCH-L2-09-006
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/history/delete.ts:6`
 [自动化] 是
-[前置条件] 同 TC-SCH-L2-001
+[前置条件] 同 TC-SCH-L2-09-001
 [测试数据] body `{}`；再以 `{ "id": "run-missing" }` 请求
 [测试步骤] 1. 两次 `DELETE /history`。2. 读状态码与 `error` 文案。
 [预期结果] 1. 第一次 `error` 为 `缺少执行记录 id`。2. 第二次 `error` 为 `执行记录不存在`。3. 两次状态码均为 400。
@@ -111,12 +111,12 @@
 
 ### [P4] 验证选项端点返回可用集合并随环境变化
 
-[Case ID] TC-SCH-L2-007
+[Case ID] TC-SCH-L2-09-007
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/options/get.ts:6`
 [自动化] 是
-[前置条件] 同 TC-SCH-L2-001
+[前置条件] 同 TC-SCH-L2-09-001
 [测试数据] `GET /options`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体字段名。
 [预期结果] 1. 状态码 200。2. 响应体为对象（非数组、非空）。
@@ -127,7 +127,7 @@
 
 ### [P1] 验证调度面板渲染并含两个标签
 
-[Case ID] TC-SCH-C-001
+[Case ID] TC-SCH-C-09-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/components/scheduler-panel.tsx:139`
@@ -140,12 +140,12 @@
 
 ### [P2] 验证新建任务对话框的字段与校验提示
 
-[Case ID] TC-SCH-C-002
+[Case ID] TC-SCH-C-09-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/components/task-create-dialog.tsx:183`
 [自动化] 未接线（G2）
-[前置条件] 同 TC-SCH-C-001
+[前置条件] 同 TC-SCH-C-09-001
 [测试数据] 名称留空提交一次，再填合法值提交一次
 [测试步骤] 1. 点击「新建任务」。2. 直接提交。3. 查询 `.dshp-scheduler__modal` 内 `[role="alert"]`。4. 填写名称与指令后提交。
 [预期结果] 1. 对话框出现且含名称输入、计划类型、指令文本域。2. 空提交后对话框仍在且出现 `[role="alert"]` 提示。3. 合法提交后对话框关闭且任务卡片列表新增 1 项。
@@ -153,7 +153,7 @@
 
 ### [P2] 验证会话行出现调度图标且不重复插入
 
-[Case ID] TC-SCH-C-003
+[Case ID] TC-SCH-C-09-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/register/session-icons.ts:46`
@@ -170,7 +170,7 @@
 
 ### [P1] 验证桌面端可打开调度面板并持久化任务
 
-[Case ID] TC-SCH-L3-001
+[Case ID] TC-SCH-L3-09-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/register/panel.tsx:34`
@@ -187,23 +187,23 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `tasks/get.ts` 只读清单 | TC-SCH-L2-001 | 正向 | — |
-| `tasks/post.ts` 创建与落盘 | TC-SCH-L2-002 | 正向 | 真实执行（`run_now`）不在此列 |
-| `tasks/post.ts` 校验 | TC-SCH-L2-003 | 异常 | 长度上限（120 / 64000）未覆盖，见 G-SCH-2 |
-| `tasks/delete.ts` 两类文案 | TC-SCH-L2-004 | 异常 | — |
-| `tasks/run/post.ts` 不存在 | TC-SCH-L2-005 | 异常 | `任务正在执行中` 需要真实并发，**未覆盖** |
-| `history/delete.ts` | TC-SCH-L2-006 | 边界 | — |
-| `options/get.ts` | TC-SCH-L2-007 | 边界 | 字段级断言待确认 |
-| 面板与对话框 | TC-SCH-C-001、TC-SCH-C-002、TC-SCH-L3-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
-| 会话行图标 | TC-SCH-C-003 | 正向 | 依赖浏览器驱动 |
+| `tasks/get.ts` 只读清单 | TC-SCH-L2-09-001 | 正向 | — |
+| `tasks/post.ts` 创建与落盘 | TC-SCH-L2-09-002 | 正向 | 真实执行（`run_now`）不在此列 |
+| `tasks/post.ts` 校验 | TC-SCH-L2-09-003 | 异常 | 长度上限（120 / 64000）未覆盖，见 G-SCH-2 |
+| `tasks/delete.ts` 两类文案 | TC-SCH-L2-09-004 | 异常 | — |
+| `tasks/run/post.ts` 不存在 | TC-SCH-L2-09-005 | 异常 | `任务正在执行中` 需要真实并发，**未覆盖** |
+| `history/delete.ts` | TC-SCH-L2-09-006 | 边界 | — |
+| `options/get.ts` | TC-SCH-L2-09-007 | 边界 | 字段级断言待确认 |
+| 面板与对话框 | TC-SCH-C-09-001、TC-SCH-C-09-002、TC-SCH-L3-09-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
+| 会话行图标 | TC-SCH-C-09-003 | 正向 | 依赖浏览器驱动 |
 | 5 个 Agent 工具 | — | — | **未覆盖**：需要 Agent 会话与工具调用通道 |
 
 ---
 
 ## 6. 缺口与假设
 
-- **G-SCH-1**：面板每 5s 轮询（`packages/dsh-tauri-panel-scheduler/src/client/constants/index.ts:26`），与用户操作存在竞态。TC-SCH-L3-001 因此断言「重开面板后可见」而非「立刻可见」，并在失败信息中附上最后一次 `GET /tasks` 结果。
+- **G-SCH-1**：面板每 5s 轮询（`packages/dsh-tauri-panel-scheduler/src/client/constants/index.ts:26`），与用户操作存在竞态。TC-SCH-L3-09-001 因此断言「重开面板后可见」而非「立刻可见」，并在失败信息中附上最后一次 `GET /tasks` 结果。
 - **G-SCH-2**：`name` ≤120、`prompt` ≤64000、`schedule.kind` 为 8 种枚举之一（`packages/dsh-tauri-panel-scheduler/src/shared/constants.ts:12`）。边界值用例（120/121、64000/64001）留待后续批次。
-- **G-SCH-3**：`GET /options` 的字段集未在事实基线中确认；TC-SCH-L2-007 故意只断言形状，避免编造字段名。
+- **G-SCH-3**：`GET /options` 的字段集未在事实基线中确认；TC-SCH-L2-09-007 故意只断言形状，避免编造字段名。
 - **G-SCH-4**：`custom` 计划的 cron 串产出路径未核实（`packages/dsh-tauri-panel-scheduler/src/host/utils/schedule.ts:78`），相关表单用例**未覆盖**。
 - **假设**：`crons` 落盘根随 scratch `DSH_HOME` 隔离（`fsAtomicDriver` 以 `DSH_HOME` 为基，`packages/dsh-tauri/src/host/utils/driver.ts:9`）。

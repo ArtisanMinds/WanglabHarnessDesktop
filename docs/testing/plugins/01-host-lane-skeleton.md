@@ -38,7 +38,7 @@
 
 ### [P1] 验证在隔离 scratch 目录下能挂载目标插件并拉起真实 dsh web
 
-[Case ID] TC-HOST-L2-001
+[Case ID] TC-HOST-L2-01-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `docs/specs/plugin.test.md` §8 批次 1；`test/e2e/support/dsh-host.ts:307`
@@ -51,20 +51,20 @@
 
 ### [P2] 验证宿主启动后目标插件的 bundle 已登记进 profile
 
-[Case ID] TC-HOST-L2-002
+[Case ID] TC-HOST-L2-01-002
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `test/e2e/support/dsh-host.ts:316`、`test/e2e/support/dsh-host.ts:199`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-HOST-L2-001；未设置 `DSH_E2E_KEEP_HOME`
+[前置条件] 同 TC-HOST-L2-01-001；未设置 `DSH_E2E_KEEP_HOME`
 [测试数据] `DSH_E2E_PLUGIN=dsh-tauri`；`DSH_E2E_ALSO=dsh-tauri-pet`（制造「基础包 + 目标包」两段挂载）
 [测试步骤] 1. 用上述环境启动宿主。2. 读 `home/profiles/web/package.json`。3. 取 `dsh.profile.bundles` 与 `dependencies`。
 [预期结果] 1. 启动成功。2. `bundles` 同时包含 `dsh-tauri-pet` 与 `dsh-tauri`，且无重复项。3. `dependencies` 中两者的值均以 `link:` 开头并指向仓库 `packages/<name>`。
-[清理] 同 TC-HOST-L2-001
+[清理] 同 TC-HOST-L2-01-001
 
 ### [P3] [反向] 验证挂载未登记进 bundles 时立刻失败，而不是带着半成品起服务
 
-[Case ID] TC-HOST-L2-003
+[Case ID] TC-HOST-L2-01-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `test/e2e/support/dsh-host.ts:335`
@@ -77,7 +77,7 @@
 
 ### [P3] [反向] 验证产物缺失时报出可操作的构建指引
 
-[Case ID] TC-HOST-L2-004
+[Case ID] TC-HOST-L2-01-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `test/e2e/support/dsh-host.ts:127`
@@ -90,7 +90,7 @@
 
 ### [P4] 验证环境变量边界：`DSH_E2E_KEEP_HOME` 控制 scratch 去留
 
-[Case ID] TC-HOST-L2-005
+[Case ID] TC-HOST-L2-01-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `test/e2e/support/dsh-host.ts:376`、`test/e2e/global-setup.ts:31`
@@ -103,7 +103,7 @@
 
 ### [P2] 验证 `DSH_E2E_MOUNT=cli` 走真实 CLI 挂载路径
 
-[Case ID] TC-HOST-L2-006
+[Case ID] TC-HOST-L2-01-006
 [层级] L2（真实 dsh 进程）
 [类型] 回归
 [追踪] `test/e2e/support/dsh-host.ts:237`、`docs/specs/plugin.test.md` §5
@@ -112,7 +112,7 @@
 [测试数据] `DSH_E2E_MOUNT=cli`；`DSH_E2E_PLUGIN=dsh-tauri`
 [测试步骤] 1. 以 cli 模式启动宿主。2. 读 `home/profiles/web/package.json`。3. 对 `baseUrl` 发起 `GET /`。
 [预期结果] 1. 启动成功（允许明显长于 link 模式）。2. `dependencies` 由 `dsh plugin add` 写入，值指向仓库包路径而非自建链接。3. `GET /` 返回 2xx。
-[清理] 同 TC-HOST-L2-001
+[清理] 同 TC-HOST-L2-01-001
 
 ---
 
@@ -120,17 +120,17 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `docs/specs/plugin.test.md` §8 批次 1（骨架挂载 + 随机端口） | TC-HOST-L2-001、TC-HOST-L2-002 | 正向 | 未覆盖「随机端口是否真的每次不同」 |
-| `docs/specs/plugin.test.md` §5 步骤 5（挂载校验） | TC-HOST-L2-003 | 异常 | 依赖内部校验分支的可触达性，可能需抽函数后才可测 |
-| `docs/specs/plugin.test.md` §5 步骤 1（构建产物） | TC-HOST-L2-004 | 异常 | 会短暂移动产物，串行执行下安全 |
-| `docs/specs/plugin.test.md` §9（`DSH_E2E_KEEP_HOME`） | TC-HOST-L2-005 | 边界 | 依赖可重复启动宿主 |
-| `docs/specs/plugin.test.md` §5 挂载模式 `link`/`cli` | TC-HOST-L2-006 | 回归 | cli 模式需网络，不作为门禁必跑 |
+| `docs/specs/plugin.test.md` §8 批次 1（骨架挂载 + 随机端口） | TC-HOST-L2-01-001、TC-HOST-L2-01-002 | 正向 | 未覆盖「随机端口是否真的每次不同」 |
+| `docs/specs/plugin.test.md` §5 步骤 5（挂载校验） | TC-HOST-L2-01-003 | 异常 | 依赖内部校验分支的可触达性，可能需抽函数后才可测 |
+| `docs/specs/plugin.test.md` §5 步骤 1（构建产物） | TC-HOST-L2-01-004 | 异常 | 会短暂移动产物，串行执行下安全 |
+| `docs/specs/plugin.test.md` §9（`DSH_E2E_KEEP_HOME`） | TC-HOST-L2-01-005 | 边界 | 依赖可重复启动宿主 |
+| `docs/specs/plugin.test.md` §5 挂载模式 `link`/`cli` | TC-HOST-L2-01-006 | 回归 | cli 模式需网络，不作为门禁必跑 |
 
 ---
 
 ## 4. 缺口与假设
 
-- **假设**：`dsh-tauri` 可作为 bundle 独立挂载（它是其它插件的宿主能力提供方）。若它不能被单独挂载，TC-HOST-L2-001 改用 `dsh-tauri-pet` 作为目标包。
-- **缺口**：`assertBuilt`（`dsh-host.ts:127`）当前不可从外部注入，TC-HOST-L2-004 需要临时移动产物或后续把该函数导出。
+- **假设**：`dsh-tauri` 可作为 bundle 独立挂载（它是其它插件的宿主能力提供方）。若它不能被单独挂载，TC-HOST-L2-01-001 改用 `dsh-tauri-pet` 作为目标包。
+- **缺口**：`assertBuilt`（`dsh-host.ts:127`）当前不可从外部注入，TC-HOST-L2-01-004 需要临时移动产物或后续把该函数导出。
 - **缺口**：本文件不覆盖「端口冲突」「宿主提前退出」分支（`dsh-host.ts:278` 已有错误路径），留待骨架跑稳后补。
 - **未纳入范围**：浏览器渲染、Tauri 窗口、插件业务语义——分别属于 02 起的各插件文件与桌面端宿主层。

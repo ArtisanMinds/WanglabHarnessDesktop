@@ -31,7 +31,7 @@
 
 ### [P3] [反向] 验证续跑缺 sessionId 返回 400
 
-[Case ID] TC-UI-L2-001
+[Case ID] TC-UI-L2-07-001
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/host/routes/session/resume/post.ts:10`
@@ -44,12 +44,12 @@
 
 ### [P3] [反向] 验证未知会话返回 404
 
-[Case ID] TC-UI-L2-002
+[Case ID] TC-UI-L2-07-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/host/service/session.ts:30`
 [自动化] 是
-[前置条件] 同 TC-UI-L2-001
+[前置条件] 同 TC-UI-L2-07-001
 [测试数据] `{ "sessionId": "does-not-exist" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 404。2. 响应体 `error` 恰为 `会话不存在或尚未运行`。
@@ -57,7 +57,7 @@
 
 ### [P3] [反向] 验证运行中的会话被拒绝续跑
 
-[Case ID] TC-UI-L2-003
+[Case ID] TC-UI-L2-07-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/host/service/session.ts:32`
@@ -70,11 +70,11 @@
 
 ### [P4] [反向] 验证已正常结束的会话被拒绝续跑
 
-[Case ID] TC-UI-L2-004
+[Case ID] TC-UI-L2-07-004
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-ui/src/host/service/session.ts:35`
-[自动化] 待补（同 TC-UI-L2-003 的前置）
+[自动化] 待补（同 TC-UI-L2-07-003 的前置）
 [前置条件] 存在一条已正常结束（`completed` / `blocked` / `max-tokens`）的会话
 [测试数据] 该会话 id
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -87,7 +87,7 @@
 
 ### [P1] 验证设置侧栏与触发器被注入 dsh 界面
 
-[Case ID] TC-UI-C-001
+[Case ID] TC-UI-C-07-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/sidebar.tsx:92`、`packages/dsh-tauri-ui/src/client/components/trigger.tsx:44`
@@ -100,12 +100,12 @@
 
 ### [P2] 验证触发器 `aria-expanded` 随设置侧栏开合变化
 
-[Case ID] TC-UI-C-002
+[Case ID] TC-UI-C-07-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/trigger.tsx:46`
 [自动化] 未接线（G2）
-[前置条件] 同 TC-UI-C-001
+[前置条件] 同 TC-UI-C-07-001
 [测试数据] 点击触发器两次
 [测试步骤] 1. 读初始 `aria-expanded`。2. 点击触发器。3. 再读该属性。4. 再次点击并读第三次。
 [预期结果] 1. 初始为 `"false"`。2. 首次点击后为 `"true"` 且 `[data-slot-sidebar="dsh-tauri-ui"]` 可见。3. 二次点击后回到 `"false"`。
@@ -113,7 +113,7 @@
 
 ### [P2] 验证中断轮次后主按钮被改写为「继续任务」
 
-[Case ID] TC-UI-C-003
+[Case ID] TC-UI-C-07-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/register/composer-resume.ts:53`
@@ -126,12 +126,12 @@
 
 ### [P3] [反向] 验证非空草稿时补丁不生效
 
-[Case ID] TC-UI-C-004
+[Case ID] TC-UI-C-07-004
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/client/register/composer-resume.utils.ts:15`
 [自动化] 未接线（G2）
-[前置条件] 同 TC-UI-C-003，但在 composer 中填入任意文本
+[前置条件] 同 TC-UI-C-07-003，但在 composer 中填入任意文本
 [测试数据] 草稿文本 `hello`
 [测试步骤] 1. 等待补丁周期。2. 读主按钮 `aria-label`。
 [预期结果] 1. `aria-label` **不是** `继续任务`（回落官方文案）。2. 无异常抛出。
@@ -143,7 +143,7 @@
 
 ### [P1] 验证桌面端壳层内设置侧栏可开合
 
-[Case ID] TC-UI-L3-001
+[Case ID] TC-UI-L3-07-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/sidebar.tsx:92`
@@ -156,12 +156,12 @@
 
 ### [P2] 验证侧栏折叠后触发器进入 Rail 形态
 
-[Case ID] TC-UI-L3-002
+[Case ID] TC-UI-L3-07-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/trigger.tsx:52`
 [自动化] 待接线（G4）
-[前置条件] 同 TC-UI-L3-001；壳层侧栏折叠按钮存在（依赖 `dsh-tauri` 已挂载）
+[前置条件] 同 TC-UI-L3-07-001；壳层侧栏折叠按钮存在（依赖 `dsh-tauri` 已挂载）
 [测试数据] 无
 [测试步骤] 1. 折叠侧栏。2. 读触发器几何宽度与相关 class。
 [预期结果] 1. 触发器宽度收敛为 rail 宽度（由 `--dsh-settings-rail-width` 控制）。2. 触发器仍未脱离可见区域（宽 > 0）。
@@ -173,12 +173,12 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `resume/post.ts:10` 缺参 | TC-UI-L2-001 | 异常 | — |
-| `session.ts:30` 会话不存在 | TC-UI-L2-002 | 异常 | — |
-| `session.ts:32` / `:35` 状态判定 | TC-UI-L2-003、TC-UI-L2-004 | 异常 / 边界 | 需要造真实会话，当前待补 |
-| 侧栏与触发器注入 | TC-UI-C-001、TC-UI-C-002、TC-UI-L3-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
-| 续跑补丁 | TC-UI-C-003、TC-UI-C-004 | 正向 / 异常 | 需要中断轮次数据 |
-| Rail 形态 | TC-UI-L3-002 | 正向 | 需要 `dsh-tauri` 同时挂载 |
+| `resume/post.ts:10` 缺参 | TC-UI-L2-07-001 | 异常 | — |
+| `session.ts:30` 会话不存在 | TC-UI-L2-07-002 | 异常 | — |
+| `session.ts:32` / `:35` 状态判定 | TC-UI-L2-07-003、TC-UI-L2-07-004 | 异常 / 边界 | 需要造真实会话，当前待补 |
+| 侧栏与触发器注入 | TC-UI-C-07-001、TC-UI-C-07-002、TC-UI-L3-07-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
+| 续跑补丁 | TC-UI-C-07-003、TC-UI-C-07-004 | 正向 / 异常 | 需要中断轮次数据 |
+| Rail 形态 | TC-UI-L3-07-002 | 正向 | 需要 `dsh-tauri` 同时挂载 |
 | 续跑成功路径（真发消息） | — | — | **未覆盖**：需要真实 Agent 会话，属后续批次 |
 
 ---
@@ -187,6 +187,6 @@
 
 - **G-UI-1**：本插件 `inject` 依赖 `slots` / `layout` / `locale` / `sessions`（`packages/dsh-tauri-ui/src/client/index.ts:27`）。若宿主未提供 `SlotOutlet`，设置注册整体跳过并 warn（`packages/dsh-tauri-ui/src/client/register/settings.ts:15`）——用例失败信息必须能区分「槽位缺失」与「组件报错」。
 - **G-UI-2**：`settings.section` / `settings.onboarding` 的内容由其它插件提供（`packages/dsh-tauri-ui/src/client/register/sections.ts:6`）。单独挂载本插件时该槽位为空，属预期。
-- **G-UI-3**：`[data-composer-card]` / `[data-composer-placeholder]` 是内核 DOM 约定，本仓库内无定义处；内核升级时补丁会静默失效，因此 TC-UI-C-003 必须断言「按钮文案已改写」而非「未报错」。
-- **G-UI-4**：TC-UI-L2-003 / TC-UI-L2-004 需要一条真实「运行中 / 已正常结束」的会话，而当前 scratch 宿主无造会话手段，故标记为**待补**；补齐造会话能力后这两条进入核心集。
+- **G-UI-3**：`[data-composer-card]` / `[data-composer-placeholder]` 是内核 DOM 约定，本仓库内无定义处；内核升级时补丁会静默失效，因此 TC-UI-C-07-003 必须断言「按钮文案已改写」而非「未报错」。
+- **G-UI-4**：TC-UI-L2-07-003 / TC-UI-L2-07-004 需要一条真实「运行中 / 已正常结束」的会话，而当前 scratch 宿主无造会话手段，故标记为**待补**；补齐造会话能力后这两条进入核心集。
 - **假设**：中文 locale 固定（用例断言 `继续任务`）；多语种覆盖留待 locale 专项。

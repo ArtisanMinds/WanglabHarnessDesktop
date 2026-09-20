@@ -43,7 +43,7 @@
 
 ### [P1] 验证规范化折叠分隔符并保留 ASCII 字母数字
 
-[Case ID] TC-DSK-L3-196
+[Case ID] TC-DSK-L3-24-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:289`；`src-tauri/src/service/profile/mod.rs:1043`
@@ -56,7 +56,7 @@
 
 ### [P2] 验证非字母数字字符被丢弃而非转为 `-`
 
-[Case ID] TC-DSK-L3-197
+[Case ID] TC-DSK-L3-24-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/profile/mod.rs:289`
@@ -73,7 +73,7 @@
 
 ### [P2] 验证空名与规范化后为空的名称返回不同错误码
 
-[Case ID] TC-DSK-L3-198
+[Case ID] TC-DSK-L3-24-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/profile/mod.rs:308`
@@ -86,7 +86,7 @@
 
 ### [P2] 验证 64 字符上限按规范化结果比较
 
-[Case ID] TC-DSK-L3-199
+[Case ID] TC-DSK-L3-24-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/profile/mod.rs:308`、`:320`
@@ -99,7 +99,7 @@
 
 ### [P3] [反向] 验证保留名与已存在目录不会被静默重建
 
-[Case ID] TC-DSK-L3-200
+[Case ID] TC-DSK-L3-24-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/profile/mod.rs:320`、`:324`
@@ -112,7 +112,7 @@
 
 ### [P4] 验证只有 `web` 被保留，引导与安全档案名不被拦截
 
-[Case ID] TC-DSK-L3-201
+[Case ID] TC-DSK-L3-24-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 低频
 [追踪] `src-tauri/src/service/profile/mod.rs:42`、`:51`、`:59`、`:569`
@@ -129,7 +129,7 @@
 
 ### [P1] 验证新档案落盘为四个文件且形态固定
 
-[Case ID] TC-DSK-L3-202
+[Case ID] TC-DSK-L3-24-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:879`、`:707`、`:888`
@@ -142,7 +142,7 @@
 
 ### [P2] 验证重复初始化幂等且不覆盖用户编辑
 
-[Case ID] TC-DSK-L3-203
+[Case ID] TC-DSK-L3-24-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/profile/mod.rs:879`、`:888`
@@ -155,7 +155,7 @@
 
 ### [P2] 验证半初始化目录被补齐核心层，不可写目录在预检阶段报错
 
-[Case ID] TC-DSK-L3-204
+[Case ID] TC-DSK-L3-24-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/profile/mod.rs:884`、`:732`、`:879`
@@ -172,7 +172,7 @@
 
 ### [P1] 验证各档案独立持有元数据与依赖目录
 
-[Case ID] TC-DSK-L3-205
+[Case ID] TC-DSK-L3-24-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:99`；`src-tauri/src/service/plugin/installed.rs:37`
@@ -185,7 +185,7 @@
 
 ### [P2] 验证活动档案回退与删除守卫的错误码
 
-[Case ID] TC-DSK-L3-206
+[Case ID] TC-DSK-L3-24-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/profile/mod.rs:211`、`:337`、`:532`
@@ -198,7 +198,7 @@
 
 ### [P3] [反向] 验证 home 层补丁跨档案生效
 
-[Case ID] TC-DSK-L3-207
+[Case ID] TC-DSK-L3-24-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/bridge/lifecycle.rs:349`
@@ -228,8 +228,8 @@
 
 - **G-D24-1**：本文件全部用例经命令层（`create_profile` / `set_active_profile` / `get_profiles` / 克隆）与磁盘状态断言；界面呈现与提示文案归 `05-profile.md`，不重复断言。
 - **G-D24-2**：`create` 不拦截 `tauri`（`mod.rs:51`）与 `safe`（`mod.rs:59`），用户可占用引导与安全档案名。被占用后引导流程与安全模式的实际行为未验证，属已知边界。
-- **G-D24-3**：TC-DSK-L3-205 的「插件操作解析到哪个目录」当前无只读出口，接线时需借安装产物或日志间接断言。
+- **G-D24-3**：TC-DSK-L3-24-010 的「插件操作解析到哪个目录」当前无只读出口，接线时需借安装产物或日志间接断言。
 - **G-D24-4**：列表的展示名（`mod.rs:224`、`:1104`）、跳过点目录与 `node_modules`、`web` 目录缺失时的合成行、默认优先排序（`mod.rs:254`、`:283`）不在本文件 12 个 Case 内。
-- **G-D24-5**：TC-DSK-L3-204 需构造不可写目录（改属主/权限），Windows 上需管理员；接线时按平台选择可用手段。
+- **G-D24-5**：TC-DSK-L3-24-009 需构造不可写目录（改属主/权限），Windows 上需管理员；接线时按平台选择可用手段。
 - **假设**：本文件全部路径均在 `$E2E_HOME` 之下（`00-overview.md` §5.3）。文中 `$DSH_HOME/profiles/<id>` 指 `$E2E_HOME/home/.dsh.dev/profiles/<id>`（debug）。**不得**依赖设置 `DSH_HOME` 来隔离——debug 构建恒用 `<home>/.dsh.dev` 并忽略 `DSH_HOME`（`src-tauri/src/config/runtime.rs:471-485`），隔离只能靠重定向 `USERPROFILE`/`HOME`；`web`、`tauri`、`safe` 档案不得由用例创建或删除。
 - **G-D24-6**：本文件是**破坏性最强**的一批用例（新建/删除档案、改写 home 层补丁）。所有用例必须在重定向后的 `$E2E_HOME/home/.dsh.dev` 内运行；在脚手架实现 §5.3 的重定向与失败关闭校验之前**不得执行**。

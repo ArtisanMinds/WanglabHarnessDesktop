@@ -29,7 +29,7 @@
 
 ### [P1] 验证语言切换为 English 后壳层文案即时变更
 
-[Case ID] TC-DSK-L3-025
+[Case ID] TC-DSK-L3-04-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] 批次 04；`src/ui/config/debug.tsx:355-372`；`src/i18n/index.ts:9-21`
@@ -42,12 +42,12 @@
 
 ### [P2] 验证语言选择在重启后保持
 
-[Case ID] TC-DSK-L3-026
+[Case ID] TC-DSK-L3-04-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/i18n/index.detector.ts:14`、`:34-40`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-025 已把语言切到 `en-US`
+[前置条件] TC-DSK-L3-04-001 已把语言切到 `en-US`
 [测试数据] 观察点 `dsh-navbar-menu-config` 的无障碍标签
 [测试步骤] 1. 关闭应用并等待进程退出。2. 重新拉起应用。3. 等待壳层渲染完成。4. 读取观察点标签。
 [预期结果] 1. 进程退出。2. 启动成功。3. 壳层渲染完成。4. 标签仍为英文文案（语言未被重置为系统语言）。
@@ -55,12 +55,12 @@
 
 ### [P2] 验证切换语言后菜单与提示文案同步为同一语言
 
-[Case ID] TC-DSK-L3-027
+[Case ID] TC-DSK-L3-04-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/i18n/index.ts:19`；`src/layout/components/navbar.tsx:82-87`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-025 通过（语言为 `en-US`）
+[前置条件] TC-DSK-L3-04-001 通过（语言为 `en-US`）
 [测试数据] 观察点：`dsh-navbar-menu-file`、`dsh-navbar-menu-config`、`dsh-navbar-menu-help` 的文本
 [测试步骤] 1. 读取三个菜单触发器文本。2. 逐项断言语言一致性。
 [预期结果] 1. 读取成功。2. 三者均为英文文案，无任一项残留中文。
@@ -68,7 +68,7 @@
 
 ### [P4] 验证两种语言下壳层关键文案均非空
 
-[Case ID] TC-DSK-L3-028
+[Case ID] TC-DSK-L3-04-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `docs/specs/agents.desktop.md` §3.1「i18n 规范」
@@ -85,7 +85,7 @@
 
 ### [P2] 验证主题偏好被折算并应用到根节点
 
-[Case ID] TC-DSK-L3-029
+[Case ID] TC-DSK-L3-04-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/hooks/use-theme-adaptive.ts:6-14`
@@ -98,7 +98,7 @@
 
 ### [P3] [反向] 验证语言切换不重建 iframe
 
-[Case ID] TC-DSK-L3-030
+[Case ID] TC-DSK-L3-04-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/iframe.tsx:192-193`（`key={harness.iframeKey}`）

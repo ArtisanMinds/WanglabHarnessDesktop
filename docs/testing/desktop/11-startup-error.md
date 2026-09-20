@@ -34,7 +34,7 @@
 
 ### [P1] 验证启动失败展示错误页与错误信息
 
-[Case ID] TC-DSK-L3-079
+[Case ID] TC-DSK-L3-11-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/webview.tsx:50-54`；`src/layout/components/setup.tsx:58-62`、`:82`
@@ -47,12 +47,12 @@
 
 ### [P2] 验证错误页展示真实服务日志行
 
-[Case ID] TC-DSK-L3-080
+[Case ID] TC-DSK-L3-11-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/setup.tsx:63-66`、`:81`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-079 通过；失败时服务日志中存在可提取的错误行
+[前置条件] TC-DSK-L3-11-001 通过；失败时服务日志中存在可提取的错误行
 [测试数据] 选择器 `dsh-setup-error-logs`
 [测试步骤] 1. 读取日志面板存在性。2. 读取面板文本行数。3. 与 `read_service_logs` 返回内容比对。
 [预期结果] 1. 面板存在。2. 行数大于 0。3. 面板内容来自真实服务日志（不含占位文案）。
@@ -60,7 +60,7 @@
 
 ### [P4] 验证「复制日志」写入剪贴板
 
-[Case ID] TC-DSK-L3-081
+[Case ID] TC-DSK-L3-11-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/components/setup.tsx:25-40`、`:119-125`
@@ -77,7 +77,7 @@
 
 ### [P3] 验证补丁层语法错误时展示隔离入口
 
-[Case ID] TC-DSK-L3-082
+[Case ID] TC-DSK-L3-11-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/setup.tsx:73`、`:99-108`；issue #525
@@ -90,7 +90,7 @@
 
 ### [P3] 验证悬空 insert 时展示移除悬空条目入口
 
-[Case ID] TC-DSK-L3-083
+[Case ID] TC-DSK-L3-11-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/setup.tsx:72`、`:109-118`；`src/store/modules/harness/store.ts:728`
@@ -103,7 +103,7 @@
 
 ### [P3] [反向] 验证插件路由冲突时展示针对性提示
 
-[Case ID] TC-DSK-L3-084
+[Case ID] TC-DSK-L3-11-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/setup.tsx:69`；`src/store/modules/harness/utils.ts`
@@ -120,7 +120,7 @@
 
 ### [P2] 验证「重试」重新启动服务
 
-[Case ID] TC-DSK-L3-085
+[Case ID] TC-DSK-L3-11-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/setup.tsx:91-98`
@@ -133,7 +133,7 @@
 
 ### [P4] 验证「安全模式」以最小预设启动
 
-[Case ID] TC-DSK-L3-086
+[Case ID] TC-DSK-L3-11-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/components/setup.tsx:126-134`；`src/store/modules/harness/store.ts:669`
@@ -172,13 +172,13 @@
 | 补丁层悬空条目 | 083 | 异常 | 「剥离条目」动作的成功路径未覆盖（会改写用户文件） |
 | 插件路由冲突 | 084 | 异常 | 只断言提示存在；与 `10` 的恢复页优先级关系未覆盖 |
 | Linux inotify 上限（ENOSPC） | — | — | **未覆盖**，需 Linux 环境并调低 inotify 上限 |
-| 重试与安全模式 | 085、086 | 正向 / 边界 | 与 `10` 的 TC-DSK-L3-078 同源，属有意重复的入口差异 |
+| 重试与安全模式 | 085、086 | 正向 / 边界 | 与 `10` 的 TC-DSK-L3-10-007 同源，属有意重复的入口差异 |
 
 ---
 
 ## 7. 缺口与假设
 
-- **G-D11-1**：TC-DSK-L3-082/083 需要改坏用户真实档案下的 `cordis.patch.yml`。按 `00-overview.md` G8，测试必须使用独立数据目录并在清理时还原（含 `quarantine` 产生的 `.broken-<Timestamp>` 与 `strip` 产生的 `.bak-<Timestamp>` 文件）。
+- **G-D11-1**：TC-DSK-L3-11-004/083 需要改坏用户真实档案下的 `cordis.patch.yml`。按 `00-overview.md` G8，测试必须使用独立数据目录并在清理时还原（含 `quarantine` 产生的 `.broken-<Timestamp>` 与 `strip` 产生的 `.bak-<Timestamp>` 文件）。
 - **G-D11-2**：三类针对性提示互斥的**判定逻辑**由 `utils.ts` 实现，本文件只断言「同时只出现一类」。若需覆盖判定本身，属单元测试职责。
 - **G-D11-3**：Linux inotify 上限提示（`inotifyLimitHint`）**未覆盖**，需 Linux 环境并调低 `fs.inotify.max_user_watches`。
 - **G-D11-4**：`Setup` 错误页在 `recovery.required == true` 时被全屏恢复页替换（`webview.tsx:52-54`）。两者同时为真时的优先级**未覆盖**，属 `10` 与 `11` 的交界。

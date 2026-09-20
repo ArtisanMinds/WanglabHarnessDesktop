@@ -33,7 +33,7 @@
 
 ### [P1] 验证「文件 → 新建窗口」创建第二个窗口
 
-[Case ID] TC-DSK-L3-142
+[Case ID] TC-DSK-L3-19-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/navbar.tsx:239-247`、`:388-395`；`src-tauri/src/desktop/window.rs:144-149`
@@ -46,12 +46,12 @@
 
 ### [P2] 验证新窗口独立加载自己的 iframe
 
-[Case ID] TC-DSK-L3-143
+[Case ID] TC-DSK-L3-19-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/builder.rs:617-626`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-142 通过；服务健康
+[前置条件] TC-DSK-L3-19-001 通过；服务健康
 [测试数据] 选择器 `dsh-shell-iframe`
 [测试步骤] 1. 在窗口 A 中读取 iframe 的 `src` 与实例标识。2. 切到窗口 B 并读取其 iframe 的 `src` 与实例标识。3. 比较两个 `src` 的协议、主机与端口。
 [预期结果] 1. 读取成功。2. 读取成功。3. 两者同源；两个 iframe 各自独立存在（窗口 B 的 iframe 不依赖窗口 A 的渲染，实例标识不同）。
@@ -59,12 +59,12 @@
 
 ### [P4] 验证新窗口继承同一服务地址
 
-[Case ID] TC-DSK-L3-144
+[Case ID] TC-DSK-L3-19-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/desktop/builder.rs:617`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-142 通过
+[前置条件] TC-DSK-L3-19-001 通过
 [测试数据] 观察点：各窗口内 `get_runtime_info().service_url`
 [测试步骤] 1. 在窗口 A 中读取 `service_url`。2. 在窗口 B 中读取 `service_url`。3. 比较两者。
 [预期结果] 1. 读取成功。2. 读取成功。3. 两者完全相等（共享同一 DSH 服务实例，不重复拉起服务）。
@@ -72,7 +72,7 @@
 
 ### [P3] 验证关闭其中一个窗口不影响另一个
 
-[Case ID] TC-DSK-L3-145
+[Case ID] TC-DSK-L3-19-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/lib.rs:51`（`RunEvent::ExitRequested` 语义）
@@ -89,7 +89,7 @@
 
 ### [P2] 验证缩放快捷键 Ctrl+0 重置为 100%
 
-[Case ID] TC-DSK-L3-146
+[Case ID] TC-DSK-L3-19-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:78`、`:122-128`；`src/utils/zoom.ts:16-27`
@@ -102,7 +102,7 @@
 
 ### [P2] 验证 iframe 内缩放桥消息被宿主处理
 
-[Case ID] TC-DSK-L3-147
+[Case ID] TC-DSK-L3-19-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:112-115`、`:171-175`；`src/utils/zoom.ts:29-41`
@@ -119,7 +119,7 @@
 
 ### [P4] 验证「新聊天」向 iframe 发送新建会话命令
 
-[Case ID] TC-DSK-L3-148
+[Case ID] TC-DSK-L3-19-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/components/webview.tsx:71`；`src/layout/components/navbar.tsx:222-225`
@@ -155,8 +155,8 @@
 
 ## 7. 缺口与假设
 
-- **G-D19-1**：TC-DSK-L3-145 关闭第二个窗口时，若实现把「最后一个窗口关闭」与「应用退出」绑定，则该用例会终止会话。需先确认 `RunEvent::ExitRequested` 的判定条件（`src-tauri/src/lib.rs:51` 附近），再决定清理顺序。
+- **G-D19-1**：TC-DSK-L3-19-004 关闭第二个窗口时，若实现把「最后一个窗口关闭」与「应用退出」绑定，则该用例会终止会话。需先确认 `RunEvent::ExitRequested` 的判定条件（`src-tauri/src/lib.rs:51` 附近），再决定清理顺序。
 - **G-D19-2**：多窗口共享同一 DSH 服务，因此两窗口并发写同一档案（如同时改设置）时的一致性**未覆盖**，属高价值补充项。
 - **G-D19-3**：缩放的实际视觉系数无回读接口（`use-zoom-factor.ts:20-26`），本文件以 `window.innerWidth` 作为代理指标。该代理在极端缩放（`0.5`/`2.0`）下仍应成立，但属近似断言（`00-overview.md` G10）。
-- **G-D19-4**：TC-DSK-L3-148 只断言宿主发出了桥消息；iframe 内是否真的新建会话取决于 `dsh-tauri` 的接收实现，归 [插件用例集](../plugins/00-overview.md)。
+- **G-D19-4**：TC-DSK-L3-19-007 只断言宿主发出了桥消息；iframe 内是否真的新建会话取决于 `dsh-tauri` 的接收实现，归 [插件用例集](../plugins/00-overview.md)。
 - **假设**：额外窗口与主窗口共享同一前端产物与同一 WebView 数据目录，因此缩放设置与语言设置在窗口间一致。

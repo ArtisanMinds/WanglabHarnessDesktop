@@ -78,7 +78,7 @@
 
 ### [P1] 验证升级成功落地后清除错误并重启服务
 
-[Case ID] TC-DSK-L3-234
+[Case ID] TC-DSK-L3-27-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/plugin.rs:148`；`src-tauri/src/service/plugin/install/single.rs:49`、`:353`
@@ -91,7 +91,7 @@
 
 ### [P3] [反向] 验证升级未落地时报 PLUGIN_UPDATE_NO_CHANGE
 
-[Case ID] TC-DSK-L3-235
+[Case ID] TC-DSK-L3-27-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/install/single.rs:365`、`:370`、`:376`、`:74`
@@ -104,7 +104,7 @@
 
 ### [P2] 验证卸载成功且级联删除该插件快照
 
-[Case ID] TC-DSK-L3-236
+[Case ID] TC-DSK-L3-27-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/plugin.rs:157`；`src-tauri/src/service/plugin/install/single.rs:116`、`:143`
@@ -117,7 +117,7 @@
 
 ### [P3] [反向] 验证卸载不存在的插件如实报错且不改动其它插件
 
-[Case ID] TC-DSK-L3-237
+[Case ID] TC-DSK-L3-27-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/plugin.rs:157`；`src-tauri/src/service/plugin/install/single.rs:116`
@@ -134,7 +134,7 @@
 
 ### [P2] 验证禁用只移出 bundles 且启用可原地恢复
 
-[Case ID] TC-DSK-L3-238
+[Case ID] TC-DSK-L3-27-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/disable.rs:274`、`:303`、`:299`、`:382`
@@ -147,7 +147,7 @@
 
 ### [P3] [反向] 验证配置覆盖禁用时未确认则拒绝启用且不改写配置
 
-[Case ID] TC-DSK-L3-239
+[Case ID] TC-DSK-L3-27-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/disable.rs:370`、`:368`、`:375`、`:376`、`:132`
@@ -162,7 +162,7 @@
 
 ### [P2] 验证快照创建、覆盖与删除幂等
 
-[Case ID] TC-DSK-L3-240
+[Case ID] TC-DSK-L3-27-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/snapshot.rs:358`、`:376`、`:440`、`:476`、`:481`
@@ -175,7 +175,7 @@
 
 ### [P2] 验证还原后版本回到快照态并写回清单引用
 
-[Case ID] TC-DSK-L3-241
+[Case ID] TC-DSK-L3-27-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/snapshot.rs:586`、`:650`、`:655`、`:665`、`:680`
@@ -188,7 +188,7 @@
 
 ### [P3] [反向] 验证无快照与核心包还原被拒绝
 
-[Case ID] TC-DSK-L3-242
+[Case ID] TC-DSK-L3-27-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/snapshot.rs:596`、`:588`、`:590`；`src-tauri/src/service/plugin/recovery/mod.rs:49`
@@ -205,7 +205,7 @@
 
 ### [P3] 验证运行期异常上报后持久化并推送修复界面
 
-[Case ID] TC-DSK-L3-243
+[Case ID] TC-DSK-L3-27-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/plugin.rs:166`、`:172`、`:178`、`:186`；`src-tauri/src/service/plugin/errors.rs:31`、`:53`
@@ -218,7 +218,7 @@
 
 ### [P2] 验证恢复定位的唯一归属与恢复卸载
 
-[Case ID] TC-DSK-L3-244
+[Case ID] TC-DSK-L3-27-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/plugin.rs:195`、`:207`；`src-tauri/src/service/plugin/recovery/mod.rs:118`、`:124`、`:161`、`:163`、`:176`、`:185`、`:186`；`src-tauri/src/service/plugin/recovery/ownership.rs:217`、`:244`
@@ -231,7 +231,7 @@
 
 ### [P2] 验证未安装或被卸载的内置插件在启动前被强制重装
 
-[Case ID] TC-DSK-L3-245
+[Case ID] TC-DSK-L3-27-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/internal/mod.rs:241`、`:628`、`:632`、`:633`、`:505`、`:491`；`src-tauri/src/service/workflow/launch.rs:474`
@@ -244,7 +244,7 @@
 
 ### [P4] 验证路径失效的内置插件按当前捆绑目录重建
 
-[Case ID] TC-DSK-L3-246
+[Case ID] TC-DSK-L3-27-013
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/internal/mod.rs:624`、`:630`、`:707`、`:709`；`src-tauri/src/service/plugin/preset.rs:315`、`:317`
@@ -261,7 +261,7 @@
 
 ### [P3] [反向] 验证插件文件变化经 2 秒防抖后推送列表
 
-[Case ID] TC-DSK-L3-247
+[Case ID] TC-DSK-L3-27-014
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/watch.rs:30`、`:320`、`:333`、`:338`、`:345`、`:26`、`:357`；`src-tauri/src/service/scheduler/mod.rs:16`、`:24`
@@ -298,10 +298,10 @@
 - **G-D27-1**：`PLUGIN_UPDATE_NO_CHANGE`（`single.rs:370`）的复现需要一个把依赖钉死的 profile（典型是 `pnpm-workspace.yaml` 的 `catalog:` 条目）。测试档案默认不写 catalog，接线时须先构造该前置，否则该用例不可执行。
 - **G-D27-2**：升级、卸载、还原与恢复卸载都会停掉服务（`single.rs:278`；`snapshot.rs:604`），彼此强耦合，必须一条用例一个批次推进，且每条自带「恢复插件状态 + 等待服务健康」的清理。
 - **G-D27-3**：`PNPM_NOT_FOUND` 在两个模块各有出处（`artifact.rs:246` 与 `verify.rs:135`），文案与触发条件不同，接线时不得互相替代。`PNPM_REPAIR_SPAWN` / `PNPM_REPAIR_WAIT`（`verify.rs:247`、`:265`、`:283`、`:294`）只在修复子进程无法启动或等待失败时出现，构造成本高，登记为盲区。
-- **G-D27-4**：内置插件的 `bundled_plugin_dir` 在 debug 构建下优先命中仓库根 `packages/*` 源码（`preset.rs:315`-`:317`），release 下用 `resources/node_modules/<name>`。TC-DSK-L3-246 的「旧路径失效」需按构建类型分别构造；debug 下改源码重启服务即热更新，与 release 行为不同。
+- **G-D27-4**：内置插件的 `bundled_plugin_dir` 在 debug 构建下优先命中仓库根 `packages/*` 源码（`preset.rs:315`-`:317`），release 下用 `resources/node_modules/<name>`。TC-DSK-L3-27-013 的「旧路径失效」需按构建类型分别构造；debug 下改源码重启服务即热更新，与 release 行为不同。
 - **G-D27-5**：`internal-plugins-phase` 的 heartbeat 周期为 5 秒、绝对上限 600 秒（`internal/mod.rs:459`、`:69`）。超时（`:469`）与清理超时（`:473`、`:484`）分支需真实超长安装才能触发；前端另有自己的 inactivity/absolute 双超时（`store.ts:544`、`:545`），两者不互推，不得据前端超时断言后端上限。
-- **G-D27-6**：`dsh-plugins-updated` 有两条推送路径——轮询走 2 秒防抖（`watch.rs:30`），写操作后走 `force_emit` 并同步指纹（`watch.rs:258`、`:271`、`:273`）。TC-DSK-L3-247 只覆盖防抖路径（外部改写文件）；`force_emit` 的「立即一次且后续不重复」**未覆盖**，需在写操作批次中补测。
+- **G-D27-6**：`dsh-plugins-updated` 有两条推送路径——轮询走 2 秒防抖（`watch.rs:30`），写操作后走 `force_emit` 并同步指纹（`watch.rs:258`、`:271`、`:273`）。TC-DSK-L3-27-014 只覆盖防抖路径（外部改写文件）；`force_emit` 的「立即一次且后续不重复」**未覆盖**，需在写操作批次中补测。
 - **G-D27-7**：内置自愈与预装完整性是两套机制——`verify::ensure_preset_plugins`（`verify.rs:71`）针对**预装清单**中「被引用但产物缺失」的插件，用 `pnpm install` 重建；`internal::ensure`（`internal/mod.rs:241`）只针对 `internal == true` 的内置插件。本文件只覆盖后者。
-- **假设**：`recover_plugin` 走离线路径（`recovery/mod.rs:160`），不依赖网络也不走 `dsh plugin remove`；因此 TC-DSK-L3-244 只断言清单、入口、patch 层与 lockfile 的终态，不断言 pnpm 行为。
+- **假设**：`recover_plugin` 走离线路径（`recovery/mod.rs:160`），不依赖网络也不走 `dsh plugin remove`；因此 TC-DSK-L3-27-011 只断言清单、入口、patch 层与 lockfile 的终态，不断言 pnpm 行为。
 - **假设**：快照的 `includeConfig` 在 v1 恒为 false（`snapshot.rs:11`、`:367`），故所有快照断言均不涉及配置段还原；「从快照还原」的 UI 入口按快照存在性过滤入参（`recovery.tsx:49`、`:59`）已在 `10-plugin-recovery.md` 覆盖。
-- **假设**：`cordis.patch.yml` 条目匹配同时接受依赖键与包内 `name` 别名（`disable.rs:117`、`:132`）；TC-DSK-L3-239 使用依赖键形态，别名形态未单独覆盖。
+- **假设**：`cordis.patch.yml` 条目匹配同时接受依赖键与包内 `name` 别名（`disable.rs:117`、`:132`）；TC-DSK-L3-27-006 使用依赖键形态，别名形态未单独覆盖。

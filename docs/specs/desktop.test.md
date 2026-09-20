@@ -91,6 +91,7 @@ tauri::Builder::default()
 ```
 
 * **规范约束**：
+* **编号**：`TC-DSK-L3-<文件序号>-<用例序号>`，如 `TC-DSK-L3-02-003`。文件序号取用例文档序号（`docs/testing/desktop/<序号>-*.md`），用例序号在文件内从 `001` 起连续，**不跨文件连续**——新增用例只影响本文件，不会波及后续文件。
 * **优先级**：`P1`（核心正向）、`P2`（基本正向）、`P3`（核心异常）、`P4`（边界）、`P5`（低频）。
 * **命名**：标题以「验证」开头，反向用例标注 `[反向]`。手工用例标记 `[自动化] 否（手工）`，严禁编写为 `it()`。
 * **断言**：步骤与预期结果须编号严格对应；单用例仅变更单一变量。
@@ -113,6 +114,8 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 | 维度 | 规范约定 |
 | --- | --- |
 | **端口策略** | Debug 构建默认使用 `3081`（Release 为 `3080`）。测试运行前断言默认端口空闲。 |
+| **WebDriver 端口** | 应用内嵌 WebDriver server 固定占 `4445`（`@wdio/tauri-service` embedded provider 默认值，应用侧由 `TAURI_WEBDRIVER_PORT` 门控）。它是**整机唯一**资源：被别的实例（另一个 worktree 的 E2E、或 `cargo build` 出来的 devUrl 实例）占住时，本次应用绑不上而 wdio 仍会连上对方的 driver，会话会**静默挂到别人的窗口**上。测试前必须一并断言空闲。 |
+| **窗口定位** | 应用会同时开主窗口（webview `main`）与桌宠窗口（`pet`），会话落在哪个取决于创建时机；编排必须在建会话后显式 `switchToWindow('main')`，不得依赖默认窗口。 |
 | **数据目录** | 重定向 home 根即可同时隔离 dsh 数据与应用数据；Store 另用 `.store.test.dat` 作第二道防线。**严禁读写用户真实的 `~/.dsh`、`~/.dsh.dev` 与 `.store.dev.dat` / `.store.dat`。** 详见 §6.1。 |
 | **前置校验** | 测试前检查端口与进程；存在残留直接 Fail，**不自动强杀用户进程**。 |
 | **测试收尾** | 单个 Spec 结束必须主动关闭应用并等待进程平滑退出；异常残留由测试脚本自行清理。 |
@@ -139,7 +142,7 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 | `~/.dsh` | `$E2E_HOME/home/.dsh` |
 | `AppData/` | `$E2E_HOME/home/AppData/Roaming/io.github.hairyf.deepseek-harness-desktop/`（Store 为 `.store.test.dat`） |
 
-**前置清空**：脚手架必须在启动前删除 `<app-data>/.store.test.dat`，保证几何、端口等状态从默认值起步；否则会读到上一次运行留下的窗口几何（`01` 批次 TC-004 因此失败过）。
+**前置清空**：脚手架必须在启动前删除 `<app-data>/.store.test.dat`，保证几何、端口等状态从默认值起步；否则会读到上一次运行留下的窗口几何（`01` 批次 `TC-DSK-L3-01-004` 因此失败过）。
 
 **依赖下载控制**：应用启动时会拉起 dsh 核心装配流程，三条口径分开，互不牵连：
 
@@ -150,7 +153,7 @@ E2E 测试**必须**使用 `data-testid` 进行元素定位，严禁依赖 CSS �
 | 可清空下载状态 | 脚手架提供 `resetDownloadCache()`，删除缓存目录后再启动 | 专门验证「首次启动的装配流程」本身 |
 
 * **仅壳层用例必须禁用下载**：只断言壳层（窗口、几何、导航）而不触达 dsh 的批次，一律以 `startDesktopApp({ disableDownload: true })` 启动，避免为无关断言付出下载代价。
-* **禁用下载不等于跳过装配**：禁用只截断网络下载，装配与装配失败路径仍在，断言按实际观测结果书写。
+* **禁用下载不等于跳过装配**：禁用只截断网络下载，装配与装配失败路径仍在；但壳层不把由此产生的「找不到 dsh CLI」呈现为故障，而是渲染「下载已被环境禁用」页（`dsh-setup-disabled`，布局与失败页同源），其余断言仍按实际观测结果书写。
 * 判定收敛在 `config::setting.rs` 的 `auto_download_disabled()`；常量在 `config/constants.rs`，由 Rust 单测守门「默认关闭禁用」与「环境变量可打开禁用」两种取值。
 
 **为什么不能只设 `DSH_HOME`**：`get_dsh_data_path` 在 debug 构建下恒返回 `<home>/.dsh.dev` 并**忽略** `DSH_HOME`（`src-tauri/src/config/runtime.rs:471`、`:472`）。

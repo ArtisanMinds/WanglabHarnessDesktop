@@ -35,7 +35,7 @@
 
 ### [P1] 验证全新档案下的内置插件自愈补齐依赖与 bundles
 
-[Case ID] TC-INT-L3-001
+[Case ID] TC-INT-L3-17-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/internal/materialize.rs:37`、`src-tauri/src/service/workflow/launch.rs:474`
@@ -48,7 +48,7 @@
 
 ### [P2] 验证内置插件产物缺失时给出可诊断的失败而非静默
 
-[Case ID] TC-INT-L3-002
+[Case ID] TC-INT-L3-17-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/internal/mod.rs:750`、`src-tauri/src/service/plugin/install/artifact.rs:78`
@@ -61,7 +61,7 @@
 
 ### [P3] 验证内置目录写回可离线完成（无网络）
 
-[Case ID] TC-INT-L3-003
+[Case ID] TC-INT-L3-17-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/internal/materialize.rs:107`
@@ -74,7 +74,7 @@
 
 ### [P2] 验证就绪判定能识别「已写好但包体不可解析」的坏状态
 
-[Case ID] TC-INT-L3-004
+[Case ID] TC-INT-L3-17-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/internal/mod.rs:624`、`src-tauri/src/service/plugin/internal/manifest.rs:263`
@@ -87,7 +87,7 @@
 
 ### [P3] 验证自愈有绝对超时与可取消
 
-[Case ID] TC-INT-L3-005
+[Case ID] TC-INT-L3-17-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/internal/mod.rs:69`、`src-tauri/src/bridge/plugin.rs:101`
@@ -100,7 +100,7 @@
 
 ### [P2] 验证弃用插件在启动时被自动卸载
 
-[Case ID] TC-INT-L3-006
+[Case ID] TC-INT-L3-17-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/launch.rs:467`、`src-tauri/resources/deprecated-plugins.json:1`
@@ -113,12 +113,12 @@
 
 ### [P4] 验证弃用卸载在无网络时仍能完成
 
-[Case ID] TC-INT-L3-007
+[Case ID] TC-INT-L3-17-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/launch.rs:467`
 [自动化] 待接线（同上；需断网）
-[前置条件] 同 TC-INT-L3-006，且断网
+[前置条件] 同 TC-INT-L3-17-006，且断网
 [测试数据] 弃用包名
 [测试步骤] 1. 断网后启动服务。2. 读三处文件。
 [预期结果] 1. 依赖与 bundles 仍被清理。2. 不因断网阻塞启动（服务仍进入 Running）。3. 无残留半成品依赖项。
@@ -126,7 +126,7 @@
 
 ### [P3] 验证旧资源目录在启动时被清理
 
-[Case ID] TC-INT-L3-008
+[Case ID] TC-INT-L3-17-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 回归
 [追踪] `src-tauri/src/service/plugin/preset.rs:338`
@@ -143,12 +143,12 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `src-tauri/resources/README.md:76`（内置插件随包分发 + 启动自愈） | TC-INT-L3-001、TC-INT-L3-002 | 正向 / 异常 | 归档套件未为该机制设用例 |
-| `internal/materialize.rs:107`（离线物化） | TC-INT-L3-003 | 正向 | 需断网构造 |
-| `internal/mod.rs:624`（就绪判定） | TC-INT-L3-004 | 异常 | — |
-| `internal/mod.rs:69`、`bridge/plugin.rs:101`（超时与取消） | TC-INT-L3-005 | 边界 | — |
-| `deprecated-plugins.json:1` + `launch.rs:467`（弃用自动卸载） | TC-INT-L3-006、TC-INT-L3-007 | 正向 / 边界 | 归档套件未覆盖 |
-| `preset.rs:338`（旧目录清理） | TC-INT-L3-008 | 回归 | — |
+| `src-tauri/resources/README.md:76`（内置插件随包分发 + 启动自愈） | TC-INT-L3-17-001、TC-INT-L3-17-002 | 正向 / 异常 | 归档套件未为该机制设用例 |
+| `internal/materialize.rs:107`（离线物化） | TC-INT-L3-17-003 | 正向 | 需断网构造 |
+| `internal/mod.rs:624`（就绪判定） | TC-INT-L3-17-004 | 异常 | — |
+| `internal/mod.rs:69`、`bridge/plugin.rs:101`（超时与取消） | TC-INT-L3-17-005 | 边界 | — |
+| `deprecated-plugins.json:1` + `launch.rs:467`（弃用自动卸载） | TC-INT-L3-17-006、TC-INT-L3-17-007 | 正向 / 边界 | 归档套件未覆盖 |
+| `preset.rs:338`（旧目录清理） | TC-INT-L3-17-008 | 回归 | — |
 | `06-plugin/04` 的预装安装链路（社区插件） | `14-preinstall-and-preset.md` | — | 与内置自愈是两条不同链路，勿混用 |
 
 ---
@@ -156,7 +156,7 @@
 ## 4. 缺口与假设
 
 - **G-INT-1**：内置插件自愈是**启动链的一部分**（`src-tauri/src/service/workflow/launch.rs:474`），因此这些用例的前置天然包含「可启动的服务」。若服务本身起不来，失败应归因到启动链，而不是本文件的插件断言。
-- **G-INT-2**：TC-INT-L3-002 与 TC-INT-L3-004 需要改动应用**资源目录**（安装目录），而非测试数据目录。这违反「不改写用户环境」的一般原则，执行时必须先备份并在用例结束恢复；无法恢复时应中止而不是继续。
+- **G-INT-2**：TC-INT-L3-17-002 与 TC-INT-L3-17-004 需要改动应用**资源目录**（安装目录），而非测试数据目录。这违反「不改写用户环境」的一般原则，执行时必须先备份并在用例结束恢复；无法恢复时应中止而不是继续。
 - **G-INT-3**：`internal-plugins.json` 现有 10 条，但其中部分插件的 `package` 字段与 `id` 不同（`src-tauri/resources/README.md:80`）。用例一律以运行时解析出的包名/目录名为准，不硬编码归档套件中的老包名。
 - **G-INT-4**：前端在 boot 阶段会再调一次 `ensure_internal_plugins`（`src/store/modules/harness/store.ts:533`），前端超时预算为 600s/30s（`src/store/modules/harness/constants.ts:20`）。UI 层的等待表现归 `../desktop/11-startup-error.md`，本文件只断言最终文件状态。
 - **假设**：`resources/node_modules/` 在 debug 构建下同样可用（`src-tauri/src/service/plugin/preset.rs:257` 含 CARGO_MANIFEST_DIR 兜底），因此这些用例不需要安装版即可执行。
