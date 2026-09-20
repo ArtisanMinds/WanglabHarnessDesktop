@@ -18,12 +18,16 @@ export const MENU_SELECT_STYLE_ID = 'dsh-tauri-ui-menu-select-styles'
 export const TURN_NAVIGATION_STYLE_ID = 'dsh-tauri-ui-turn-navigation-styles'
 export const GLOBAL_STYLE_ID = 'dsh-tauri-ui-global-styles'
 
+/** dsh-im 客户端插件经 `ctx.provide` 发布的反射服务名（4.22.0 起）。 */
+export const DSH_IM_CLIENT_SERVICE = 'dshImClient'
+
 export const STYLES_EFFECT = `${PLUGIN_ID}: styles`
 export const LOCALE_EFFECT = `${PLUGIN_ID}: locale`
 export const SEAT_EFFECT = `${PLUGIN_ID}: shell.overlay seat`
 export const SECTIONS_EFFECT = `${PLUGIN_ID}: settings sections projection`
 export const SETTINGS_EFFECT = `${PLUGIN_ID}: settings panel`
 export const OBSTRUCTIONS_EFFECT = `${PLUGIN_ID}: settings obstructions`
+export const IM_PANEL_EFFECT = `${PLUGIN_ID}: im panel`
 
 export const TURN_NAVIGATION_LABEL_ZH = '轮次导航'
 export const TURN_NAVIGATION_LABEL_EN = 'Turn navigation'

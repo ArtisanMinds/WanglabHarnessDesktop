@@ -8,6 +8,7 @@ export const locale = defineLocale(PLUGIN_ID, {
     settings: '设置',
     noResults: '没有匹配的设置项',
     resumeTask: '继续任务',
+    im: 'IM',
   },
   en: {
     back: 'Back to app',
@@ -15,5 +16,6 @@ export const locale = defineLocale(PLUGIN_ID, {
     settings: 'Settings',
     noResults: 'No matching settings',
     resumeTask: 'Resume task',
+    im: 'IM',
   },
 })

@@ -52,6 +52,7 @@
 - [DSH Market](https://github.com/dsh-market/dsh-market) — 浏览、搜索并一键安装社区插件（推荐）
 - [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar) — 类 VSCode 右侧栏，按会话隔离（推荐）
 - [DSH Rewind](https://github.com/SiriLee/dsh-rewind) — 同窗口内对话回退，从不新建会话分支；自带轻量工作区备份，回退时可一并还原文件（推荐）
+- [DSH-IM](https://github.com/xmanrui/dsh-im) — 让微信、飞书、钉钉、企业微信、QQ、Slack、Telegram、Discord、WhatsApp、iMessage 等渠道接入本机 Harness，并在左侧栏「IM」面板中统一管理（推荐）
 
 > 预设插件清单由桌面端维护。为避免不稳定的预设插件导致软件异常，如需新增或更新预设，请在 [deepseek-harness-desktop/issues](https://github.com/dsh-tauri/deepseek-harness-desktop/issues) 提起请求。
 
