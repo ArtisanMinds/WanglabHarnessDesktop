@@ -32,7 +32,7 @@
 
 ### [P1] 验证全部内置插件挂载后 dsh 界面仍能进入应用壳
 
-[Case ID] TC-XP-L3-001
+[Case ID] TC-XP-L3-18-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/resources/internal-plugins.json:3`、`src-tauri/src/desktop/plugin_boot.js.inc:112`
@@ -45,7 +45,7 @@
 
 ### [P2] 验证禁用插件后不再被加载
 
-[Case ID] TC-XP-L3-002
+[Case ID] TC-XP-L3-18-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/disable.rs:194`
@@ -53,12 +53,12 @@
 [前置条件] 选择 `dsh-tauri-session`（不承载壳层必需能力）
 [测试数据] 插件 id `dsh-tauri-session`
 [测试步骤] 1. 记录禁用前 `get_dsh_plugins` 中该插件的启用状态。2. 调用 `disable_dsh_plugin`。3. 读 profile 的 `dsh.profile.bundles`。4. 重启应用并再次读 `get_dsh_plugins`。
-[预期结果] 1. 禁用后 bundles 中不再包含该插件名。2. 重启后该插件仍为禁用态。3. 其宿主路由返回 404（与 `02-dsh-tauri-core.md` TC-CORE-L2-006 的判定一致）。
+[预期结果] 1. 禁用后 bundles 中不再包含该插件名。2. 重启后该插件仍为禁用态。3. 其宿主路由返回 404（与 `02-dsh-tauri-core.md` TC-CORE-L2-02-006 的判定一致）。
 [清理] `enable_dsh_plugin` 恢复启用；`DELETE /session/<id>`
 
 ### [P3] [反向] 验证插件运行期报错被上报且壳层给出恢复入口
 
-[Case ID] TC-XP-L3-003
+[Case ID] TC-XP-L3-18-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/components/iframe.tsx:103`
@@ -71,7 +71,7 @@
 
 ### [P4] [反向] 验证白名单外的 iframe 调用被静默忽略
 
-[Case ID] TC-XP-L3-004
+[Case ID] TC-XP-L3-18-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/hooks/use-invoke-iframe.ts:52`
@@ -84,7 +84,7 @@
 
 ### [P3] [反向] 验证安全模式下用户插件不加载
 
-[Case ID] TC-XP-L3-005
+[Case ID] TC-XP-L3-18-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/desktop/builder.rs:872`
@@ -97,7 +97,7 @@
 
 ### [P4] 验证 boot 卡死会被探测并触发有限次重载
 
-[Case ID] TC-XP-L3-006
+[Case ID] TC-XP-L3-18-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/desktop/plugin_boot.js.inc:123`、`src/store/modules/harness/constants.ts:31`
@@ -110,7 +110,7 @@
 
 ### [P3] 验证内嵌界面地址不携带启动 token
 
-[Case ID] TC-XP-L3-007
+[Case ID] TC-XP-L3-18-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 回归
 [追踪] `src/store/modules/harness/utils.ts:32`
@@ -123,7 +123,7 @@
 
 ### [P4] 验证多插件同时挂载时路由互不遮蔽
 
-[Case ID] TC-XP-L2-001
+[Case ID] TC-XP-L2-18-001
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:135`
@@ -140,20 +140,20 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| 内置插件清单与自愈 | TC-XP-L3-001 | 正向 | 依赖 10 个插件全部构建 |
-| 禁用/启用链路 | TC-XP-L3-002 | 正向 | 会改用户 profile，需在隔离数据目录执行 |
-| `dsh://plugin-error` 上报 | TC-XP-L3-003 | 异常 | 需要测试替身插件 |
-| invoke 白名单 | TC-XP-L3-004 | 边界 | 需要驱动注入脚本 |
-| 安全模式 | TC-XP-L3-005 | 异常 | 会改用户状态，需隔离数据目录 |
-| boot 卡死探测 | TC-XP-L3-006 | 边界 | 需要网络阻断能力 |
-| iframe 地址不含 token | TC-XP-L3-007 | 回归 | — |
-| 路由互不遮蔽 | TC-XP-L2-001 | 边界 | 可并入 `02` 的文件执行 |
+| 内置插件清单与自愈 | TC-XP-L3-18-001 | 正向 | 依赖 10 个插件全部构建 |
+| 禁用/启用链路 | TC-XP-L3-18-002 | 正向 | 会改用户 profile，需在隔离数据目录执行 |
+| `dsh://plugin-error` 上报 | TC-XP-L3-18-003 | 异常 | 需要测试替身插件 |
+| invoke 白名单 | TC-XP-L3-18-004 | 边界 | 需要驱动注入脚本 |
+| 安全模式 | TC-XP-L3-18-005 | 异常 | 会改用户状态，需隔离数据目录 |
+| boot 卡死探测 | TC-XP-L3-18-006 | 边界 | 需要网络阻断能力 |
+| iframe 地址不含 token | TC-XP-L3-18-007 | 回归 | — |
+| 路由互不遮蔽 | TC-XP-L2-18-001 | 边界 | 可并入 `02` 的文件执行 |
 
 ---
 
 ## 4. 缺口与假设
 
 - **G-XP-1**：本文件多数用例会**改写 `<DSH_E2E_HOME>/home/.dsh.dev` 下的 profile**（禁用/安全模式）。执行前必须确认无 dev 实例运行，并在用例收尾恢复原状；未恢复即视为用例失败。
-- **G-XP-2**：TC-XP-L3-003 与 TC-XP-L3-006 需要**测试替身插件**（必然抛错 / 让 bundle 挂起）。仓库当前无此类 fixture，属新增基础设施，需单独批次授权。
+- **G-XP-2**：TC-XP-L3-18-003 与 TC-XP-L3-18-006 需要**测试替身插件**（必然抛错 / 让 bundle 挂起）。仓库当前无此类 fixture，属新增基础设施，需单独批次授权。
 - **G-XP-3**：Windows 只注入 3 个垫片、非 Windows 注入 5 个（`src-tauri/src/desktop/notification.rs:324`）。跨平台差异会对 `iterator helpers` / `AbortSignal.any` 相关行为有影响，本文件不覆盖该差异，登记为已知盲区。
 - **假设**：iframe 与宿主同源（`http://127.0.0.1:<port>`），因此 WebDriver 可直接切 frame 并派发事件；若 CSP 收紧，`use-iframe-message.ts:25` 的 origin 校验会成为断言前置。

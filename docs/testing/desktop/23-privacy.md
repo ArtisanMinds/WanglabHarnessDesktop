@@ -41,7 +41,7 @@
 
 ### [P1] 验证服务只监听回环地址
 
-[Case ID] TC-DSK-L3-187
+[Case ID] TC-DSK-L3-23-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/config/constants.rs:48`；`src-tauri/src/config/format.rs:4`；`src-tauri/src/service/workflow/launch.rs:640`、`:753`
@@ -54,7 +54,7 @@
 
 ### [P2] 验证回环健康探测不受代理环境变量影响
 
-[Case ID] TC-DSK-L3-188
+[Case ID] TC-DSK-L3-23-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/utils.rs:15`、`:32`
@@ -67,7 +67,7 @@
 
 ### [P4] 验证目标端口被他人占用时不误判为就绪
 
-[Case ID] TC-DSK-L3-189
+[Case ID] TC-DSK-L3-23-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/task/tick_check_dsh_process/mod.rs:16`；`src-tauri/src/service/workflow/utils.rs:130`
@@ -84,7 +84,7 @@
 
 ### [P1] 验证服务子进程环境关闭遥测
 
-[Case ID] TC-DSK-L3-190
+[Case ID] TC-DSK-L3-23-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/launch.rs:510`；`src-tauri/src/service/plugin/install/env.rs:39`
@@ -97,7 +97,7 @@
 
 ### [P2] 验证运行期信息只含本机环境字段
 
-[Case ID] TC-DSK-L3-191
+[Case ID] TC-DSK-L3-23-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/config/runtime.rs:587`；`src-tauri/src/bridge/system_os.rs:21`；`src/ui/config/debug.tsx:21`
@@ -110,7 +110,7 @@
 
 ### [P3] [反向] 验证非 http 协议的外部链接被拒绝
 
-[Case ID] TC-DSK-L3-192
+[Case ID] TC-DSK-L3-23-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/system_os.rs:239`
@@ -123,7 +123,7 @@
 
 ### [P4] 验证文件系统命令拒绝允许根之外的路径
 
-[Case ID] TC-DSK-L3-193
+[Case ID] TC-DSK-L3-23-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/bridge/system_os.rs:55`、`:66`；`src-tauri/src/bridge/guard.rs:18`、`:50`
@@ -140,7 +140,7 @@
 
 ### [P2] 验证运行日志四段结构与本机落盘
 
-[Case ID] TC-DSK-L3-194
+[Case ID] TC-DSK-L3-23-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/system_os.rs:164`、`:165`、`:167`、`:198`
@@ -153,7 +153,7 @@
 
 ### [P4] 验证前台日志段行数上限为服务段的一半
 
-[Case ID] TC-DSK-L3-195
+[Case ID] TC-DSK-L3-23-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/bridge/system_os.rs:164`、`:165`、`:167`
@@ -182,10 +182,10 @@
 
 ## 6. 缺口与假设
 
-- **G-D23-1**：TC-DSK-L3-190 需要读取服务子进程的环境块。当前无该能力的现成出口，接线时需在测试编排层读取（例如启动子进程快照）或增加只读诊断命令。在具备该能力前，闭环证据只能覆盖 shim 文本一侧。
+- **G-D23-1**：TC-DSK-L3-23-004 需要读取服务子进程的环境块。当前无该能力的现成出口，接线时需在测试编排层读取（例如启动子进程快照）或增加只读诊断命令。在具备该能力前，闭环证据只能覆盖 shim 文本一侧。
 - **G-D23-2**：「无任何遥测/分析上传代码」这一事实来源于对 `src`、`src-tauri/src`、`package.json`、`Cargo.toml` 的关键字检索（`sentry`/`posthog`/`analytics`/`gtag`/崩溃上报均无命中），属**静态证据**而非运行时证据。本文件只能断言「宿主显式注入关闭标志」与「不存在凭据类字段」；「运行期确实没有出站连接」需要网络层捕获，**未覆盖**（见 G-D23-3）。
-- **G-D23-3**：TC-DSK-L3-187 断言监听地址与外部网卡不可达，覆盖的是**入站**面。**出站**面（应用进程是否向远端建立连接）需要防火墙或抓包手段，属环境依赖项，当前无该编排。
-- **G-D23-4**：TC-DSK-L3-189 构造的是「同端口上存在他人 HTTP 200 服务」的场景。归属门为 `has_owned_process() && is_dsh_running(port)`，本用例覆盖「非本应用进程时结果不健康」；反向的「本应用持有进程但端口上是他人服务」需要杀掉 dsh 后用同 PID 占位，**未覆盖**（不可构造）。
-- **G-D23-5**：`--host` 未被传递（Windows 与 Unix 分支均只见 `--profile`/`--port`/可选 `--no-open`/`--skip-auth`），因此绑定地址取决于 dsh 自身默认值。TC-DSK-L3-187 以**实际监听地址**为准，不假设也不断言该默认值的具体实现；若上游默认值变更，本用例会以真实观测结果失败，属预期行为。
-- **G-D23-6**：TC-DSK-L3-195 的前端段行数上限来自 `FRONTEND_MAX_LINES = MAX_LINES / 2`。断言「不超过 50」在日志不足 50 行时恒真，接线时必须先确保前端日志已超过 100 行，否则该用例退化为无效断言。
+- **G-D23-3**：TC-DSK-L3-23-001 断言监听地址与外部网卡不可达，覆盖的是**入站**面。**出站**面（应用进程是否向远端建立连接）需要防火墙或抓包手段，属环境依赖项，当前无该编排。
+- **G-D23-4**：TC-DSK-L3-23-003 构造的是「同端口上存在他人 HTTP 200 服务」的场景。归属门为 `has_owned_process() && is_dsh_running(port)`，本用例覆盖「非本应用进程时结果不健康」；反向的「本应用持有进程但端口上是他人服务」需要杀掉 dsh 后用同 PID 占位，**未覆盖**（不可构造）。
+- **G-D23-5**：`--host` 未被传递（Windows 与 Unix 分支均只见 `--profile`/`--port`/可选 `--no-open`/`--skip-auth`），因此绑定地址取决于 dsh 自身默认值。TC-DSK-L3-23-001 以**实际监听地址**为准，不假设也不断言该默认值的具体实现；若上游默认值变更，本用例会以真实观测结果失败，属预期行为。
+- **G-D23-6**：TC-DSK-L3-23-009 的前端段行数上限来自 `FRONTEND_MAX_LINES = MAX_LINES / 2`。断言「不超过 50」在日志不足 50 行时恒真，接线时必须先确保前端日志已超过 100 行，否则该用例退化为无效断言。
 - **假设**：所有探测命令（`get_runtime_info`、`proxy_health_check`、`read_run_logs`、`open_external_url`、`reveal_in_folder`、`open_dir`）均可由测试编排直接调用；这些命令当前无 `data-testid` 前置，属 G3 范畴。

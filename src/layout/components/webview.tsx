@@ -34,7 +34,7 @@ export function Webview() {
 
   const [dshStyle] = useDshStyle()
 
-  const { status } = useStore(store.harness)
+  const { status, serviceHealthy } = useStore(store.harness)
   const { recovery } = useStore(store.recovery)
 
   // 2. Iframe 消息通信监听
@@ -62,15 +62,23 @@ export function Webview() {
     }
   }
 
+  // iframe 缺席时没有协议接收方，不下发依赖它的回调：导航栏据此隐藏侧边栏开关、
+  // 禁用「新聊天」「打开文件夹」，而不是留死按钮。
+  // 判定必须与 `renderContent()` 的 iframe 条件完全一致：`status` 回到 `error`
+  // （shutdown / 客户端 boot 失败）时 iframe 已卸载，但 `serviceHealthy` 可能仍为
+  // true——只看后者会把回调发给已摘除的接收方，按钮点了没反应。
+  const bridge = status === 'ready' && serviceHealthy
+    ? {
+        onToggleSidebar: () => post({ type: 'dsh://sidebar:toggle' }),
+        onNewChat: () => post({ type: 'dsh://session:new' }),
+        onOpenFolder: () => post({ type: 'dsh://workspace:add' }),
+      }
+    : {}
+
   // 5. 统一布局输出
   return (
     <main className="relative flex flex-col min-h-0 flex-1" style={dshStyle.frame || {}}>
-      <Navbar
-        sidebarCollapsed={sidebarCollapsed}
-        onToggleSidebar={() => post({ type: 'dsh://sidebar:toggle' })}
-        onNewChat={() => post({ type: 'dsh://session:new' })}
-        onOpenFolder={() => post({ type: 'dsh://workspace:add' })}
-      />
+      <Navbar sidebarCollapsed={sidebarCollapsed} {...bridge} />
       <div className="flex min-h-0 flex-1">
         {renderContent()}
       </div>

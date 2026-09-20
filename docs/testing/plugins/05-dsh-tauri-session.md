@@ -32,7 +32,7 @@
 
 ### [P1] 验证归档清单在干净环境返回空集合与固定形状
 
-[Case ID] TC-SESS-L2-001
+[Case ID] TC-SESS-L2-05-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/archive/get.ts:5`
@@ -45,12 +45,12 @@
 
 ### [P3] [反向] 验证归档写入缺 sessionId 返回 400
 
-[Case ID] TC-SESS-L2-002
+[Case ID] TC-SESS-L2-05-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/archive/post.ts:8`
 [自动化] 是
-[前置条件] 同 TC-SESS-L2-001
+[前置条件] 同 TC-SESS-L2-05-001
 [测试数据] `POST` 同路径，body `{}`；再以 `{ "sessionId": 123 }` 重复一次
 [测试步骤] 1. 两次发起请求。2. 读状态码与响应体。
 [预期结果] 1. 两次均 400。2. 响应体均为 `{ ok: false, error: 'invalid-session-id' }`（非字符串同样被拒）。3. `GET` 清单仍为空（未产生副作用）。
@@ -58,12 +58,12 @@
 
 ### [P3] [反向] 验证 DELETE 也按 JSON 读体，缺参同样 400
 
-[Case ID] TC-SESS-L2-003
+[Case ID] TC-SESS-L2-05-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/archive/delete.ts:6`
 [自动化] 是
-[前置条件] 同 TC-SESS-L2-001
+[前置条件] 同 TC-SESS-L2-05-001
 [测试数据] `DELETE` 同路径，无 body
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400（不是 204 也不是 405）。2. 响应体 `{ ok: false, error: 'invalid-session-id' }`。
@@ -71,7 +71,7 @@
 
 ### [P4] 验证空归档集合下执行「清空」的当前行为
 
-[Case ID] TC-SESS-L2-004
+[Case ID] TC-SESS-L2-05-004
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/host/service/archive.ts:62`
@@ -84,12 +84,12 @@
 
 ### [P3] [反向] 验证工作区批量归档缺 ids 返回 400
 
-[Case ID] TC-SESS-L2-005
+[Case ID] TC-SESS-L2-05-005
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/workspace/archive/post.ts:10`
 [自动化] 是
-[前置条件] 同 TC-SESS-L2-001
+[前置条件] 同 TC-SESS-L2-05-001
 [测试数据] `POST /session/workspace/archive`，body `{}` 与 `{ "sessionIds": [] }`
 [测试步骤] 1. 两次发起请求。2. 读状态码与响应体。
 [预期结果] 1. 两次均 400。2. 响应体 `{ ok: false, error: 'invalid-session-ids' }`。
@@ -97,12 +97,12 @@
 
 ### [P3] [反向] 验证打开不存在会话的目录返回领域错误
 
-[Case ID] TC-SESS-L2-006
+[Case ID] TC-SESS-L2-05-006
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/open/path/post.ts:14`
 [自动化] 是
-[前置条件] 同 TC-SESS-L2-001；系统文件管理器动作不会真正执行（目录不存在）
+[前置条件] 同 TC-SESS-L2-05-001；系统文件管理器动作不会真正执行（目录不存在）
 [测试数据] `POST /session/open/path`，body `{ "sessionId": "does-not-exist" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `{ ok: false, error: 'session-directory-not-found' }`。3. 不产生系统打开动作。
@@ -110,12 +110,12 @@
 
 ### [P4] 验证五条注册行的方法矩阵互不相同
 
-[Case ID] TC-SESS-L2-007
+[Case ID] TC-SESS-L2-05-007
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/host/routes/index.ts:19`
 [自动化] 是
-[前置条件] 同 TC-SESS-L2-001
+[前置条件] 同 TC-SESS-L2-05-001
 [测试数据] 对 `/session/archive`、`/session/archive/clear`、`/session/workspace/archive`、`/session/archive/restore`、`/session/open/path` 各发一次 `OPTIONS`
 [测试步骤] 1. 逐一 `OPTIONS`。2. 读每条响应的 `allow` 头。
 [预期结果] 1. `/session/archive` 的 `allow` 含 `GET`、`HEAD`、`POST`、`DELETE`。2. `/session/archive/clear` 与 `/session/workspace/archive` 含 `POST`、`DELETE` 而不含 `GET`。3. `/session/archive/restore` 与 `/session/open/path` 只含 `POST`（HEAD 不适用）。4. 每条都含 `OPTIONS` 且状态码 204。
@@ -127,7 +127,7 @@
 
 ### [P1] 验证设置分区出现「已归档会话」页面
 
-[Case ID] TC-SESS-C-001
+[Case ID] TC-SESS-C-05-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/archive-section.ts:18`
@@ -140,7 +140,7 @@
 
 ### [P2] 验证工作区菜单被插入归档入口
 
-[Case ID] TC-SESS-C-002
+[Case ID] TC-SESS-C-05-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/workspace-patch.tsx:87`
@@ -157,7 +157,7 @@
 
 ### [P2] 验证桌面端设置对话框内可打开归档面板
 
-[Case ID] TC-SESS-L3-001
+[Case ID] TC-SESS-L3-05-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/archive-section.ts:18`
@@ -170,7 +170,7 @@
 
 ### [P4] [反向] 验证点击克隆出的归档项不会触发官方删除动作
 
-[Case ID] TC-SESS-L3-002
+[Case ID] TC-SESS-L3-05-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/client/register/workspace-patch.tsx:125`
@@ -187,14 +187,14 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `get.ts:5` 清单形状 | TC-SESS-L2-001 | 正向 | — |
-| `post.ts:8` / `delete.ts:8` 入参校验 | TC-SESS-L2-002、TC-SESS-L2-003 | 异常 | — |
-| `archive.ts:62` 空集合清理 | TC-SESS-L2-004 | 边界 | 当前行为与「幂等」直觉冲突，待产品确认 |
-| `workspace/archive/post.ts:10` | TC-SESS-L2-005 | 异常 | — |
-| `open/path/post.ts:14` | TC-SESS-L2-006 | 异常 | `not-a-directory` 分支需要真实存在但非目录的路径，**未覆盖** |
-| `routes/index.ts:19` 方法矩阵 | TC-SESS-L2-007 | 边界 | 与 `02-dsh-tauri-core.md` 的 405 用例不重复（此处只验 `allow` 集合） |
-| 分区注册 | TC-SESS-C-001、TC-SESS-L3-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
-| 工作区菜单补丁 | TC-SESS-C-002、TC-SESS-L3-002 | 正向 / 边界 | 依赖真实工作区数据 |
+| `get.ts:5` 清单形状 | TC-SESS-L2-05-001 | 正向 | — |
+| `post.ts:8` / `delete.ts:8` 入参校验 | TC-SESS-L2-05-002、TC-SESS-L2-05-003 | 异常 | — |
+| `archive.ts:62` 空集合清理 | TC-SESS-L2-05-004 | 边界 | 当前行为与「幂等」直觉冲突，待产品确认 |
+| `workspace/archive/post.ts:10` | TC-SESS-L2-05-005 | 异常 | — |
+| `open/path/post.ts:14` | TC-SESS-L2-05-006 | 异常 | `not-a-directory` 分支需要真实存在但非目录的路径，**未覆盖** |
+| `routes/index.ts:19` 方法矩阵 | TC-SESS-L2-05-007 | 边界 | 与 `02-dsh-tauri-core.md` 的 405 用例不重复（此处只验 `allow` 集合） |
+| 分区注册 | TC-SESS-C-05-001、TC-SESS-L3-05-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
+| 工作区菜单补丁 | TC-SESS-C-05-002、TC-SESS-L3-05-002 | 正向 / 边界 | 依赖真实工作区数据 |
 | `restore` 与 `clear` 的历史态流转 | — | — | **未覆盖**：需要宿主会话生命周期配合，见 G-SESS-2 |
 
 ---
@@ -203,6 +203,6 @@
 
 - **G-SESS-1**：`client/constants/index.ts:18` 与 `:19` 的 `SIDEBAR_ATTACH_POLL_MS` / `SIDEBAR_ATTACH_MAX_TRIES` 在 `src` 内零引用，疑为死常量。**不影响用例**，但清理后需复核本文件是否引用。
 - **G-SESS-2**：归档→恢复→删除的完整历史态流转需要宿主真实会话配合（`archive.restore` 依赖 `workspaceRegistry`）。当前 scratch 宿主无会话数据，**未覆盖**；建议后续以「宿主 API 造一条会话」的方式补齐。
-- **G-SESS-3**：工作区菜单补丁依赖官方中文/英文文案与 `[class*="itemWrap"]` 结构（`workspace-patch.utils.ts:57`）。宿主 UI 改版时补丁会静默不插入，因此 TC-SESS-C-002 的失败信息必须包含「菜单容器未带补丁标记」而非笼统超时。
-- **G-SESS-4**：**待确认期望**——在空归档集合上执行 `/session/archive/clear` 当前返回 500（`packages/dsh-tauri-session/src/host/service/archive.ts:62`）。是否应改为幂等返回 `{ ok: true }` 需产品确认；确认后 TC-SESS-L2-004 的期望同步更新，若判定为缺陷则同时补缺陷单。
+- **G-SESS-3**：工作区菜单补丁依赖官方中文/英文文案与 `[class*="itemWrap"]` 结构（`workspace-patch.utils.ts:57`）。宿主 UI 改版时补丁会静默不插入，因此 TC-SESS-C-05-002 的失败信息必须包含「菜单容器未带补丁标记」而非笼统超时。
+- **G-SESS-4**：**待确认期望**——在空归档集合上执行 `/session/archive/clear` 当前返回 500（`packages/dsh-tauri-session/src/host/service/archive.ts:62`）。是否应改为幂等返回 `{ ok: true }` 需产品确认；确认后 TC-SESS-L2-05-004 的期望同步更新，若判定为缺陷则同时补缺陷单。
 - **假设**：`POST /session/archive` 对**不存在的** sessionId 的行为由宿主 `archiveSession` 决定（`archive.ts:13`），本套用例不断言该分支。

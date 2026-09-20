@@ -38,7 +38,7 @@
 
 ### [P1] 验证 debug 默认端口为 3081 且可读回配置
 
-[Case ID] TC-DSK-L3-175
+[Case ID] TC-DSK-L3-22-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/config/setting.rs:149`；`src-tauri/src/config/constants.rs:53`
@@ -51,7 +51,7 @@
 
 ### [P1] 验证默认端口被占用时自动递增避让
 
-[Case ID] TC-DSK-L3-176
+[Case ID] TC-DSK-L3-22-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/launch.rs:66`、`:85`
@@ -64,7 +64,7 @@
 
 ### [P4] 验证端口段耗尽时报可判定错误
 
-[Case ID] TC-DSK-L3-177
+[Case ID] TC-DSK-L3-22-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/launch.rs:85`
@@ -77,7 +77,7 @@
 
 ### [P4] 验证重启前等待旧端口释放
 
-[Case ID] TC-DSK-L3-178
+[Case ID] TC-DSK-L3-22-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/launch.rs:48`、`:55`
@@ -90,7 +90,7 @@
 
 ### [P2] 验证端口避让后回落到设置端口
 
-[Case ID] TC-DSK-L3-179
+[Case ID] TC-DSK-L3-22-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/launch.rs:98`、`:319`、`:337`
@@ -107,7 +107,7 @@
 
 ### [P1] 验证服务使用当前档案与配置端口启动
 
-[Case ID] TC-DSK-L3-180
+[Case ID] TC-DSK-L3-22-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/launch.rs:638`、`:640`、`:642`
@@ -120,7 +120,7 @@
 
 ### [P3] 验证 dsh 版本低于 rc.8 时不传 --no-open
 
-[Case ID] TC-DSK-L3-181
+[Case ID] TC-DSK-L3-22-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/launch.rs:119`、`:144`、`:592`
@@ -133,7 +133,7 @@
 
 ### [P3] [反向] 验证 Windows 早退命中重复装载签名后重试
 
-[Case ID] TC-DSK-L3-182
+[Case ID] TC-DSK-L3-22-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/launch.rs:665`、`:684`、`:256`
@@ -150,7 +150,7 @@
 
 ### [P1] 验证 debug 数据目录恒为 $E2E_HOME/home/.dsh.dev 且忽略 DSH_HOME
 
-[Case ID] TC-DSK-L3-183
+[Case ID] TC-DSK-L3-22-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/config/runtime.rs:471`、`:455`、`:482`；`src-tauri/src/config/constants.rs:61`
@@ -163,7 +163,7 @@
 
 ### [P2] 验证 debug 的 store 与可执行核心落在独立位置
 
-[Case ID] TC-DSK-L3-184
+[Case ID] TC-DSK-L3-22-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/config/setting.rs:191`、`:214`；`src-tauri/src/config/runtime.rs:17`、`:273`
@@ -176,7 +176,7 @@
 
 ### [P2] 验证残留标记落盘并按 PID 与端口双确认清扫
 
-[Case ID] TC-DSK-L3-185
+[Case ID] TC-DSK-L3-22-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/sweep.rs:16`、`:34`、`:76`；`src-tauri/src/service/workflow/launch.rs:854`
@@ -189,7 +189,7 @@
 
 ### [P4] 验证 debug 构建不执行旧数据迁移
 
-[Case ID] TC-DSK-L3-186
+[Case ID] TC-DSK-L3-22-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/migrate.rs:38`；`src-tauri/src/desktop/builder.rs:108`
@@ -221,10 +221,10 @@
 
 ## 6. 缺口与假设
 
-- **G-D22-1**：TC-DSK-L3-179 需要先构造「已自动避让递增」的中间态（占用 `manual_port` → 启动 → 释放），再断言回落。构造步骤本身会拉起额外实例，接线时必须保证清扫与端口释放先完成，否则用例会观测到递增中间态而非回落结果。
-- **G-D22-2**：TC-DSK-L3-182 需要把当前档案根构造成 `duplicate loader entry` 早退状态，且「重试次数不超过 3」只能从日志行断言。当前无结构化日志采集出口，接线时需在编排层解析服务日志，或在具备只读诊断出口前降级为「最终状态健康」。
-- **G-D22-3**：TC-DSK-L3-185 只覆盖「标记 PID == 端口占用者」的正向分支。「标记不可解析 → 仅清标记」「端口占用者非标记 PID → 不动」「探测不到占用者 → 不动」三条负向分支（`sweep.rs:46-66`）**未覆盖**，需要构造一个非本应用占用同端口的场景。
+- **G-D22-1**：TC-DSK-L3-22-005 需要先构造「已自动避让递增」的中间态（占用 `manual_port` → 启动 → 释放），再断言回落。构造步骤本身会拉起额外实例，接线时必须保证清扫与端口释放先完成，否则用例会观测到递增中间态而非回落结果。
+- **G-D22-2**：TC-DSK-L3-22-008 需要把当前档案根构造成 `duplicate loader entry` 早退状态，且「重试次数不超过 3」只能从日志行断言。当前无结构化日志采集出口，接线时需在编排层解析服务日志，或在具备只读诊断出口前降级为「最终状态健康」。
+- **G-D22-3**：TC-DSK-L3-22-011 只覆盖「标记 PID == 端口占用者」的正向分支。「标记不可解析 → 仅清标记」「端口占用者非标记 PID → 不动」「探测不到占用者 → 不动」三条负向分支（`sweep.rs:46-66`）**未覆盖**，需要构造一个非本应用占用同端口的场景。
 - **G-D22-4**：debug 与 release 的并存隔离（3081/3080、`.dsh.dev`/`.dsh`、`.store.dev.dat`/`.store.dat`、app-data 根与 `dev` 子目录）是本文件的核心主张，但单次 L3 运行只能拉起一个构建。需两条流水线并发执行，或分两次运行后比对路径集合；当前无该编排。
-- **G-D22-5**：store 键 `window_state`、`pet_window_state`、`desktop_pending_installer` 与 `setting` 的隔离只做了基线登记。本文件断言到 store 文件名与位置（TC-DSK-L3-184），**未逐键断言**；键级归属归 `12`、`16`、`17`。
-- **G-D22-6**：TC-DSK-L3-177 需要把 store 端口写成 `65535`。壳层端口输入域的合法上限正是 `65535`（`src/ui/config/debug.tsx:143-146`），可经 UI 构造，但该用例会短暂占用最后一档端口，接线时须与其它用例串行。
-- **假设**：store 真值一律以运行期回读为准（同 `13-application-settings.md`），TC-DSK-L3-184 是唯一按落盘路径断言的用例；前置构造的目录与占用进程一律由测试侧自行清理。
+- **G-D22-5**：store 键 `window_state`、`pet_window_state`、`desktop_pending_installer` 与 `setting` 的隔离只做了基线登记。本文件断言到 store 文件名与位置（TC-DSK-L3-22-010），**未逐键断言**；键级归属归 `12`、`16`、`17`。
+- **G-D22-6**：TC-DSK-L3-22-003 需要把 store 端口写成 `65535`。壳层端口输入域的合法上限正是 `65535`（`src/ui/config/debug.tsx:143-146`），可经 UI 构造，但该用例会短暂占用最后一档端口，接线时须与其它用例串行。
+- **假设**：store 真值一律以运行期回读为准（同 `13-application-settings.md`），TC-DSK-L3-22-010 是唯一按落盘路径断言的用例；前置构造的目录与占用进程一律由测试侧自行清理。

@@ -32,7 +32,7 @@
 
 ### [P1] 验证干净环境下绑定清单为空且结构完整
 
-[Case ID] TC-WT-L2-001
+[Case ID] TC-WT-L2-06-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/host/routes/bindings/get.ts:8`
@@ -45,12 +45,12 @@
 
 ### [P3] [反向] 验证无绑定的会话状态回落到 local
 
-[Case ID] TC-WT-L2-002
+[Case ID] TC-WT-L2-06-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-worktree/src/host/routes/status/get.ts:6`
 [自动化] 是
-[前置条件] 同 TC-WT-L2-001，且不存在任何绑定
+[前置条件] 同 TC-WT-L2-06-001，且不存在任何绑定
 [测试数据] `GET /status?sessionId=not-bound`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体 `mode`。
 [预期结果] 1. 状态码 200。2. `mode` 为 `local`（未进入 `missing` 的 404 分支）。
@@ -58,12 +58,12 @@
 
 ### [P3] [反向] 验证绑定创建缺 sessionId 返回 400
 
-[Case ID] TC-WT-L2-003
+[Case ID] TC-WT-L2-06-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-worktree/src/host/routes/bindings/post.ts:9`
 [自动化] 是
-[前置条件] 同 TC-WT-L2-001
+[前置条件] 同 TC-WT-L2-06-001
 [测试数据] `POST /bindings`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `error` 恰为 `缺少 sessionId`。3. `GET /bindings` 仍为空。
@@ -71,12 +71,12 @@
 
 ### [P3] [反向] 验证创建请求缺 sessionId 返回 400
 
-[Case ID] TC-WT-L2-004
+[Case ID] TC-WT-L2-06-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-worktree/src/host/routes/post.ts:12`
 [自动化] 是
-[前置条件] 同 TC-WT-L2-001
+[前置条件] 同 TC-WT-L2-06-001
 [测试数据] `POST /api/desktop/dsh-tauri-worktree`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体含 `error` 字段且不包含 `worktreePath`。3. 未在文件系统创建任何目录。
@@ -84,24 +84,24 @@
 
 ### [P4] 验证删除请求缺参不报 4xx 而是幂等失败体
 
-[Case ID] TC-WT-L2-005
+[Case ID] TC-WT-L2-06-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-worktree/src/host/routes/delete.ts:12`
 [自动化] 是
-[前置条件] 同 TC-WT-L2-001
+[前置条件] 同 TC-WT-L2-06-001
 [测试数据] `DELETE /api/desktop/dsh-tauri-worktree`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 200（**不是** 400——该路由不校验 `sessionId`）。2. 响应体 `{ ok: false, error: '未找到绑定的工作树' }`。
 
 ### [P3] [反向] 验证切换分支缺绑定返回 400
 
-[Case ID] TC-WT-L2-006
+[Case ID] TC-WT-L2-06-006
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-worktree/src/host/routes/checkouts/post.ts:14`
 [自动化] 是
-[前置条件] 同 TC-WT-L2-001
+[前置条件] 同 TC-WT-L2-06-001
 [测试数据] `POST /checkouts`，body `{ "sessionId": "not-bound", "branch": "main" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体含 `error` 字段。3. 无 git 命令副作用。
@@ -113,7 +113,7 @@
 
 ### [P2] 验证输入区出现工作树模式锚点
 
-[Case ID] TC-WT-C-001
+[Case ID] TC-WT-C-06-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.tsx:72`
@@ -126,7 +126,7 @@
 
 ### [P2] 验证会话行出现工作树图标且不重复插入
 
-[Case ID] TC-WT-C-002
+[Case ID] TC-WT-C-06-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/register/session-icons.ts:44`
@@ -139,7 +139,7 @@
 
 ### [P2] 验证工作树对话框在触发后挂载到壳层 overlay
 
-[Case ID] TC-WT-C-003
+[Case ID] TC-WT-C-06-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/dialog.tsx:41`
@@ -156,7 +156,7 @@
 
 ### [P1] 验证桌面端输入区渲染工作树面板
 
-[Case ID] TC-WT-L3-001
+[Case ID] TC-WT-L3-06-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/surface.tsx:35`
@@ -173,14 +173,14 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `bindings/get.ts:8` 清单结构 | TC-WT-L2-001 | 正向 | — |
-| `status/get.ts` mode 分支 | TC-WT-L2-002 | 异常 | `mode === 'missing'` 的 404 分支需要真实删除任务，**未覆盖** |
-| `bindings/post.ts:9` 缺参 | TC-WT-L2-003 | 异常 | — |
-| `post.ts:12` 缺参 | TC-WT-L2-004 | 异常 | `cwd 解析失败` 与 `create 失败` 分支需要真实会话/仓库，**未覆盖** |
-| `delete.ts:12` 幂等体 | TC-WT-L2-005 | 边界 | 非 4xx 形态待确认 |
-| `checkouts/post.ts:14` | TC-WT-L2-006 | 异常 | 分支分叉/脏工作区等深层分支需要真实仓库，**未覆盖** |
-| 客户端三处挂载 | TC-WT-C-001 ～ TC-WT-C-003 | 正向 | 依赖浏览器驱动 |
-| `surface.tsx:35` 桌面端可见性 | TC-WT-L3-001 | 正向 | 依赖 `desktop` project |
+| `bindings/get.ts:8` 清单结构 | TC-WT-L2-06-001 | 正向 | — |
+| `status/get.ts` mode 分支 | TC-WT-L2-06-002 | 异常 | `mode === 'missing'` 的 404 分支需要真实删除任务，**未覆盖** |
+| `bindings/post.ts:9` 缺参 | TC-WT-L2-06-003 | 异常 | — |
+| `post.ts:12` 缺参 | TC-WT-L2-06-004 | 异常 | `cwd 解析失败` 与 `create 失败` 分支需要真实会话/仓库，**未覆盖** |
+| `delete.ts:12` 幂等体 | TC-WT-L2-06-005 | 边界 | 非 4xx 形态待确认 |
+| `checkouts/post.ts:14` | TC-WT-L2-06-006 | 异常 | 分支分叉/脏工作区等深层分支需要真实仓库，**未覆盖** |
+| 客户端三处挂载 | TC-WT-C-06-001 ～ TC-WT-C-06-003 | 正向 | 依赖浏览器驱动 |
+| `surface.tsx:35` 桌面端可见性 | TC-WT-L3-06-001 | 正向 | 依赖 `desktop` project |
 | Agent 工具 `create_worktree` / `checkout_worktree` | — | — | **未覆盖**：需真实 Agent 会话，留待后续批次 |
 
 ---
@@ -190,5 +190,5 @@
 - **G-WT-1**：`linkDependencies` 默认 `true`（`packages/dsh-tauri-worktree/src/host/service/worktree.ts:47`），真实创建会改仓库依赖目录。本文件刻意不触发创建，避免污染工作区。
 - **G-WT-2**：`GET /status?jobId=<未知>` 会落到本地分支返回 200 `local`（`packages/dsh-tauri-worktree/src/host/service/status.ts:11`），与「未知任务应 404」的直觉冲突，**待确认**后补用例。
 - **G-WT-3**：客户端依赖宿主 `aria-label` 文案（访问模式按钮，`packages/dsh-tauri-worktree/src/client/constants/index.ts:46`），语种变化会失配；L3 用例需固定中文 locale。
-- **G-WT-4**：`DELETE /api/desktop/dsh-tauri-worktree` 缺参时返回 200 而非 4xx（`packages/dsh-tauri-worktree/src/host/routes/delete.ts:8`），与其它插件的入参校验风格不一致。**待确认**是否应改为 400；确认后 TC-WT-L2-005 的期望同步更新。
+- **G-WT-4**：`DELETE /api/desktop/dsh-tauri-worktree` 缺参时返回 200 而非 4xx（`packages/dsh-tauri-worktree/src/host/routes/delete.ts:8`），与其它插件的入参校验风格不一致。**待确认**是否应改为 400；确认后 TC-WT-L2-06-005 的期望同步更新。
 - **假设**：`conversation.input.dock` / `shell.overlay` 槽位由宿主提供且已在本仓其它插件中稳定使用。

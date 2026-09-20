@@ -43,7 +43,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P1] 验证启用命令行集成后状态为已链接
 
-[Case ID] TC-DSK-L3-163
+[Case ID] TC-DSK-L3-21-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/cli/core.rs:48`、`:29`；`src-tauri/src/bridge/config.rs:91`
@@ -56,7 +56,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P2] 验证重复启用保持幂等
 
-[Case ID] TC-DSK-L3-164
+[Case ID] TC-DSK-L3-21-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/cli/core.rs:48`；`src-tauri/src/service/cli/path/registry.rs:73`
@@ -69,7 +69,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P2] 验证关闭命令行集成后 shim 与 PATH 被清理
 
-[Case ID] TC-DSK-L3-165
+[Case ID] TC-DSK-L3-21-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/cli/core.rs:83`；`src-tauri/src/service/cli/path/mod.rs:137`
@@ -86,7 +86,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P2] 验证 Windows shim 的路径转义与行尾符合约定
 
-[Case ID] TC-DSK-L3-166
+[Case ID] TC-DSK-L3-21-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/cli/shim/mod.rs:40`、`:46`；`build.rs:24`、`:110`
@@ -99,7 +99,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P2] 验证 Unix shim 的单引号转义
 
-[Case ID] TC-DSK-L3-167
+[Case ID] TC-DSK-L3-21-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/cli/shim/mod.rs:52`；`build.rs:140`、`:349`
@@ -112,7 +112,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P3] 验证 shim 内 Node 解析优先级
 
-[Case ID] TC-DSK-L3-168
+[Case ID] TC-DSK-L3-21-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/cli/shim/templates.rs:16`、`:57`、`:97`
@@ -125,7 +125,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P3] 验证 shim 内 pnpm 解析优先级且拒绝自身 shim
 
-[Case ID] TC-DSK-L3-169
+[Case ID] TC-DSK-L3-21-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/cli/shim/build.rs:179`、`:267`、`:316`；`src-tauri/src/service/cli/path/pnpm.rs:96`、`:161`
@@ -142,7 +142,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P3] [反向] 验证用户自装的同名 dsh 不被覆盖
 
-[Case ID] TC-DSK-L3-170
+[Case ID] TC-DSK-L3-21-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/cli/shim/write.rs:70`、`:55`；`src-tauri/src/service/cli/core.rs:20`
@@ -155,7 +155,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P3] [反向] 验证悬空符号链接被清理后写入 shim
 
-[Case ID] TC-DSK-L3-171
+[Case ID] TC-DSK-L3-21-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/cli/shim/write.rs:24`；`build.rs:24`（issue #581）
@@ -168,7 +168,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P3] [反向] 验证 debug 构建不注册 PATH 且不写 dsh shim
 
-[Case ID] TC-DSK-L3-172
+[Case ID] TC-DSK-L3-21-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/cli/core.rs:58`、`:86`；`src-tauri/src/service/cli/shim/write.rs:132`
@@ -181,7 +181,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P4] 验证 Windows PATH 写回保留原注册表类型
 
-[Case ID] TC-DSK-L3-173
+[Case ID] TC-DSK-L3-21-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/cli/path/registry.rs:10`、`:73`、`:131`
@@ -194,7 +194,7 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ### [P4] [反向] 验证读取 PATH 失败时中止而非视作空 PATH
 
-[Case ID] TC-DSK-L3-174
+[Case ID] TC-DSK-L3-21-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/cli/path/registry.rs:91`；`src-tauri/src/service/cli/path/mod.rs:155`
@@ -225,8 +225,8 @@ CLI 集成的产物是「用户新终端里能直接敲 `dsh`」。它由 shim �
 
 ## 6. 缺口与假设
 
-- **G-D21-1**：`173`/`174` 会**真实改写用户注册表 PATH**。按 `00-overview.md` G8，接线时必须先记录原始类型与文本，并在清理中逐字还原，否则会污染开发者本机环境。
+- **G-D21-1**：`TC-DSK-L3-21-010`/`TC-DSK-L3-21-011` 会**真实改写用户注册表 PATH**。按 `00-overview.md` G8，接线时必须先记录原始类型与文本，并在清理中逐字还原，否则会污染开发者本机环境。
 - **G-D21-2**：Unix rc 注入路径（`.zshrc`/`.bashrc`，含 `<file>.dsh-backup` 备份与 rename 失败回滚）**未覆盖**，需 macOS/Linux 环境；相应地 `BACKUP_RC_FAILED` / `WRITE_RC_FAILED` / `RENAME_RC_FAILED` / `READ_RC_FAILED` / `RC_HOME_RESOLVE_FAILED` 五个错误串均未断言。
-- **G-D21-3**：Debug 构建刻意不写 dsh shim、不注册 PATH（`172`）。这意味着 L3 用例在 Debug 二进制下**无法完整验证 shim 生成**；若要覆盖 dsh shim 内容，需要 Release 构建，而 `desktop.test.md` §6 的端口/数据目录隔离约定（Debug 3081 + `.dsh.dev`）正是为 Debug 二进制设计，两者冲突。本条登记为已知结构性缺口，接线时需先确定是否引入 Release lane。
-- **G-D21-4**：`166` 的 `%` 转义只断言 shim **文本**正确，未在「路径真含 `%`」的机器上实际执行 shim。运行期生效需专门环境。
-- **假设**：CLI 集成的真值以 `get_cli_link_status` 的六个字段为准，不直接断言注册表内部结构（除 `173`/`174` 这两条明确针对注册表类型的用例）。
+- **G-D21-3**：Debug 构建刻意不写 dsh shim、不注册 PATH（`TC-DSK-L3-21-009`）。这意味着 L3 用例在 Debug 二进制下**无法完整验证 shim 生成**；若要覆盖 dsh shim 内容，需要 Release 构建，而 `desktop.test.md` §6 的端口/数据目录隔离约定（Debug 3081 + `.dsh.dev`）正是为 Debug 二进制设计，两者冲突。本条登记为已知结构性缺口，接线时需先确定是否引入 Release lane。
+- **G-D21-4**：`TC-DSK-L3-21-003` 的 `%` 转义只断言 shim **文本**正确，未在「路径真含 `%`」的机器上实际执行 shim。运行期生效需专门环境。
+- **假设**：CLI 集成的真值以 `get_cli_link_status` 的六个字段为准，不直接断言注册表内部结构（除 `TC-DSK-L3-21-010`/`TC-DSK-L3-21-011` 这两条明确针对注册表类型的用例）。

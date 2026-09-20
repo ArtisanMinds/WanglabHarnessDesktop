@@ -33,7 +33,7 @@
 
 ### [P1] 验证通知桥转发到原生通知命令
 
-[Case ID] TC-DSK-L3-135
+[Case ID] TC-DSK-L3-18-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:88-92`、`:130-140`；`src-tauri/src/desktop/window.rs:110-138`
@@ -46,7 +46,7 @@
 
 ### [P4] 验证点击系统通知后 iframe 聚焦对应会话
 
-[Case ID] TC-DSK-L3-136
+[Case ID] TC-DSK-L3-18-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/components/iframe.tsx:80-84`、`:177-184`；`src-tauri/src/desktop/notification.rs`
@@ -63,7 +63,7 @@
 
 ### [P2] 验证下载完成后弹出已保存提示并显示路径
 
-[Case ID] TC-DSK-L3-137
+[Case ID] TC-DSK-L3-18-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/index.tsx:94-126`；`src-tauri/src/desktop/window.rs:39-61`
@@ -76,7 +76,7 @@
 
 ### [P3] [反向] 验证下载失败时提示失败且无打开文件夹入口
 
-[Case ID] TC-DSK-L3-138
+[Case ID] TC-DSK-L3-18-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/layout/index.tsx:100-121`
@@ -89,7 +89,7 @@
 
 ### [P3] 验证重名文件自动追加序号
 
-[Case ID] TC-DSK-L3-139
+[Case ID] TC-DSK-L3-18-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/desktop/window.rs:41-44`；`src-tauri/src/config/utils.rs:29`
@@ -102,12 +102,12 @@
 
 ### [P4] 验证「在文件夹中显示」调用系统文件管理器
 
-[Case ID] TC-DSK-L3-140
+[Case ID] TC-DSK-L3-18-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/layout/index.tsx:112-119`
 [自动化] 待接线（同上）
-[前置条件] TC-DSK-L3-137 通过（提示与路径均存在）
+[前置条件] TC-DSK-L3-18-003 通过（提示与路径均存在）
 [测试数据] 选择器 `dsh-toast-download-action`
 [测试步骤] 1. 点击「在文件夹中显示」。2. 读取控制台错误收集器与提示存在性。
 [预期结果] 1. 点击被接受。2. 无 `reveal_in_folder` 失败错误。3. 提示被关闭。
@@ -119,7 +119,7 @@
 
 ### [P2] 验证剪贴板图片读取请求返回 PNG data URL
 
-[Case ID] TC-DSK-L3-141
+[Case ID] TC-DSK-L3-18-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/components/iframe.tsx:98-101`、`:156-169`
@@ -159,8 +159,8 @@
 
 ## 7. 缺口与假设
 
-- **G-D18-1**：系统通知与文件管理器的实际呈现无法通过 WebDriver 断言（`00-overview.md` G9）。TC-DSK-L3-135 只证明桥接层与命令调用成功；**「用户真的看到通知」未被证明**。
-- **G-D18-2**：TC-DSK-L3-137 需要「从 iframe 内触发下载」。若 iframe 内无稳定的下载入口，接线时需引入一个测试用的下载链接，并注明这是对真实下载路径的替身。
+- **G-D18-1**：系统通知与文件管理器的实际呈现无法通过 WebDriver 断言（`00-overview.md` G9）。TC-DSK-L3-18-001 只证明桥接层与命令调用成功；**「用户真的看到通知」未被证明**。
+- **G-D18-2**：TC-DSK-L3-18-003 需要「从 iframe 内触发下载」。若 iframe 内无稳定的下载入口，接线时需引入一个测试用的下载链接，并注明这是对真实下载路径的替身。
 - **G-D18-3**：`on_new_window`（外部链接接管）是安全边界（只放行 http/https），**未覆盖**。该分支可通过 iframe 内 `window.open('javascript:...')` 构造，属高价值补充项。
 - **G-D18-4**：剪贴板图片回退主要为 Linux/WebKitGTK 设计（`iframe.tsx:97-98`），在 Windows 上该路径不会被真实触发。接线时需按平台决定是否跳过。
 - **假设**：下载默认保存到系统下载目录（`window.rs:39-44` 的 `destination`）；本文件按该目录读取与清理文件。

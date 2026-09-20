@@ -32,7 +32,7 @@
 
 ### [P1] 验证合法外链经 open/url 被接受
 
-[Case ID] TC-RC-L2-001
+[Case ID] TC-RC-L2-04-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:22`
@@ -45,12 +45,12 @@
 
 ### [P3] [反向] 验证非 JSON 请求体被 415 拒绝
 
-[Case ID] TC-RC-L2-002
+[Case ID] TC-RC-L2-04-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:9`
 [自动化] 是
-[前置条件] 同 TC-RC-L2-001
+[前置条件] 同 TC-RC-L2-04-001
 [测试数据] body `url=https://example.com`，`content-type: text/plain`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 415。2. 响应体 `{ ok: false, error: 'unsupported-media-type' }`。3. 不产生任何系统打开动作。
@@ -58,12 +58,12 @@
 
 ### [P3] [反向] 验证危险 scheme 被 open/url 拒绝
 
-[Case ID] TC-RC-L2-003
+[Case ID] TC-RC-L2-04-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:16`
 [自动化] 是
-[前置条件] 同 TC-RC-L2-001
+[前置条件] 同 TC-RC-L2-04-001
 [测试数据] 依次提交 `javascript:alert(1)`、`file:///etc/passwd`、`""`、`123`
 [测试步骤] 1. 逐一发起请求。2. 每次读状态码与响应体。
 [预期结果] 1. 四次均返回 400。2. 响应体均为 `{ ok: false, error: 'invalid-url' }`。3. 无任何系统打开动作。
@@ -71,12 +71,12 @@
 
 ### [P3] [反向] 验证空路径与带 scheme 的值被 open/path 拒绝
 
-[Case ID] TC-RC-L2-004
+[Case ID] TC-RC-L2-04-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/path/post.ts:19`
 [自动化] 是
-[前置条件] 同 TC-RC-L2-001
+[前置条件] 同 TC-RC-L2-04-001
 [测试数据] 依次提交 `{ "path": "" }`、`{ "path": "   " }`、`{ "path": "https://example.com" }`
 [测试步骤] 1. 逐一发起请求。2. 每次读状态码与响应体。
 [预期结果] 1. 三次均返回 400。2. 响应体均为 `{ ok: false, error: 'invalid-path' }`。3. 无任何系统打开动作。
@@ -84,12 +84,12 @@
 
 ### [P4] [反向] 验证不存在的目录返回 not-a-directory 且不产生副作用
 
-[Case ID] TC-RC-L2-005
+[Case ID] TC-RC-L2-04-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-rightclick/src/host/service/opener.ts:30`
 [自动化] 是
-[前置条件] 同 TC-RC-L2-001
+[前置条件] 同 TC-RC-L2-04-001
 [测试数据] `{ "path": "<scratch DSH_HOME>/definitely-missing-dir" }`（由 `inject('dshHome')` 拼接，保证不存在）
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `{ ok: false, error: 'not-a-directory' }`。
@@ -103,7 +103,7 @@
 
 ### [P1] 验证会话行右键弹出菜单且焦点落在首项
 
-[Case ID] TC-RC-C-001
+[Case ID] TC-RC-C-04-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:131`
@@ -116,12 +116,12 @@
 
 ### [P2] 验证 Escape 与点击空白关闭菜单，且重复右键不叠加菜单
 
-[Case ID] TC-RC-C-002
+[Case ID] TC-RC-C-04-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:136`、`packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:203`
 [自动化] 未接线（G2）
-[前置条件] 同 TC-RC-C-001
+[前置条件] 同 TC-RC-C-04-001
 [测试数据] 连续两次右键同一行，随后 Escape
 [测试步骤] 1. 右键两次。2. 查询 `div.dshp-menu` 数量。3. 派发 `Escape`。4. 再次查询。
 [预期结果] 1. 第二次右键后菜单数量仍为 1（旧菜单先移除再新建）。2. `Escape` 后菜单数量为 0。
@@ -129,7 +129,7 @@
 
 ### [P3] [反向] 验证输入控件内的右键不弹自定义菜单
 
-[Case ID] TC-RC-C-003
+[Case ID] TC-RC-C-04-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/client/constants/index.ts:23`
@@ -142,7 +142,7 @@
 
 ### [P3] [反向] 验证剪贴板不可用时给出可见错误提示
 
-[Case ID] TC-RC-C-004
+[Case ID] TC-RC-C-04-004
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:61`
@@ -159,7 +159,7 @@
 
 ### [P1] 验证桌面端壳层内右键菜单行为与浏览器层一致
 
-[Case ID] TC-RC-L3-001
+[Case ID] TC-RC-L3-04-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:201`
@@ -172,12 +172,12 @@
 
 ### [P4] 验证键盘导航在 WebView2 上可用
 
-[Case ID] TC-RC-L3-002
+[Case ID] TC-RC-L3-04-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:175`
 [自动化] 待接线（G4）
-[前置条件] 同 TC-RC-L3-001
+[前置条件] 同 TC-RC-L3-04-001
 [测试数据] `ArrowDown` ×2、`Home`、`End`、`Escape`
 [测试步骤] 1. 打开菜单。2. 逐键派发并读 `document.activeElement`。3. `Escape`。
 [预期结果] 1. 每次按键后焦点落在 `[role=menuitem]` 元素上且位置符合按键语义。2. `Escape` 后菜单关闭且焦点回到触发元素。
@@ -189,12 +189,12 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `open/url/post.ts` 三态（415/400/500） | TC-RC-L2-001、TC-RC-L2-002、TC-RC-L2-003 | 正向 / 异常 | 500 分支无法在不破坏系统默认打开器的前提下构造，**未覆盖** |
-| `open/path/post.ts` 三态（415/400/not-a-directory） | TC-RC-L2-004、TC-RC-L2-005 | 异常 / 边界 | 415 已由 TC-RC-L2-002 同源覆盖，不重复 |
-| 菜单挂载与关闭 | TC-RC-C-001、TC-RC-C-002 | 正向 | 依赖浏览器驱动 |
-| `EDITABLE_SELECTOR` 例外 | TC-RC-C-003 | 异常 | 依赖浏览器驱动 |
-| 剪贴板降级 | TC-RC-C-004 | 异常 | `execCommand` 回退分支需单独造环境，**未覆盖** |
-| 桌面端 WebView 内行为一致性 | TC-RC-L3-001、TC-RC-L3-002 | 正向 / 边界 | 依赖 `desktop` project |
+| `open/url/post.ts` 三态（415/400/500） | TC-RC-L2-04-001、TC-RC-L2-04-002、TC-RC-L2-04-003 | 正向 / 异常 | 500 分支无法在不破坏系统默认打开器的前提下构造，**未覆盖** |
+| `open/path/post.ts` 三态（415/400/not-a-directory） | TC-RC-L2-04-004、TC-RC-L2-04-005 | 异常 / 边界 | 415 已由 TC-RC-L2-04-002 同源覆盖，不重复 |
+| 菜单挂载与关闭 | TC-RC-C-04-001、TC-RC-C-04-002 | 正向 | 依赖浏览器驱动 |
+| `EDITABLE_SELECTOR` 例外 | TC-RC-C-04-003 | 异常 | 依赖浏览器驱动 |
+| 剪贴板降级 | TC-RC-C-04-004 | 异常 | `execCommand` 回退分支需单独造环境，**未覆盖** |
+| 桌面端 WebView 内行为一致性 | TC-RC-L3-04-001、TC-RC-L3-04-002 | 正向 / 边界 | 依赖 `desktop` project |
 
 ---
 

@@ -108,11 +108,11 @@
 
 ## 6. 建议执行顺序
 
-1. **冒烟子集**（最小可信集）：`01` 全部 → `02` 全部 → `03` 的 `TC-PET-L2-001` / `TC-PET-L2-002`。
+1. **冒烟子集**（最小可信集）：`01` 全部 → `02` 全部 → `03` 的 `TC-PET-L2-03-001` / `TC-PET-L2-03-002`。
 2. **核心扩展（L2 可立即运行）**：`04`–`11` 中全部 `-L2-*` 用例；每条只依赖 `pnpm build:plugins` 与 scratch 宿主。
 3. **桌面端集成**：`03`、`04`、`06`、`07`、`18` 的 `-L3-*` 用例（需先补 `data-testid` 与 `desktop` project，见 §8 G3/G4）。
 4. **客户端渲染层**：全部 `-C-*` 用例（需先引入浏览器驱动，见 §8 G2）。
-5. **需真实会话/凭据的用例**：`07` 的 `TC-UI-L2-003/004`、`10` 的 undo 业务码、`11` 的端点探测成功路径（见 §8 G9）。
+5. **需真实会话/凭据的用例**：`07` 的 `TC-UI-L2-07-003/004`、`10` 的 undo 业务码、`11` 的端点探测成功路径（见 §8 G9）。
 6. **治理批次**：`12` → `13` → `14` → `15` → `16` → `17`。
 7. **跨插件集成**：`18`。
 
@@ -124,24 +124,24 @@
 
 | 文件 | Case ID 前缀 | 条数 | 层级分布 |
 | --- | --- | --- | --- |
-| `01-host-lane-skeleton.md` | `TC-HOST-L2-*` | 6 | L2 |
-| `02-dsh-tauri-core.md` | `TC-CORE-L2-*` | 6 | L2 |
-| `03-dsh-tauri-pet.md` | `TC-PET-L2-*` / `-C-*` / `-L3-*` | 13 | L2 → L3 |
-| `04-dsh-tauri-rightclick.md` | `TC-RC-L2-*` / `-C-*` / `-L3-*` | 11 | L2 → L3 |
-| `05-dsh-tauri-session.md` | `TC-SESS-L2-*` / `-C-*` / `-L3-*` | 11 | L2 → L3 |
-| `06-dsh-tauri-worktree.md` | `TC-WT-L2-*` / `-C-*` / `-L3-*` | 10 | L2 → L3 |
-| `07-dsh-tauri-ui.md` | `TC-UI-L2-*` / `-C-*` / `-L3-*` | 10 | L2 → L3 |
-| `08-dsh-tauri-panel-extension.md` | `TC-EXT-L2-*` / `-C-*` / `-L3-*` | 13 | L2 → L3 |
-| `09-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-*` / `-C-*` / `-L3-*` | 11 | L2 → L3 |
-| `10-dsh-tauri-turnrewind.md` | `TC-REW-L2-*` / `-C-*` / `-L3-*` | 8 | L2 → L3 |
-| `11-dsh-tauri-model-config.md` | `TC-MC-L2-*` / `-C-*` / `-L3-*` | 9 | L2 → L3 |
-| `12-plugin-inventory-and-watch.md` | `TC-INV-L3-*` | 8 | L3 |
-| `13-plugin-lifecycle-commands.md` | `TC-LIFE-L3-*` | 12 | L3 |
-| `14-preinstall-and-preset.md` | `TC-PRE-L3-*` | 9 | L3 |
-| `15-plugin-error-and-recovery.md` | `TC-REC-L3-*` | 9 | L3 |
-| `16-profile-and-patch-isolation.md` | `TC-ISO-L3-*` | 8 | L3 |
-| `17-internal-plugins.md` | `TC-INT-L3-*` | 8 | L3 |
-| `18-cross-plugin-desktop.md` | `TC-XP-L3-*` / `TC-XP-L2-001` | 8 | L2 + L3 |
+| `01-host-lane-skeleton.md` | `TC-HOST-L2-01-*` | 6 | L2 |
+| `02-dsh-tauri-core.md` | `TC-CORE-L2-02-*` | 6 | L2 |
+| `03-dsh-tauri-pet.md` | `TC-PET-L2-03-*` / `-C-03-*` / `-L3-03-*` | 13 | L2 → L3 |
+| `04-dsh-tauri-rightclick.md` | `TC-RC-L2-04-*` / `-C-04-*` / `-L3-04-*` | 11 | L2 → L3 |
+| `05-dsh-tauri-session.md` | `TC-SESS-L2-05-*` / `-C-05-*` / `-L3-05-*` | 11 | L2 → L3 |
+| `06-dsh-tauri-worktree.md` | `TC-WT-L2-06-*` / `-C-06-*` / `-L3-06-*` | 10 | L2 → L3 |
+| `07-dsh-tauri-ui.md` | `TC-UI-L2-07-*` / `-C-07-*` / `-L3-07-*` | 10 | L2 → L3 |
+| `08-dsh-tauri-panel-extension.md` | `TC-EXT-L2-08-*` / `-C-08-*` / `-L3-08-*` | 13 | L2 → L3 |
+| `09-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-09-*` / `-C-09-*` / `-L3-09-*` | 11 | L2 → L3 |
+| `10-dsh-tauri-turnrewind.md` | `TC-REW-L2-10-*` / `-C-10-*` / `-L3-10-*` | 8 | L2 → L3 |
+| `11-dsh-tauri-model-config.md` | `TC-MC-L2-11-*` / `-C-11-*` / `-L3-11-*` | 9 | L2 → L3 |
+| `12-plugin-inventory-and-watch.md` | `TC-INV-L3-12-*` | 8 | L3 |
+| `13-plugin-lifecycle-commands.md` | `TC-LIFE-L3-13-*` | 12 | L3 |
+| `14-preinstall-and-preset.md` | `TC-PRE-L3-14-*` | 9 | L3 |
+| `15-plugin-error-and-recovery.md` | `TC-REC-L3-15-*` | 9 | L3 |
+| `16-profile-and-patch-isolation.md` | `TC-ISO-L3-16-*` | 8 | L3 |
+| `17-internal-plugins.md` | `TC-INT-L3-17-*` | 8 | L3 |
+| `18-cross-plugin-desktop.md` | `TC-XP-L3-18-*` / `-L2-18-*` | 8 | L2 + L3 |
 
 合计 **170** 条。`-C-*` 表示客户端浏览器层（当前未接线），`-L3-*` 表示桌面端宿主层（当前待接线）。
 
@@ -168,17 +168,17 @@
 
 | 高风险路径 | 正向 | 异常 | 边界 |
 | --- | --- | --- | --- |
-| 宿主编排（挂载 + 启动） | TC-HOST-L2-001 | TC-HOST-L2-003、TC-HOST-L2-004 | TC-HOST-L2-005 |
-| 共享路由契约 | TC-CORE-L2-001、TC-CORE-L2-002 | TC-CORE-L2-003、TC-CORE-L2-004、TC-CORE-L2-006 | TC-CORE-L2-005 |
-| 桌面端窗口与启动 | TC-XP-L3-001、TC-XP-L3-007 | TC-XP-L3-003、TC-XP-L3-005 | TC-XP-L3-004、TC-XP-L3-006 |
+| 宿主编排（挂载 + 启动） | TC-HOST-L2-01-001 | TC-HOST-L2-01-003、TC-HOST-L2-01-004 | TC-HOST-L2-01-005 |
+| 共享路由契约 | TC-CORE-L2-02-001、TC-CORE-L2-02-002 | TC-CORE-L2-02-003、TC-CORE-L2-02-004、TC-CORE-L2-02-006 | TC-CORE-L2-02-005 |
+| 桌面端窗口与启动 | TC-XP-L3-18-001、TC-XP-L3-18-007 | TC-XP-L3-18-003、TC-XP-L3-18-005 | TC-XP-L3-18-004、TC-XP-L3-18-006 |
 | 插件路由真实响应 | 各文件 L2 正向 | 各文件 L2 异常 | 各文件 L2 边界 |
 | 客户端挂载产物 | 各文件 `-C-001` | 各文件 `-C-003`/`-C-004` | 各文件 `-C-002`/`-C-004` |
-| 清单真值与事件 | TC-INV-L3-001、TC-INV-L3-002、TC-INV-L3-004 | TC-INV-L3-006 | TC-INV-L3-003、TC-INV-L3-005、TC-INV-L3-007、TC-INV-L3-008 |
-| 插件写操作 | TC-LIFE-L3-001、TC-LIFE-L3-005、TC-LIFE-L3-007、TC-LIFE-L3-009 | TC-LIFE-L3-002、TC-LIFE-L3-003、TC-LIFE-L3-004、TC-LIFE-L3-006、TC-LIFE-L3-008、TC-LIFE-L3-010 | TC-LIFE-L3-011 |
-| 预装引导 | TC-PRE-L3-003、TC-PRE-L3-005 | TC-PRE-L3-004、TC-PRE-L3-007 | TC-PRE-L3-002、TC-PRE-L3-006、TC-PRE-L3-008、TC-PRE-L3-009 |
-| 异常定位与修复 | TC-REC-L3-001、TC-REC-L3-003、TC-REC-L3-004、TC-REC-L3-006 | TC-REC-L3-007、TC-REC-L3-008 | TC-REC-L3-002、TC-REC-L3-005、TC-REC-L3-009 |
-| 档案与补丁隔离 | TC-ISO-L3-001、TC-ISO-L3-002、TC-ISO-L3-003、TC-ISO-L3-005、TC-ISO-L3-008 | TC-ISO-L3-006、TC-ISO-L3-007 | TC-ISO-L3-004 |
-| 内置插件自愈 | TC-INT-L3-001、TC-INT-L3-003、TC-INT-L3-006 | TC-INT-L3-002、TC-INT-L3-004 | TC-INT-L3-005、TC-INT-L3-007、TC-INT-L3-008 |
+| 清单真值与事件 | TC-INV-L3-12-001、TC-INV-L3-12-002、TC-INV-L3-12-004 | TC-INV-L3-12-006 | TC-INV-L3-12-003、TC-INV-L3-12-005、TC-INV-L3-12-007、TC-INV-L3-12-008 |
+| 插件写操作 | TC-LIFE-L3-13-001、TC-LIFE-L3-13-005、TC-LIFE-L3-13-007、TC-LIFE-L3-13-009 | TC-LIFE-L3-13-002、TC-LIFE-L3-13-003、TC-LIFE-L3-13-004、TC-LIFE-L3-13-006、TC-LIFE-L3-13-008、TC-LIFE-L3-13-010 | TC-LIFE-L3-13-011 |
+| 预装引导 | TC-PRE-L3-14-003、TC-PRE-L3-14-005 | TC-PRE-L3-14-004、TC-PRE-L3-14-007 | TC-PRE-L3-14-002、TC-PRE-L3-14-006、TC-PRE-L3-14-008、TC-PRE-L3-14-009 |
+| 异常定位与修复 | TC-REC-L3-15-001、TC-REC-L3-15-003、TC-REC-L3-15-004、TC-REC-L3-15-006 | TC-REC-L3-15-007、TC-REC-L3-15-008 | TC-REC-L3-15-002、TC-REC-L3-15-005、TC-REC-L3-15-009 |
+| 档案与补丁隔离 | TC-ISO-L3-16-001、TC-ISO-L3-16-002、TC-ISO-L3-16-003、TC-ISO-L3-16-005、TC-ISO-L3-16-008 | TC-ISO-L3-16-006、TC-ISO-L3-16-007 | TC-ISO-L3-16-004 |
+| 内置插件自愈 | TC-INT-L3-17-001、TC-INT-L3-17-003、TC-INT-L3-17-006 | TC-INT-L3-17-002、TC-INT-L3-17-004 | TC-INT-L3-17-005、TC-INT-L3-17-007、TC-INT-L3-17-008 |
 
 ---
 
@@ -198,7 +198,7 @@
 | G10 | 事实 | 插件写操作类用例（`13`、`14`、`16`、`17`）会真实改写档案文件；`17` 还会改写**应用资源目录** | 用例结束必须恢复原状，未恢复即判失败 |
 | G11 | 分歧 | 归档套件引用的预设插件（`dshmarket`、`dsh-better-sidebar`、`dsh-notification`、`dsh-win-terminal-inspector`）与现行 `preset-plugins.json`（3 条）不一致，且其中 4 个包已进入 `deprecated-plugins.json` | `14` 的用例一律以**运行时清单内容**为准，不硬编码归档包名 |
 | G12 | 缺口 | 事件类断言的读取通道未定：iframe 只能调 `dsh://tauri:invoke` 白名单内的 9 条命令，无法在页面内订阅 `dsh-plugins-updated` / `preinstall-log` 等事件 | `12`、`14` 的事件计数需由壳层测试侧记录后再回读，接线方式待定 |
-| G13 | 缺口 | 系统级前置无法在页面内构造：目录不可写（`16` TC-ISO-L3-007）、非 Windows 平台（`14` TC-PRE-L3-002） | 相关用例标 `[自动化] 否（手工）` 或按平台跳过，不写成 `it()` |
+| G13 | 缺口 | 系统级前置无法在页面内构造：目录不可写（`16` TC-ISO-L3-16-007）、非 Windows 平台（`14` TC-PRE-L3-14-002） | 相关用例标 `[自动化] 否（手工）` 或按平台跳过，不写成 `it()` |
 
 ---
 

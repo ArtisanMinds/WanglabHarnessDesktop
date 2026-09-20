@@ -42,7 +42,7 @@
 
 ### [P1] 验证运行期上报落盘为 runtime 类记录并推送清单事件
 
-[Case ID] TC-REC-L3-001
+[Case ID] TC-REC-L3-15-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/errors.rs:53`、`src-tauri/src/bridge/plugin.rs:166`
@@ -55,12 +55,12 @@
 
 ### [P3] 验证同一插件的重复上报只保留最新记录
 
-[Case ID] TC-REC-L3-002
+[Case ID] TC-REC-L3-15-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/errors.rs:53`
 [自动化] 待接线（同上）
-[前置条件] 同 TC-REC-L3-001
+[前置条件] 同 TC-REC-L3-15-001
 [测试数据] 同一 id 的两条不同错误文本，先后上报
 [测试步骤] 1. 上报 A。2. 上报 B。3. 读 `plugin-errors.json` 中该 id 的条目数与 `message`。
 [预期结果] 1. 该 id 只有 1 条记录。2. `message` 为 B 的文本（幂等覆盖）。
@@ -68,7 +68,7 @@
 
 ### [P2] 验证恢复可解析后不再把安装错误暴露为当前错误
 
-[Case ID] TC-REC-L3-003
+[Case ID] TC-REC-L3-15-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/watch.rs:230`、`src-tauri/src/service/plugin/install/artifact.rs:35`
@@ -81,7 +81,7 @@
 
 ### [P3] 验证日志定位返回唯一根插件与规范化的 reason
 
-[Case ID] TC-REC-L3-004
+[Case ID] TC-REC-L3-15-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/recovery/mod.rs:118`、`src-tauri/src/service/plugin/recovery/extract.rs:91`、`src-tauri/src/service/plugin/recovery/mod.rs:140`
@@ -94,7 +94,7 @@
 
 ### [P4] [反向] 验证证据不唯一时不给出归属
 
-[Case ID] TC-REC-L3-005
+[Case ID] TC-REC-L3-15-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/recovery/ownership.rs:217`
@@ -107,7 +107,7 @@
 
 ### [P2] 验证修复剥离插件四处痕迹并清除错误记录
 
-[Case ID] TC-REC-L3-006
+[Case ID] TC-REC-L3-15-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/recovery/uninstall.rs:13`、`src-tauri/src/service/plugin/recovery/uninstall.rs:128`、`src-tauri/src/service/plugin/recovery/mod.rs:188`
@@ -120,7 +120,7 @@
 
 ### [P3] [反向] 验证修复拒绝核心与官方包
 
-[Case ID] TC-REC-L3-007
+[Case ID] TC-REC-L3-15-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/recovery/mod.rs:163`
@@ -133,7 +133,7 @@
 
 ### [P2] 验证安全模式隔离补丁层并在失败时不切换活动档案
 
-[Case ID] TC-REC-L3-008
+[Case ID] TC-REC-L3-15-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/lifecycle.rs:362`、`src-tauri/src/bridge/lifecycle.rs:363`、`src-tauri/src/bridge/lifecycle.rs:370`
@@ -146,7 +146,7 @@
 
 ### [P4] 验证悬空 insert 剥离前保留备份
 
-[Case ID] TC-REC-L3-009
+[Case ID] TC-REC-L3-15-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/bridge/lifecycle.rs:399`、`src-tauri/src/service/plugin/patch_entries.rs:137`
@@ -163,21 +163,21 @@
 
 | 来源（归档套件） | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `06-plugin/03` 验证页面运行期错误通过 report_plugin_error 记录并实时同步 | TC-REC-L3-001、TC-REC-L3-002 | 正向 / 边界 | 界面同步由 `../desktop/09`、`../desktop/10` 断言 |
-| `06-plugin/03` 验证 detect_plugin_recovery 能定位到损坏插件 | TC-REC-L3-004、TC-REC-L3-005 | 正向 / 边界 | — |
-| `06-plugin/03` 验证 recover_plugin 能恢复损坏插件 | TC-REC-L3-006 | 正向 | — |
-| `06-plugin/03` 验证插件恢复正常后错误状态清除 | TC-REC-L3-003 | 正向 | — |
-| `06-plugin/03` 验证 recover_plugin 拒绝卸载核心或官方包 | TC-REC-L3-007 | 异常 | — |
-| `06-plugin/03` 验证补丁层 YAML 语法错误可被显式隔离并恢复启动 | TC-REC-L3-008 | 异常 | 错误页入口由 `../desktop/11` 断言 |
-| 现行实现新增（悬空 insert 备份） | TC-REC-L3-009 | 边界 | — |
-| `06-plugin/03` 验证 pnpm-workspace.yaml 多文档被归一化并恢复插件安装 | TC-ISO-L2-002（见 `16-profile-and-patch-isolation.md`） | 正向 | 归 17 |
+| `06-plugin/03` 验证页面运行期错误通过 report_plugin_error 记录并实时同步 | TC-REC-L3-15-001、TC-REC-L3-15-002 | 正向 / 边界 | 界面同步由 `../desktop/09`、`../desktop/10` 断言 |
+| `06-plugin/03` 验证 detect_plugin_recovery 能定位到损坏插件 | TC-REC-L3-15-004、TC-REC-L3-15-005 | 正向 / 边界 | — |
+| `06-plugin/03` 验证 recover_plugin 能恢复损坏插件 | TC-REC-L3-15-006 | 正向 | — |
+| `06-plugin/03` 验证插件恢复正常后错误状态清除 | TC-REC-L3-15-003 | 正向 | — |
+| `06-plugin/03` 验证 recover_plugin 拒绝卸载核心或官方包 | TC-REC-L3-15-007 | 异常 | — |
+| `06-plugin/03` 验证补丁层 YAML 语法错误可被显式隔离并恢复启动 | TC-REC-L3-15-008 | 异常 | 错误页入口由 `../desktop/11` 断言 |
+| 现行实现新增（悬空 insert 备份） | TC-REC-L3-15-009 | 边界 | — |
+| `06-plugin/03` 验证 pnpm-workspace.yaml 多文档被归一化并恢复插件安装 | TC-ISO-L3-16-005（见 `16-profile-and-patch-isolation.md`） | 正向 | 归 17 |
 
 ---
 
 ## 4. 缺口与假设
 
 - **G-REC-1**：`plugin-errors.json` 与 `$DSH_HOME` 分离——它位于**应用数据目录**（`src-tauri/src/service/plugin/errors.rs:8`），属桌面端诊断数据。用例读取该文件时必须用应用数据目录，而非 `<DSH_E2E_HOME>/home/.dsh.dev`。debug 构建的应用数据目录带 `.dev` 后缀（`src-tauri/src/config/runtime.rs:17`）。
-- **G-REC-2**：`detect_plugin_recovery` 与 `get_dsh_plugins`、`get_plugin_backup` 一样声明为非 `Result`，异常输入不会以错误返回，而是退化为空/默认值（`src-tauri/src/bridge/plugin.rs:195`）。TC-REC-L3-005 断言的是这种退化行为，不是报错。
-- **G-REC-3**：安全模式会真实改写活动档案与补丁层。执行前必须确认处于 scratch 数据目录；TC-REC-L3-008 的清理步骤若失败，应视为阻塞后续用例的环境污染。
+- **G-REC-2**：`detect_plugin_recovery` 与 `get_dsh_plugins`、`get_plugin_backup` 一样声明为非 `Result`，异常输入不会以错误返回，而是退化为空/默认值（`src-tauri/src/bridge/plugin.rs:195`）。TC-REC-L3-15-005 断言的是这种退化行为，不是报错。
+- **G-REC-3**：安全模式会真实改写活动档案与补丁层。执行前必须确认处于 scratch 数据目录；TC-REC-L3-15-008 的清理步骤若失败，应视为阻塞后续用例的环境污染。
 - **G-REC-4**：`recover_plugin` 删除 `pnpm-lock.yaml` 的具体形态（整体删除 vs 重建）在 `src-tauri/src/service/plugin/recovery/mod.rs:188` 有实现，但重建产物由 pnpm 决定，故用例只断言「不再包含该插件」。
 - **假设**：安全性由证据唯一性保证（`src-tauri/src/service/plugin/recovery/ownership.rs:217`），因此本文件不设计「猜测修复」类用例。

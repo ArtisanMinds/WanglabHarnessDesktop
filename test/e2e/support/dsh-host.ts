@@ -14,17 +14,18 @@
 
 import type { ChildProcess } from 'node:child_process'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
+import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 
 /** 仓库根（本文件位于 `<root>/test/e2e/support/`）。 */
-export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 
 /** scratch profile 名：与桌面端一致（`dsh web` 默认档案）。 */
 const PROFILE = 'web'
@@ -67,11 +68,6 @@ export interface DshHost {
   readonly baseUrl: string
   /**
    * 用就绪 URL 的一次性 token 换来的浏览器会话 Cookie（`name=value`）。
-   *
-   * `/api/**` 要求浏览器会话：`authorizeIndex` **只在 `GET /` 接受** `?token=`，
-   * 随即写入签名 Cookie 并 303 到干净的 `/`；HTTP 载体在根路径交换之外既不认
-   * query token 也不认 Authorization 头。所以纯 HTTP 断言必须先做这次交换，
-   * 再把 Cookie 原样带上。
    */
   readonly cookie: string
   /** 本次调用独占的 DSH_HOME。 */
@@ -84,51 +80,67 @@ export interface DshHost {
   stop: () => Promise<void>
 }
 
-/**
- * 用就绪 URL 的一次性 token 换浏览器会话 Cookie。
- *
- * 机制（见 `@deepseek-ai/dsh-client-connection` 的 README）：
- * `GET /?token=…` → 303 + `Set-Cookie` + `Location: /`。
- * 因此这里必须 `redirect: 'manual'`——跟随重定向会丢掉 Set-Cookie。
- *
- * 没有 token 的旧宿主返回空串：那类宿主本就不设信任围栏，无需 Cookie。
- */
-async function exchangeLaunchToken(url: string): Promise<string> {
-  const launch = new URL(url)
-  if (launch.searchParams.get('token') === null)
-    return ''
-
-  const response = await fetch(launch.href, { redirect: 'manual' })
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
-  const setCookies = headers.getSetCookie?.() ?? []
-  const first = setCookies[0] ?? response.headers.get('set-cookie')
-
-  if (response.status !== 303 || first === null) {
-    throw new Error(
-      `token 交换未返回 303 + Set-Cookie（实际 ${response.status}）；`
-      + '该宿主可能不支持根路径 token 交换（该通道只在 `GET /?token=` 上生效）',
-    )
-  }
-  // 只取 `name=value`，属性交给 fetch 的 cookie 语义处理。
-  return first.split(';', 1)[0].trim()
-}
+/* ==========================================
+ * 通用/基础工具函数 (Utils)
+ * ========================================== */
 
 function log(message: string): void {
   process.stderr.write(`[dsh-host] ${message}\n`)
 }
 
+function resolveNodeBin(): string {
+  return process.env.DSH_E2E_NODE_BIN ?? process.execPath
+}
+
+/** 通用 JSON 读取，带容错兜底 */
+function readJson<T>(filePath: string): T | null {
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8')) as T
+  }
+  catch {
+    return null
+  }
+}
+
+/** 修改并回写 JSON 文件 */
+function updateJson<T>(filePath: string, updater: (data: T) => T): void {
+  const data = readJson<T>(filePath) ?? ({} as T)
+  const nextData = updater(data)
+  writeFileSync(filePath, `${JSON.stringify(nextData, null, 2)}\n`)
+}
+
+/** 读日志全文；文件不存在或读取异常时返回空字符串 */
+function readLog(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  }
+  catch {
+    return ''
+  }
+}
+
+function tailOf(path: string, lines = 30): string {
+  const text = readLog(path)
+  if (!text)
+    return '(日志为空)'
+  return text.split('\n').slice(-lines).join('\n')
+}
+
+/* ==========================================
+ * 业务逻辑与依赖解析
+ * ========================================== */
+
 /** 解析 dsh 入口：显式环境变量 → PATH 上的 `dsh` → 桌面端已装配的 bin.js。 */
 function resolveDshCommand(): string[] {
   const explicit = process.env.DSH_E2E_DSH_BIN
-  if (explicit !== undefined && explicit !== '')
+  if (explicit)
     return [explicit]
 
   try {
     return [require.resolve('@deepseek-ai/dsh/lib/bin.js')]
   }
   catch {
-    // 仓库不把 dsh CLI 作为依赖安装：它是运行期产物，装进依赖树会与本仓 catalog 的
-    // `@deepseek-ai/dsh-*` 形成双树，profile 组合时取到不匹配的实例。
+    // 仓库不把 dsh CLI 作为依赖安装：它是运行期产物
   }
 
   if (existsSync(ASSEMBLED_DSH)) {
@@ -136,51 +148,39 @@ function resolveDshCommand(): string[] {
     return [ASSEMBLED_DSH]
   }
 
-  // 缺核心一律硬失败，不提供「跳过」开关：一旦可跳过，CI 会在什么都没断言的
-  // 情况下报绿。
   throw new Error(
     'DSH_E2E_DSH_BIN 未设置，PATH 与桌面端装配目录都没有 dsh 入口；'
     + '请设置 DSH_E2E_DSH_BIN 指向 @deepseek-ai/dsh 的 lib/bin.js',
   )
 }
 
-function resolveNodeBin(): string {
-  return process.env.DSH_E2E_NODE_BIN ?? process.execPath
-}
-
 /** 读包版本号；读不到返回 `0.0.0`（仅用于日志）。 */
 function packageVersion(pkgDir: string): string {
-  try {
-    const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')) as { version?: string }
-    return manifest.version ?? '0.0.0'
-  }
-  catch {
-    return '0.0.0'
-  }
+  interface Manifest { version?: string }
+  return readJson<Manifest>(join(pkgDir, 'package.json'))?.version ?? '0.0.0'
 }
 
-/**
- * 校验插件已构建：`package.json` 的 `main` / `exports` 指向的产物必须存在。
- *
- * E2E 打的是构建产物而不是 TS 源码（官方「真实入口路径」规则），所以这里显式失败，
- * 而不是让 dsh 在 import 阶段抛一个难读的 ERR_MODULE_NOT_FOUND。
- */
+/** 校验插件已构建 */
 function assertBuilt(pkgDir: string, pkg: string): void {
-  const manifest = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')) as {
+  interface Manifest {
     main?: string
     exports?: Record<string, unknown>
   }
+  const manifest = readJson<Manifest>(join(pkgDir, 'package.json')) ?? {}
   const main = manifest.main ?? './dist/index.js'
   const hostEntry = join(pkgDir, main.replace(/^\.\//, ''))
+
   if (!existsSync(hostEntry)) {
     throw new Error(
       `${pkg} 尚未构建：缺少 ${hostEntry}。先跑一次 \`pnpm build:plugins\`（或 \`pnpm --filter ${pkg} build\`）。`,
     )
   }
+
   const client = manifest.exports?.['./client']
   const clientEntry = typeof client === 'string'
     ? client
     : (client as { default?: string } | undefined)?.default
+
   if (clientEntry !== undefined && !existsSync(join(pkgDir, clientEntry.replace(/^\.\//, '')))) {
     throw new Error(`${pkg} 的 client 产物缺失：${clientEntry}；先跑一次 \`pnpm build:plugins\`。`)
   }
@@ -189,15 +189,16 @@ function assertBuilt(pkgDir: string, pkg: string): void {
 /** 写 scratch profile 三件套（镜像 dsh 的 profile 模板）。 */
 function writeProfile(profileDir: string, bundles: readonly string[]): void {
   mkdirSync(profileDir, { recursive: true })
+
   writeFileSync(join(profileDir, 'package.json'), `${JSON.stringify({
     name: `dsh-profile-${PROFILE}`,
     private: true,
     dependencies: {},
     dsh: { profile: { bundles: [...bundles] } },
   }, null, 2)}\n`)
+
   writeFileSync(join(profileDir, 'cordis.patch.yml'), '[]\n')
-  // pnpm 11 的 strict-dep-builds 与 minimumReleaseAge 会拦住 dsh 的传递依赖；
-  // 与桌面端 / 社区同一份豁免策略（见 better-sidebar 的 scripts/e2e-common.sh）。
+
   writeFileSync(join(profileDir, 'pnpm-workspace.yaml'), [
     'packages:',
     '  - .',
@@ -225,44 +226,57 @@ function linkPackage(profileDir: string, pkg: string): void {
   const target = join(profileDir, 'node_modules', pkg)
   mkdirSync(dirname(target), { recursive: true })
   rmSync(target, { recursive: true, force: true })
+
   // junction 对目录链接不需要管理员权限，且在 Windows 上表现稳定。
   symlinkSync(source, target, process.platform === 'win32' ? 'junction' : 'dir')
 }
 
-/** 生成读 bundle 列表的辅助：挂载后必须能在 bundles 里看到，缺则立即失败。 */
+interface ProfileManifest {
+  dependencies?: Record<string, string>
+  dsh?: { profile?: { bundles?: string[] } }
+}
+
+/** 读取 bundle 列表 */
 function readBundles(profileDir: string): string[] {
-  const manifest = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')) as {
-    dsh?: { profile?: { bundles?: string[] } }
-  }
-  return manifest.dsh?.profile?.bundles ?? []
+  return readJson<ProfileManifest>(join(profileDir, 'package.json'))?.dsh?.profile?.bundles ?? []
 }
 
 function addBundle(profileDir: string, pkg: string): void {
   const path = join(profileDir, 'package.json')
-  const manifest = JSON.parse(readFileSync(path, 'utf8')) as {
-    dependencies?: Record<string, string>
-    dsh?: { profile?: { bundles?: string[] } }
-  }
-  manifest.dependencies = manifest.dependencies ?? {}
-  manifest.dependencies[pkg] = `link:${join(REPO_ROOT, 'packages', pkg)}`
-  const bundles = new Set(manifest.dsh?.profile?.bundles ?? [])
-  bundles.add(pkg)
-  manifest.dsh = { profile: { ...manifest.dsh?.profile, bundles: [...bundles] } }
-  writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`)
+  updateJson<ProfileManifest>(path, (manifest) => {
+    const dependencies = manifest.dependencies ?? {}
+    dependencies[pkg] = `link:${join(REPO_ROOT, 'packages', pkg)}`
+
+    const bundles = new Set(manifest.dsh?.profile?.bundles ?? [])
+    bundles.add(pkg)
+
+    return {
+      ...manifest,
+      dependencies,
+      dsh: {
+        ...manifest.dsh,
+        profile: {
+          ...manifest.dsh?.profile,
+          bundles: [...bundles],
+        },
+      },
+    }
+  })
 }
 
-/** 跑一条子命令，等待结束；非 0 退出即抛错（附输出尾部）。 */
+/* ==========================================
+ * 进程与 CLI 交互
+ * ========================================== */
+
 function run(command: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, [...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
     let output = ''
-    child.stdout?.on('data', (chunk: Uint8Array) => {
-      output += chunk.toString()
-    })
-    child.stderr?.on('data', (chunk: Uint8Array) => {
-      output += chunk.toString()
-    })
+
+    child.stdout?.on('data', chunk => output += chunk.toString())
+    child.stderr?.on('data', chunk => output += chunk.toString())
     child.on('error', reject)
+
     child.on('close', (code) => {
       if (code === 0) {
         resolvePromise()
@@ -274,38 +288,37 @@ function run(command: string, args: readonly string[], cwd: string, env: NodeJS.
   })
 }
 
-/** 走真实 CLI 挂载（需要网络与 pnpm）。 */
 async function mountViaCli(profileDir: string, home: string, pkgs: readonly string[]): Promise<void> {
   const [dshBin] = resolveDshCommand()
+  const storeDir = process.env.DSH_E2E_PNPM_STORE_DIR
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     DSH_HOME: home,
-    // 与桌面端 build_plugin_envs 同源：pnpm 10 只认 npm_config_*，pnpm 11 只认 pnpm_config_*。
-    ...(process.env.DSH_E2E_PNPM_STORE_DIR
-      ? {
-          npm_config_store_dir: process.env.DSH_E2E_PNPM_STORE_DIR,
-          pnpm_config_store_dir: process.env.DSH_E2E_PNPM_STORE_DIR,
-        }
+    ...(storeDir
+      ? { npm_config_store_dir: storeDir, pnpm_config_store_dir: storeDir }
       : {}),
   }
+
   for (const pkg of pkgs) {
-    await run(resolveNodeBin(), [dshBin, 'plugin', '--profile', PROFILE, 'add', `link:${join(REPO_ROOT, 'packages', pkg)}`], profileDir, env)
+    const linkArg = `link:${join(REPO_ROOT, 'packages', pkg)}`
+    await run(resolveNodeBin(), [dshBin, 'plugin', '--profile', PROFILE, 'add', linkArg], profileDir, env)
   }
 }
 
-/** 杀进程树：Windows 用 taskkill /T /F，其余平台先 SIGTERM 再 SIGKILL。 */
 async function killTree(child: ChildProcess): Promise<void> {
   if (child.pid === undefined || child.exitCode !== null)
     return
+
   const pid = child.pid
   if (process.platform === 'win32') {
     await new Promise<void>((resolvePromise) => {
       const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
-      killer.on('close', () => resolvePromise())
-      killer.on('error', () => resolvePromise())
+      killer.on('close', resolvePromise)
+      killer.on('error', resolvePromise)
     })
     return
   }
+
   child.kill('SIGTERM')
   await new Promise(resolvePromise => setTimeout(resolvePromise, 1_500))
   if (child.exitCode === null)
@@ -314,40 +327,56 @@ async function killTree(child: ChildProcess): Promise<void> {
 
 async function waitForReady(child: ChildProcess, logPath: string): Promise<string> {
   const deadline = Date.now() + READY_TIMEOUT_MS
+
   while (Date.now() < deadline) {
     if (child.exitCode !== null)
       throw new Error(`dsh web 提前退出（code ${child.exitCode}）；日志：${logPath}\n${tailOf(logPath)}`)
+
     const match = READY_RE.exec(readLog(logPath))
     if (match !== null)
       return match[0]
+
     await new Promise(resolvePromise => setTimeout(resolvePromise, 500))
   }
+
   throw new Error(`等待 dsh web 就绪超时（${READY_TIMEOUT_MS}ms）；日志：${logPath}\n${tailOf(logPath)}`)
 }
 
-function tailOf(path: string, lines = 30): string {
-  const text = readLog(path)
-  return text === '' ? '(日志为空)' : text.split('\n').slice(-lines).join('\n')
+/** 用就绪 URL 的一次性 token 换浏览器会话 Cookie */
+async function exchangeLaunchToken(url: string): Promise<string> {
+  const launch = new URL(url)
+  if (!launch.searchParams.has('token'))
+    return ''
+
+  const response = await fetch(launch.href, { redirect: 'manual' })
+
+  // 兼容 Node.js fetch API 的 getSetCookie 提案
+  const getSetCookie = (response.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie
+  const setCookies = getSetCookie?.call(response.headers) ?? []
+  const first = setCookies[0] ?? response.headers.get('set-cookie')
+
+  if (response.status !== 303 || !first) {
+    throw new Error(
+      `token 交换未返回 303 + Set-Cookie（实际 ${response.status}）；`
+      + '该宿主可能不支持根路径 token 交换（该通道只在 `GET /?token=` 上生效）',
+    )
+  }
+
+  return first.split(';', 1)[0].trim()
 }
 
-/** 读日志全文；子进程还没吐出任何输出时按空处理（首次读发生在文件创建前）。 */
-function readLog(path: string): string {
-  try {
-    return readFileSync(path, 'utf8')
-  }
-  catch {
-    return ''
-  }
-}
+/* ==========================================
+ * 主入口导出 (Main Export)
+ * ========================================== */
 
 /**
  * 起一个真实 dsh web 宿主并挂载指定插件。
- *
  * 调用方负责 `stop()`（Playwright 用 globalSetup/globalTeardown 保证）。
  */
 export async function startDshHost(options: StartDshHostOptions): Promise<DshHost> {
   const { plugin, also = [], keepHome = false } = options
   const packages = [...also, plugin]
+
   for (const pkg of packages)
     assertBuilt(join(REPO_ROOT, 'packages', pkg), pkg)
 
@@ -356,7 +385,6 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
   const logPath = join(home, 'dsh-web.log')
   const bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...packages]
 
-  // 装配期的任何失败都要把 scratch 目录带走，否则 /tmp 里会堆半成品。
   try {
     writeProfile(profileDir, bundles)
 
@@ -383,36 +411,37 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
   }
 
   const [dshBin] = resolveDshCommand()
-  // `dsh web` 就是 `--profile web` 的别名，两者不能同时给（CLI 会直接报错退出）；
-  // 因此 scratch profile 的目录名固定为 `web`。
-  //
-  // 不带 `--skip-auth`：那需要桌面端给核心打的补丁，npm 上的 dsh 没有；本通道改走
-  // 上游本就支持的「根路径 token 换 Cookie」（见 `exchangeLaunchToken`），
-  // 于是对打过补丁的装配核心与未打补丁的原版核心都成立。
   const args = [dshBin, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open']
   log(`启动 dsh web（DSH_HOME=${home}）`)
-  // 先落一个空日志：就绪轮询可能在子进程吐出任何输出之前就读它。
-  writeFileSync(logPath, '')
+
+  // **优化点**：改用 WriteStream 追加写日志，避免大规模内存拼接以及全量文件 I/O 阻塞
+  const logStream = createWriteStream(logPath, { flags: 'a' })
+
   const child = spawn(resolveNodeBin(), args, {
     cwd: profileDir,
     env: { ...process.env, DSH_HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
-  const chunks: string[] = []
-  const collect = (chunk: Uint8Array): void => {
-    chunks.push(chunk.toString())
-    writeFileSync(logPath, chunks.join(''))
-  }
-  child.stdout?.on('data', collect)
-  child.stderr?.on('data', collect)
+
+  child.stdout?.pipe(logStream, { end: false })
+  child.stderr?.pipe(logStream, { end: false })
 
   let stopped = false
   const stop = async (): Promise<void> => {
     if (stopped)
       return
     stopped = true
+
+    // 顺序要紧：子进程的 stdout/stderr 仍以 `end: false` 管道接着日志流，
+    // 先 end() 会把子进程退出前的输出写进已结束的流；日志文件又落在 home 里，
+    // 流没真正关闭就删目录，在 Windows 上会 EBUSY/EPERM。
     await killTree(child)
+    child.stdout?.unpipe(logStream)
+    child.stderr?.unpipe(logStream)
+    logStream.end()
+    await finished(logStream).catch(() => {})
+
     if (!keepHome)
       rmSync(home, { recursive: true, force: true })
     else
@@ -423,7 +452,10 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
     const url = await waitForReady(child, logPath)
     const baseUrl = new URL(url).origin
     const cookie = await exchangeLaunchToken(url)
-    log(`就绪：${baseUrl}（已挂载 ${packages.join(', ')}；${plugin}@${packageVersion(join(REPO_ROOT, 'packages', plugin))}；会话 Cookie ${cookie === '' ? '不适用' : '已获取'}）`)
+    const version = packageVersion(join(REPO_ROOT, 'packages', plugin))
+
+    log(`就绪：${baseUrl}（已挂载 ${packages.join(', ')}；${plugin}@${version}；会话 Cookie ${cookie === '' ? '不适用' : '已获取'}）`)
+
     return { url, baseUrl, cookie, home, logPath, mounted: packages, stop }
   }
   catch (error) {

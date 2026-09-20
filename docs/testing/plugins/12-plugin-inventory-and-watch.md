@@ -32,7 +32,7 @@
 
 ### [P1] 验证清单只列直接依赖并排除传递依赖
 
-[Case ID] TC-INV-L3-001
+[Case ID] TC-INV-L3-12-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/watch.rs:136`、`src-tauri/src/service/plugin/watch.rs:416`
@@ -45,7 +45,7 @@
 
 ### [P2] 验证内置与预设插件被标记并优先排序
 
-[Case ID] TC-INV-L3-002
+[Case ID] TC-INV-L3-12-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/watch.rs:451`、`src-tauri/src/service/plugin/watch.rs:472`
@@ -58,7 +58,7 @@
 
 ### [P4] [反向] 验证插件自身 package.json 缺失或损坏时仍列出该插件
 
-[Case ID] TC-INV-L3-003
+[Case ID] TC-INV-L3-12-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/watch.rs:127`、`src-tauri/src/service/plugin/watch.rs:451`
@@ -71,7 +71,7 @@
 
 ### [P2] 验证 profile 依赖变化在防抖窗口后触发一次清单事件
 
-[Case ID] TC-INV-L3-004
+[Case ID] TC-INV-L3-12-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/watch.rs:26`、`src-tauri/src/service/plugin/watch.rs:30`、`src-tauri/src/service/plugin/watch.rs:351`
@@ -84,12 +84,12 @@
 
 ### [P4] 验证防抖窗口内的连续写盘只推送一次
 
-[Case ID] TC-INV-L3-005
+[Case ID] TC-INV-L3-12-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/watch.rs:30`
 [自动化] 待接线（同上）
-[前置条件] 同 TC-INV-L3-004
+[前置条件] 同 TC-INV-L3-12-004
 [测试数据] 在 1s 内连续 3 次改写 `dependencies`（最终态与首次态不同）
 [测试步骤] 1. 连续写入 3 次。2. 统计 10s 内收到的 `dsh-plugins-updated` 次数。3. 读最后一次 payload。
 [预期结果] 1. 事件次数为 1（合并为最终态）。2. 最后一次 payload 反映第 3 次写入的结果。
@@ -97,7 +97,7 @@
 
 ### [P3] 验证无 profile manifest 时清单为空且界面显示空态
 
-[Case ID] TC-INV-L3-006
+[Case ID] TC-INV-L3-12-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/watch.rs:588`
@@ -110,7 +110,7 @@
 
 ### [P3] 验证禁用与「已在 bundles 外」两种状态可区分
 
-[Case ID] TC-INV-L3-007
+[Case ID] TC-INV-L3-12-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/watch.rs:601`、`src-tauri/src/service/plugin/disable.rs:302`
@@ -123,7 +123,7 @@
 
 ### [P4] 验证带包名别名的补丁禁用仍被正确标记
 
-[Case ID] TC-INV-L3-008
+[Case ID] TC-INV-L3-12-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/watch.rs:688`
@@ -140,19 +140,19 @@
 
 | 来源（归档套件） | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `06-plugin/01` 验证已安装插件列表只读且正确展示 | TC-INV-L3-001 | 正向 | 只读性（无编辑控件）由 `../desktop/09-plugin-panel.md` 断言 |
-| `06-plugin/01` 验证列表展示插件名与版本等关键信息 | TC-INV-L3-002、TC-INV-L3-003 | 正向 / 边界 | — |
-| `06-plugin/01` 验证插件文件变化后轮询检测并推送 dsh-plugins-updated 事件 | TC-INV-L3-004、TC-INV-L3-005 | 正向 / 边界 | — |
-| `06-plugin/01` 验证插件被移除后列表能反应 | TC-LIFE-L3-007（见 `13-plugin-lifecycle-commands.md`） | 正向 | 卸载副作用归 14 |
-| `06-plugin/01` 验证插件自身 package.json 缺失或损坏时列表仍展示该插件 | TC-INV-L3-003 | 边界 | — |
-| 现行实现新增（禁用 vs 未加载、包名别名 patch 禁用） | TC-INV-L3-007、TC-INV-L3-008 | 正向 / 边界 | 归档套件无对应用例 |
-| 无 manifest 降级 | TC-INV-L3-006 | 异常 | 归档套件无对应用例 |
+| `06-plugin/01` 验证已安装插件列表只读且正确展示 | TC-INV-L3-12-001 | 正向 | 只读性（无编辑控件）由 `../desktop/09-plugin-panel.md` 断言 |
+| `06-plugin/01` 验证列表展示插件名与版本等关键信息 | TC-INV-L3-12-002、TC-INV-L3-12-003 | 正向 / 边界 | — |
+| `06-plugin/01` 验证插件文件变化后轮询检测并推送 dsh-plugins-updated 事件 | TC-INV-L3-12-004、TC-INV-L3-12-005 | 正向 / 边界 | — |
+| `06-plugin/01` 验证插件被移除后列表能反应 | TC-LIFE-L3-13-007（见 `13-plugin-lifecycle-commands.md`） | 正向 | 卸载副作用归 14 |
+| `06-plugin/01` 验证插件自身 package.json 缺失或损坏时列表仍展示该插件 | TC-INV-L3-12-003 | 边界 | — |
+| 现行实现新增（禁用 vs 未加载、包名别名 patch 禁用） | TC-INV-L3-12-007、TC-INV-L3-12-008 | 正向 / 边界 | 归档套件无对应用例 |
+| 无 manifest 降级 | TC-INV-L3-12-006 | 异常 | 归档套件无对应用例 |
 
 ---
 
 ## 4. 缺口与假设
 
-- **G-INV-1**：清单真值的稳定断言依赖「`dependencies` 里恰好只有插件」这一前提。若用户档案里混入非插件依赖，TC-INV-L3-001 的差异比较需加入白名单，届时以 `internal-plugins.json` / `preset-plugins.json` 的 id 集合为基准。
-- **G-INV-2**：事件监听能力在页面内不可直接订阅 Tauri 事件（iframe 只能 `dsh://tauri:invoke` 白名单内的 9 条命令，见 `00-overview.md` §5.2）。TC-INV-L3-004/005 需由壳层测试侧记录事件计数后再经 DOM 或测试通道回读；接线方式待定。
-- **G-INV-3**：`get_dsh_plugins` 声明为非 `Result`，因此「读失败」只能表现为空数组，无法与「真为空」区分（`src-tauri/src/bridge/plugin.rs:127`）。TC-INV-L3-006 以「界面显示空态而非错误态」作为区分代理。
+- **G-INV-1**：清单真值的稳定断言依赖「`dependencies` 里恰好只有插件」这一前提。若用户档案里混入非插件依赖，TC-INV-L3-12-001 的差异比较需加入白名单，届时以 `internal-plugins.json` / `preset-plugins.json` 的 id 集合为基准。
+- **G-INV-2**：事件监听能力在页面内不可直接订阅 Tauri 事件（iframe 只能 `dsh://tauri:invoke` 白名单内的 9 条命令，见 `00-overview.md` §5.2）。TC-INV-L3-12-004/005 需由壳层测试侧记录事件计数后再经 DOM 或测试通道回读；接线方式待定。
+- **G-INV-3**：`get_dsh_plugins` 声明为非 `Result`，因此「读失败」只能表现为空数组，无法与「真为空」区分（`src-tauri/src/bridge/plugin.rs:127`）。TC-INV-L3-12-006 以「界面显示空态而非错误态」作为区分代理。
 - **假设**：测试代理只改 `<DSH_E2E_HOME>/home/.dsh.dev` 下的 scratch 档案，不触碰用户 `~/.dsh`（`desktop.test.md` §6）。

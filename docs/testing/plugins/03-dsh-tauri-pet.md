@@ -37,7 +37,7 @@
 
 ### [P1] 验证 SSE 路由连上后立刻下发就绪帧
 
-[Case ID] TC-PET-L2-001
+[Case ID] TC-PET-L2-03-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/host/routes/session/stream/get.ts:24`；`plugin.test.md` §8 批次 3
@@ -50,12 +50,12 @@
 
 ### [P3] [反向] 验证同一路径拒绝未声明的方法
 
-[Case ID] TC-PET-L2-002
+[Case ID] TC-PET-L2-03-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:275`
 [自动化] 是（`test/e2e/plugins/session-stream.e2e.ts:49`）
-[前置条件] 同 TC-PET-L2-001
+[前置条件] 同 TC-PET-L2-03-001
 [测试数据] 同路径 `POST`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与 `allow` 头。
 [预期结果] 1. 状态码 405。2. `allow` 包含 `GET`。
@@ -63,12 +63,12 @@
 
 ### [P4] 验证长连接期间按 15s 周期持续下发心跳注释帧
 
-[Case ID] TC-PET-L2-003
+[Case ID] TC-PET-L2-03-003
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/host/routes/session/stream/get.ts:58`
 [自动化] 是（同上文件，新增）
-[前置条件] 同 TC-PET-L2-001；用例超时预算 ≥ 20s
+[前置条件] 同 TC-PET-L2-03-001；用例超时预算 ≥ 20s
 [测试数据] 保持连接 17s
 [测试步骤] 1. 建立 SSE 连接。2. 累计读取响应体，直到出现第 2 次 `keepalive` 或超时。
 [预期结果] 1. 在 15s–17s 窗口内收到第 2 帧 `: keepalive`。2. 两帧之间无 `data:` 帧（无会话事件时不应伪造数据）。
@@ -76,12 +76,12 @@
 
 ### [P2] 验证连接断开后重连仍能立刻拿到就绪帧
 
-[Case ID] TC-PET-L2-004
+[Case ID] TC-PET-L2-03-004
 [层级] L2（真实 dsh 进程）
 [类型] 回归
 [追踪] `packages/dsh-tauri-pet/src/host/service/session-stream.ts:36`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-PET-L2-001
+[前置条件] 同 TC-PET-L2-03-001
 [测试数据] 连续建立两次连接
 [测试步骤] 1. 建立连接 A，读到 `: keepalive` 后立即中止。2. 间隔 200ms 建立连接 B。
 [预期结果] 1. 连接 B 同样在首个响应块内返回 `: keepalive`。2. 宿主日志中不出现未捕获异常或 `ERR_STREAM_` 类错误。
@@ -89,12 +89,12 @@
 
 ### [P4] 验证两个并发消费者各自独立就绪
 
-[Case ID] TC-PET-L2-005
+[Case ID] TC-PET-L2-03-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/host/config/runtime.ts:8`
 [自动化] 是（同上文件）
-[前置条件] 同 TC-PET-L2-001
+[前置条件] 同 TC-PET-L2-03-001
 [测试数据] 同时发起两次 GET
 [测试步骤] 1. 并发建立连接 A、B。2. 分别读取首个响应块。
 [预期结果] 1. 两条连接均返回 200 且各自收到 `: keepalive`。2. 任一连接中止后，另一条仍可继续读取（互不牵连）。
@@ -108,7 +108,7 @@
 
 ### [P4] 验证顶层页面不注册任何桌宠槽位
 
-[Case ID] TC-PET-C-001
+[Case ID] TC-PET-C-03-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/client/index.ts:24`
@@ -121,7 +121,7 @@
 
 ### [P2] 验证 iframe 内桌宠设置分区正常渲染且无崩溃
 
-[Case ID] TC-PET-C-002
+[Case ID] TC-PET-C-03-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/pet-section.ts:11`
@@ -134,7 +134,7 @@
 
 ### [P2] 验证侧栏桌宠入口按钮被插入到设置触发器右侧且状态可读
 
-[Case ID] TC-PET-C-003
+[Case ID] TC-PET-C-03-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:94`、`packages/dsh-tauri-pet/src/client/register/sidebar-icon.utils.ts:25`
@@ -147,7 +147,7 @@
 
 ### [P4] 验证侧栏长时间未就绪时停止轮询且不抛错
 
-[Case ID] TC-PET-C-004
+[Case ID] TC-PET-C-03-004
 [层级] L2（真实浏览器页面，未接线）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:110`
@@ -164,7 +164,7 @@
 
 ### [P1] 验证启用桌宠后出现独立的桌宠窗口
 
-[Case ID] TC-PET-L3-001
+[Case ID] TC-PET-L3-03-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:30`、`src-tauri/src/desktop/pet.rs:303`；`plugin.test.md` §8 批次 4+
@@ -177,7 +177,7 @@
 
 ### [P3] [反向] 验证未启用桌宠时不存在桌宠窗口
 
-[Case ID] TC-PET-L3-002
+[Case ID] TC-PET-L3-03-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `packages/dsh-tauri-pet/src/client/service/pet.types.ts:6`
@@ -190,12 +190,12 @@
 
 ### [P2] 验证侧栏入口按钮切换后窗口随之创建与销毁
 
-[Case ID] TC-PET-L3-003
+[Case ID] TC-PET-L3-03-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:48`
 [自动化] 待接线（G4）
-[前置条件] 同 TC-PET-L3-001；内置 DSH 界面已加载完侧栏
+[前置条件] 同 TC-PET-L3-03-001；内置 DSH 界面已加载完侧栏
 [测试数据] 点击 `[data-dsh-tauri-pet-icon]` 两次
 [测试步骤] 1. 记录点击前窗口集合与 `aria-pressed`。2. 点击按钮。3. 轮询窗口集合与 `aria-pressed`。4. 再次点击。
 [预期结果] 1. 首次点击后 `aria-pressed="true"` 且窗口集合包含 `pet`。2. 二次点击后 `aria-pressed="false"` 且窗口集合回到 `["main"]`。3. 无 `PET_WINDOW_CREATE_FAILED` / `PET_WINDOW_DESTROY_FAILED` 错误文案。
@@ -203,7 +203,7 @@
 
 ### [P4] 验证桌宠尺寸边界被夹紧到 50–200
 
-[Case ID] TC-PET-L3-004
+[Case ID] TC-PET-L3-03-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/client/constants/index.ts:45`、`packages/dsh-tauri-pet/src/client/constants/index.ts:46`
@@ -220,20 +220,20 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `plugin.test.md` §8 批次 3（SSE 首帧） | TC-PET-L2-001、TC-PET-L2-002 | 正向 / 异常 | 已落地 |
-| `get.ts:58` 心跳 | TC-PET-L2-003 | 边界 | 用例耗时 ≥ 17s，不进冒烟子集 |
-| `session-stream.ts:36` 消费者注销 | TC-PET-L2-004、TC-PET-L2-005 | 回归 / 边界 | 注销本身只能经重连间接观察 |
-| `client/index.ts:24` iframe 守卫 | TC-PET-C-001 | 边界 | 依赖浏览器驱动 |
-| `pet-section.ts:11` / `sidebar-icon.ts:94` | TC-PET-C-002、TC-PET-C-003 | 正向 | 依赖浏览器驱动 |
-| `sidebar-icon.ts:110` 轮询兜底 | TC-PET-C-004 | 边界 | 需人为阻断侧栏 |
-| `plugin.test.md` §8 批次 4+（桌面端窗口） | TC-PET-L3-001、TC-PET-L3-002、TC-PET-L3-003 | 正向 / 异常 | 依赖 `desktop` project |
-| `constants/index.ts:45` 尺寸范围 | TC-PET-L3-004 | 边界 | — |
+| `plugin.test.md` §8 批次 3（SSE 首帧） | TC-PET-L2-03-001、TC-PET-L2-03-002 | 正向 / 异常 | 已落地 |
+| `get.ts:58` 心跳 | TC-PET-L2-03-003 | 边界 | 用例耗时 ≥ 17s，不进冒烟子集 |
+| `session-stream.ts:36` 消费者注销 | TC-PET-L2-03-004、TC-PET-L2-03-005 | 回归 / 边界 | 注销本身只能经重连间接观察 |
+| `client/index.ts:24` iframe 守卫 | TC-PET-C-03-001 | 边界 | 依赖浏览器驱动 |
+| `pet-section.ts:11` / `sidebar-icon.ts:94` | TC-PET-C-03-002、TC-PET-C-03-003 | 正向 | 依赖浏览器驱动 |
+| `sidebar-icon.ts:110` 轮询兜底 | TC-PET-C-03-004 | 边界 | 需人为阻断侧栏 |
+| `plugin.test.md` §8 批次 4+（桌面端窗口） | TC-PET-L3-03-001、TC-PET-L3-03-002、TC-PET-L3-03-003 | 正向 / 异常 | 依赖 `desktop` project |
+| `constants/index.ts:45` 尺寸范围 | TC-PET-L3-03-004 | 边界 | — |
 
 ---
 
 ## 6. 缺口与假设
 
 - **G-PET-1**：数据帧形状（`data: {"action","payload"}`，`packages/dsh-tauri-pet/src/host/types/index.ts:53`）与首帧 `retry: 1000` 需要真实会话事件才能观察。当前无「触发一次会话事件」的稳定手段，**未覆盖**；建议后续用 scratch profile 直接 POST 一次会话动作后再断言帧形状。
-- **G-PET-2**：`window.handles` 是否包含 Tauri 的多 WebView 窗口（`pet`）尚未验证——`wdio-probe.mjs:146` 只在默认状态断言了 `["main"]`。若驱动只暴露主窗口，TC-PET-L3-001 需改用原生窗口枚举（Rust 侧）或前端 `get_pet_status().visible`。
+- **G-PET-2**：`window.handles` 是否包含 Tauri 的多 WebView 窗口（`pet`）尚未验证——`wdio-probe.mjs:146` 只在默认状态断言了 `["main"]`。若驱动只暴露主窗口，TC-PET-L3-03-001 需改用原生窗口枚举（Rust 侧）或前端 `get_pet_status().visible`。
 - **G-PET-3**：`packages/dsh-tauri-pet/skills/` 在本 checkout 不存在，而 `cordis.patch.yml` 引用了它；技能相关的用户可见产物**不在覆盖范围**，直到该目录真实存在。
 - **假设**：`sidebar-icon.utils.ts:25` 的 `aria-pressed` 与 store 中 `status.enabled` 同步（`sidebar-icon.ts:71` 订阅保证）。

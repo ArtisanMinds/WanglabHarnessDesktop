@@ -37,7 +37,7 @@
 
 ### [P2] 验证预设清单字段被正确解析且内置项覆盖同名预设
 
-[Case ID] TC-PRE-L3-001
+[Case ID] TC-PRE-L3-14-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/preset.rs:25`、`src-tauri/src/service/plugin/preset.rs:411`
@@ -50,7 +50,7 @@
 
 ### [P2] 验证非 Windows 平台不返回 `winOnly` 条目
 
-[Case ID] TC-PRE-L3-002
+[Case ID] TC-PRE-L3-14-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/installed.rs:107`
@@ -63,7 +63,7 @@
 
 ### [P2] 验证确认安装执行的是当前档案的 add 命令且写入 dependencies
 
-[Case ID] TC-PRE-L3-003
+[Case ID] TC-PRE-L3-14-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/install/mod.rs:249`、`src-tauri/src/service/plugin/install/spec.rs:60`
@@ -76,12 +76,12 @@
 
 ### [P3] [反向] 验证空选择与非法 id 被明确拒绝
 
-[Case ID] TC-PRE-L3-004
+[Case ID] TC-PRE-L3-14-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/install/mod.rs:131`、`src-tauri/src/service/plugin/install/mod.rs:144`
 [自动化] 待接线（同上）
-[前置条件] 同 TC-PRE-L3-003
+[前置条件] 同 TC-PRE-L3-14-003
 [测试数据] 第一次传空 `install_ids`；第二次传清单外的 id
 [测试步骤] 1. 两次调用安装。2. 分别读错误前缀。
 [预期结果] 1. 第一次返回 `PREINSTALL_EMPTY`。2. 第二次返回 `PREINSTALL_INVALID_ID: <id>`。3. 两次都未产生任何 `dsh plugin` 子进程。
@@ -89,7 +89,7 @@
 
 ### [P2] 验证跳过引导写入完成标记且指纹固定
 
-[Case ID] TC-PRE-L3-005
+[Case ID] TC-PRE-L3-14-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/preset.rs:511`、`src-tauri/src/service/plugin/preset.rs:532`
@@ -102,7 +102,7 @@
 
 ### [P4] 验证预设清单内容变化使指纹失效并重新进入引导
 
-[Case ID] TC-PRE-L3-006
+[Case ID] TC-PRE-L3-14-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/preset.rs:532`
@@ -115,7 +115,7 @@
 
 ### [P3] 验证取消安装会结束子进程且不置位完成标记
 
-[Case ID] TC-PRE-L3-007
+[Case ID] TC-PRE-L3-14-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/cancel.rs:87`、`src-tauri/src/service/plugin/cancel.rs:13`
@@ -128,7 +128,7 @@
 
 ### [P4] 验证打开仓库只接受清单内 id
 
-[Case ID] TC-PRE-L3-008
+[Case ID] TC-PRE-L3-14-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/bridge/plugin.rs:114`
@@ -141,7 +141,7 @@
 
 ### [P4] 验证安装子进程环境注入 `DSH_NODE`
 
-[Case ID] TC-PRE-L3-009
+[Case ID] TC-PRE-L3-14-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/install/env.rs:20`、`src-tauri/src/service/cli/shim/build.rs:743`
@@ -158,15 +158,15 @@
 
 | 来源（归档套件） | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `06-plugin/04` 验证选中推荐插件后确认安装并展示实时安装日志 | TC-PRE-L3-003 | 正向 | 日志逐行渲染由 `../desktop/08` 断言 |
-| `06-plugin/04` 验证安装按当前档案执行 dsh plugin --profile add 命令 | TC-PRE-L3-003、TC-PRE-L3-004 | 正向 / 异常 | — |
-| `06-plugin/04` 验证跳过引导后记录完成不再弹出 | TC-PRE-L3-005 | 正向 | — |
-| `06-plugin/04` 验证取消进行中的预装插件安装 | TC-PRE-L3-007 | 异常 | — |
-| `06-plugin/04` 验证 Windows 下列出 dsh-win-terminal-inspector 修复项 | TC-PRE-L3-002（反向）+ `../desktop/08` | 边界 | Windows 上需正向断言，见 G-PRE-2 |
-| `06-plugin/04` 验证打开预装插件仓库地址 | TC-PRE-L3-008 | 边界 | — |
-| `06-plugin/04` 验证预检通过但 pnpm shim 找不到 node 时安装仍成功（issue #121） | TC-PRE-L3-009 | 边界 | — |
-| `01-install/04` 验证预设清单指纹变更后重新进入引导 | TC-PRE-L3-006 | 边界 | — |
-| `01-install/04` 验证首次启动列出预设插件清单且推荐/修复/默认项默认勾选 | TC-PRE-L3-001 + `../desktop/08` | 正向 | 勾选交互归 desktop 08 |
+| `06-plugin/04` 验证选中推荐插件后确认安装并展示实时安装日志 | TC-PRE-L3-14-003 | 正向 | 日志逐行渲染由 `../desktop/08` 断言 |
+| `06-plugin/04` 验证安装按当前档案执行 dsh plugin --profile add 命令 | TC-PRE-L3-14-003、TC-PRE-L3-14-004 | 正向 / 异常 | — |
+| `06-plugin/04` 验证跳过引导后记录完成不再弹出 | TC-PRE-L3-14-005 | 正向 | — |
+| `06-plugin/04` 验证取消进行中的预装插件安装 | TC-PRE-L3-14-007 | 异常 | — |
+| `06-plugin/04` 验证 Windows 下列出 dsh-win-terminal-inspector 修复项 | TC-PRE-L3-14-002（反向）+ `../desktop/08` | 边界 | Windows 上需正向断言，见 G-PRE-2 |
+| `06-plugin/04` 验证打开预装插件仓库地址 | TC-PRE-L3-14-008 | 边界 | — |
+| `06-plugin/04` 验证预检通过但 pnpm shim 找不到 node 时安装仍成功（issue #121） | TC-PRE-L3-14-009 | 边界 | — |
+| `01-install/04` 验证预设清单指纹变更后重新进入引导 | TC-PRE-L3-14-006 | 边界 | — |
+| `01-install/04` 验证首次启动列出预设插件清单且推荐/修复/默认项默认勾选 | TC-PRE-L3-14-001 + `../desktop/08` | 正向 | 勾选交互归 desktop 08 |
 | 归档已废弃条目的现状 | `src-tauri/resources/deprecated-plugins.json:1` | — | 归档提及的 `dsh-notification` / `dsh-session-context-menu` 现已在弃用清单中，见 G-PRE-3 |
 
 ---
@@ -174,7 +174,7 @@
 ## 4. 缺口与假设
 
 - **G-PRE-1**：安装类用例依赖外部网络与 npm/git 源，属 `desktop.test.md` §6 允许联网的场景；离线环境应跳过而非判失败。
-- **G-PRE-2**：TC-PRE-L3-002 在 Windows 工作站上无法执行（需非 Windows）。若必须覆盖 Windows 正向分支，需新增一条「Windows 下列出 `winOnly` 修复项」用例，但当前 `preset-plugins.json` 内已无 `winOnly` 条目（字段语义仍保留），故该分支**暂时无数据可测**。
+- **G-PRE-2**：TC-PRE-L3-14-002 在 Windows 工作站上无法执行（需非 Windows）。若必须覆盖 Windows 正向分支，需新增一条「Windows 下列出 `winOnly` 修复项」用例，但当前 `preset-plugins.json` 内已无 `winOnly` 条目（字段语义仍保留），故该分支**暂时无数据可测**。
 - **G-PRE-3**：归档套件引用的预设项（`dshmarket`、`dsh-better-sidebar`、`dsh-notification`、`dsh-win-terminal-inspector`）与现行清单不一致：现行 `preset-plugins.json` 仅 3 条，且 `deprecated-plugins.json` 列出 4 个已弃用包。用例一律以**运行时清单内容**为准，不硬编码归档中的包名。
 - **G-PRE-4**：安装成功后 `preinstall_done` 与 `preset_hash` 的写点分散在 `src-tauri/src/bridge/plugin.rs:36`、`:62`、`:80`，本文件只断言最终状态，不断言写序。
 - **假设**：debug 构建的 store 文件为 `.store.dev.dat`（`src-tauri/src/config/setting.rs:191`），因此预装标记与用户真实环境隔离。

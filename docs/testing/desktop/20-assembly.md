@@ -76,7 +76,7 @@
 
 ### [P1] 验证首次启动自动装配并进入 Running
 
-[Case ID] TC-DSK-L3-149
+[Case ID] TC-DSK-L3-20-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/lifecycle.rs:86`、`:234`；`src-tauri/src/service/workflow/install.rs:53`
@@ -89,7 +89,7 @@
 
 ### [P1] 验证安装任务按固定顺序推进且进度阶段等权
 
-[Case ID] TC-DSK-L3-150
+[Case ID] TC-DSK-L3-20-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/workflow/install.rs:53`、`:98`、`:142`、`:207`；`src-tauri/src/service/download/progress.rs:105`
@@ -106,7 +106,7 @@
 
 ### [P2] 验证四项就绪时 runtime_ready 为真且不触发安装
 
-[Case ID] TC-DSK-L3-151
+[Case ID] TC-DSK-L3-20-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/lifecycle.rs:424`、`:222`；`src/store/modules/harness/store.ts:522`
@@ -119,7 +119,7 @@
 
 ### [P2] 验证运行时文件在盘但记录显示未安装时自愈补记
 
-[Case ID] TC-DSK-L3-152
+[Case ID] TC-DSK-L3-20-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/bridge/lifecycle.rs:103`、`:182`
@@ -132,7 +132,7 @@
 
 ### [P2] 验证本机兼容 Node 被复用而不下载内置运行时
 
-[Case ID] TC-DSK-L3-153
+[Case ID] TC-DSK-L3-20-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/download/installable.rs:44`；`src-tauri/src/config/runtime.rs:112`、`:524`
@@ -145,7 +145,7 @@
 
 ### [P2] 验证用户已装 pnpm 时跳过捆绑 pnpm
 
-[Case ID] TC-DSK-L3-154
+[Case ID] TC-DSK-L3-20-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/download/installable.rs:101`；`src-tauri/src/service/cli/path/pnpm.rs:17`、`:89`
@@ -158,7 +158,7 @@
 
 ### [P3] [反向] 验证本机 Node 为 v23 时不兼容并回退内置运行时
 
-[Case ID] TC-DSK-L3-155
+[Case ID] TC-DSK-L3-20-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/config/runtime.rs:524`、`:243`
@@ -171,7 +171,7 @@
 
 ### [P3] [反向] 验证安装过程中重复触发安装被抑制
 
-[Case ID] TC-DSK-L3-156
+[Case ID] TC-DSK-L3-20-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/lifecycle.rs:19`、`:79`
@@ -188,7 +188,7 @@
 
 ### [P3] [反向] 验证官方源失败时切换镜像兜底成功
 
-[Case ID] TC-DSK-L3-157
+[Case ID] TC-DSK-L3-20-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/install.rs:155`；`src-tauri/src/service/download/core.rs:35`
@@ -201,7 +201,7 @@
 
 ### [P3] [反向] 验证 SHA-256 摘要缺失时安全中止
 
-[Case ID] TC-DSK-L3-158
+[Case ID] TC-DSK-L3-20-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/install.rs:188`；`src-tauri/src/service/download/core.rs:304`
@@ -214,7 +214,7 @@
 
 ### [P3] [反向] 验证摘要不匹配时安装失败且旧版本完好
 
-[Case ID] TC-DSK-L3-159
+[Case ID] TC-DSK-L3-20-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/download/core.rs:277`、`:412`、`:518`
@@ -227,7 +227,7 @@
 
 ### [P3] [反向] 验证下载中断自动重试并给出可判定错误
 
-[Case ID] TC-DSK-L3-160
+[Case ID] TC-DSK-L3-20-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/download/core.rs:100`、`:162`
@@ -240,7 +240,7 @@
 
 ### [P4] [反向] 验证非白名单下载源被拒绝
 
-[Case ID] TC-DSK-L3-161
+[Case ID] TC-DSK-L3-20-013
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/download/core.rs:251`、`:39`
@@ -253,7 +253,7 @@
 
 ### [P4] 验证 Windows 追加 Git 任务且非 Windows 不出现
 
-[Case ID] TC-DSK-L3-162
+[Case ID] TC-DSK-L3-20-014
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/workflow/install.rs:93`、`:95`；`src-tauri/src/service/download/installable.rs:111`、`:133`
@@ -284,10 +284,10 @@
 
 ## 6. 缺口与假设
 
-- **G-D20-1**：本文件是整个套件中**最依赖真实网络**的部分。按 `00-overview.md` G7，离线环境应整体跳过 `157`–`160`，而非判为失败。
-- **G-D20-2**：`149`–`152` 需要「全新装配态」。`setting.installed=false` 的唯一写入点是启动时 node/dsh 二进制缺失（`launch.rs:170`），因此接线时应通过隔离数据目录 + 删除 `dependencies/dsh` 来构造，**不得改动开发者本机真实 `~/.dsh.dev`**（按 `00-overview.md` §5.3，`~/.dsh.dev` 在测试中一律指 `$E2E_HOME/home/.dsh.dev`）。
-- **G-D20-3**：首装进度为**等权阶段**（Windows 8 阶段 / 非 Windows 6 阶段），归档旧文档中的「下载 0-50、解压 50-100」只适用于核心槽位下载（`service/core/version.rs:517`）。`150` 明确断言这一点，不得按旧文档改写。
+- **G-D20-1**：本文件是整个套件中**最依赖真实网络**的部分。按 `00-overview.md` G7，离线环境应整体跳过 `TC-DSK-L3-20-008`–`TC-DSK-L3-20-011`，而非判为失败。
+- **G-D20-2**：`TC-DSK-L3-19-007`–`TC-DSK-L3-20-003` 需要「全新装配态」。`setting.installed=false` 的唯一写入点是启动时 node/dsh 二进制缺失（`launch.rs:170`），因此接线时应通过隔离数据目录 + 删除 `dependencies/dsh` 来构造，**不得改动开发者本机真实 `~/.dsh.dev`**（按 `00-overview.md` §5.3，`~/.dsh.dev` 在测试中一律指 `$E2E_HOME/home/.dsh.dev`）。
+- **G-D20-3**：首装进度为**等权阶段**（Windows 8 阶段 / 非 Windows 6 阶段），归档旧文档中的「下载 0-50、解压 50-100」只适用于核心槽位下载（`service/core/version.rs:517`）。`TC-DSK-L3-20-001` 明确断言这一点，不得按旧文档改写。
 - **G-D20-4**：前端对 `percentage` 做单调过滤（`store.ts:335`），因此断言必须取「非递减」而非「严格递增」；`payload.type` 是字段名（源为 `r#type`），旧文档中的 `phase` 命名不存在。
 - **G-D20-5**：`install-progress` 有 50ms 节流（`progress.rs:55`），断言事件条数时不可依赖固定数量，只可依赖顺序与取值集合。
 - **G-D20-6**：三个提交阶段失败分支（`INSTALL_RECOVERY_FAILED` / `INSTALL_BACKUP_FAILED` / `INSTALL_COMMIT_FAILED`）需要制造 rename 失败（如句柄独占），构造成本高，登记为已知盲区。
-- **假设**：默认在 Windows 上执行；`162` 的平台分支需两平台各跑一次。Node/pnpm 走地域二选一（非回退），因此 `157` 的镜像兜底断言只对 Dsh 核心任务成立。
+- **假设**：默认在 Windows 上执行；`TC-DSK-L3-20-013` 的平台分支需两平台各跑一次。Node/pnpm 走地域二选一（非回退），因此 `TC-DSK-L3-20-008` 的镜像兜底断言只对 Dsh 核心任务成立。

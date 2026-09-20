@@ -16,7 +16,7 @@
 | [`plugins/00-overview.md`](./plugins/00-overview.md) | 插件总览：分层策略、可立即运行的部分、追踪矩阵、缺口 |
 | [`plugins/01-host-lane-skeleton.md`](./plugins/01-host-lane-skeleton.md) … [`18-cross-plugin-desktop.md`](./plugins/18-cross-plugin-desktop.md) | 插件用例，单文件即一个批次 |
 
-**用例规模**：桌面端 29 个文件 / **273** 条；插件 18 个文件 / **170** 条。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体。
+**用例规模**：桌面端 29 个文件 / **275** 条；插件 18 个文件 / **170** 条。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体。
 
 ---
 

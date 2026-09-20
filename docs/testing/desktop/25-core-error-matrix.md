@@ -34,7 +34,7 @@
 
 ### [P2] 验证非法 id 与不可用目标的错误码
 
-[Case ID] TC-DSK-L3-208
+[Case ID] TC-DSK-L3-25-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:380`、`:552`、`:409`、`:564`、`:354`
@@ -47,7 +47,7 @@
 
 ### [P4] 验证下载幂等：已存在槽位不再联网
 
-[Case ID] TC-DSK-L3-209
+[Case ID] TC-DSK-L3-25-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/core/version.rs:500`、`:594`
@@ -64,7 +64,7 @@
 
 ### [P1] 验证成功切换后目录互换与来源标记同步
 
-[Case ID] TC-DSK-L3-210
+[Case ID] TC-DSK-L3-25-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/core/version.rs:443`、`:404`、`:421`
@@ -77,7 +77,7 @@
 
 ### [P3] [反向] 验证目录互换失败时回滚到原激活版本
 
-[Case ID] TC-DSK-L3-211
+[Case ID] TC-DSK-L3-25-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:443`、`:463`
@@ -90,7 +90,7 @@
 
 ### [P3] [反向] 验证备份清理失败即中止，不动激活位
 
-[Case ID] TC-DSK-L3-212
+[Case ID] TC-DSK-L3-25-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:455`、`:443`
@@ -103,7 +103,7 @@
 
 ### [P4] 验证切换前先停服并清扫孤儿进程
 
-[Case ID] TC-DSK-L3-213
+[Case ID] TC-DSK-L3-25-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/core/version.rs:330`、`:421`、`:339`
@@ -116,7 +116,7 @@
 
 ### [P3] [反向] 验证转换锁超时返回专用错误码
 
-[Case ID] TC-DSK-L3-214
+[Case ID] TC-DSK-L3-25-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/workflow/process.rs:127`、`:135`；`src-tauri/src/service/core/version.rs:347`、`:404`
@@ -133,7 +133,7 @@
 
 ### [P2] 验证下载链路的分阶段错误码
 
-[Case ID] TC-DSK-L3-215
+[Case ID] TC-DSK-L3-25-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:512`、`:514`、`:530`、`:531`、`:542`
@@ -146,7 +146,7 @@
 
 ### [P2] 验证卸载守卫与删除失败
 
-[Case ID] TC-DSK-L3-216
+[Case ID] TC-DSK-L3-25-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:560`、`:564`、`:574`
@@ -159,7 +159,7 @@
 
 ### [P3] [反向] 验证低于基线的本地核心被拒且不改写 active_core
 
-[Case ID] TC-DSK-L3-217
+[Case ID] TC-DSK-L3-25-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:360`；`src-tauri/src/service/core/source.rs:107`
@@ -172,7 +172,7 @@
 
 ### [P2] 验证更新本地核心的可观察结果
 
-[Case ID] TC-DSK-L3-218
+[Case ID] TC-DSK-L3-25-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/local.rs:274`、`:322`、`:339`
@@ -185,7 +185,7 @@
 
 ### [P4] 验证按全局布局选择 pnpm 或 npm 更新
 
-[Case ID] TC-DSK-L3-219
+[Case ID] TC-DSK-L3-25-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/core/local.rs:247`、`:281`、`:314`
@@ -198,7 +198,7 @@
 
 ### [P2] 验证核心行字段与标记语义
 
-[Case ID] TC-DSK-L3-220
+[Case ID] TC-DSK-L3-25-013
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/core/source.rs:43`；`src-tauri/src/bridge/core.rs:12`
@@ -211,7 +211,7 @@
 
 ### [P3] [反向] 验证切换后激活核心消失的错误码
 
-[Case ID] TC-DSK-L3-221
+[Case ID] TC-DSK-L3-25-014
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/core/version.rs:390`
@@ -242,8 +242,8 @@
 
 - **G-D25-1**：`CORE_APP_NOT_FOUND: bundled core is not installed`（`version.rs:371`）需要移除或改名随包核心二进制才能触发，本文件未为它安排 Case。
 - **G-D25-2**：回滚类用例（211、212、216）需要制造重命名或删除失败。Windows 上的可靠手段是占用目录句柄；权限手段需管理员。接线时优先用句柄占用。
-- **G-D25-3**：TC-DSK-L3-214 需要人为持有转换锁超过 15 秒，当前无外部注入点，需测试编排层配合或增加诊断命令。
-- **G-D25-4**：TC-DSK-L3-210、211 的早退分支「当前激活 tag 与目标 tag 相同 → 只改来源标记」（`version.rs:413`）未单独覆盖；同版本 local → app 的来源改写属该分支。
+- **G-D25-3**：TC-DSK-L3-25-007 需要人为持有转换锁超过 15 秒，当前无外部注入点，需测试编排层配合或增加诊断命令。
+- **G-D25-4**：TC-DSK-L3-25-003、211 的早退分支「当前激活 tag 与目标 tag 相同 → 只改来源标记」（`version.rs:413`）未单独覆盖；同版本 local → app 的来源改写属该分支。
 - **G-D25-5**：卸载前停服失败只记警告不阻断（`version.rs:568`），意味着删除可能在被占用目录上退化；该降级路径未验证。
 - **G-D25-6**：`CORE_LOCAL_UNSUPPORTED` 在 `source.rs:107` 同时以一次性降级警告日志出现（仅告警一次）。日志侧断言当前无出口，217 只断言命令返回值与 `active_core`。
 - **假设**：核心切换的成功路径不负责重启服务，重启由前端触发；本文件在切换类用例中只断言目录与设置，不重复断言服务恢复（归 `07-harness-lifecycle.md` 与 `14-core-management.md`）。

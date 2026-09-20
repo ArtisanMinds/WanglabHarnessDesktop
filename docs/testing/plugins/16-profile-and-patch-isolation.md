@@ -33,7 +33,7 @@
 
 ### [P1] 验证两个档案的插件互不影响
 
-[Case ID] TC-ISO-L3-001
+[Case ID] TC-ISO-L3-16-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:99`、`src-tauri/src/service/plugin/installed.rs:44`
@@ -46,7 +46,7 @@
 
 ### [P1] 验证两个档案的补丁层互不串扰
 
-[Case ID] TC-ISO-L3-002
+[Case ID] TC-ISO-L3-16-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:78`
@@ -59,7 +59,7 @@
 
 ### [P2] 验证切换档案后服务以新档案启动且旧档案数据保留
 
-[Case ID] TC-ISO-L3-003
+[Case ID] TC-ISO-L3-16-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:337`、`src-tauri/src/service/workflow/launch.rs:461`
@@ -72,7 +72,7 @@
 
 ### [P4] 验证删除档案不影响其他档案
 
-[Case ID] TC-ISO-L3-004
+[Case ID] TC-ISO-L3-16-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/profile/mod.rs:532`
@@ -85,7 +85,7 @@
 
 ### [P1] 验证 pnpm-workspace 多文档被归一化为单文档
 
-[Case ID] TC-ISO-L3-005
+[Case ID] TC-ISO-L3-16-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/profile/mod.rs:123`、`src-tauri/src/service/profile/mod.rs:168`
@@ -98,7 +98,7 @@
 
 ### [P3] [反向] 验证非法 YAML 被拒绝且不做带病归一化
 
-[Case ID] TC-ISO-L3-006
+[Case ID] TC-ISO-L3-16-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/profile/mod.rs:165`
@@ -111,7 +111,7 @@
 
 ### [P3] [反向] 验证档案目录不可写时在写入前给出诊断
 
-[Case ID] TC-ISO-L3-007
+[Case ID] TC-ISO-L3-16-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/perm.rs:235`、`src-tauri/src/service/workflow/launch.rs:371`
@@ -124,7 +124,7 @@
 
 ### [P2] 验证档案内 `disabled-plugins.json` 只影响本档案
 
-[Case ID] TC-ISO-L3-008
+[Case ID] TC-ISO-L3-16-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/disable.rs:302`、`src-tauri/src/service/plugin/watch.rs:601`
@@ -141,19 +141,19 @@
 
 | 来源（归档套件） | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `05-profile/05` 验证不同档案安装的插件互不影响 | TC-ISO-L3-001 | 正向 | — |
-| `05-profile/05` 验证不同档案的补丁设定各自独立 | TC-ISO-L3-002 | 正向 | — |
-| `05-profile/05` 验证切换档案后服务以新档案启动且旧档案数据完整保留 | TC-ISO-L3-003 | 正向 | 档案切换本身由 `../desktop/05-profile.md` 覆盖 |
-| `05-profile/05` 验证删除档案 A 不影响其他档案 | TC-ISO-L3-004 | 边界 | — |
-| `06-plugin/03` 验证 pnpm-workspace.yaml 多文档被归一化并恢复插件安装 | TC-ISO-L3-005、TC-ISO-L3-006 | 正向 / 异常 | — |
-| `01-install/05` 验证数据目录不可写时在写入前给出可执行权限诊断 | TC-ISO-L3-007 | 异常 | 系统权限无法在页面内构造，标为手工 |
-| 现行实现新增（禁用清单的档案局部性） | TC-ISO-L3-008 | 正向 | 归档套件未覆盖 |
+| `05-profile/05` 验证不同档案安装的插件互不影响 | TC-ISO-L3-16-001 | 正向 | — |
+| `05-profile/05` 验证不同档案的补丁设定各自独立 | TC-ISO-L3-16-002 | 正向 | — |
+| `05-profile/05` 验证切换档案后服务以新档案启动且旧档案数据完整保留 | TC-ISO-L3-16-003 | 正向 | 档案切换本身由 `../desktop/05-profile.md` 覆盖 |
+| `05-profile/05` 验证删除档案 A 不影响其他档案 | TC-ISO-L3-16-004 | 边界 | — |
+| `06-plugin/03` 验证 pnpm-workspace.yaml 多文档被归一化并恢复插件安装 | TC-ISO-L3-16-005、TC-ISO-L3-16-006 | 正向 / 异常 | — |
+| `01-install/05` 验证数据目录不可写时在写入前给出可执行权限诊断 | TC-ISO-L3-16-007 | 异常 | 系统权限无法在页面内构造，标为手工 |
+| 现行实现新增（禁用清单的档案局部性） | TC-ISO-L3-16-008 | 正向 | 归档套件未覆盖 |
 
 ---
 
 ## 4. 缺口与假设
 
-- **G-ISO-1**：TC-ISO-L3-007 需要修改文件系统权限，无法由页面内测试自足完成，按 `desktop.test.md` 的规定标为 `[自动化] 否（手工）`，并在执行记录中附上目录属主信息。
+- **G-ISO-1**：TC-ISO-L3-16-007 需要修改文件系统权限，无法由页面内测试自足完成，按 `desktop.test.md` 的规定标为 `[自动化] 否（手工）`，并在执行记录中附上目录属主信息。
 - **G-ISO-2**：`PROFILE_WORKSPACE_MULTI_DOCUMENT` 的归一化由档案策略检查触发（`src-tauri/src/service/profile/mod.rs:154`），当前由服务启动链调用（`src-tauri/src/service/workflow/launch.rs:461`）。用例以「启动一次服务」作为触发方式，若后续出现更直接的命令入口，应改用它。
 - **G-ISO-3**：本文件的三档案用例要求测试代理只在 `<DSH_E2E_HOME>/home/.dsh.dev/profiles/` 下创建 `alpha`/`beta`/`gamma`，禁止触碰 `web` 与 `tauri`。违反此约束会污染开发环境（`desktop.test.md` §6）。
 - **假设**：`dsh.profile.bundles` 是插件加载的唯一开关（除 `disabled-plugins.json` 与 patch 覆盖），因此「档案 A 的插件不影响档案 B」等价于「两份 `package.json` + 两套 `node_modules` 相互独立」。

@@ -40,7 +40,7 @@
 
 ### [P2] 验证禁用只摘 bundles、保留依赖与包体
 
-[Case ID] TC-LIFE-L3-001
+[Case ID] TC-LIFE-L3-13-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/disable.rs:302`、`src-tauri/src/service/plugin/disable.rs:303`
@@ -53,7 +53,7 @@
 
 ### [P3] [反向] 验证禁用内置插件被拒绝且不改动任何文件
 
-[Case ID] TC-LIFE-L3-002
+[Case ID] TC-LIFE-L3-13-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/disable.rs:277`
@@ -66,7 +66,7 @@
 
 ### [P3] [反向] 验证启用未处于禁用态的插件返回明确错误
 
-[Case ID] TC-LIFE-L3-003
+[Case ID] TC-LIFE-L3-13-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/disable.rs:363`
@@ -79,7 +79,7 @@
 
 ### [P3] [反向] 验证被配置覆盖禁用的插件启用前需要显式确认
 
-[Case ID] TC-LIFE-L3-004
+[Case ID] TC-LIFE-L3-13-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/disable.rs:368`
@@ -92,7 +92,7 @@
 
 ### [P1] 验证升级成功后版本前进、错误记录清除、并留下自动快照
 
-[Case ID] TC-LIFE-L3-005
+[Case ID] TC-LIFE-L3-13-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/install/single.rs:289`、`src-tauri/src/service/plugin/install/single.rs:353`、`src-tauri/src/service/plugin/snapshot.rs:425`
@@ -105,7 +105,7 @@
 
 ### [P3] [反向] 验证升级网络失败被记录为 update 类错误
 
-[Case ID] TC-LIFE-L3-006
+[Case ID] TC-LIFE-L3-13-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/plugin.rs:148`、`src-tauri/src/service/plugin/errors.rs:53`
@@ -118,7 +118,7 @@
 
 ### [P1] 验证卸载同时清理依赖、bundles、包体与级联快照
 
-[Case ID] TC-LIFE-L3-007
+[Case ID] TC-LIFE-L3-13-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/install/single.rs:102`、`src-tauri/src/service/plugin/install/single.rs:143`
@@ -131,7 +131,7 @@
 
 ### [P3] [反向] 验证卸载受保护包被拒绝且不留副作用
 
-[Case ID] TC-LIFE-L3-008
+[Case ID] TC-LIFE-L3-13-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/recovery/mod.rs:163`
@@ -144,7 +144,7 @@
 
 ### [P2] 验证快照可创建、可查询、可还原
 
-[Case ID] TC-LIFE-L3-009
+[Case ID] TC-LIFE-L3-13-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/plugin/snapshot.rs:358`、`src-tauri/src/service/plugin/snapshot.rs:586`
@@ -157,7 +157,7 @@
 
 ### [P3] [反向] 验证无可还原快照时给出明确错误
 
-[Case ID] TC-LIFE-L3-010
+[Case ID] TC-LIFE-L3-13-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/plugin/snapshot.rs:590`、`src-tauri/src/service/plugin/snapshot.rs:596`
@@ -170,7 +170,7 @@
 
 ### [P4] 验证删除不存在的快照视为成功
 
-[Case ID] TC-LIFE-L3-011
+[Case ID] TC-LIFE-L3-13-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/plugin/snapshot.rs:481`
@@ -183,7 +183,7 @@
 
 ### [P2] 验证写操作结束后服务被重新拉起
 
-[Case ID] TC-LIFE-L3-012
+[Case ID] TC-LIFE-L3-13-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/plugin.tsx:193`、`src/ui/config/plugin.tsx:282`
@@ -200,14 +200,14 @@
 
 | 来源（归档套件） | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `06-plugin/02` 验证升级已装插件到新版本成功 | TC-LIFE-L3-005 | 正向 | 需联网与真实新版本 |
-| `06-plugin/02` 验证卸载插件成功且从列表移除 | TC-LIFE-L3-007 | 正向 | — |
-| `06-plugin/02` 验证升级失败时给出错误详情并可重试 | TC-LIFE-L3-006 | 异常 | — |
-| `06-plugin/02` 验证卸载不存在的插件时不误报成功 | TC-LIFE-L3-008 | 异常 | 归档针对「不存在」，此处以受保护包为主；「不存在」分支并入 03 |
-| `06-plugin/02` 验证升级或卸载后服务按新状态生效 | TC-LIFE-L3-012 | 正向 | — |
-| 现行实现新增（禁用/启用事务与回滚） | TC-LIFE-L3-001 ～ TC-LIFE-L3-004 | 正向 / 异常 | 归档套件未覆盖禁用/启用 |
-| 现行实现新增（快照 CRUD） | TC-LIFE-L3-009 ～ TC-LIFE-L3-011 | 正向 / 异常 / 边界 | 归档仅间接依赖快照 |
-| `06-plugin/01` 验证插件被移除后列表能反应 | TC-LIFE-L3-007 + `12-plugin-inventory-and-watch.md` | 正向 | 列表侧断言归 13 |
+| `06-plugin/02` 验证升级已装插件到新版本成功 | TC-LIFE-L3-13-005 | 正向 | 需联网与真实新版本 |
+| `06-plugin/02` 验证卸载插件成功且从列表移除 | TC-LIFE-L3-13-007 | 正向 | — |
+| `06-plugin/02` 验证升级失败时给出错误详情并可重试 | TC-LIFE-L3-13-006 | 异常 | — |
+| `06-plugin/02` 验证卸载不存在的插件时不误报成功 | TC-LIFE-L3-13-008 | 异常 | 归档针对「不存在」，此处以受保护包为主；「不存在」分支并入 03 |
+| `06-plugin/02` 验证升级或卸载后服务按新状态生效 | TC-LIFE-L3-13-012 | 正向 | — |
+| 现行实现新增（禁用/启用事务与回滚） | TC-LIFE-L3-13-001 ～ TC-LIFE-L3-13-004 | 正向 / 异常 | 归档套件未覆盖禁用/启用 |
+| 现行实现新增（快照 CRUD） | TC-LIFE-L3-13-009 ～ TC-LIFE-L3-13-011 | 正向 / 异常 / 边界 | 归档仅间接依赖快照 |
+| `06-plugin/01` 验证插件被移除后列表能反应 | TC-LIFE-L3-13-007 + `12-plugin-inventory-and-watch.md` | 正向 | 列表侧断言归 13 |
 
 ---
 
@@ -215,6 +215,6 @@
 
 - **G-LIFE-1**：写操作会真实改动测试档案。执行前必须确认活动档案指向 scratch 档案（`<DSH_E2E_HOME>/home/.dsh.dev`），且用例结束时恢复原状；未恢复即判失败。
 - **G-LIFE-2**：`update_dsh_plugin` 依赖外部 `dsh`/`pnpm` 与网络，其写盘形态（`pnpm-lock.yaml` 等）由 CLI 决定，不在本仓库实现内（见 `src-tauri/src/service/plugin/install/single.rs:303`）。本文件只断言可见结果（版本、错误记录、快照），不断言 lock 文件细节。
-- **G-LIFE-3**：`enable_dsh_plugin` 的参数名在前端为 `clearConfigOverride`、Rust 侧为 `clear_config_override`（`src/ui/config/plugin.tsx:128`、`src-tauri/src/bridge/plugin.rs:233`），依赖 Tauri 的命名转换。TC-LIFE-L3-004 需先确认转换生效，否则错误码不会出现。
+- **G-LIFE-3**：`enable_dsh_plugin` 的参数名在前端为 `clearConfigOverride`、Rust 侧为 `clear_config_override`（`src/ui/config/plugin.tsx:128`、`src-tauri/src/bridge/plugin.rs:233`），依赖 Tauri 的命名转换。TC-LIFE-L3-13-004 需先确认转换生效，否则错误码不会出现。
 - **G-LIFE-4**：`snapshot_plugins`（批量）在前端无调用点（仅 Rust 注册），故不设用例；若后续接线，补一条批量快照的部分失败断言（单条失败只写 `SnapshotResult.error`）。
 - **假设**：`.plugin-backups` 位于 `$DSH_HOME` 下（`src-tauri/src/service/plugin/snapshot.rs:39`），debug 构建中即 `<DSH_E2E_HOME>/home/.dsh.dev/.plugin-backups`，因此与用户真实数据隔离。

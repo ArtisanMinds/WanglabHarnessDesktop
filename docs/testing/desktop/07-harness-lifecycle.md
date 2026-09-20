@@ -32,7 +32,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P1] 验证「重启」后服务恢复健康
 
-[Case ID] TC-DSK-L3-046
+[Case ID] TC-DSK-L3-07-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/store/modules/harness/store.ts:630`；`src/ui/config/debug.tsx:238`
@@ -45,7 +45,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P2] 验证重启期间按钮禁用并显示加载指示
 
-[Case ID] TC-DSK-L3-047
+[Case ID] TC-DSK-L3-07-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/ui/config/debug.tsx:224`、`:239`、`:249`；`src/store/modules/harness/types.ts:7`
@@ -58,7 +58,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P2] 验证「停止」后连接状态变为已停止
 
-[Case ID] TC-DSK-L3-048
+[Case ID] TC-DSK-L3-07-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/store/modules/harness/store.ts:752-762`；`src/ui/config/debug.tsx:189-196`
@@ -71,7 +71,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P2] 验证「在浏览器打开」调用系统浏览器
 
-[Case ID] TC-DSK-L3-049
+[Case ID] TC-DSK-L3-07-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/store/modules/harness/store.ts:791`；`src/ui/config/debug.tsx:223`
@@ -88,7 +88,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P3] [反向] 验证 harness 进程意外退出时前端状态同步
 
-[Case ID] TC-DSK-L3-050
+[Case ID] TC-DSK-L3-07-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/store/modules/harness/runtime.ts:27`；`src/store/modules/harness/types.ts:10-13`
@@ -101,12 +101,12 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P4] 验证停止状态下不渲染重启与停止按钮
 
-[Case ID] TC-DSK-L3-051
+[Case ID] TC-DSK-L3-07-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/ui/config/debug.tsx:233-255`
 [自动化] 待接线（同上）
-[前置条件] 服务已停止（承接 TC-DSK-L3-048）
+[前置条件] 服务已停止（承接 TC-DSK-L3-07-003）
 [测试数据] 选择器 `dsh-config-restart`、`dsh-config-shutdown`
 [测试步骤] 1. 读取两个按钮的存在性。
 [预期结果] 1. 两个按钮均不存在（停止态不提供无意义的重复停止入口）。
@@ -114,7 +114,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ### [P4] 验证连续触发重启只执行一次
 
-[Case ID] TC-DSK-L3-052
+[Case ID] TC-DSK-L3-07-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/store/modules/harness/store.ts:68`（`SingleFlight`）
@@ -153,7 +153,7 @@ DSH 服务是一个由宿主拉起的子进程，壳层通过健康检查与进�
 
 ## 6. 缺口与假设
 
-- **G-D07-1**：TC-DSK-L3-052 需要统计后端 `launch_harness` 的调用次数。当前无计数出口，接线时需在测试编排层计数（例如通过服务日志行数）或增加只读诊断命令；在具备该能力前，本用例只能断言「最终状态健康」而无法证明「只执行一次」。
-- **G-D07-2**：TC-DSK-L3-049 只验证命令成功返回，**不验证系统浏览器实际打开**（属系统表面，见 `00-overview.md` G9）。人工确认项。
+- **G-D07-1**：TC-DSK-L3-07-007 需要统计后端 `launch_harness` 的调用次数。当前无计数出口，接线时需在测试编排层计数（例如通过服务日志行数）或增加只读诊断命令；在具备该能力前，本用例只能断言「最终状态健康」而无法证明「只执行一次」。
+- **G-D07-2**：TC-DSK-L3-07-004 只验证命令成功返回，**不验证系统浏览器实际打开**（属系统表面，见 `00-overview.md` G9）。人工确认项。
 - **G-D07-3**：停止状态下 UI 不提供「启动」入口（`debug.tsx:233-255` 只在 `serviceRunning` 时渲染两个按钮）。这是当前设计，不是缺陷；但意味着「停止 → 手动启动」只能靠重启或插件操作触发，本套未覆盖该路径。
 - **假设**：`restart()` 在失败时会进入应用错误态（`fail()`），由 `11` 覆盖错误页呈现；本文件不重复断言错误页细节。

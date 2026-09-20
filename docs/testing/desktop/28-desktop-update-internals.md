@@ -48,7 +48,7 @@
 
 ### [P2] 验证启动即检查一次并按 10 分钟间隔轮询
 
-[Case ID] TC-DSK-L3-248
+[Case ID] TC-DSK-L3-28-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/layout/index.tsx:21`、`:88-89`
@@ -61,7 +61,7 @@
 
 ### [P1] 验证发现正式版后无用户操作即静默下载
 
-[Case ID] TC-DSK-L3-249
+[Case ID] TC-DSK-L3-28-002
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src/store/modules/desktop-updater/store.ts:57-64`、`:81-103`；`src-tauri/src/service/update/install.rs:23-36`、`:305`
@@ -74,7 +74,7 @@
 
 ### [P2] 验证已下载未安装时退出应用自动拉起安装器
 
-[Case ID] TC-DSK-L3-250
+[Case ID] TC-DSK-L3-28-003
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/lib.rs:57-67`；`src-tauri/src/service/update/pending.rs:82-83`、`:101-114`
@@ -87,7 +87,7 @@
 
 ### [P2] 验证打开安装包前先释放 Harness 端口
 
-[Case ID] TC-DSK-L3-251
+[Case ID] TC-DSK-L3-28-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/service/update/pending.rs:106-111`；`src-tauri/src/service/update/install.rs:412-416`；`src-tauri/src/service/workflow/process.rs:493-501`
@@ -104,7 +104,7 @@
 
 ### [P3] [反向] 验证静默下载失败不弹用户可见提示
 
-[Case ID] TC-DSK-L3-252
+[Case ID] TC-DSK-L3-28-005
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src/store/modules/desktop-updater/store.ts:94-96`、`:140`；`src/layout/index.tsx:86`
@@ -117,7 +117,7 @@
 
 ### [P4] 验证在途下载单飞不重复发起
 
-[Case ID] TC-DSK-L3-253
+[Case ID] TC-DSK-L3-28-006
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/store/modules/desktop-updater/store.ts:16`、`:82-83`
@@ -130,7 +130,7 @@
 
 ### [P4] 验证下载进度仅在更新对话框内展示
 
-[Case ID] TC-DSK-L3-254
+[Case ID] TC-DSK-L3-28-007
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src/store/modules/desktop-updater/store.ts:168-176`；`src/ui/dialog/update.tsx:71-86`
@@ -143,7 +143,7 @@
 
 ### [P3] [反向] 验证待安装版本不高于运行版本时退出不拉起安装器
 
-[Case ID] TC-DSK-L3-255
+[Case ID] TC-DSK-L3-28-008
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/update/pending.rs:88-99`；`src-tauri/src/service/update/version.rs:33-38`
@@ -156,7 +156,7 @@
 
 ### [P3] [反向] 验证退出拉起前先清除待安装标记
 
-[Case ID] TC-DSK-L3-256
+[Case ID] TC-DSK-L3-28-009
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/update/pending.rs:86-88`、`:112-114`；`src-tauri/src/service/update/install.rs:347`
@@ -169,7 +169,7 @@
 
 ### [P3] [反向] 验证摘要不匹配时删除半成品并拒绝安装
 
-[Case ID] TC-DSK-L3-257
+[Case ID] TC-DSK-L3-28-010
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/update/install.rs:289-295`、`:178`、`:202-206`
@@ -182,7 +182,7 @@
 
 ### [P3] [反向] 验证无可信摘要时不启用镜像兜底
 
-[Case ID] TC-DSK-L3-258
+[Case ID] TC-DSK-L3-28-011
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/service/update/install.rs:144-154`、`:240-246`、`:280-285`；`src-tauri/src/service/update/meta.rs:24-27`
@@ -195,7 +195,7 @@
 
 ### [P4] 验证安装包路径越界与不存在均被拒绝
 
-[Case ID] TC-DSK-L3-259
+[Case ID] TC-DSK-L3-28-012
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/service/update/install.rs:316-337`、`:333`、`:347`、`:373-374`
@@ -237,9 +237,9 @@
 ## 6. 缺口与假设
 
 - **G-D28-1**：多数用例需要「可控的更新结果」（有更高正式版 / 无摘要 / 摘要不匹配 / 资产不可达）。按 `00-overview.md` §2 第 7 条，E2E 层禁止 Mock 后端命令，因此只能引入**替身更新源**（本地 HTTP 服务）并改写 `REPO_URL` 可达性；真实检查还会触发 GitHub 未认证限流（`src/layout/index.tsx:20-21`），接线前必须解决。
-- **G-D28-2**：TC-DSK-L3-248 需要推进编排层时钟才能验证 10 分钟轮询间隔。当前无该能力时，本用例只能退化为断言「启动即检查一次」（`src/layout/index.tsx:88-89`）。
-- **G-D28-3**：TC-DSK-L3-248 与 TC-DSK-L3-253 需要统计 `check_desktop_update` / `download_desktop_update` 的调用次数，当前无计数出口（同 `07` 的 G-D07-1），需在测试编排层计数或增加只读诊断命令。
-- **G-D28-4**：TC-DSK-L3-250 只断言标记被清除与日志记录，**不验证系统安装器实际启动**（属系统表面，见 `00-overview.md` G9）。人工确认项。
+- **G-D28-2**：TC-DSK-L3-28-001 需要推进编排层时钟才能验证 10 分钟轮询间隔。当前无该能力时，本用例只能退化为断言「启动即检查一次」（`src/layout/index.tsx:88-89`）。
+- **G-D28-3**：TC-DSK-L3-28-001 与 TC-DSK-L3-28-006 需要统计 `check_desktop_update` / `download_desktop_update` 的调用次数，当前无计数出口（同 `07` 的 G-D07-1），需在测试编排层计数或增加只读诊断命令。
+- **G-D28-4**：TC-DSK-L3-28-003 只断言标记被清除与日志记录，**不验证系统安装器实际启动**（属系统表面，见 `00-overview.md` G9）。人工确认项。
 - **G-D28-5**：摘要校验与路径守卫用例需要在 `AppData/updates` 内伪造/篡改文件，并在测后清理；不得触碰用户真实下载的安装包（`00-overview.md` G8）。
 - **G-D28-6**：`pending.rs` 写入 store 失败只告警（`:56-59`、`:72-74`），「store 不可写 → 退出时不自动更新」的降级分支**未覆盖**。
 - **G-D28-7**：资产选择规则（扩展名优先级、架构匹配、macOS Rosetta 宿主探测）为纯函数，已在 `src-tauri/src/service/update/version.rs` 的单元测试覆盖，本套不重复。

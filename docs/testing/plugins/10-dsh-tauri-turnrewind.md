@@ -31,7 +31,7 @@
 
 ### [P3] [反向] 验证三个端点缺 sessionId 均返回 400
 
-[Case ID] TC-REW-L2-001
+[Case ID] TC-REW-L2-10-001
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/live/get.ts:15`、`packages/dsh-tauri-turnrewind/src/host/routes/summary/get.ts:22`、`packages/dsh-tauri-turnrewind/src/host/routes/turns/undo/post.ts:25`
@@ -44,12 +44,12 @@
 
 ### [P3] [反向] 验证未知会话的摘要与撤销均返回 404
 
-[Case ID] TC-REW-L2-002
+[Case ID] TC-REW-L2-10-002
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/summary/get.ts:26`
 [自动化] 是
-[前置条件] 同 TC-REW-L2-001
+[前置条件] 同 TC-REW-L2-10-001
 [测试数据] `GET /summary?sessionId=does-not-exist`；`POST /turns/undo` body `{ "sessionId": "does-not-exist", "turn": 1 }`
 [测试步骤] 1. 两次发起请求。2. 读状态码与 `error` 文案。
 [预期结果] 1. 两次均 404。2. `error` 均恰为 `会话不存在或尚未就绪`。
@@ -57,12 +57,12 @@
 
 ### [P4] [反向] 验证非法 turn 值在查会话之前就被拒
 
-[Case ID] TC-REW-L2-003
+[Case ID] TC-REW-L2-10-003
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/turns/undo/post.ts:29`
 [自动化] 是
-[前置条件] 同 TC-REW-L2-001
+[前置条件] 同 TC-REW-L2-10-001
 [测试数据] `{ "sessionId": "does-not-exist", "turn": 0 }`、`{ … "turn": -1 }`、`{ … "turn": "1" }`
 [测试步骤] 1. 逐一发起请求。2. 每次读状态码与 `error`。
 [预期结果] 1. 三次均 400（顺序上先于 404 的会话查询）。2. `error` 均恰为 `turn 必须是正整数`。
@@ -70,12 +70,12 @@
 
 ### [P4] 验证三条路径的方法集合互不相同
 
-[Case ID] TC-REW-L2-004
+[Case ID] TC-REW-L2-10-004
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/index.ts:19`
 [自动化] 是
-[前置条件] 同 TC-REW-L2-001
+[前置条件] 同 TC-REW-L2-10-001
 [测试数据] 对 `/summary`、`/live`、`/turns/undo` 各发一次 `OPTIONS`
 [测试步骤] 1. 逐一 `OPTIONS`。2. 读 `allow` 头。
 [预期结果] 1. `/summary` 与 `/live` 的 `allow` 含 `GET`、`HEAD`、`OPTIONS`。2. `/turns/undo` 的 `allow` 含 `POST`、`OPTIONS` 而**不含** `GET`。3. 三条均返回 204。
@@ -87,7 +87,7 @@
 
 ### [P2] 验证回合结束后出现变更卡片
 
-[Case ID] TC-REW-C-001
+[Case ID] TC-REW-C-10-001
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/components/turn-changes-card.tsx:142`
@@ -100,12 +100,12 @@
 
 ### [P2] 验证回合运行中显示 running chip
 
-[Case ID] TC-REW-C-002
+[Case ID] TC-REW-C-10-002
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/components/running-changes-chip.tsx:38`
 [自动化] 未接线（G2）
-[前置条件] 同 TC-REW-C-001，但回合仍在进行
+[前置条件] 同 TC-REW-C-10-001，但回合仍在进行
 [测试数据] 无
 [测试步骤] 1. 在回合进行中查询 `[data-turnrewind-running]`。2. 回合结束后再次查询。
 [预期结果] 1. 进行中存在该标记且值等于当前回合。2. 回合结束后标记消失。
@@ -113,7 +113,7 @@
 
 ### [P3] [反向] 验证非 git 工作区时卡片展示原因而非空白
 
-[Case ID] TC-REW-C-003
+[Case ID] TC-REW-C-10-003
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-turnrewind/src/client/components/turn-changes-card.tsx:231`
@@ -130,7 +130,7 @@
 
 ### [P2] 验证桌面端回合卡片可见且撤销按钮可用
 
-[Case ID] TC-REW-L3-001
+[Case ID] TC-REW-L3-10-001
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/register/turn-tail.ts:25`
@@ -147,12 +147,12 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| 三处缺参校验 | TC-REW-L2-001 | 异常 | — |
-| 会话缺失判定 | TC-REW-L2-002 | 异常 | — |
-| `turn` 校验顺序 | TC-REW-L2-003 | 边界 | — |
-| 方法矩阵 | TC-REW-L2-004 | 边界 | — |
-| 卡片与运行态 | TC-REW-C-001、TC-REW-C-002、TC-REW-L3-001 | 正向 | 需要真实 git 仓库与回合数据 |
-| 非 git 降级 | TC-REW-C-003 | 异常 | 需要非 git 工作区 |
+| 三处缺参校验 | TC-REW-L2-10-001 | 异常 | — |
+| 会话缺失判定 | TC-REW-L2-10-002 | 异常 | — |
+| `turn` 校验顺序 | TC-REW-L2-10-003 | 边界 | — |
+| 方法矩阵 | TC-REW-L2-10-004 | 边界 | — |
+| 卡片与运行态 | TC-REW-C-10-001、TC-REW-C-10-002、TC-REW-L3-10-001 | 正向 | 需要真实 git 仓库与回合数据 |
+| 非 git 降级 | TC-REW-C-10-003 | 异常 | 需要非 git 工作区 |
 | undo 的 7 类业务码（409/403/500） | — | — | **未覆盖**：需要真实账本、并发与漂移构造，见 G-REW-1 |
 | `GET /live` 读数 | — | — | **未覆盖**：无会话时语义未确认，见 G-REW-2 |
 
