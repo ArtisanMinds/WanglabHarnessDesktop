@@ -69,7 +69,7 @@ jobs:
       # libXau/libXdmcp 一并打进 AppImage，AppRun 又把这些库置于 LD_LIBRARY_PATH 首位；
       # 较新发行版（Arch/CachyOS、Fedora 44…）的宿主 Mesa 因而加载到旧库，EGL 协商失败，
       # WebKit 在 eglGetDisplay 失败时直接 abort()——WebKitWebProcess SIGABRT、无窗口无日志
-      #（上游 tauri#15976，本仓 #620）。.deb 用系统库，不受影响。
+      # （上游 tauri#15976，本仓 #620）。.deb 用系统库，不受影响。
       # 必须在签名/上传之前完成：本步会重写 AppImage 字节。
       - name: Drop over-bundled host-interface libs from the AppImage
         shell: bash
