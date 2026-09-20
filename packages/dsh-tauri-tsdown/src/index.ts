@@ -12,8 +12,8 @@ const isWatchMode = process.argv.includes('--watch') || process.argv.includes('-
 export interface DshConfigOptions {
   /** 宿主 entry 的 tsdown 选项（覆盖 common）。 */
   server?: TsdownOptions
-  /** client entry 的 tsdown 选项（覆盖 common；noExternal 并入默认内联表）。 */
-  client?: TsdownOptions & { noExternal?: Array<string | RegExp> }
+  /** client entry 的 tsdown 选项（覆盖 common；noExternal 并入默认内联表）；`false` 表示纯宿主插件。 */
+  client?: TsdownOptions | false
   /** 是否对 server entry 跑 publint（默认 true）。 */
   publint?: boolean
 }
@@ -76,7 +76,7 @@ const dshClientInline: Array<string | RegExp> = [
 ]
 
 export function defineDshConfig(options: DshConfigOptions = {}) {
-  const { noExternal: clientNoExternal, ...clientOptions } = options.client ?? {}
+  const { noExternal: clientNoExternal, ...clientOptions } = options.client === false ? {} : options.client ?? {}
   const common: TsdownOptions = {
     outDir: 'dist',
     format: 'esm',
@@ -85,15 +85,21 @@ export function defineDshConfig(options: DshConfigOptions = {}) {
     external: dshExternal,
   }
 
+  const server: TsdownOptions = {
+    ...common,
+    ...options.server,
+    entry: { index: 'src/index.ts' },
+    dts: true,
+    sourcemap: false,
+    clean: true,
+  }
+  // 纯宿主插件没有浏览器半区：`client: false` 时只产出宿主 entry，不写 `src/client/`。
+  if (options.client === false) {
+    return [server]
+  }
+
   return [
-    {
-      ...common,
-      ...options.server,
-      entry: { index: 'src/index.ts' },
-      dts: true,
-      sourcemap: false,
-      clean: true,
-    },
+    server,
     {
       ...common,
       entry: { client: 'src/client/index.ts' },

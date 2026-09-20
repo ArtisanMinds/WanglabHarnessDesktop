@@ -61,6 +61,7 @@
 随安装包资源内置的第一方插件：
 
 - [DSH Tauri](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri) — 提供与 Tauri 2 外壳的通信通道
+- [DSH Tauri Connection](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-connection) — 让跨源沙箱内嵌 WebView 用上回环宿主：在 `connection` 服务上覆写桌面载体的两道鉴权闸门
 - [DSH Model Config](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-model-config) — 接管模型设置页，补齐上下文与输出上限、图片输入、思考模式和本地端点兼容选项
 - [DSH Tauri UI](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-ui) — 为 Tauri 2 外壳提供自定义设置侧边栏
 - [DSH Tauri Worktree](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-worktree) — 为每个会话创建隔离的 Git Worktree，并支持检出到本地分支或归档放弃

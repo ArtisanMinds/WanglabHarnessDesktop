@@ -132,5 +132,5 @@
 ## 4. 缺口与假设
 
 - **不可覆盖**：非回环地址发起的变更请求 403（`routes/index.ts:279`）需要非本机来源，本套用例不做，仅登记为已知未覆盖分支。
-- **已定论**：不带会话 Cookie 时 `/api` 与插件路由返回 401（上游 `authorizeIndex` 在根路径之外不做 token 交换）。因此本批一律显式携带 Cookie；L2 不再依赖 `--skip-auth`——那是桌面端 `alpha_auth` 补丁提供的参数，npm 上的核心没有。
+- **已定论**：不带会话 Cookie 时 `/api` 与插件路由返回 401（上游 `authorizeIndex` 在根路径之外不做 token 交换）。因此本批一律显式携带 Cookie；L2 不再依赖桌面端的载体放行——那是 `dsh-tauri-connection` 插件在 `DSH_TAURI_EMBEDDED=1` 时提供的运行时覆写，npm 上的核心没有这个插件。
 - **假设**：`allow` 头的成员顺序稳定（`SUPPORTED_METHODS` 过滤后 join，见 `routes/index.ts:255`）。若顺序不稳定，断言改为集合包含而非字符串相等。
