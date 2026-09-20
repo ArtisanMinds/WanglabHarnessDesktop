@@ -19,6 +19,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
+import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
@@ -432,8 +433,14 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
       return
     stopped = true
 
-    logStream.end()
+    // 顺序要紧：子进程的 stdout/stderr 仍以 `end: false` 管道接着日志流，
+    // 先 end() 会把子进程退出前的输出写进已结束的流；日志文件又落在 home 里，
+    // 流没真正关闭就删目录，在 Windows 上会 EBUSY/EPERM。
     await killTree(child)
+    child.stdout?.unpipe(logStream)
+    child.stderr?.unpipe(logStream)
+    logStream.end()
+    await finished(logStream).catch(() => {})
 
     if (!keepHome)
       rmSync(home, { recursive: true, force: true })
