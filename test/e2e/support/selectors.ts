@@ -77,3 +77,25 @@ export function configNav(tab: string): string {
  * 选中态只此一处机器可读，不得依赖 `bg-background-secondary` 等类名。
  */
 export const CONFIG_NAV_SELECTED_ATTR = 'aria-current'
+
+/**
+ * 「应用」面板的语言下拉触发器（`Select.Trigger`）。触发器文本即当前语言文案，
+ * 因此「读取当前值」与「点击展开」共用同一个观察点。
+ */
+export const CONFIG_LANGUAGE_SELECT = '[data-testid="dsh-config-language-select"]'
+
+/** 语言下拉的两个选项；规范禁止文本定位，选项必须可被 testid 命中。 */
+export const CONFIG_LANGUAGE_OPTION_ZH = '[data-testid="dsh-config-language-option-zh"]'
+export const CONFIG_LANGUAGE_OPTION_EN = '[data-testid="dsh-config-language-option-en"]'
+
+/** 语言标识（与 i18n 资源、`localStorage` 中记录的值一致）。 */
+export const LANGUAGES = ['zh-CN', 'en-US'] as const
+export type Language = typeof LANGUAGES[number]
+
+/** 单个语言选项的选择器。 */
+export function configLanguageOption(language: Language): string {
+  return language === 'zh-CN' ? CONFIG_LANGUAGE_OPTION_ZH : CONFIG_LANGUAGE_OPTION_EN
+}
+
+/** i18n 持久化 key（`src/i18n/index.detector.ts:7`）。 */
+export const LANGUAGE_STORAGE_KEY = 'deepseek-harness-desktop-language'

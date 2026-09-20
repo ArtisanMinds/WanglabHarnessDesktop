@@ -87,6 +87,15 @@ export interface StartDesktopAppOptions {
   disableDownload?: boolean
   /** 覆盖下载缓存根（默认 `DOWNLOAD_CACHE_DIR`）。 */
   downloadCacheDir?: string
+  /**
+   * 复用指定的隔离根（跨重启持久化用例）。
+   *
+   * WebView2 profile 与 dsh 数据都在隔离根内，语言这类 localStorage 状态只有
+   * 复用同一个根才会跨重启保留。不传则新建 scratch 根。
+   */
+  homeDir?: string
+  /** 启动前清理 `<app-data>/.store.test.dat`；复用隔离根（= 重启）时传 `false` 保留 store。 */
+  resetStore?: boolean
 }
 
 export interface DesktopApp {
@@ -96,8 +105,12 @@ export interface DesktopApp {
   readonly home: string
   /** 应用二进制实际路径。 */
   readonly binaryPath: string
-  /** 结束会话并清理隔离根（幂等）。 */
-  readonly stop: () => Promise<void>
+  /**
+   * 结束会话（幂等）。
+   *
+   * `keepHome` 保留隔离根供下一次启动复用；否则删除。
+   */
+  readonly stop: (options?: { keepHome?: boolean }) => Promise<void>
 }
 
 // ============================================================================
@@ -113,6 +126,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     keepHome = false,
     disableDownload = false,
     downloadCacheDir = DOWNLOAD_CACHE_DIR,
+    resetStore = true,
   } = options
 
   const binaryPath = options.appBinaryPath ?? defaultBinaryPath()
@@ -123,9 +137,11 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
 
   // 触发异步垃圾回收清理（不阻塞当前应用启动）
   void purgeStaleHomes()
-  resetTestStore()
+  if (resetStore)
+    resetTestStore()
 
-  const home = makeHome(keepHome)
+  const home = options.homeDir ?? makeHome(keepHome)
+  ensureHomeDirs(home)
 
   // 禁用下载的运行绝不会**写**缓存，却会**读**它：共享缓存里若已有一份可用的
   // Node/dsh/pnpm，`runtime_ready()` 会为真，装配流程随之分叉（不再停在
@@ -142,6 +158,10 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     USERPROFILE: profile,
     HOME: profile,
     DSH_DOWNLOAD_CACHE_DIR: cacheDir,
+    // WebView2 profile 独占：`app_local_data_dir()` 走 `SHGetKnownFolderPath`，
+    // 重定向 `LOCALAPPDATA` 无效，不覆盖就会与用户正在使用的开发版共用
+    // `EBWebView-dev`——用例写入的语言等 localStorage 会污染开发会话。
+    DSH_E2E_WEBVIEW_DATA_DIR: join(home, 'webview2'),
     // 显式二值化：子进程会继承父进程环境，开发者 shell 里若已置位该变量，
     // 不禁用的用例会被悄悄带上「禁用下载」的语义（Rust 侧只认 1/true）。
     DSH_E2E_DISABLE_DOWNLOAD: disableDownload ? '1' : '0',
@@ -164,7 +184,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   let browser: WebdriverIO.Browser | undefined
   let stopped = false
 
-  const stop = async (): Promise<void> => {
+  const stop = async (options: { keepHome?: boolean } = {}): Promise<void> => {
     if (stopped)
       return
     stopped = true
@@ -178,12 +198,14 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
       }
     }
 
-    if (keepHome)
-      return
-
     // 探测 WebDriver 端口以等待 WebView2 子进程释放资源
     for (let i = 0; i < 20 && (await isPortBusy(WEBDRIVER_PORT)); i++) {
       await sleep(150)
+    }
+
+    if (keepHome || options.keepHome) {
+      log(`保留 scratch home：${home}`)
+      return
     }
 
     // 带退避重试删除临时工作目录
@@ -371,13 +393,17 @@ export async function purgeStaleHomes(): Promise<void> {
 /** 建隔离根并派生 home 根。 */
 function makeHome(keep: boolean): string {
   const home = join(tmpdir(), `${SCRATCH_PREFIX}${Date.now().toString(36)}`)
-  const profile = join(home, 'home')
-
-  mkdirSync(join(profile, 'AppData', 'Local'), { recursive: true })
-  mkdirSync(join(profile, 'AppData', 'Roaming'), { recursive: true })
 
   if (keep)
     log(`KEEP_HOME：${home}`)
+  return ensureHomeDirs(home)
+}
+
+/** 建立（或补齐）隔离根内的 profile 目录；应用缺 `AppData/Local|Roaming` 会 panic。 */
+function ensureHomeDirs(home: string): string {
+  const profile = join(home, 'home')
+  mkdirSync(join(profile, 'AppData', 'Local'), { recursive: true })
+  mkdirSync(join(profile, 'AppData', 'Roaming'), { recursive: true })
   return home
 }
 
