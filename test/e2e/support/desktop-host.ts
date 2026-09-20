@@ -15,7 +15,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -214,6 +214,52 @@ export function resetDownloadCache(dir: string = DOWNLOAD_CACHE_DIR): void {
   rmSync(dir, { recursive: true, force: true })
 }
 
+/** scratch home 的目录前缀。 */
+const SCRATCH_PREFIX = 'dsh-e2e-desktop-'
+
+/** 只清理超过该年龄的残留：足够避开并发会话正在使用的 scratch。 */
+const STALE_HOME_AGE_MS = 30 * 60 * 1000
+
+let purgedStaleHomes = false
+
+/**
+ * 清理历史运行残留的 scratch home（每个进程只做一次）。
+ *
+ * WebView2 子进程经常让上一轮的 `rmSync` 失败，于是残留会一直堆在系统临时目录里；
+ * 与其在收尾时反复重试（实测要烧掉 5 秒且仍然删不掉），不如在下次启动前顺手清掉。
+ * 按 mtime 过滤，避免误删并发会话（另一个 worktree 的 E2E）正在用的目录。
+ */
+export function purgeStaleHomes(): void {
+  if (purgedStaleHomes)
+    return
+  purgedStaleHomes = true
+
+  const root = tmpdir()
+  const deadline = Date.now() - STALE_HOME_AGE_MS
+  let removed = 0
+  try {
+    for (const entry of readdirSync(root)) {
+      if (!entry.startsWith(SCRATCH_PREFIX))
+        continue
+      const path = join(root, entry)
+      try {
+        if (statSync(path).mtimeMs > deadline)
+          continue
+        rmSync(path, { recursive: true, force: true })
+        removed++
+      }
+      catch {
+        // 仍被占用（并发会话或系统索引器），留给下一次
+      }
+    }
+  }
+  catch {
+    // 临时目录不可读时不影响开跑
+  }
+  if (removed > 0)
+    log(`清理历史 scratch：${removed} 个`)
+}
+
 /**
  * 起一个真实桌面应用并建立 WDIO 会话。
  *
@@ -232,6 +278,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   if (requireBinary)
     await assertPreconditions({ binaryPath })
 
+  purgeStaleHomes()
   resetTestStore()
   mkdirSync(downloadCacheDir, { recursive: true })
   const home = makeHome(keepHome)
@@ -260,6 +307,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
 
   log(`拉起应用：${binaryPath}（E2E_HOME=${home}）`)
 
+  const startedAt = Date.now()
   let browser: WebdriverIO.Browser | undefined
   let stopped = false
   const stop = async (): Promise<void> => {
@@ -277,23 +325,25 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     if (keepHome)
       return
 
-    // 进程退出后 WebView2 子进程仍会短暂持有缓存文件句柄，直接删会 EBUSY。
-    // 先等进程真正消失，再带退避重试删除。
-    for (let i = 0; i < 40 && await hasLiveProcess(binaryPath); i++)
-      await sleep(250)
+    // 进程退出后 WebView2 子进程仍会短暂持有缓存文件句柄，直接删会 EBUSY/EPERM。
+    // 用 WebDriver 端口（随应用进程消亡）做廉价存活探测，再带退避重试删除；
+    // 删不掉不纠缠——scratch 落在系统临时目录，交给下一次运行的车道清理
+    // （`purgeStaleHomes`），绝不为了清理把已通过的用例拖成红灯。
+    for (let i = 0; i < 20 && await isPortBusy(WEBDRIVER_PORT); i++)
+      await sleep(150)
 
-    for (let attempt = 1; attempt <= 10; attempt++) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         rmSync(home, { recursive: true, force: true })
+        log(`收尾完成（${Date.now() - startedAt}ms）`)
         return
       }
       catch (error) {
-        if (attempt === 10) {
-          // 清理失败不该让已通过的用例变红：留痕但不抛。
-          log(`scratch 清理失败（已重试 10 次，残留 ${home}）：${(error as Error).message}`)
+        if (attempt === 3) {
+          log(`scratch 未删除（残留 ${home}）：${(error as Error).message}`)
           return
         }
-        await sleep(500)
+        await sleep(200)
       }
     }
   }
@@ -301,6 +351,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   try {
     browser = await startWdioSession(capabilities, { rootDir: REPO_ROOT })
     await focusMainWindow(browser)
+    log(`应用就绪（${Date.now() - startedAt}ms）`)
     return { browser, home, binaryPath, stop }
   }
   catch (error) {
