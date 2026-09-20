@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { relativeSpecifiers } from '../scripts/build-plugins.utils'
+import { relativeSpecifiers } from '../scripts/build-plugins'
 
 describe('plugin deployment relative dependencies', () => {
   it('collects static imports and re-exports including side effects', () => {
