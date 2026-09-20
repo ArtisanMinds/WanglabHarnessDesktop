@@ -158,7 +158,7 @@ export function Iframe({ iframeRef }: IframeProps) {
       return
     const reqId = data.id
     function reply(dataUrl: string | null) {
-      post({ source: 'dsh://clipboard-image:reply', id: reqId, data_url: dataUrl })
+      post({ type: 'dsh://clipboard-image:reply', id: reqId, data_url: dataUrl })
     }
     void invoke<{ data_url?: string } | null>('read_clipboard_image')
       .then(result => reply(result?.data_url ?? null))

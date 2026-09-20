@@ -24,7 +24,7 @@
 | 「在文件夹中显示」→ `reveal_in_folder` | `src/layout/index.tsx:116` |
 | 新下载完成时关闭上一条同源 toast | `src/layout/index.tsx:97-98`、`:122-124` |
 | 剪贴板图片桥 `dsh://clipboard-image:read` → `read_clipboard_image` | `src/layout/components/iframe.tsx:98-101`、`:156-169` |
-| 回包 `source: 'dsh://clipboard-image:reply'` | `src/layout/components/iframe.tsx:160-162` |
+| 回包 `type: 'dsh://clipboard-image:reply'`（注入脚本按 `type` 匹配） | `src/layout/components/iframe.tsx:160-162`；`src-tauri/src/desktop/paste.rs` |
 | 打开外部链接（`window.open` / `target=_blank`） | `src-tauri/src/desktop/window.rs:22-35` |
 
 ---
@@ -127,7 +127,7 @@
 [前置条件] 系统剪贴板中已放入一张图片
 [测试数据] 桥消息 `{ type: 'dsh://clipboard-image:read', id }`
 [测试步骤] 1. 由 iframe 侧发出读取请求。2. 等待回包。3. 读取回包内容。
-[预期结果] 1. 请求发出成功。2. 回包到达。3. 回包 `source` 为 `dsh://clipboard-image:reply`，`id` 与请求一致，`data_url` 以 `data:image/png` 开头。
+[预期结果] 1. 请求发出成功。2. 回包到达。3. 回包 `type` 为 `dsh://clipboard-image:reply`，`id` 与请求一致，`data_url` 以 `data:image/png` 开头。
 [清理] 清空剪贴板；`DELETE /session/<id>`
 
 ---
