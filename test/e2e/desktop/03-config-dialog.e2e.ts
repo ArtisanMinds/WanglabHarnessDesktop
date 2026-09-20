@@ -29,6 +29,8 @@ import {
   NAVBAR_MENU_CONFIG,
   NAVBAR_ROOT,
   navbarMenuItem,
+  SETUP_DISABLED,
+  SETUP_ERROR,
 } from '../support/selectors'
 
 /**
@@ -70,15 +72,63 @@ async function deviceLocale(): Promise<string> {
   return await browser.execute(() => navigator.language) as string
 }
 
-/** 打开「配置」菜单并选择目标面板；菜单项点击后对话框才挂载。 */
-async function openConfigTab(tab: string): Promise<void> {
-  await openMenu(browser, NAVBAR_MENU_CONFIG)
-  const item = await browser.$(navbarMenuItem(tab))
-  await item.waitForClickable()
-  await item.click()
+/** 页面级标记：用来区分「对话框被收起」与「整个 webview 被重新加载」。 */
+const PAGE_MARK = '__dshE2eConfigDialogMark'
 
-  const dialog = await browser.$(CONFIG_DIALOG)
-  await dialog.waitForDisplayed({ timeout: 10_000 })
+/**
+ * 失败时的现场快照。CI（windows-2025 runner）上对话框偶发在打开后 ~100–200ms 被收起，
+ * 元素句柄随即变成游离节点，只看错误信息无法区分「弹层被收起」和「页面被重新加载」。
+ */
+async function shellState(): Promise<string> {
+  return await browser.execute((selectors: Record<string, string>, markKey: string) => {
+    const has = (selector: string) => Boolean(document.querySelector(selector))
+    const marked = (window as unknown as Record<string, unknown>)[markKey] === 1
+    return [
+      `navbar=${has(selectors.navbar)}`,
+      `dialog=${has(selectors.dialog)}`,
+      `disabledPage=${has(selectors.disabled)}`,
+      `errorPage=${has(selectors.error)}`,
+      `pageMark=${marked}`,
+      `url=${location.href}`,
+    ].join(' ')
+  }, { navbar: NAVBAR_ROOT, dialog: CONFIG_DIALOG, disabled: SETUP_DISABLED, error: SETUP_ERROR }, PAGE_MARK)
+}
+
+/**
+ * 打开「配置」菜单并选择目标面板；菜单项点击后对话框才挂载。
+ *
+ * `closeDialog()` 之后重开时，上一个 overlay 实例的 `vanish()` 仍在退场窗口内（overlastic
+ * `duration = 300`），偶发把刚挂载的新对话框一起摘掉。这里对「打开后立刻被收起」重试一次；
+ * 其余断言保持严格口径（G-D03-7）。
+ */
+async function openConfigTab(tab: string): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await openMenu(browser, NAVBAR_MENU_CONFIG)
+    const item = await browser.$(navbarMenuItem(tab))
+    await item.waitForClickable()
+    await item.click()
+
+    const dialog = await browser.$(CONFIG_DIALOG)
+    await dialog.waitForDisplayed({ timeout: 10_000 })
+
+    await browser.pause(400)
+    if (await isDialogOpen())
+      return
+  }
+  throw new Error(`配置对话框打开后立即被收起（重试后仍失败）：${tab}；现场：${await shellState()}`)
+}
+
+/** 点击导航项：每次轮询都重新查询元素。 */
+async function clickNav(tab: string): Promise<void> {
+  // `waitForClickable()` 只认首次取到的句柄，句柄一旦游离就永远轮询到超时；
+  // 对话框重渲染会换掉按钮节点，因此这里自己轮询、每次都重新定位。
+  await browser.waitUntil(async () => {
+    const node = await browser.$(configNav(tab))
+    return await node.isExisting() && await node.isClickable()
+  }, { timeout: 10_000, timeoutMsg: `导航项不可点击：${tab}` })
+
+  const node = await browser.$(configNav(tab))
+  await node.click()
 }
 
 /** 四个导航项的选中态。选中态只认 `aria-current`，不得依赖高亮类名。 */
@@ -110,6 +160,8 @@ async function isDialogOpen(): Promise<boolean> {
  *
  * 每次打开都是新的 overlay 实例；残留没走完就再开，会叠出两层对话框，
  * 后续 `$` 取到的是第一层，面板定位断言会失去意义。
+ * 另外必须等过 overlastic 的退场窗口（`duration = 300`）：`isDisplayed()` 为假只说明
+ * 弹层开始退场，`vanish()` 尚未执行，此时重开会与上一个实例的卸载竞争（G-D03-7）。
  */
 async function closeDialog(): Promise<void> {
   const trigger = await browser.$(CONFIG_DIALOG_CLOSE)
@@ -119,6 +171,11 @@ async function closeDialog(): Promise<void> {
     timeout: 10_000,
     timeoutMsg: '配置对话框未关闭',
   })
+  await browser.waitUntil(async () => !(await (await browser.$(CONFIG_DIALOG)).isExisting()), {
+    timeout: 10_000,
+    timeoutMsg: '配置对话框未从 DOM 卸载',
+  })
+  await browser.pause(400)
 }
 
 /** 视口与对话框边界（CSS 像素），并顺带读回内部滚动容器的溢出策略与页面总高。 */
@@ -147,15 +204,20 @@ function readDialogBox(): Promise<DialogBox> {
  */
 async function waitForDialogSettled(): Promise<void> {
   let previous = Number.NaN
-  await browser.waitUntil(async () => {
-    const width = await browser.execute((dialogSelector: string) => {
-      const dialog = document.querySelector(dialogSelector) as HTMLElement | null
-      return dialog ? dialog.getBoundingClientRect().width : Number.NaN
-    }, CONFIG_DIALOG) as number
-    const settled = Number.isFinite(previous) && Math.abs(width - previous) < 0.5
-    previous = width
-    return settled
-  }, { timeout: 10_000, interval: 150, timeoutMsg: '对话框尺寸未稳定（入场动画未结束？）' })
+  try {
+    await browser.waitUntil(async () => {
+      const width = await browser.execute((dialogSelector: string) => {
+        const dialog = document.querySelector(dialogSelector) as HTMLElement | null
+        return dialog ? dialog.getBoundingClientRect().width : Number.NaN
+      }, CONFIG_DIALOG) as number
+      const settled = Number.isFinite(previous) && Math.abs(width - previous) < 0.5
+      previous = width
+      return settled
+    }, { timeout: 10_000, interval: 150, timeoutMsg: '对话框尺寸未稳定（入场动画未结束？）' })
+  }
+  catch (err) {
+    throw new Error(`${(err as Error).message}；现场：${await shellState()}`)
+  }
 }
 
 /**
@@ -175,6 +237,10 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
     browser = app.browser
     stop = app.stop
     await (await browser.$(NAVBAR_ROOT)).waitForDisplayed()
+    // 页面级标记：整个用例期间都应存在，用来区分「弹层被收起」与「webview 被重载」
+    await browser.execute((markKey: string) => {
+      (window as unknown as Record<string, unknown>)[markKey] = 1
+    }, PAGE_MARK)
   })
 
   afterAll(async () => {
@@ -210,9 +276,7 @@ describe.skipIf(process.platform === 'darwin')('配置对话框', () => {
     await openConfigTab('application')
 
     for (const tab of CONFIG_TABS) {
-      const node = await browser.$(configNav(tab))
-      await node.waitForClickable()
-      await node.click()
+      await clickNav(tab)
 
       await browser.waitUntil(async () => (await readNavStates())[tab] === true, {
         timeout: 5_000,
