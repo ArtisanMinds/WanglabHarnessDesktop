@@ -428,6 +428,13 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::service::patch::llm_session::apply(&app_handle) {
         log::warn!("pi-ai session header patch failed: {e}");
     }
+    // WKWebView 点击 `<button>` 不转移焦点：模型座位的 portal 菜单在 mousedown 阶段收到
+    // `relatedTarget` 为 null 的 blur 就直接 close()，菜单在 click 之前卸载，鼠标选择
+    // 模型 / 推理等级变成空操作（键盘 Enter 正常、浏览器正常）。补丁放行该 blur，菜单外的
+    // 点击仍由组件自身的文档级 mousedown 处理器关闭。最佳努力且幂等：锚点缺失时安全跳过。
+    if let Err(e) = crate::service::patch::model_selection::apply(&app_handle) {
+        log::warn!("model selection mouse click patch failed: {e}");
+    }
     // worktree 会话以隔离 cwd 执行，但产品归属仍是源 Workspace；放宽上游显式
     // attach 的 cwd 相等约束，其他 cwd 有效性校验保持不变。最佳努力且幂等。
     if let Err(e) = crate::service::patch::workspace::apply(&app_handle) {
