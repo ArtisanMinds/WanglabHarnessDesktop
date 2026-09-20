@@ -113,9 +113,21 @@ async function selectLanguage(language: Language): Promise<void> {
 async function ensureLanguage(language: Language): Promise<void> {
   if (await storedLanguage() === language)
     return
-  if (!await isConfigDialogOpen(browser))
+  if (!await isConfigDialogOpen(browser)) {
+    // 真实装配车道里 dsh 自己的模态（首次进入的 apiKey 引导）会把遮罩镜像到导航栏，
+    // 壳层此时按设计不可点。语言只是本用例的观察对象，归一失败不该判用例失败——
+    // 该车道用独立 scratch home，localStorage 随 home 销毁，也不会带偏开发会话。
+    if (!await isShellInteractive())
+      return
     await openConfigTab(browser, 'application')
+  }
   await selectLanguage(language)
+}
+
+/** 导航栏当前是否真的可点（被 dsh 模态遮罩时为 false）。 */
+async function isShellInteractive(): Promise<boolean> {
+  const node = await browser.$(NAVBAR_MENU_CONFIG)
+  return await node.isExisting() && await node.isClickable()
 }
 
 async function appliedTheme(): Promise<string> {

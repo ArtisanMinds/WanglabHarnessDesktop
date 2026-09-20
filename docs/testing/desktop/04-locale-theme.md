@@ -28,7 +28,8 @@
 | 主题自适应在壳层根组件挂载 | `src/layout/index.tsx:48` |
 | iframe 只在 `serviceHealthy` 时渲染，重建只由 `harness.iframeKey` 驱动 | `src/layout/components/iframe.tsx:188-196` |
 | 首次装配的「安装推荐插件」引导：`preinstall_done` 为假或 preset 指纹变更时出现，装完/跳过后才拉起服务 | `src-tauri/src/service/plugin/preset.rs:532-545`、`src/layout/components/setup-preinstall.tsx:284-314` |
-| 导航栏装饰层（镜像 dsh 遮罩）必须 `pointer-events-none`，否则 `inset: 0` 时会盖住整条导航栏 | `src/layout/components/navbar.tsx:537`、`packages/dsh-tauri/src/client/register/style.utils.ts:11-23` |
+| 导航栏装饰层镜像 dsh 遮罩的样式；遮罩铺满时该层**就该**盖住导航栏，**不加** `pointer-events-none`——dsh 有模态期间壳层按设计不可点 | `src/layout/components/navbar.tsx:536-541`、`packages/dsh-tauri/src/client/register/style.utils.ts:11-23` |
+| E2E 帧上下文走 WebView2 原生 `ICoreWebView2Frame2::ExecuteScript`（跨域可用），而非上游的 `contentWindow.eval` 模拟 | `src-tauri/vendor/tauri-plugin-wdio-webdriver/src/platform/windows.rs`、`src-tauri/vendor/tauri-plugin-wdio-webdriver/PATCH.md` |
 | WebView2 profile 目录 = `app_local_data_dir()/EBWebView[-dev]`，E2E 经 `DSH_E2E_WEBVIEW_DATA_DIR` 覆盖到 scratch home | `src-tauri/src/desktop/builder.rs:78-95`、`src-tauri/src/config/constants.rs:131` |
 | E2E 编排：`DSH_E2E_WEBVIEW_DATA_DIR`、`homeDir`（复用隔离根）、`resetStore`、`stop({ keepHome })` | `test/e2e/support/desktop-host.ts:96-98`、`:113`、`:143`、`:164`、`:206` |
 
@@ -169,9 +170,10 @@
   2. **预装引导**：harness 每次启动都删 `.store.test.dat`，因此 `preinstall_pending()` 恒为真，必须由 `test/e2e/support/preinstall.ts` 跳过引导，服务才会被拉起。
   3. **残留进程**：dsh 是应用独立拉起的进程，应用被强杀时不会被带走，会一直占着 debug 端口；`desktop-host.ts` 的 `killOrphanHarness()` 在 `stop()` 里按「命令行含本次下载缓存目录」清理。
 - **G-D04-6**：WebView2 profile 现在落在 scratch home 内（`DSH_E2E_WEBVIEW_DATA_DIR`，见 §1），因此每个隔离根从 ~3.5MB 涨到 ~15MB。`stop()` 的 `rmSync` 偶发被**输入法进程**占用失败（如 `home/AppData/LocalLow/SogouPY/...`，因为 `USERPROFILE` 被重定向，输入法把日志写进了隔离根），此时只记录「scratch 未删除」并交给 `purgeStaleHomes()`（30 分钟 TTL）回收——这是既有行为，不是本批引入的。
+- **G-D04-7**：`TC-DSK-L3-04-006` 的 `afterEach` 要把语言归一到 `zh-CN`，而该车道里首次进入会弹 dsh 自己的 apiKey 引导，遮罩镜像到导航栏后壳层按设计不可点（见 §1）。因此 `ensureLanguage()` 在导航栏不可点且语言已非目标值时**跳过归一**，不判用例失败：语言在本车道只是观察对象，且该车道用独立 scratch home（`localStorage` 随 home 销毁），不会带偏后续用例或开发会话。若将来需要真正断言该模态下的行为，应归批次 `08`/`20`。
 - **实现侧变更**（接线过程中发现并修复，均带用例守门）：
   1. `theme.rs` 的 `DEFAULT_THEME` 由 `Dark` 改为 `System`：首次进入（无 `settings.yaml`）与偏好非法时都应跟随系统，固定深色会让浅色系统上「首次进入即深色」；`use-theme-adaptive.ts` 的折算同步覆盖「偏好尚未取到」的窗口。守门用例 `TC-DSK-L3-04-005` + Rust 单测 `config::theme::tests`。
-  2. `navbar.tsx:537` 的装饰层补 `pointer-events-none`：它把 dsh 页面遮罩的样式（含 `inset`）原样镜像到导航栏，遮罩铺满时该绝对定位层会盖住整条导航栏，菜单按钮既不响应真实点击、也过不了 E2E 遮挡判定。守门用例 `TC-DSK-L3-04-006`。
-  3. `debug.tsx` 语言下拉补 3 个 `data-testid`；`iframe.tsx` 补 `dsh-shell-iframe`；`setup-preinstall.tsx` 的跳过按钮补 `dsh-setup-preinstall-skip`。
-  4. `builder.rs` 的 WebView2 目录增加 E2E 专用覆盖（仅 `is_e2e_run()` 下生效），E2E 写入的 localStorage 不再污染开发会话的 `EBWebView-dev`。
+  2. `debug.tsx` 语言下拉补 3 个 `data-testid`；`iframe.tsx` 补 `dsh-shell-iframe`；`setup-preinstall.tsx` 的跳过按钮补 `dsh-setup-preinstall-skip`。
+  3. `builder.rs` 的 WebView2 目录增加 E2E 专用覆盖（仅 `is_e2e_run()` 下生效），E2E 写入的 localStorage 不再污染开发会话的 `EBWebView-dev`。
+  4. **E2E 基础设施**：上游 `tauri-plugin-wdio-webdriver` 1.4.0 的帧上下文靠 JS 模拟（`frame.contentWindow.eval`），跨域时 `contentDocument` 为 `null`，任何帧内脚本必然超时。壳层 `tauri://localhost` 与内嵌 dsh `http://127.0.0.1:<port>` 正是跨域，因此 `006` 在补丁前无法运行。现以 `[patch.crates-io]` 指向 `src-tauri/vendor/tauri-plugin-wdio-webdriver`，在 Windows 路径改用 `ICoreWebView2Frame2::ExecuteScript`（引擎按帧路由，不受同源策略约束）；`frame_context` 为空（所有非帧用例）时行为完全不变，深层嵌套帧仍回退上游 JS 路径。上游支持后删除 vendor 目录与 `Cargo.toml` 中的 `[patch.crates-io]` 即可（见 `PATCH.md`）。
 - **假设**：执行机系统语言为中文或缺省语言已由 `localStorage` 决定；用例显式把语言归一到 `zh-CN` 再开始断言，不依赖执行机语言。

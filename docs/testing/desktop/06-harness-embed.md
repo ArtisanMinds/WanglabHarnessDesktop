@@ -136,7 +136,7 @@
 
 | `data-testid` | 元素 | 状态 |
 | --- | --- | --- |
-| `dsh-shell-iframe` | `src/layout/components/iframe.tsx` 的 `iframe` | 待补 |
+| `dsh-shell-iframe` | `src/layout/components/iframe.tsx` 的 `iframe` | 已补（`04` 批次） |
 | `dsh-shell-iframe-loading` | 未就绪时的 `Loadable` 占位 | 待补 |
 | `dsh-iframe-error` | iframe 错误覆盖层 | 待补 |
 | `dsh-iframe-error-retry` | 错误覆盖层重试按钮 | 待补 |
