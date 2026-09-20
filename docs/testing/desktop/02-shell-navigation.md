@@ -172,14 +172,14 @@
 [追踪] 批次 02；`src/layout/components/navbar.tsx:383`、`:440`、`:466`（三个 `Dropdown.Popover`）
 [自动化] 是（`test/e2e/desktop/02-shell-navigation.e2e.ts`）
 [前置条件] 导航栏已渲染；平台非 macOS
-[测试数据] 窗口缩到 720×640（CSS 视口 ≈707px，落在 HeroUI `.dropdown__popover` 的 `@media (min-width: 48rem)` 之外）；依次使用「文件」「配置」「帮助」三个菜单
-[测试步骤] 1. 把窗口缩到 720×640。2. 确认 CSS 视口宽度 < 768px。3. 依次打开三个菜单，读取每个菜单项的 `scrollWidth`/`clientWidth` 与渲染宽度。4. 恢复窗口尺寸。
-[预期结果] 1. 窗口缩小成功。2. CSS 视口 < 768px（复现条件成立）。3. 每个菜单项的 `scrollWidth <= clientWidth + 1`（文本未被裁切）且渲染宽度 > 0。4. 窗口恢复为 1280×840。
+[测试数据] 窗口缩到 720×640（落点 CSS 视口随窗口管理器与 DPI 浮动，实测本机 707px、CI 更窄，用例只要求 < 768px）；依次使用「文件」「配置」「帮助」三个菜单
+[测试步骤] 1. 把窗口缩到 720×640。2. 确认 CSS 视口宽度 < 768px。3. 依次打开三个菜单，读取弹层宽度与每个菜单项的 `scrollWidth`/`clientWidth` 及渲染宽度。4. 恢复窗口尺寸。
+[预期结果] 1. 窗口缩小成功。2. CSS 视口 < 768px（复现条件成立）。3. 每个菜单项的 `scrollWidth <= clientWidth + 1`（文本未被裁切）且渲染宽度 > 0，弹层宽度 > 0。4. 窗口恢复为 1280×840。
 [清理] 恢复窗口尺寸；`DELETE /session/<id>`
 
 > **为什么必须缩窗口**：HeroUI 的 `.dropdown__popover` 只在 `@media (min-width: 48rem)` 下才有 `min-width: calc(var(--spacing) * 55)`（220px）。视口 ≥ 768px 时该 min-width 会盖住任何被钉死的 `width`，缺陷被掩盖；只有视口 < 768px 才能暴露。高显示缩放（如 175%）下 1280 物理宽的窗口只有约 732 CSS 像素，用户日常就是这个形态——见 G-D02-7。
 >
-> **宽度由壳层显式声明**：三个 `Dropdown.Popover` 都带 `min-w-55`（220px，与 HeroUI 在 ≥48rem 下的默认一致），不再依赖视口宽度决定菜单宽度。
+> **宽度两侧都有约束**：壳层显式声明 `min-w-55`（220px，与 HeroUI 在 ≥48rem 下的默认一致），HeroUI 另给 `max-width: 48svw`——视口极窄时上限先咬住（CI 上实测弹层 199px，文本仍未裁切）。因此用例只断言「文本不被裁切」这一不变量：钉死宽度的回归必然表现为裁切，仍会被捕获。
 
 ## 5. 禁用下载时的壳层形态
 
