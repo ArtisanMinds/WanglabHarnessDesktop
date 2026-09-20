@@ -133,3 +133,4 @@
 | 2026-09 | 桌面端 E2E 车道加固：会话建立后显式切到主窗口 webview `main`（默认窗口可能落在桌宠 `pet`），`assertPreconditions` 增加 WebDriver 端口 4445 占用校验（被别的实例占住时会静默挂到对方窗口） |
 | 2026-09 | 批次 `03` 实现：配置对话框 5 条接线（`005` 需服务运行中、`006` 需异常插件夹具，暂缓）；`config.tsx` 补 `dsh-config-dialog` / `-close` / `-nav-*` / `-nav-plugins-badge` / `-panel-body` 并给导航项加 `aria-current` 选中态；`Panel.Header` 增加 `testId` 与可选 `description`，据此给「应用」面板补上标题（原三面板自持标题、它独缺）；菜单操作从 `02` 抽出为 `test/e2e/support/navbar-menu.ts` 供两批复用 |
 | 2026-09 | 批次 `03` 运行验证：桌面端全车道 `01`+`02`+`03` 共 20 条全绿；修正 `TC-DSK-L3-03-007` 的尺寸断言——HeroUI `modal__container` 的入场缩放动画（`matrix3d(scale)` 起手 ~1.03）会让 `getBoundingClientRect()` 把对话框读大最多 3%，断言前须等尺寸稳定（G-D03-6） |
+| 2026-09 | 批次 `03` CI 加固：windows runner 上对话框偶发在打开后 ~100–200ms 被收起（G-D03-7）。用例侧修两处竞态——`closeDialog()` 改为等节点从 DOM 卸载并排空 overlastic 退场窗口（`duration = 300`）后再重开；导航项点击改为每轮重新定位（`waitForClickable()` 只认首次句柄，节点被替换后必然轮询到超时）。失败信息附现场快照（`pageMark`/`navbar`/`disabledPage`/`url`） |
