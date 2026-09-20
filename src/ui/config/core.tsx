@@ -297,6 +297,7 @@ export function ConfigCore() {
       <Panel.Header
         title={t('core.title')}
         description={t('core.tooltip')}
+        testId="dsh-config-panel-title"
         action={(
           <Button
             size="sm"

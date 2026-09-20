@@ -396,6 +396,7 @@ export function ConfigPlugin() {
       <Panel.Header
         className="sticky top-0 bg-canvas z-10 pb-3"
         title={t('plugins.title')}
+        testId="dsh-config-panel-title"
         action={(
           <Tooltip delay={0}>
             <Button

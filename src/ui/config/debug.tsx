@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { If } from 'react-if-lite'
 import { useStore } from 'valtio-define'
 import { Info } from '@/components/info'
+import { Panel } from '@/components/panel'
 import { queryKeys } from '@/config/query-keys'
 import { useListen } from '@/hooks/use-listen'
 import { store } from '@/store'
@@ -180,6 +181,7 @@ export function ConfigDebug() {
 
   return (
     <div className="space-y-3">
+      <Panel.Header title={t('config.application')} testId="dsh-config-panel-title" />
       {coreBreakingHolder}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
