@@ -115,6 +115,16 @@ async function deviceLocale(): Promise<string> {
   return await browser.execute(() => navigator.language) as string
 }
 
+/**
+ * 当前**生效**的语言：`localStorage` 优先，缺省回落到设备语言（`index.detector.ts` 同序）。
+ *
+ * 不能用 `navigator.language` 直接推期望文案：本批每条用例结束后都把语言归一到
+ * `zh-CN`，而 CI 的 `navigator.language` 是 `en-US`，两者不一致会让面板标题断言假失败。
+ */
+async function currentLanguage(): Promise<string> {
+  return (await storedLanguage()) || await deviceLocale()
+}
+
 /** 点击导航项：每次轮询都重新查询元素。 */
 async function clickNav(tab: string): Promise<void> {
   // `waitForClickable()` 只认首次取到的句柄，句柄一旦游离就永远轮询到超时；
@@ -303,7 +313,7 @@ describe.skipIf(process.platform === 'darwin')('配置管理与多语言主题',
   })
 
   it('TC-DSK-L3-02-001 验证「配置 → 应用」打开对话框并默认定位「应用」面板', async () => {
-    const titles = expectedTitles(await deviceLocale())
+    const titles = expectedTitles(await currentLanguage())
 
     await openConfigTab(browser, 'application')
 
@@ -320,7 +330,7 @@ describe.skipIf(process.platform === 'darwin')('配置管理与多语言主题',
   })
 
   it('TC-DSK-L3-02-002 验证左侧导航可切换四个面板', async () => {
-    const titles = expectedTitles(await deviceLocale())
+    const titles = expectedTitles(await currentLanguage())
 
     await openConfigTab(browser, 'application')
 
@@ -345,7 +355,7 @@ describe.skipIf(process.platform === 'darwin')('配置管理与多语言主题',
   })
 
   it('TC-DSK-L3-02-003 验证从导航栏直接定位到指定面板', async () => {
-    const titles = expectedTitles(await deviceLocale())
+    const titles = expectedTitles(await currentLanguage())
 
     for (const tab of ['profiles', 'plugins', 'harness', 'application']) {
       await openConfigTab(browser, tab)
@@ -360,7 +370,7 @@ describe.skipIf(process.platform === 'darwin')('配置管理与多语言主题',
   })
 
   it('TC-DSK-L3-02-004 验证关闭触发器关闭对话框且可再次打开', async () => {
-    const titles = expectedTitles(await deviceLocale())
+    const titles = expectedTitles(await currentLanguage())
 
     await openConfigTab(browser, 'application')
     expect(await isConfigDialogOpen(browser)).toBe(true)
