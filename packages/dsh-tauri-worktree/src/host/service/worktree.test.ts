@@ -1,30 +1,46 @@
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'pathe'
+import { basename, join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
-import { clearHostRuntime, setCurrentHostInstance } from '../config/runtime'
-import { projectDirname } from '../utils/git'
-import { computeHash, worktreePath } from '../utils/paths'
-import { cleaner } from './cleaner'
-import { worktree } from './worktree'
+
+const dshHome = vi.hoisted(() => ({ value: '' }))
 
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
-  const { testDshHome: home } = await import('../../../../.test/test-utils')
-  return { ...actual, DSH_HOME: home }
+  return { ...actual, DSH_HOME: dshHome.value }
 })
+
+dshHome.value = testDshHome
+
+type Cleaner = typeof import('./cleaner')['cleaner']
+type Worktree = typeof import('./worktree')['worktree']
+type Runtime = typeof import('../config/runtime')
+
+let cleaner: Cleaner
+let worktree: Worktree
+let runtime: Runtime
 
 const repositories: string[] = []
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules()
   resetTestDshHome()
-  clearHostRuntime()
+  const [cleanerModule, worktreeModule, runtimeModule] = await Promise.all([
+    import('./cleaner'),
+    import('./worktree'),
+    import('../config/runtime'),
+  ])
+  cleaner = cleanerModule.cleaner
+  worktree = worktreeModule.worktree
+  runtime = runtimeModule
+  runtime.clearHostRuntime()
 })
 
 afterEach(() => {
-  clearHostRuntime()
+  runtime?.clearHostRuntime()
   for (const repository of repositories.splice(0))
     rmSync(repository, { recursive: true, force: true })
 })
@@ -47,8 +63,12 @@ function createRepository(commit = true): string {
   return repository
 }
 
+function expectedHash(repository: string, sessionId: string): string {
+  return createHash('sha256').update(`${repository}:${sessionId}`).digest('hex').slice(0, 12)
+}
+
 function expectedPath(repository: string, sessionId: string): string {
-  return worktreePath(computeHash(repository, sessionId), projectDirname(repository))
+  return join(testDshHome, 'worktrees', expectedHash(repository, sessionId), basename(repository))
 }
 
 function hostWithProcessController(controller: unknown): unknown {
@@ -257,7 +277,7 @@ describe('worktree.remove', () => {
       return
 
     const stopSessionProcesses = vi.fn(async () => {})
-    setCurrentHostInstance(hostWithProcessController({ stopSessionProcesses }) as never)
+    runtime.setCurrentHostInstance(hostWithProcessController({ stopSessionProcesses }) as never)
 
     const removed = await worktree.remove(sessionId)
     expect(removed.ok).toBe(true)
@@ -320,7 +340,7 @@ describe('worktree.discard', () => {
 
   it('未绑定的 key 段数不合法（多余段 / 结尾斜杠）时被拒绝', async () => {
     const hash = 'ffffffffffff'
-    const path = worktreePath(hash, 'repo')
+    const path = join(testDshHome, 'worktrees', hash, 'repo')
     mkdirSync(path, { recursive: true })
     writeFileSync(join(path, 'keep.txt'), 'keep\n')
 
@@ -335,7 +355,7 @@ describe('worktree.discard', () => {
   it('无绑定且路径已消失时幂等成功且不产生任务', async () => {
     const repository = createRepository()
     const sessionId = 'no-binding-session'
-    const key = `${computeHash(repository, sessionId)}/${projectDirname(repository)}`
+    const key = `${expectedHash(repository, sessionId)}/${basename(repository)}`
 
     const discarded = await worktree.discard(sessionId, key)
     expect(discarded).toEqual({ ok: true })

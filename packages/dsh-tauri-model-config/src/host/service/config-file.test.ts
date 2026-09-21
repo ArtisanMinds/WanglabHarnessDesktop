@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openDirectory } from 'dsh-tauri'
+import { openDirectory, writeAtomic } from 'dsh-tauri'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { configFile } from './config-file'
 import { openInEditor } from './config-file.utils'
@@ -12,7 +12,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 })
 vi.mock('dsh-tauri', async (importOriginal) => {
   const actual = await importOriginal<typeof import('dsh-tauri')>()
-  return { ...actual, openDirectory: vi.fn() }
+  return { ...actual, openDirectory: vi.fn(), writeAtomic: vi.fn(actual.writeAtomic) }
 })
 vi.mock('./config-file.utils', () => ({ openInEditor: vi.fn() }))
 
@@ -108,5 +108,28 @@ describe('config file editor preference', () => {
     expect(await configFile.open()).toEqual({ ok: true, path: home, opened: 'directory' })
     expect(openDirectory).toHaveBeenCalledWith(home)
     expect(openInEditor).not.toHaveBeenCalled()
+  })
+
+  it('treats a directory named settings.yaml as no settings file and opens the containing directory', async () => {
+    await mkdir(join(home, 'settings.yaml'))
+
+    expect(await configFile.open()).toEqual({ ok: true, path: home, opened: 'directory' })
+    expect(openDirectory).toHaveBeenCalledWith(home)
+    expect(openInEditor).not.toHaveBeenCalled()
+  })
+
+  it('surfaces an atomic write failure without replacing the stored preference', async () => {
+    const path = join(home, 'dsh-tauri-model-config', 'editor.json')
+    await configFile.save({ editor: 'vscode', command: '' })
+
+    const failure = Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+    vi.mocked(writeAtomic).mockRejectedValueOnce(failure)
+
+    await expect(configFile.save({ editor: 'cursor', command: '' })).rejects.toBe(failure)
+    expect(writeAtomic).toHaveBeenCalledTimes(2)
+    const [target, serialized] = vi.mocked(writeAtomic).mock.calls[1]!
+    expect(target).toBe(path)
+    expect(JSON.parse(String(serialized))).toEqual({ editor: 'cursor', command: '' })
+    expect(await configFile.load()).toEqual({ editor: 'vscode', command: '' })
   })
 })

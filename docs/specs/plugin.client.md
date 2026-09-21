@@ -1,3 +1,5 @@
+> 该文档已被固定，禁止修改
+
 # 插件客户端架构规范 (Plugin Client Architecture Protocol)
 
 > 本规范是 [通用软件开发规范与协议 (devlopment.md)](./devlopment.md)[cite: 1] 在 **DeepSeek Harness 插件客户端半区（Browser Runtime）** 的具象化工程落地协议。所有插件的 `src/client` 实现必须严格遵循本规范。
@@ -76,7 +78,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 ### 1. 装配入口 (`src/client/index.ts`)
 
 * 平铺调用 `ctx.effect(feature, LABEL)` 与 `ctx.slots.register()`，禁止内联回调 >2 行，禁止启动期异步请求[cite: 2]。
-* effect 标签不得硬编码字符串：按 [agents.plugins.md](./agents.plugins.md) 的《通用协议：常量归属》决定落点——多消费方进 `constants/`（如 `LOCALE_EFFECT`），单一消费方留在消费方文件[cite: 2]。
+* effect 标签不得硬编码字符串：按 [plugin.baisc.md](./plugin.baisc.md) 的《通用协议：常量归属》决定落点——多消费方进 `constants/`（如 `LOCALE_EFFECT`），单一消费方留在消费方文件[cite: 2]。
 
 ### 2. 状态层 (`store/`)
 

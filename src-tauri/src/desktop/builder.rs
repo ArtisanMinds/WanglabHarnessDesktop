@@ -976,6 +976,12 @@ pub fn builder() -> tauri::Builder<tauri::Wry> {
         .manage(crate::desktop::pet_mouse::PetMouseStreamState::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
+            // 标识符改名（app-data 目录名同步变化）：旧目录必须在任何 store 读写之前
+            // 搬过来，否则升级用户会被误判成首装（见
+            // service::migrate::migrate_app_data_dir）。失败仅告警，不阻断启动。
+            if let Err(error) = crate::service::migrate::migrate_app_data_dir(&app_handle) {
+                log::warn!("[migrate] app data dir migration failed: {error}");
+            }
             // 首装检测必须最先执行：窗口几何恢复/退出保存等任何 store 写入都会
             // 创建 store 文件，判定晚于它们会把首装误判为升级（见
             // config::detect_first_install 的时序说明）。
