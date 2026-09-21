@@ -7,6 +7,13 @@
 - host 直接安装 lodash-es 作为依赖
 - client 需引用 `dsh-tauri/client/` 导出的 lodash-es 模块，禁止直接从模块中加载
 
+## 测试（修复 / 新功能必须同步）
+
+- **唯一规范**：[plugin.test.md](./plugin.test.md)。修 bug、加功能、改行为之前先读它，按其中「分层与归属 / 目录 / 运行命令 / 隔离红线」定位或新增测试。
+- **用例位置**：`test/e2e/plugins/*.e2e.ts`（`plugin` project：真实 `dsh web` 进程 + 真实 Chromium，承载 L2 宿主路由与 C 浏览器层）与 `packages/*/src/**/*.test.ts`（`unit` project，L1 纯单测）。
+- **运行**：`node node_modules/vitest/vitest.mjs run --project plugin`（单文件过滤用位置参数）。**不要**用 `pnpm run <script>`——本仓 pnpm 的 deps 校验与 `.bin` shim 在部分环境会失败。稳定性要求：同一批用例连续 5 次运行无 Flake。
+- **同步义务**：行为改动必须同步更新测试代码。**不再维护用例文档**——测试不由「文档条目 ↔ `it()`」驱动，`it()` 标题即契约描述（[plugin.test.md](./plugin.test.md) §10）。
+
 ## 通用协议：常量归属（host / client 同一套）
 
 适用于 `packages/*` 的宿主端与客户端两侧；与任何 `.spec.md` 冲突时以本节为准。

@@ -200,3 +200,10 @@ function ConfirmDialog(props: ConfirmDialogProps) {
 * **macOS 媒体权限配置 (Issue #214)**：必须同时在 `Info.plist` (声明 Usage Description) 与 `Entitlements.plist` (声明 `com.apple.security.device.*`) 中配置，相对路径基于 tauri bundle 运行时的 CWD 目录。
 * **AppImage 过度打包宿主显示栈库 (Issue #620)**：Tauri 固定的 linuxdeploy 会把构建镜像（ubuntu-22.04）的 `libwayland-{client,cursor,egl,server}`、`libxkbcommon`、`libxcb-{randr,render,shm}`、`libXau`、`libXdmcp` 共 10 个库打进 `usr/lib`，而 `AppRun.wrapped` 又把 `$APPDIR/usr/lib` 置于 `LD_LIBRARY_PATH` 首位。较新发行版（Arch/CachyOS、Fedora 44…）的宿主 Mesa 因此加载到旧库、`eglGetDisplay` 返回 `EGL_BAD_PARAMETER`，WebKit 视之为致命错误直接 `abort()`——表现为 `WebKitWebProcess` SIGABRT、无窗口且用户侧无任何运行日志（上游 tauri#15976）。`.deb` 用系统库不受影响。修法：`scripts/fix-appimage-host-libs.sh` 在构建后（**签名/上传之前**，会重写字节）剔除这 10 个库并按原 squashfs 参数（zstd / 128K block）复用原 runtime 前缀重打包；`build-linux.yml` 带 `--require-removal` 调用，将来 bundler 不再过度打包时构建会明确失败而非静默回归。**不要**顺手剔除 `libEGL`/`libGL`/`libgbm`/`libdrm`：linuxdeploy 的 excludelist 本就没打包它们。
 * **Linux 托盘点击适配 (Issue #386/#438)**：Linux 环境下通过 `linux_tray.rs` 基于 `tray-icon 0.25 (ksni)` 单独构建托盘，避免 muda 依赖版本冲突，通过 `Box::leak` 保活并在独立线程中处理事件。
+## 7. 测试（修复 / 新功能必须同步）
+
+- **唯一规范**：[desktop.test.md](./desktop.test.md)。修 bug、加功能、改行为之前先读它，按其中「平台与前置 / 隔离 / 命令」定位或新增测试。
+- **用例位置**：`test/e2e/desktop/*.e2e.ts`（`desktop` project，真实 Tauri 窗口）。
+- **准入原则**：只有断言对象是 **Tauri 原生产物**（独立 OS 窗口句柄、窗口几何、Tauri IPC 往返）才允许 L3；业务面板 / 侧栏 / 对话框 / tab 一律走 C 浏览器层，见 [desktop.test.md](./desktop.test.md) §1。
+- **运行**：`node node_modules/vitest/vitest.mjs run --project desktop`。本机已跑着其它桌面实例时用 `TAURI_WEBDRIVER_PORT=<空闲端口>` 另开一路并存，**不得结束用户进程**。
+- **同步义务**：行为改动必须同步更新测试代码；不再维护用例文档，`it()` 标题即契约描述。
