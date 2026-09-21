@@ -400,6 +400,11 @@
       "skillPath": "skills/zh/testing-types/functional-testing/SKILL.md",
       "computedHash": "8f01d324f0ce48c268a2e2637a6d031be21562bdd530f570f6b41dc02d4855a3"
     },
+    "handle": {
+      "source": "./skills",
+      "sourceType": "local",
+      "computedHash": "19d21d4b248ccade8e49186a392ff47cea5398827f08cb2c29996a2674f51f90"
+    },
     "heroui-react": {
       "source": "heroui-inc/heroui",
       "sourceType": "github",
