@@ -4,7 +4,7 @@
 > 自动化：`test/e2e/desktop/boot.e2e.ts`（已接线）
 > 前置：见 `00-overview.md` §3–§5；`dist/` 与 debug 二进制已按最新源码重建
 > 运行：`pnpm test:e2e:desktop -- --run test/e2e/desktop/boot.e2e.ts`
-> 车道：真实装配（本次运行独占空下载缓存 → 必然走一次真实下载与落盘）
+> 车道：真实装配（用例显式 `coldCache: true` 拿本次运行独占空下载缓存 → 必然走一次真实下载与落盘；`startDesktopApp()` 默认**复用跨运行的共享缓存** `$DSH_E2E_DOWNLOAD_CACHE_DIR`，缺省 `<os.tmpdir()>/dsh-e2e-download-cache`）
 
 ---
 
@@ -29,4 +29,5 @@
 - **G-D01-4**：`console.error` 一并计入报错。若将来出现可容忍的固定噪音（例如某条 IPC 失败降级），必须在此登记白名单并写明理由，不得直接放宽为「不收集」。
 - **G-D01-5**：装配耗时可分钟级（首次联网下载 Node + dsh），用例与 `beforeAll` 均按 900s 放宽；本地反复跑可用 `startDesktopApp({ downloadCacheDir })` 复用一份已下好的缓存，但那样就不再覆盖「进入下载」。
 - **G-D01-6**：预装引导只做「跳过」，引导自身的分支（有变更 / 无变更 / 安装失败）不在本用例范围。
+- **G-D01-7**：桌面车道的下载缓存默认是**跨运行共享**的（`$DSH_E2E_DOWNLOAD_CACHE_DIR`，缺省 `<os.tmpdir()>/dsh-e2e-download-cache`），已跑过一次后 Node / dsh 核心不再重下。本用例必须保留「进入下载」的断言强度，因此显式 `startDesktopApp({ coldCache: true })`（等价 `DSH_E2E_COLD_ASSEMBLY=1`）取一份独占空缓存，代价是每次真的下一次；不需要这条断言的用例应走默认共享缓存。
 - **假设**：运行环境可联网（独占空缓存意味着必然需要下载）；无网络时本用例按预期失败，而不是静默降级。

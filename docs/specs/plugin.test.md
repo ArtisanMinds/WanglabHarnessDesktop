@@ -18,7 +18,8 @@
 插件 E2E 包含两个真实宿主层，其价值定位如下：
 
 * **dsh 宿主（默认选型）**：真实 `dsh web` 进程 + 真实浏览器页面。无需 Tauri 与桌面端二进制，具备**启动快、可并行、支持无头模式**的优势，为门禁测试的主要覆盖层。
-* **桌面端宿主（补充选型）**：桌面端壳层嵌 dsh iframe。**仅用于依赖 Tauri 桥的插件**（如 `dsh-tauri-pet` 桌宠窗口、`dsh-tauri-worktree` native 能力、`dsh-tauri-ui` 壳层注入），复用 [desktop.test.md](./desktop.test.md) 的 WebdriverIO 通道。
+* **桌面端宿主（补充选型）**：桌面端壳层嵌 dsh iframe。**只承接断言对象是 Tauri 原生产物的用例**——独立 OS 窗口句柄、窗口几何/尺寸夹紧、Tauri IPC 往返（本仓现为批次 `02` 的 4 条桌宠窗口用例）；复用 [desktop.test.md](./desktop.test.md) 的 WebdriverIO 通道。
+* **L3 准入原则（强制）**：断言对象若只是 dsh iframe 内部的 DOM（设置面板、侧栏、tab、对话框、Rail 形态），一律归 L2 浏览器断言，不占 `desktop` 车道——它们不经 Tauri 桥，留下只会得到一条只在 Windows 上跑、实际断言浏览器 DOM 的用例。原则与依据见 [desktop.test.md](./desktop.test.md) §1。
 
 ---
 
@@ -28,7 +29,7 @@
 | --- | --- | --- | --- | --- |
 | **L1 单元测试** | `packages/<name>/src/**/*.test.ts` | Vitest (`unit` project) | 纯函数、路由 Handler、注册表契约 | 无条件必选 |
 | **L2 插件宿主 E2E** | `test/e2e/plugins/*.e2e.ts` | Vitest (`plugin` project) + Playwright API | 真实 `dsh web` 进程：路由响应、客户端挂载点、崩溃防护 | 每个产品可见插件 |
-| **L3 桌面端宿主 E2E** | `test/e2e/desktop/*.e2e.ts` | Vitest (`desktop` project) + WebdriverIO | 桌面端壳层 + 内嵌 dsh iframe | 仅依赖 Tauri 桥的插件 |
+| **L3 桌面端宿主 E2E** | `test/e2e/desktop/*.e2e.ts` | Vitest (`desktop` project) + WebdriverIO | Tauri 原生产物：独立窗口句柄、窗口几何夹紧、IPC 往返 | 仅断言 Tauri 原生产物的窗口用例（本仓为批次 `02` 的桌宠窗口） |
 
 > **分工原则**：L1 允许 Mock 宿主；L2/L3 下游全真，仅允许 Mock 外部服务（网络、模型、时钟）。
 
@@ -40,16 +41,16 @@
 
 全仓**统一使用 Vitest 作为唯一测试运行器**，通过 `test.projects` 实现分层隔离：
 
-* **命令隔离**：使用 `vitest --project unit` 或 `--project plugin` 指定层级；`pnpm test` 运行全部。
+* **命令隔离**：使用 `vitest run --project unit` 或 `--project plugin` 指定层级；`pnpm test` 运行全部（脚本不带 `run`，非 CI 环境需补 `-- --run`，见 §9）。
 * **独立配置**：通过 `vitest.unit.config.ts` 与 `vitest.plugin.config.ts` (`defineProject`) 维护各自配置。
 * **全局报告**：由根目录 `vitest.config.ts` 统一管理报告与覆盖率（Project 级不支持配置 Reporters）。
 * **生命周期**：利用 Project 的 `globalSetup` 完成真实宿主的单次启停，通过 `project.provide()` 注入服务地址。
-* **浏览器驱动**：L2 当前落地的用例只断言 HTTP 响应字节（宿主路由是否注册、方法是否被拒），**不启动浏览器**。需要断言客户端渲染（Bundle Slot 挂载、DOM 节点）时再引入 Playwright 库 API (`chromium.launch()`)，不引入 Playwright Test Runner。
+* **浏览器驱动**：L2 的浏览器断言用 **Playwright 库 API**（`import { chromium } from 'playwright'`），在 `plugin` project 内以 `environment: 'node'` 运行，复用 `globalSetup` 起的真实 dsh 宿主与已换取的 Cookie（会话凭据）；共享编排在 `test/e2e/support/browser.ts`。只把 Playwright 当**驱动库**用，不引入 Playwright Test Runner，也不新增 Vitest project。
 
 ### 3.2 驱动搭配
 
-* **L2（真实 dsh 进程 + HTTP 断言）**：无需浏览器即可覆盖宿主路由与注册契约，启动快、可并行；需要客户端渲染证据时再叠加 Chromium 驱动。
-* **L3（WebdriverIO + `@wdio/tauri-service`）**：唯一支持驱动真实 WebView 的方案，专用于桌面端集成。
+* **L2（真实 dsh 进程）**：宿主路由与注册契约用 HTTP 断言覆盖，启动快、无需浏览器；客户端渲染（Bundle Slot 挂载、DOM 节点）叠加 Chromium 驱动（`chromium.launch()`）断言，与 HTTP 断言同在 `plugin` 车道内。
+* **L3（WebdriverIO + `@wdio/tauri-service`）**：唯一支持驱动真实 WebView 的方案，只用于断言 Tauri 原生产物的窗口用例（本仓为批次 `02` 的桌宠窗口，代码在 `test/e2e/desktop/02-pet-window.e2e.ts`）。
 * **纯 Node (`node:test` / Vitest)**：仅用于**无 UI 插件**的 HTTP 路由覆盖。
 
 ---
@@ -64,6 +65,7 @@ test/e2e/
 ├── global-setup.ts           # plugin project 的 globalSetup（启动 dsh web 并传递地址与 Cookie）
 ├── support/
 │   ├── dsh-host.ts           # 共享环境脚手架（Scratch DSH_HOME、挂载、启动、鉴权交换、清理）
+│   ├── browser.ts            # L2 浏览器层共享编排（Chromium 启动、同源嵌入 frame、Cookie 注入、报错收集、锚点常量）
 │   └── desktop-host.ts       # L3 桌面端宿主编排
 ├── plugins/<序号>-<主题>.e2e.ts # L2 插件宿主 E2E（由 plugin project 匹配）
 └── desktop/*.e2e.ts          # L3 桌面端宿主 E2E（由 desktop project 匹配）
@@ -77,6 +79,7 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 
 * **命名约定**：L2/L3 文件必须使用 `*.e2e.ts`，与 L1 的 `*.test.ts` / `*.spec.ts` 严格区分。
 * **文件名对应**：`test/e2e/plugins/<序号>-<主题>.e2e.ts` 与 `docs/testing/plugins/<序号>-<主题>.md` **同名同序号一一对应**。一个编号只允许一个测试文件；同一批次内的 L2 / 客户端 / L3 用例用 `describe` 分区，不拆成多个文件。总览类文档（`00-overview.md`）不承载用例，故无对应测试文件。
+* **跨文件例外（仅批次 `02`）**：`docs/testing/plugins/02-dsh-tauri-pet.md` 的 4 条 Tauri 原生窗口用例（`TC-PET-L3-02-001`–`004`）落在 `test/e2e/desktop/02-pet-window.e2e.ts`（`desktop` 车道），其余 9 条在 `test/e2e/plugins/02-dsh-tauri-pet.e2e.ts`。理由是运行归属：`plugin` 车道的 CI 作业是 ubuntu-latest，Tauri 与 `build:debug` 是 Windows-only，窗口用例留在插件文件里等于「写了却永不执行」。**除这一个例外**，其余编号仍是「一个编号 = 一个文档 = 一个测试文件」；`02` 文档的 `[自动化] 是` 条数 = 两个文件 `it()` 之和（9 + 4 = 13）。
 * **用例编号**：`TC-<业务域>-<层级>-<文件序号>-<序号>`，如 `TC-PET-L2-03-001`。业务域取该文件的主域前缀、文件序号取 `docs/testing/plugins/<序号>-*.md` 的序号、序号在「文件 + 层级」内从 `001` 起连续（层级取 `L2` / `L3` / `C`）。序号**不跨文件连续**：新增用例只影响本文件，不会波及后续文件。
 * **匹配策略**：`unit` 匹配 `*.{test,spec}.*`（自动排他 `.e2e.ts`）；`plugin` 显式指定 `test/e2e/plugins/**/*.e2e.ts`，`desktop` 指定 `test/e2e/desktop/*.e2e.ts`。
 * **映射关系**：文档中的每条用例条目必须与代码中的 `it()` 一一对应。
@@ -98,7 +101,7 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 7. 启动服务      ──> 执行 dsh web --host 127.0.0.1 --port 0 --no-open
 8. 交换会话      ──> 对日志里的 `http://127.0.0.1:<port>/?token=<...>` 发 redirect:'manual'
                      请求，断言 303 且响应带 Set-Cookie，取出 `name=value` 作为会话凭据
-9. 执行测试      ──> 运行 vitest --project plugin，用例经 inject() 取地址与 Cookie
+9. 执行测试      ──> 运行 vitest run --project plugin，用例经 inject() 取地址与 Cookie
 10. 资源回收     ──> 触发 Teardown：终止 dsh 进程树，清空临时目录
 
 ```
@@ -128,9 +131,18 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 2. **零崩溃保证**：校验 `pageerror` 为空、插件错误条（`fail()` / `RenderBoundary`）为空、带插件前缀的 `console.error` 为空。
 3. **路由真实响应**：直接向插件自有 HTTP 路由发起请求，断言状态码与响应体格式。
 
+### 选择器与定位口径（按元素归属分流）
+
+| 元素归属 | 锚点 | 说明 |
+| --- | --- | --- |
+| 插件包 `packages/*` | `data-dsh-<plugin>` 等 `data-dsh-*` | 插件自渲染 DOM 的挂载点。**部分 `data-dsh-*` 是行为钩子而非测试钩子**（如 `packages/dsh-tauri-ui/src/client/obstructions.ts:88` 的 `attributeFilter` 按它过滤 DOM 变更），**不得**为测试改名或增删 |
+| 桌面壳层 `src/**` | `data-testid` | 归 [desktop.test.md](./desktop.test.md) §5，命名 `dsh-<业务域>-<元素名>` |
+| 内嵌 dsh 页面内部（设置面板、侧栏、tab、对话框、Rail 形态） | 上游稳定锚点：`data-slot` / `role` / 稳定的 `dsh`·`dshp-` 前缀锚点 | dsh 属上游产物，其内部结构不受本仓库约束；这类断言归 **L2 浏览器层**，并在文档缺口小节登记，不占 `desktop` 车道 |
+| 客户端挂载证据（L2 浏览器层） | 同源嵌套 frame 内的 `data-dsh-*` 挂载点 + `pageerror` / 插件错误条为空 | 插件 client 入口有 `window.parent === window` 早退（`packages/dsh-tauri/src/client/apply.ts:29`、`packages/dsh-tauri-pet/src/client/index.ts:24`），必须在同源嵌入 frame 内断言；共享常量与编排见 `test/e2e/support/browser.ts` |
+
 ### 禁止项
 
-* 严禁使用 CSS 类名、非稳定文案或 DOM 层级作为选择器（必须使用 `data-dsh-*`）。
+* 严禁使用 CSS 类名（上游 `data-slot` / `role` / 稳定 `dsh`·`dshp-` 锚点除外）、非稳定文案或 DOM 层级作为选择器。
 * 严禁将“无报错”直接等同于“测试通过”，必须存在正向的产物断言。
 * 严禁依赖上一次运行遗留的状态（每次运行必须是干净的 Scratch 环境）。
 
@@ -148,16 +160,26 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 
 批次号 = `docs/testing/plugins/` 下的文档序号，完整清单见该目录 `00-overview.md` §3。
 
-| 批次 | 目标插件 | 测试内容 | 对应层级 | 前置条件 |
+| 批次 | 主题 | `[Case ID]` | `[自动化] 是` | 车道 |
 | --- | --- | --- | --- | --- |
-| **1** | 编排骨架 | 脚手架挂载 `dsh-tauri` 并成功启动 `dsh web` 随机端口 | L2 基础设施 | 无 |
-| **2** | `dsh-tauri`（核心桥接） | 共享路由契约：OPTIONS / 405 / 403 / 413 | L2（纯 HTTP） | 1 |
-| **3** | `dsh-tauri-pet` | SSE 路由 `/api/desktop/dsh-tauri-pet/session/stream` 建立连接并收到首帧 | L2（纯 HTTP） | 1 |
-| **3** | `dsh-tauri-pet` | 页面成功渲染 `data-dsh-tauri-pet` 挂载点且无崩溃报错 | L2（浏览器） | 上一条 |
-| **4+** | `04`–`18` | 先 Host 后 Client 逐条补齐；`18` 为跨插件与壳层集成收尾 | L2 → L3 | 逐项确认 |
-| **L3** | `dsh-tauri-pet` | 桌面端壳层成功创建桌宠窗口 | **L3** | 桌面端 `01` 批次通道 |
+| `01` | 编排骨架与共享路由契约 | 12 | 12 | `plugin` |
+| `02` | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | 14 | 13 | `plugin` 9 + `desktop` 4 |
+| `03` | `dsh-tauri-rightclick` | 12 | 5 | `plugin` |
+| `04` | `dsh-tauri-session` | 13 | 9 | `plugin` |
+| `05` | `dsh-tauri-worktree` | 11 | 7 | `plugin` |
+| `06` | `dsh-tauri-ui` | 12 | 6 | `plugin` |
+| `07` | `dsh-tauri-panel-extension` | 23 | 19 | `plugin` |
+| `08` | `dsh-tauri-panel-scheduler` | 15 | 11 | `plugin` |
+| `09` | `dsh-tauri-turnrewind` | 7 | 3 | `plugin` |
+| `10` | `dsh-tauri-model-config` | 10 | 8 | `plugin` |
+| `11` | `dsh-tauri-connection` | 3 | 3 | `plugin` |
+| 合计 | `01`–`11` 共 11 个用例文件 | 132 | 96 | `plugin` 92 + `desktop` 4 |
 
-**准入标准**：连续运行 $\ge 5$ 次无 Flake；失败信息精准定位至具体步骤；文档与 `test()` 一一对应；环境完全隔离独立。
+**口径**：`[Case ID]` 是文档声明的用例条目总数；`[自动化] 是` 与 `it()` 两列**逐文件相等**（文档 ↔ 代码 1:1），逐文件明细见 `docs/testing/plugins/00-overview.md` §7.1 追踪矩阵。批次 `03`–`10` 原有的 `-L3-*` 条目已按「Tauri 原生产物」原则降级为 L2 浏览器断言并保留原编号与条数；只有批次 `02` 的 4 条留在 `desktop` 车道（跨文件例外见 §4）。
+
+**本轮实测**：`plugin` 车道连续 5 次运行均 11 files / 92 tests 全绿。
+
+**准入标准**：连续运行 $\ge 5$ 次无 Flake；失败信息精准定位至具体步骤；文档条目与 `it()` 一一对应；环境完全隔离独立。
 
 ---
 
@@ -166,11 +188,16 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 ### 常用命令
 
 ```bash
-pnpm test                 # 执行所有 Project
-pnpm test:unit            # 仅执行 L1 单元测试
-pnpm test:e2e:plugin      # 仅执行 L2 插件 E2E 测试（需先执行 pnpm build:plugins）
-
+pnpm test                          # 执行所有 Project
+pnpm test:unit                     # 仅执行 L1 单元测试
+pnpm test:e2e:plugin               # 仅执行 L2 插件 E2E 测试（需先执行 pnpm build:plugins）
+pnpm test:e2e:plugin -- --run      # 单跑一轮；脚本本身不带 run，交互式终端会进 watch 挂住
+vitest run --project plugin test/e2e/plugins/02-dsh-tauri-pet.e2e.ts   # 单文件过滤必须用位置参数
 ```
+
+> **`-- --run` 不能省**：`test` / `test:unit` / `test:e2e:*` 脚本本身是 `vitest`（不带 `run`），非 CI 的交互式终端会进入 watch 模式并挂住；CI 里写的是 `pnpm run test:e2e:plugin -- --run`。
+> **单文件过滤必须用位置参数**：写成 `vitest --project plugin -- <file>` 时 `--` 之后的内容不会被当作过滤条件，整条车道会全部跑一遍。
+> 本机 pnpm 的依赖校验 / `.bin` shim 异常时，可绕开脚本直接跑：`node node_modules/vitest/vitest.mjs run --project plugin [file]`。
 
 ### 关键环境变量
 

@@ -1,28 +1,29 @@
 # 桌面端 E2E 总览
 
-> 状态：桌面端 E2E 已收敛为**一条启动冒烟用例**（`01-boot.md`）。桌面壳层的职责只有「把 dsh 装起来、跑起来、嵌进来」，其余业务行为（配置、语言、档案、插件生命周期、更新…）不属于壳层职责，其 L3 用例已移除，用例文档随之归档到 `archive/docs/testing/desktop/`。
+> 状态：`desktop` 车道共 **2 个文件 / 5 条**——`01-boot.md` 的启动冒烟（1 条）与桌宠窗口（4 条，`test/e2e/desktop/02-pet-window.e2e.ts`，用例文档在 [`../plugins/02-dsh-tauri-pet.md`](../plugins/02-dsh-tauri-pet.md) §4）。桌面壳层的职责只有「把 dsh 装起来、跑起来、嵌进来」，其余业务行为（配置、语言、档案、插件生命周期、更新…）不属于壳层职责；其 L3 用例已移除（断言对象是 dsh iframe 内部 DOM 的条目改为 L2 浏览器断言），用例文档随之归档到 `archive/docs/testing/desktop/`。
 > 规范：`docs/specs/desktop.test.md`（分层、驱动选型、`data-testid`、隔离与执行命令）。
 
 ## 1. 覆盖范围
 
 | 覆盖 | 不覆盖 |
 | --- | --- |
-| 进入下载装配（真的下载 dsh 本体并落盘；Node 视系统情况复用） | 单个面板/菜单的交互（配置、语言、档案…） |
+| 进入下载装配（真的下载 dsh 本体并落盘；Node 视系统情况复用） | 单个面板/菜单的交互（配置、语言、档案…）——归 L2 浏览器断言 |
 | dsh 内核启动（服务地址可用、iframe 挂载） | 插件生命周期与预装引导的自身行为 |
 | 内嵌 dsh 页面渲染出内容 | 托盘、更新、备份还原、系统集成 |
-| 壳层与 dsh 页面无页面报错 | 视觉回归与几何断言 |
+| 壳层与 dsh 页面无页面报错 | 插件自渲染 DOM 的挂载与槽位注入——归 L2 浏览器断言 |
+| 桌宠**独立 OS 窗口**的出现 / 消失与尺寸夹紧（`02-pet-window.e2e.ts`，Tauri 原生产物） | 视觉回归（像素对比）与壳层业务面板的页内几何断言（`02` 只断言窗口句柄与窗口尺寸） |
 
-用例清单见 `01-boot.md`；推进台账见 `docs/testing/progressive.md` §4.1。
+用例清单见 `01-boot.md`（桌宠窗口见 [`../plugins/02-dsh-tauri-pet.md`](../plugins/02-dsh-tauri-pet.md) §4）；推进台账见 `docs/testing/progressive.md` §4.1。
 
 ## 2. 自动化产物
 
 | 项 | 值 |
 | --- | --- |
-| 用例文件 | `test/e2e/desktop/boot.e2e.ts` |
+| 用例文件 | `test/e2e/desktop/boot.e2e.ts`（启动冒烟 1 条）、`test/e2e/desktop/02-pet-window.e2e.ts`（桌宠窗口 4 条，`TC-PET-L3-02-001`–`004`） |
 | 编排 | `test/e2e/support/desktop-host.ts`（起应用 + 建 WDIO 会话 + 收尾）、`test/e2e/support/preinstall.ts`（过首次装配引导） |
-| 选择器 | `test/e2e/support/selectors.ts`（`dsh-<业务域>-<元素名>`） |
-| 运行 | `pnpm test:e2e:desktop -- --run test/e2e/desktop/boot.e2e.ts` |
-| Project | `vitest.desktop.config.ts`（`include: test/e2e/desktop/*.e2e.ts`，串行，`testTimeout` 180s） |
+| 选择器 | 壳层 `test/e2e/support/selectors.ts`（`dsh-<业务域>-<元素名>`）；桌宠锚点在插件侧（`data-dsh-tauri-pet*`） |
+| 运行 | `pnpm test:e2e:desktop -- --run test/e2e/desktop/boot.e2e.ts`（单文件过滤用**位置参数**，带 `--` 的写法不会过滤、会跑完整个 project）；整条车道 = `pnpm test:e2e:desktop -- --run` |
+| Project | `vitest.desktop.config.ts`（`include: test/e2e/desktop/*.e2e.ts`，`environment: 'node'` + standalone WebdriverIO session，串行，`testTimeout` 180s） |
 
 ## 3. 环境事实
 
@@ -39,8 +40,9 @@
 | 收尾 | `DELETE /session/<id>`，再按进程树结束应用 | `@wdio/tauri-service` |
 | dsh 页面挂载点 | `<div id="root">`（`@deepseek-ai/dsh-web-frontend/dist/index.html`） | 运行时包 |
 | 失败产物 | `test/e2e/.artifacts/`（Git Ignore） | `docs/specs/desktop.test.md` §8.3 |
+| 下载缓存 | 默认**复用跨运行共享缓存**：`DSH_E2E_DOWNLOAD_CACHE_DIR`，缺省 `<os.tmpdir()>/dsh-e2e-download-cache`；需要观察真实下载的用例用 `coldCache: true`（等价 `DSH_E2E_COLD_ASSEMBLY=1`）退回本次运行独占空目录 | `test/e2e/support/desktop-host.ts` |
 
-装配落盘（本次运行独占的缓存根，默认 `<home>/download-cache`）：
+装配落盘（缓存根默认是跨运行共享的 `<os.tmpdir()>/dsh-e2e-download-cache`；冷跑时是本次运行独占的 `<home>/download-cache`，随 scratch home 删除）：
 
 | 路径 | 内容 |
 | --- | --- |
@@ -68,7 +70,7 @@
 | dsh 数据（`~/.dsh.dev`） | `USERPROFILE`(Windows)/`HOME`(Unix) → `<home>/home` |
 | 应用 app-data（`<home>/home/AppData/Roaming/dsh-tauri`） | 同上派生 |
 | WebView2 profile | `DSH_E2E_WEBVIEW_DATA_DIR` → `<home>/webview2`（`app_local_data_dir()` 走 `SHGetKnownFolderPath`，重定向 `LOCALAPPDATA` 无效） |
-| 下载缓存 | `DSH_DOWNLOAD_CACHE_DIR` → `<home>/download-cache`（默认每次运行独占空目录） |
+| 下载缓存 | `DSH_DOWNLOAD_CACHE_DIR` → 默认跨运行共享缓存 `$DSH_E2E_DOWNLOAD_CACHE_DIR`（缺省 `<os.tmpdir()>/dsh-e2e-download-cache`）；冷跑（`coldCache: true` / `DSH_E2E_COLD_ASSEMBLY=1`）才用 `<home>/download-cache` 独占空目录 |
 | Store | 启动前删除 `<app-data>/.store.test.dat`（`resetTestStore()`） |
 
 两条硬约束：
@@ -86,7 +88,8 @@
 
 ## 7. 维护约定
 
-1. 一条用例 = 一个 `it()`；用例编号 `TC-DSK-L3-<文件序号>-<序号>`，文件内从 `001` 起连续。
-2. 新选择器一律先登记到 `test/e2e/support/selectors.ts`，用例只认 `data-testid`。
-3. 范围变化同步更新本文件、`01-boot.md` 与 `docs/testing/progressive.md` §4.1。
-4. 被移除的用例文档移入 `archive/docs/testing/desktop/`，不再在 `docs/testing/` 维护。
+1. 一条用例 = 一个 `it()`；桌面端用例编号 `TC-DSK-L3-<文件序号>-<序号>`，文件内从 `001` 起连续。
+2. **桌宠窗口是编号规则的唯一例外**：其 4 条沿用插件域前缀 `TC-PET-L3-02-*`（序号取插件用例文档序号），跨文件例外见 `docs/specs/desktop.test.md` §3.2。
+3. 新选择器一律先登记：壳层锚点进 `test/e2e/support/selectors.ts`（`data-testid`）；插件侧锚点随插件文档登记（`data-dsh-*`，其中一部分是行为钩子，不得为测试改名）。
+4. 范围变化同步更新本文件、`01-boot.md`、`../plugins/02-dsh-tauri-pet.md`（桌宠窗口）与 `docs/testing/progressive.md` §4.1。
+5. 新增 L3 用例前先过 `docs/specs/desktop.test.md` §1 的准入原则：断言对象必须是 Tauri 原生产物；被替换掉的旧用例文档移入 `archive/docs/testing/desktop/`，不再在 `docs/testing/` 维护。
