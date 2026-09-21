@@ -61,8 +61,8 @@
 ### 第 2 波 A：单测质量（子设计 03）
 
 - `pnpm test:unit -- --run` = **103 files / 981 tests** 全绿（整改前 99 / 884）；`--sequence.shuffle`（seed `1789992333147`）亦全绿。
-- 7 条 blocker 全部经**变异验证**（故意破坏实现 → 11 个用例转红）。收口时用 `node node_modules/vitest/vitest.mjs run --project unit` 复核 = 103 files / 981 tests（135.68s）。
-- 覆盖率：`@vitest/coverage-v8` 已安装且**必须能产出报告**，但**不设阈值、不卡关、不进 CI 门禁**。`exclude` 只能落在根 `vitest.config.ts`（project 级同名字段被 Vitest 忽略），已排除 `source/`、`archive/`、`test/archive/`、`src-tauri/`。实测基线：Statements 66.06% / Branches 60.24% / Functions 68.18% / Lines 66.31%。
+- 7 条 blocker 全部经**变异验证**（故意破坏实现 → 11 个用例转红）。收口时用 `node node_modules/vitest/vitest.mjs run --project unit` 复核 = 103 files / 981 tests（135.68s）；合并 `origin/main` 后再复测为 103 files / 985 tests（见「文档侧一致性核对」）。
+- 覆盖率：`@vitest/coverage-v8` 已安装且**必须能产出报告**，但**不设阈值、不卡关、不进 CI 门禁**。`exclude` 只能落在根 `vitest.config.ts`（project 级同名字段被 Vitest 忽略），已排除 `source/`、`archive/`、`test/archive/`、`src-tauri/`。整改时实测基线：Statements 66.06% / Branches 60.24% / Functions 68.18% / Lines 66.31%；合并 `origin/main` 后复测（`--coverage` 全量）：Statements 66.07% / Branches 60.27% / Functions 68.23% / Lines 66.32%。
 
 ### 第 2 波 B：插件 E2E（子设计 02）
 
@@ -76,7 +76,7 @@
 - `docs/specs/desktop.test.md`：§1 增加**可机检的 L3 准入原则**（只有断言对象是 Tauri 原生产物才允许 L3）；桌面端表述从「唯一一条用例」改为 `01-boot` + `02-pet-window` 两类；§3.2 补跨文件例外；§5 选择器改为按元素归属分流（壳层 `data-testid` / 插件包 `data-dsh-*` / 内嵌 dsh 上游锚点，并登记 `packages/dsh-tauri-ui/src/client/register/obstructions.ts:88` 的 `attributeFilter` 属行为钩子、不得为测试改名）；§6/§6.1/§8.1 同步下载缓存与命令口径；§8.2 补 `exclude` 说明；新增 §8.4 覆盖率。
 - `docs/specs/plugin.test.md`：§1 补 L3 准入原则与「只承接 Tauri 原生产物」的定位；§3 改为 Playwright **库 API**（删除已证否方案的描述）；§4 补跨文件例外与 `browser.ts`；§6 选择器与禁止项改为按元素归属分流；§8 批次表重写为实际 `01`–`11`（含逐批用例数与实测）；§9 补 `-- --run` 与位置参数口径。
 - 修掉子设计 04 §4 列出的 12 项缺陷：`合计 108`、`plugins/10-*.md` 的悬空引用与 `[自动化]` 矛盾、`plugins/04-*.md` 的行号偏移（+7）、`plugins/07-*.md` 的标题不一致、`plugins/00-overview.md` 的 G2 过期事实、两个 `00-overview.md` 的过期范围、`plugin.test.md` §8 的「批次 1–18」、单文件过滤的 `vitest ... -- <file>` 写法、缺 `-- --run` 提醒、选择器适用范围、跨文件例外。
-- `docs/testing/README.md`：索引补 `11-dsh-tauri-connection.md`；用例规模按实测重写（`desktop` 2 files / 5 tests、`plugin` 11 files / 92 tests、`unit` 103 files / 981 tests、`[Case ID]` 136 / `[自动化] 是` 100（e2e 96 + L1 4））；目录树删掉不存在的 `test/unit/`、补 `test/e2e/support/browser.ts`；§4 补 `-- --run` 提醒、正确的单文件位置参数与 `node node_modules/vitest/vitest.mjs run --project <lane>` 直跑写法；新增 §7 覆盖率。
+- `docs/testing/README.md`：索引补 `11-dsh-tauri-connection.md`；用例规模按实测重写（`desktop` 2 files / 5 tests、`plugin` 11 files / 92 tests、`unit` 103 files / 985 tests（复测）、`[Case ID]` 136 / `[自动化] 是` 100（e2e 96 + L1 4））；目录树删掉不存在的 `test/unit/`、补 `test/e2e/support/browser.ts`；§4 补 `-- --run` 提醒、正确的单文件位置参数与 `node node_modules/vitest/vitest.mjs run --project <lane>` 直跑写法；新增 §7 覆盖率。
 - 已证否 / 不存在的方案描述**直接删除**（不留「已废弃」注记堆积）：`docs/testing/**` 与两个 `*.test.md` 内不再出现 Vitest browser mode 系列的方案描述；`archive/docs/testing/**` 一轮内不读取、不引用内容、不搬回。
 
 ### 文档侧一致性核对（计数口径与输出，可复核）
@@ -84,6 +84,7 @@
 - `[Case ID]` **字段行**：`rg --count-matches '^\[Case ID\]' docs/testing/plugins/` 逐文件 12/13/12/13/16/12/23/15/7/10/3，合计 **136**（追踪矩阵 `plugins/00-overview.md` §7.1 同值；`plugins/02-dsh-tauri-pet.md:10` §4 正文里的一次引用**不计入**条目）。口径：只数 `^[Case ID]` 字段行；批次 `05` 的 4 条 `-U-*` 是 L1 单元层条目，计入 `[Case ID]` 但不占 e2e `it()`。
 - `[自动化] 是`：`rg --count-matches '\[自动化\] 是' docs/testing/plugins/` 逐文件 12/13/5/9/11/6/19/11/3/8/3，合计 **100** = e2e **96**（`02` 为 13 = `plugin` 9 + `desktop` 4；其余批次等于各自 e2e `it()`）+ 批次 `05` 的 **4** 条 L1（`mode-select.utils.test.ts`）。逐文件明细见 `plugins/00-overview.md` §7.1。
 - `it()` 总数：`rg -c '^\s*it\(' test/e2e/plugins/*.e2e.ts` 合计 **92**，加 `test/e2e/desktop/02-pet-window.e2e.ts` 的 **4** = **96**；`test/e2e/desktop/boot.e2e.ts` 另 **1** 条（`desktop` 车道合计 5）。
-- `[自动化] 是（<file>:<line>）` 指针体检：80 处指向 `it(` 所在行命中；4 处（`plugins/02-dsh-tauri-pet.md` → `test/e2e/desktop/02-pet-window.e2e.ts:139/154/164/180`）实际 `it(` 在 `:144/:159/:169/:185`，属待修的行号偏移。
+- `[自动化] 是（<file>:<line>）` 指针体检：全部指向 `it(` 所在行命中。其中 `plugins/02-dsh-tauri-pet.md` 的 4 条桌面端指针原先偏移（`139/154/164/180`），已在 `test/e2e/desktop/02-pet-window.e2e.ts` 改写（可重入弹窗闸 + 点击同源收尾 + `aria-pressed` 前置 + 越界断言期间 `connectionRetryCount=0`）后同步为 `202/217/227/239`。
 - 废弃表述扫描：对「已放弃的 Vitest browser mode 驱动包名」与「已取消的 e2e setup 文件改名方案」做全 `docs/` 检索，命中的全部落在两份整改 Spec（`docs/specs/09-21-*`）自身的「已放弃并说明原因」记录里；`docs/testing/**` 与两个 `*.test.md` 内**零命中**。
 - 悬空引用扫描：`rg -n 'test/e2e/[A-Za-z0-9/_.-]+\.(ts|mjs)' docs/testing docs/specs` 命中项逐个核对存在性——`docs/testing/**` 与两个 `*.test.md` 内**无活引用**；唯一命中是本文历史条目里对已删除 / 已归档文件的**删除记录**（`test/e2e/desktop/01-window-shell.e2e.ts`、`test/e2e/desktop/02-config-locale.e2e.ts`、`test/e2e/support/navbar-menu.ts`、`test/e2e/support/config-dialog.ts`），其余命中在 `docs/specs/09-21-*`（缺陷描述与已取消方案）。历史记录不改写。
+- 复测（合并 `origin/main` 后，本轮收口亲测）：`node node_modules/vitest/vitest.mjs run --project unit` = **103 files / 985 tests** 全绿（129.07s；较整改时 +4 例，来自 #648 的 `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts`）；`node node_modules/vitest/vitest.mjs run --project plugin` = **11 files / 92 tests** 全绿（150.54s）；`desktop` 车道未重跑（需 debug 二进制与真实 Tauri 窗口，且本机可能已有实例占用 WebDriver 4445），按代码结构计 **2 files / 5 tests**。本轮计数与口径核对命令的完整输出见上述各条。

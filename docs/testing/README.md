@@ -16,7 +16,7 @@
 | [`plugins/00-overview.md`](./plugins/00-overview.md) | 插件总览：分层策略、可立即运行的部分、追踪矩阵、缺口 |
 | [`plugins/01-dsh-host-and-core-contract.md`](./plugins/01-dsh-host-and-core-contract.md) … [`11-dsh-tauri-connection.md`](./plugins/11-dsh-tauri-connection.md) | 插件用例（`01`–`11`，11 个文件），单文件即一个批次；`02` 的 4 条 L3 桌宠窗口用例落在 `desktop` 车道 |
 
-**用例规模**（本轮整改后实测）：`desktop` 车道 **2 个文件 / 5 条**——`test/e2e/desktop/boot.e2e.ts` 1 条启动冒烟 + `test/e2e/desktop/02-pet-window.e2e.ts` 4 条桌宠窗口；`plugin` 车道 **11 个文件 / 92 条**（连续 5 次运行全绿）；插件用例文档合计 **136** 条 `[Case ID]`（按 `^[Case ID]` 字段行计），其中 **100** 条 `[自动化] 是`：e2e 层 **96** 条与代码 `it()` 逐文件 1:1（`plugin` 车道 92 + `desktop` 车道 4），另有批次 `05` 的 **4** 条 L1 单元层条目由 `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts` 覆盖；其余为手工执行 / 待接线条目；`unit` 车道 **103 files / 981 tests**。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体；逐文件明细见 [`plugins/00-overview.md`](./plugins/00-overview.md) §7.1 追踪矩阵。
+**用例规模**（本轮整改后实测）：`desktop` 车道 **2 个文件 / 5 条**——`test/e2e/desktop/boot.e2e.ts` 1 条启动冒烟 + `test/e2e/desktop/02-pet-window.e2e.ts` 4 条桌宠窗口；`plugin` 车道 **11 个文件 / 92 条**（连续 5 次运行全绿）；插件用例文档合计 **136** 条 `[Case ID]`（按 `^[Case ID]` 字段行计），其中 **100** 条 `[自动化] 是`：e2e 层 **96** 条与代码 `it()` 逐文件 1:1（`plugin` 车道 92 + `desktop` 车道 4），另有批次 `05` 的 **4** 条 L1 单元层条目由 `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts` 覆盖；其余为手工执行 / 待接线条目；`unit` 车道 **103 files / 985 tests**。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体；逐文件明细见 [`plugins/00-overview.md`](./plugins/00-overview.md) §7.1 追踪矩阵。
 
 ---
 
@@ -95,4 +95,4 @@ vitest run --project desktop test/e2e/desktop/boot.e2e.ts   # 单条 L3 用例
 
 ## 7. 覆盖率
 
-`@vitest/coverage-v8` 为 devDependency，**必须能产出报告，但不设阈值、不卡关、不进 CI 门禁**。`coverage` 只能写在根 `vitest.config.ts`——project 级同名字段被 Vitest 忽略；`exclude` 已排除 `source/`、`archive/`、`test/archive/`、`src-tauri/`。整改后实测基线：Statements 66.06% / Branches 60.24% / Functions 68.18% / Lines 66.31%。详见 [`../specs/desktop.test.md`](../specs/desktop.test.md) §8.4。
+`@vitest/coverage-v8` 为 devDependency，**必须能产出报告，但不设阈值、不卡关、不进 CI 门禁**。`coverage` 只能写在根 `vitest.config.ts`——project 级同名字段被 Vitest 忽略；`exclude` 已排除 `source/`、`archive/`、`test/archive/`、`src-tauri/`。复测基线（`--coverage` 全量：Statements 66.07% / Branches 60.27% / Functions 68.23% / Lines 66.32%）。详见 [`../specs/desktop.test.md`](../specs/desktop.test.md) §8.4。

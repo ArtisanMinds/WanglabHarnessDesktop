@@ -204,4 +204,4 @@ vitest run --project desktop test/e2e/desktop/boot.e2e.ts   # 运行指定单文
 
 ### 8.4 覆盖率
 
-`@vitest/coverage-v8` 是 devDependency（`pnpm-workspace.yaml` 的 `catalogs.testing`，`package.json` 引用），**必须能产出报告，但不设阈值、不卡关、不进 CI 门禁**。`coverage` 只能写在根 `vitest.config.ts`——project 级同名字段会被 Vitest 忽略；`exclude` 已排除 `source/`、`archive/`、`test/archive/`、`src-tauri/`。整改后实测基线：Statements 66.06% / Branches 60.24% / Functions 68.18% / Lines 66.31%。
+`@vitest/coverage-v8` 是 devDependency（`pnpm-workspace.yaml` 的 `catalogs.testing`，`package.json` 引用），**必须能产出报告，但不设阈值、不卡关、不进 CI 门禁**。`coverage` 只能写在根 `vitest.config.ts`——project 级同名字段会被 Vitest 忽略；`exclude` 已排除 `source/`、`archive/`、`test/archive/`、`src-tauri/`。复测基线（`--coverage` 全量：Statements 66.07% / Branches 60.27% / Functions 68.23% / Lines 66.32%）。
