@@ -66,14 +66,14 @@
 | 02 | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | `02-dsh-tauri-pet.md` | 已实现 | 测试文件更名对齐序号（`session-stream.e2e.ts` → `02-dsh-tauri-pet.e2e.ts`）；SSE 首帧 2 例已落地；客户端与 L3 待接线 |
 | 03 | `dsh-tauri-rightclick` | `03-dsh-tauri-rightclick.md` | 提案中 | - |
 | 04 | `dsh-tauri-session` | `04-dsh-tauri-session.md` | 提案中 | - |
-| 05 | `dsh-tauri-worktree` | `05-dsh-tauri-worktree.md` | 提案中 | - |
+| 05 | `dsh-tauri-worktree` | `05-dsh-tauri-worktree.md` | 已实现 | 宿主路由 6 例待接线；新增 §3.1 四条 L1 用例（`TC-WT-U-05-001`–`004`）覆盖 `#648` 的「`isGit` 三态可见性 + 发送拦截同条件」回归，`unit` project 17 例全绿；`TC-WT-C-05-004`（创建失败回落 `local`）待接线 |
 | 06 | `dsh-tauri-ui` | `06-dsh-tauri-ui.md` | 提案中 | - |
 | 07 | `dsh-tauri-panel-extension` | `07-dsh-tauri-panel-extension.md` | 提案中 | - |
 | 08 | `dsh-tauri-panel-scheduler` | `08-dsh-tauri-panel-scheduler.md` | 提案中 | - |
 | 09 | `dsh-tauri-turnrewind` | `09-dsh-tauri-turnrewind.md` | 提案中 | - |
 | 10 | `dsh-tauri-model-config` | `10-dsh-tauri-model-config.md` | 提案中 | - |
 
-合计 `01`–`10` 共 **108** 条用例。L2 运行前需先跑一次 `pnpm build:plugins`，插件产物当前未构建。
+合计 `01`–`10` 共 **113** 条用例。L2 运行前需先跑一次 `pnpm build:plugins`，插件产物当前未构建。
 
 ---
 
