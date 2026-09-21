@@ -1,32 +1,7 @@
-/**
- * 批次 02 的 L3 段 · `dsh-tauri-pet` 的**独立桌宠窗口**（契约见 `docs/specs/desktop.test.md`
- * 与 `docs/specs/plugin.test.md`；用例编号 `TC-PET-L3-02-001..004`）。
- *
- * 为什么这一段的运行归属是 `desktop` 车道而不是 `plugin` 车道：四条断言的对象都是
- * **Tauri 原生产物**——独立 OS 窗口句柄集合（`main` / `pet`）、窗口创建与销毁、尺寸边界的
- * 命令级拒绝。这些在纯浏览器里不可能观测，而 `plugin` 车道的 CI 作业跑在 ubuntu-latest、
- * 没有 Tauri；把用例留在插件文件里就等于「写了却永不执行」。
- *
- * 前置：Windows + `pnpm build:debug`。运行：
- * `node node_modules/vitest/vitest.mjs run --project desktop test/e2e/desktop/02-pet-window.e2e.ts`
- * （本机若已有桌面实例占着 WebDriver 4445，用 `TAURI_WEBDRIVER_PORT=<空闲端口>` 另开一路。）
- *
- * 命令通道（实测确定的唯一可行路径）：**帧内** `__TAURI_INTERNALS__.invoke` 会被
- * `@wdio/tauri-service` 的 execute 拦截器判为「未知插件」而拒绝，因此命令一律在
- * **壳层**（`main` webview，`http://tauri.localhost/`）里调用——那里的 `invoke` 直连
- * Rust。启用/关闭走侧栏入口的真实点击（用户路径），只读状态走壳层 `get_pet_status`。
- * 窗口句柄集合经 `getWindowHandles()` 读取，是「独立 OS 窗口是否真的存在」的外部证据。
- *
- * 报错采集（与 `boot.e2e.ts` 同源）：壳层在 `startDesktopApp()` 之后立即装收集器，帧内在
- * 进入 iframe 后装同一个收集器；001/003/004 三条点击驱动的用例在收尾断言两边都为空。
- * 盲区与 `desktop.test.md` 一致：**只能在进入上下文之后安装**，因此帧内与 `pet` WebView 的
- * 加载期报错不可观测（后者由「窗口句柄真的出现 / 消失 + 命令级状态收敛」间接兜底）。
- */
-
-import type { DesktopApp } from '../support/desktop-host'
+import type { DesktopApp } from '../support/desktop'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { startDesktopApp } from '../support/desktop-host'
+import { startDesktopApp } from '../support/desktop'
 import { dismissDshModals } from '../support/onboarding'
 import { completePreinstall } from '../support/preinstall'
 import { SHELL_IFRAME } from '../support/selectors'

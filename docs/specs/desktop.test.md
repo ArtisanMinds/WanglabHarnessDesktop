@@ -4,7 +4,6 @@
 
 > **权威来源**：本文件自包含 L3 准入原则、环境配置、隔离策略、驱动规范、断言要求及已知踩坑点。
 > **配套文档**：[plugin.test.md](/plugin.test.md)（插件 L1/L2/C 浏览器层）；[testing.md](/testing.md)（测试评审标准）。
-> **契约驱动**：取消单独的用例文档与 `TC-*` 编号，测试文件的 `it()` 标题即契约描述（见 §8）。
 
 ---
 
@@ -30,9 +29,7 @@ L3 车道仅验证：**壳层是否将 dsh 正确装配、启动并嵌入**。
 | 文件 | 说明 |
 | --- | --- |
 | `test/e2e/desktop/boot.e2e.ts` | **启动冒烟**：显式冷装配 → 触发真实下载落盘 → 内核启动 → 页面无报错 |
-| `test/e2e/desktop/02-pet-window.e2e.ts` | **桌宠窗口（4条）**：OS 窗口创建与销毁 / 未启用不存在 / 侧栏入口联动 / 尺寸越界拦截 |
-
-> **注**：`02-pet-window` 沿用编号命名。插件 L2/C 用例位于 `test/e2e/plugins/`（ubuntu-latest），L3 用例位于 `test/e2e/desktop/`（windows-latest），分离避免了 Windows 专属用例在 Linux CI 上静默失效。
+| `test/e2e/desktop/pet.e2e.ts` | **桌宠窗口（4条）**：OS 窗口创建与销毁 / 未启用不存在 / 侧栏入口联动 / 尺寸越界拦截 |
 
 ---
 

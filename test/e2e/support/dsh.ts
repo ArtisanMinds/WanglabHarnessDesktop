@@ -1,5 +1,5 @@
 /**
- * test/e2e/support/dsh-host.ts — 插件 L2 E2E 的宿主编排。
+ * test/e2e/support/dsh.ts — 插件 L2 E2E 的宿主编排。
  *
  * 目标：把「真实 dsh web 进程 + 真实插件挂载」这件事变成一行 `startDshHost()`。
  * 全程只写本调用独占的 scratch 目录，绝不触碰 ~/.dsh 与 ~/.dsh.dev。
@@ -113,7 +113,7 @@ export interface DshHost {
  * ========================================== */
 
 function log(message: string): void {
-  process.stderr.write(`[dsh-host] ${message}\n`)
+  process.stderr.write(`[dsh] ${message}\n`)
 }
 
 /** node 入口：显式环境变量优先，便于在 CI 里固定解释器。 */

@@ -4,7 +4,7 @@ import { defineProject } from 'vitest/config'
  * `plugin` project：插件 L2 E2E（真实 `dsh web` 进程 + 真实 Chromium 页面）。
  *
  * 用例集中在 `test/e2e/plugins/`，与桌面端 L3 的 `test/e2e/desktop/` 平级；
- * 共享编排（`support/dsh-host.ts`）与 `global-setup.ts` 留在 `test/e2e/` 根下。
+ * 共享编排（`support/dsh.ts`）与 `global-setup.ts` 留在 `test/e2e/` 根下。
  *
  * 驱动架构：`environment: 'node'` + **驱动库 API**。真实浏览器直接由用例
  * `import { chromium } from 'playwright'` 后 `chromium.launch()` 拉起，

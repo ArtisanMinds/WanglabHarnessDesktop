@@ -1,6 +1,6 @@
 import type { TestProject } from 'vitest/node'
 import process from 'node:process'
-import { startDshHost } from './support/dsh-host'
+import { startDshHost } from './support/dsh'
 
 /**
  * e2e project 的 globalSetup：起一次真实 dsh web 宿主，把地址 provide 给用例。

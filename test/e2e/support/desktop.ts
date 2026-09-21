@@ -1,9 +1,9 @@
 /**
- * test/e2e/support/desktop-host.ts — L3 桌面端 E2E 的宿主编排。
+ * test/e2e/support/desktop.ts — L3 桌面端 E2E 的宿主编排。
  *
  * 目标：把「真实 Debug 二进制 + WDIO 会话」变成一行 `startDesktopApp()`。
  *
- * 与插件 L2 的 `dsh-host.ts` 的关键区别：应用由 `@wdio/tauri-service` 的 embedded
+ * 与插件 L2 的 `dsh.ts` 的关键区别：应用由 `@wdio/tauri-service` 的 embedded
  * provider 自己 spawn（它注入 `TAURI_WEBDRIVER_PORT` 并轮询应用内嵌的 WebDriver server），
  * 本文件只负责前置校验、环境隔离与收尾。
  *
@@ -259,7 +259,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
 // ============================================================================
 
 function log(message: string): void {
-  process.stderr.write(`[desktop-host] ${message}\n`)
+  process.stderr.write(`[desktop] ${message}\n`)
 }
 
 /** 默认二进制路径。 */

@@ -4,7 +4,7 @@
  * 本插件是全仓唯一的网络安全边界型插件：当且仅当子进程带 `DSH_TAURI_EMBEDDED=1` 时，它在
  * `connection` 服务上把 401 降级为放行、把索引放行；其余取值下 `attach()` 返回 noop，鉴权完全不变。
  *
- * 三条用例都必须控制该环境变量，因此各自自带 scratch 宿主。这里不用 `support/dsh-host.ts` 的
+ * 三条用例都必须控制该环境变量，因此各自自带 scratch 宿主。这里不用 `support/dsh.ts` 的
  * `startDshHost`：它在返回宿主前先做根路径 token 交换，而该交换在注入态被鉴权适配放行成 200
  * （没有 303 + Set-Cookie），会把「被测行为」当成启动失败抛掉。自带编排只做脚手架与就绪等待，
  * 复用 `scaffoldDshProfile` / `resolveDshCommand` / `resolveNodeBin` 与 `REPO_ROOT`，不起第二个共享宿主。
@@ -18,7 +18,7 @@ import { basename, join } from 'node:path'
 import process from 'node:process'
 import { finished } from 'node:stream/promises'
 import { describe, expect, it } from 'vitest'
-import { resolveDshCommand, resolveNodeBin, scaffoldDshProfile } from '../support/dsh-host'
+import { resolveDshCommand, resolveNodeBin, scaffoldDshProfile } from '../support/dsh'
 
 const EMBEDDED_ENV = 'DSH_TAURI_EMBEDDED'
 

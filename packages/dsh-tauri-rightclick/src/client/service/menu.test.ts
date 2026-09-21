@@ -1,4 +1,4 @@
-import type { SessionsRuntimeLike, WorkspaceId, WorkspacesRuntimeLike, WorkspaceViewLike } from '../types'
+import type { SessionId, SessionsRuntimeLike, WorkspaceId, WorkspacesRuntimeLike, WorkspaceViewLike } from '../types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { postOpenPath, postOpenUrl } from '../apis'
 import {
@@ -14,6 +14,8 @@ import {
 } from './menu'
 
 vi.mock('../apis', () => ({ postOpenPath: vi.fn(), postOpenUrl: vi.fn() }))
+
+const sid = (value: string): SessionId => value as SessionId
 
 /** 只替代表达层：locale 的真身经 `dsh-tauri/client` 拉入浏览器运行时，node 下无法加载。 */
 vi.mock('../locales', () => ({
@@ -117,7 +119,7 @@ describe('renameSession', () => {
     const rename = vi.fn(async () => ({ ok: true }))
     const outcome = await renameSession({
       sessions: sessionsWith({ session: { rename } }),
-      sessionId: 's-1',
+      sessionId: sid('s-1'),
       title: 'renamed',
     })
 
@@ -126,19 +128,19 @@ describe('renameSession', () => {
   })
 
   it('reports the unavailable service when no binding is found', async () => {
-    await expect(renameSession({ sessions: sessionsWith(undefined), sessionId: 's-1', title: 'x' }))
+    await expect(renameSession({ sessions: sessionsWith(undefined), sessionId: sid('s-1'), title: 'x' }))
       .resolves
       .toEqual({ ok: false, error: 'sessionServiceUnavailable' })
   })
 
   it('maps a failed rename to its message, falling back to renameFailed', async () => {
     const failing = sessionsWith({ session: { rename: async () => ({ ok: false, error: { message: 'locked' } }) } })
-    await expect(renameSession({ sessions: failing, sessionId: 's-1', title: 'x' }))
+    await expect(renameSession({ sessions: failing, sessionId: sid('s-1'), title: 'x' }))
       .resolves
       .toEqual({ ok: false, error: 'locked' })
 
     const bare = sessionsWith({ session: { rename: async () => ({ ok: false }) } })
-    await expect(renameSession({ sessions: bare, sessionId: 's-1', title: 'x' }))
+    await expect(renameSession({ sessions: bare, sessionId: sid('s-1'), title: 'x' }))
       .resolves
       .toEqual({ ok: false, error: 'renameFailed' })
   })
@@ -152,7 +154,7 @@ describe('renameSession', () => {
       },
     })
 
-    await expect(renameSession({ sessions: throwing, sessionId: 's-1', title: 'x' }))
+    await expect(renameSession({ sessions: throwing, sessionId: sid('s-1'), title: 'x' }))
       .resolves
       .toEqual({ ok: false, error: 'offline' })
   })
@@ -163,7 +165,7 @@ describe('archiveSession', () => {
     const archive = vi.fn(async () => undefined)
     const outcome = await archiveSession({
       workspaces: { archiveSession: archive } as unknown as WorkspacesRuntimeLike,
-      sessionId: 's-1',
+      sessionId: sid('s-1'),
     })
 
     expect(outcome).toEqual({ ok: true })
@@ -177,7 +179,7 @@ describe('archiveSession', () => {
       },
     } as unknown as WorkspacesRuntimeLike
 
-    await expect(archiveSession({ workspaces, sessionId: 's-1' }))
+    await expect(archiveSession({ workspaces, sessionId: sid('s-1') }))
       .resolves
       .toEqual({ ok: false, error: 'readonly' })
   })
@@ -189,8 +191,8 @@ describe('forkSession', () => {
     const fork = vi.fn(async () => 's-child')
     const sessions = { fork, open } as unknown as SessionsRuntimeLike
 
-    await expect(forkSession({ sessions, sessionId: 's-1' })).resolves.toEqual({ ok: true })
-    expect(fork).toHaveBeenCalledWith({ sessionId: 's-1', increaseTitle: true })
+    await expect(forkSession({ sessions, sessionId: sid('s-1') })).resolves.toEqual({ ok: true })
+    expect(fork).toHaveBeenCalledWith({ sessionId: sid('s-1'), increaseTitle: true })
     expect(open).toHaveBeenCalledWith('s-child')
   })
 
@@ -203,7 +205,7 @@ describe('forkSession', () => {
       open,
     } as unknown as SessionsRuntimeLike
 
-    await expect(forkSession({ sessions, sessionId: 's-1' }))
+    await expect(forkSession({ sessions, sessionId: sid('s-1') }))
       .resolves
       .toEqual({ ok: false, error: 'fork failed' })
     expect(open).not.toHaveBeenCalled()
@@ -213,7 +215,7 @@ describe('forkSession', () => {
 describe('loadUngroupedSessions', () => {
   it('keeps only non-blank ids outside workspaces and the archive', async () => {
     const workspaces = {
-      list: { getSnapshot: () => ({ items: [{ sessionIds: ['a', 'b'] }], archivedSessionIds: ['c'] }) },
+      list: { getSnapshot: () => ({ items: [{ sessionIds: (['a', 'b'] as SessionId[]) }], archivedSessionIds: ['c'] }) },
     } as unknown as WorkspacesRuntimeLike
     const sessions = {
       list: {
@@ -233,7 +235,7 @@ describe('loadWorkspaceSessions', () => {
     const workspaces = {
       list: { getSnapshot: () => ({ items: [], archivedSessionIds: ['s2'] }) },
     } as unknown as WorkspacesRuntimeLike
-    const workspace = { sessionIds: ['s1', 's2', 's3'] } as unknown as WorkspaceViewLike
+    const workspace = { sessionIds: (['s1', 's2', 's3'] as SessionId[]) } as unknown as WorkspaceViewLike
 
     await expect(loadWorkspaceSessions({ workspaces, workspace })).resolves.toEqual(['s1', 's3'])
   })
@@ -244,7 +246,7 @@ describe('archiveSessions', () => {
     const archiveSessionMock = vi.fn(async () => undefined)
     const outcome = await archiveSessions({
       workspaces: { archiveSession: archiveSessionMock } as unknown as WorkspacesRuntimeLike,
-      sessionIds: ['s1', 's2'],
+      sessionIds: (['s1', 's2'] as SessionId[]),
     })
 
     expect(outcome).toEqual({ ok: true })
@@ -259,7 +261,7 @@ describe('archiveSessions', () => {
 
     await expect(archiveSessions({
       workspaces: { archiveSession: archiveSessionMock } as unknown as WorkspacesRuntimeLike,
-      sessionIds: ['s1', 's2', 's3'],
+      sessionIds: (['s1', 's2', 's3'] as SessionId[]),
     })).resolves.toEqual({ ok: false, error: 'locked' })
     expect(archiveSessionMock).toHaveBeenCalledTimes(2)
   })

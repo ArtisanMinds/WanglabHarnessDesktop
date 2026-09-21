@@ -16,18 +16,18 @@
  * 帧内收集器只能在「已经进入帧」之后安装，因此**加载期**的帧内报错不在覆盖范围内；
  * 那一段由 ②③（iframe 挂载 + `#root` 渲染）与壳层的失败页断言兜底。
  *
- * 编排：`test/e2e/support/desktop-host.ts`；预装引导：`test/e2e/support/preinstall.ts`。
+ * 编排：`test/e2e/support/desktop.ts`；预装引导：`test/e2e/support/preinstall.ts`。
  *
  * 运行：`pnpm test:e2e:desktop -- --run test/e2e/desktop/boot.e2e.ts`
  * 本机若已有桌面实例占着 WebDriver 4445，加 `TAURI_WEBDRIVER_PORT=<空闲端口>` 即可另开一路。
  */
 
-import type { DesktopApp } from '../support/desktop-host'
+import type { DesktopApp } from '../support/desktop'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { startDesktopApp } from '../support/desktop-host'
+import { startDesktopApp } from '../support/desktop'
 import { completePreinstall } from '../support/preinstall'
 import { SETUP_ERROR, SHELL_IFRAME, SHELL_ROOT } from '../support/selectors'
 

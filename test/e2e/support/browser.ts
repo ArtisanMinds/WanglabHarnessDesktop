@@ -271,7 +271,7 @@ async function dismissOneModal(
     )
   }
 
-  await clickInFrame(page, frame, action, fallbacks)
+  await clickInFrame(page, action, fallbacks)
   await waitForDetached(snapshot, 8_000)
   return true
 }
@@ -352,7 +352,6 @@ async function dispatchSyntheticClick(target: ReturnType<Frame['locator']>): Pro
  */
 export async function clickInFrame(
   page: Page,
-  frame: Frame,
   target: ReturnType<Frame['locator']>,
   fallbacks?: SyntheticFallback[],
 ): Promise<void> {
@@ -375,7 +374,7 @@ export async function openSettings(page: Page, frame: Frame, fallbacks?: Synthet
   const trigger = frame.locator(SETTINGS_TRIGGER).first()
   await trigger.waitFor({ state: 'attached', timeout: 20_000 })
   if (await trigger.getAttribute('aria-expanded') !== 'true')
-    await clickInFrame(page, frame, trigger, fallbacks)
+    await clickInFrame(page, trigger, fallbacks)
   if (await trigger.getAttribute('aria-expanded') !== 'true') {
     fallbacks?.push({ site: 'openSettings', target: `${SETTINGS_TRIGGER} aria-expanded 未被指针点击改写` })
     await dispatchSyntheticClick(trigger)
