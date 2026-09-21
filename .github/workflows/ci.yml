@@ -68,6 +68,11 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # test/plugin-resource-closure.test.ts 断言部署产物 src-tauri/resources/node_modules，
+      # 该目录由 build:plugins 生成；不构建则整组用例 skipIf 跳过、在 CI 里从不执行。
+      - name: Build Plugins
+        run: pnpm build:plugins
+
       - name: Unit test
         run: pnpm run test:unit -- --run
 
@@ -87,6 +92,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Chromium 二进制不带在 npm 包里：runner 缺它时 chromium.launch() 会直接失败，
+      # 浏览器类用例必须真跑，不能因缺二进制而静默跳过。
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       # L2 只针对构建产物运行（官方「真实入口路径」要求），未构建会直接失败。
       - name: Build Plugins
