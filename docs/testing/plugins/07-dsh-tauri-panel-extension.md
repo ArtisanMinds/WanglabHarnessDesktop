@@ -46,7 +46,7 @@
 > 复用 `globalSetup` 的共享宿主（`also` 默认已挂载本插件），不另起进程；实测 19/19 通过。
 > 断言面：HTTP 状态码、响应字节，以及 scratch profile 下 `cordis.patch.yml` 的字节。
 
-### [P1] 验证技能清单返回 skills 数组且不含 error
+### [P1] 验证技能清单返回数组结构且不含错误
 
 [Case ID] TC-EXT-L2-07-001
 [层级] L2（真实 dsh 进程）
