@@ -554,8 +554,12 @@ const SESSIONS_OPEN_MIGRATION: DshMigration = {
     openBridges.set(surface, bridge)
     surface.sessions = new Proxy(sessions as object, {
       get(target, prop) {
-        if (prop === 'open')
-          return bridge
+        if (prop === 'open') {
+          // 核心可能在被捕获之后才补上原生 `open`（服务延迟物化）：原生永远优先于兼容桥，
+          // 否则桥会永久遮蔽后到的原生能力，消费方拿到的仍是「不可用」。
+          const native = Reflect.get(target, prop)
+          return typeof native === 'function' ? native.bind(target) : bridge
+        }
         const member = Reflect.get(target, prop)
         return typeof member === 'function' ? member.bind(target) : member
       },

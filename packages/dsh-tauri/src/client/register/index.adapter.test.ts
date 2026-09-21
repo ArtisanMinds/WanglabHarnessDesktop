@@ -612,6 +612,21 @@ describe('defineAdapter — 0.1.6-alpha.2 会话面投影', () => {
     expect(() => adapter.sessions.open?.('s1')).toThrow(/sessions\.open is unavailable/)
   })
 
+  it('open 桥：桥装好后核心才补上原生 sessions.open，原生优先于桥', () => {
+    const native = vi.fn()
+    // 服务延迟物化：装桥时核心还没有 open，之后才补上。
+    const sessions: Record<string, unknown> = { list: makeList() }
+    const adapter = defineAdapter(makeContext({ sessions }))
+
+    expect(adapter.migrations).toContain('sessions:open-bridge')
+    expect(() => adapter.sessions.open?.('s1')).toThrow(/sessions\.open is unavailable/)
+
+    sessions.open = native
+    expect(adapter.has('navigation.openSession')).toBe(true)
+    adapter.sessions.open?.('s2')
+    expect(native).toHaveBeenCalledWith('s2')
+  })
+
   it('open 桥：原生 sessions.open 在场时不覆盖', () => {
     const open = vi.fn()
     const openSession = vi.fn()
