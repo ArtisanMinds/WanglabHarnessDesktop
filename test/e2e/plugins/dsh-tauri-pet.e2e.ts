@@ -255,7 +255,7 @@ describe('L2 客户端', () => {
   })
 
   it('验证 iframe 内桌宠设置分区正常渲染且无崩溃', async () => {
-    const app = await newDshPage(browser)
+    const app = await newDshPage(browser, { ready: PET_ICON })
     try {
       await openSettings(app.page, app.frame, app.syntheticFallbacks)
 
@@ -302,7 +302,7 @@ describe('L2 客户端', () => {
   })
 
   it('验证侧栏桌宠入口按钮被插入到设置触发器右侧且状态可读', async () => {
-    const app = await newDshPage(browser)
+    const app = await newDshPage(browser, { ready: PET_ICON })
     try {
       const icon = app.frame.locator(PET_ICON).first()
       await icon.waitFor({ state: 'attached', timeout: 20_000 })

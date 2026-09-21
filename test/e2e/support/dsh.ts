@@ -350,7 +350,7 @@ async function waitForReadyStream(child: ChildProcess, logPath: string): Promise
       child.off('exit', onExit)
     }
 
-    const onExit = (code: number | null) => {
+    function onExit(code: number | null): void {
       cleanup()
       reject(new Error(`dsh web 提前退出（code ${code}）；日志：${logPath}\n${tailOf(logPath)}`))
     }

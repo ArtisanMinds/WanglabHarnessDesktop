@@ -147,6 +147,12 @@ export function collectAppErrors(page: Page): string[] {
 
 /**
  * 在当前 browser 上新建一个内嵌 dsh 页面并等待界面可用。
+ *
+ * 默认就绪锚点取核心 dsh 的结构性槽位 `SIDEBAR`（`[data-slot="sidebar"]`），不取任何插件
+ * 注入的元素：`SETTINGS_TRIGGER` 由 `dsh-tauri-ui` 渲染、`PET_ICON` 由 `dsh-tauri-pet`
+ * 插入，在 Ubuntu CI 上都可能迟迟不出现，而它们缺席并不表示 dsh 未就绪——`SIDEBAR` 是
+ * 上游产物，也是各插件自己判定「侧栏就绪」时读取的同一个锚点。需要断言插件产物的用例
+ * 必须显式传 `{ ready: PET_ICON }` / `{ ready: SETTINGS_TRIGGER }` 等，不依赖默认值。
  */
 export async function newDshPage(
   browser: Browser,
@@ -174,7 +180,7 @@ export async function newDshPage(
   }
 
   await frame.waitForLoadState('domcontentloaded')
-  await frame.locator(options.ready ?? PET_ICON).first().waitFor({ state: 'attached', timeout: 30_000 })
+  await frame.locator(options.ready ?? SIDEBAR).first().waitFor({ state: 'attached', timeout: 30_000 })
 
   if (options.dismissModals ?? true) {
     await dismissAppModals(page, frame, syntheticFallbacks)

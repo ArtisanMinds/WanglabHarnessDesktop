@@ -13,10 +13,12 @@
 import type { Browser } from 'playwright'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import {
+  COMPOSER_CARD,
   expectNoSyntheticFallbacks,
   launchDshBrowser,
   newDshPage,
   openSettings,
+  PET_ICON,
   SETTINGS_SIDEBAR,
   SETTINGS_TRIGGER,
 } from '../support/browser'
@@ -76,7 +78,7 @@ describe('L2 客户端', () => {
   })
 
   it('验证设置侧栏与触发器被注入 dsh 界面', async () => {
-    const app = await newDshPage(browser)
+    const app = await newDshPage(browser, { ready: PET_ICON })
     try {
       const triggerHost = await app.frame.evaluate(() => {
         const trigger = document.querySelector('.dshp-settings-trigger')
@@ -119,7 +121,7 @@ describe('L2 客户端', () => {
   })
 
   it('验证触发器 aria-expanded 随设置侧栏开合变化', async () => {
-    const app = await newDshPage(browser)
+    const app = await newDshPage(browser, { ready: SETTINGS_TRIGGER })
     try {
       const trigger = app.frame.locator(SETTINGS_TRIGGER).first()
       expect(await trigger.getAttribute('aria-expanded'), '初始必须为 false').toBe('false')
@@ -149,7 +151,7 @@ describe('L2 客户端', () => {
   })
 
   it('[反向] 验证无可续跑轮次时主按钮不被改写为「继续任务」', async () => {
-    const app = await newDshPage(browser)
+    const app = await newDshPage(browser, { ready: COMPOSER_CARD })
     try {
       const state = await app.frame.evaluate(() => {
         const card = document.querySelector('[data-composer-card]')
@@ -175,7 +177,7 @@ describe('L2 客户端', () => {
   })
 
   it('验证空草稿下并发保护不启用发送按钮', async () => {
-    const app = await newDshPage(browser)
+    const app = await newDshPage(browser, { ready: COMPOSER_CARD })
     try {
       const state = await app.frame.evaluate(() => {
         const card = document.querySelector('[data-composer-card]')
