@@ -586,6 +586,47 @@ describe('defineAdapter — 0.1.6-alpha.2 会话面投影', () => {
     expect(openSession).toHaveBeenCalledWith('s1')
   })
 
+  it('open 桥：创建期 uiWorkspace 尚未激活，服务到达后 sessions.open 照常切换', () => {
+    const openSession = vi.fn()
+    // `dsh-client-ui-workspace` 额外等 ui-session / connection，可能晚于本适配层创建：
+    // 创建期读不到 uiWorkspace 是常态，桥的安装判据不能依赖它。
+    const services: Record<string, unknown> = { sessions: { list: makeList() } }
+    const adapter = defineAdapter(makeContext(services))
+
+    expect(adapter.migrations).toContain('sessions:open-bridge')
+    expect(adapter.has('navigation.openSession')).toBe(false)
+    expect(adapter.openSession('s1').status).toBe('unavailable')
+
+    services.uiWorkspace = { openSession }
+    expect(adapter.has('navigation.openSession')).toBe(true)
+    adapter.sessions.open?.('s1')
+    expect(openSession).toHaveBeenCalledWith('s1')
+    expect(adapter.openSession('s2').status).toBe('opened')
+    expect(openSession).toHaveBeenCalledWith('s2')
+  })
+
+  it('open 桥：能力全缺时 sessions.open 明确抛错，不静默吞掉切换请求', () => {
+    const adapter = defineAdapter(makeContext({ sessions: { list: makeList() } }))
+
+    expect(adapter.migrations).toContain('sessions:open-bridge')
+    expect(() => adapter.sessions.open?.('s1')).toThrow(/sessions\.open is unavailable/)
+  })
+
+  it('open 桥：桥装好后核心才补上原生 sessions.open，原生优先于桥', () => {
+    const native = vi.fn()
+    // 服务延迟物化：装桥时核心还没有 open，之后才补上。
+    const sessions: Record<string, unknown> = { list: makeList() }
+    const adapter = defineAdapter(makeContext({ sessions }))
+
+    expect(adapter.migrations).toContain('sessions:open-bridge')
+    expect(() => adapter.sessions.open?.('s1')).toThrow(/sessions\.open is unavailable/)
+
+    sessions.open = native
+    expect(adapter.has('navigation.openSession')).toBe(true)
+    adapter.sessions.open?.('s2')
+    expect(native).toHaveBeenCalledWith('s2')
+  })
+
   it('open 桥：原生 sessions.open 在场时不覆盖', () => {
     const open = vi.fn()
     const openSession = vi.fn()
