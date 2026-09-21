@@ -17,7 +17,7 @@ import { spawn } from 'node:child_process'
 import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { finished } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
@@ -59,6 +59,16 @@ export interface StartDshHostOptions {
   also?: readonly string[]
   /** 保留 scratch 目录（调试用）。 */
   keepHome?: boolean
+}
+
+/** 已就绪的 scratch profile（尚未启动 `dsh web`）。 */
+export interface DshProfile {
+  /** 本次调用独占的 DSH_HOME。 */
+  readonly home: string
+  /** profile 目录（`<home>/profiles/web`）。 */
+  readonly profileDir: string
+  /** 已挂载的包名（含 also）。 */
+  readonly packages: readonly string[]
 }
 
 export interface DshHost {
@@ -143,10 +153,8 @@ function resolveDshCommand(): string[] {
     // 仓库不把 dsh CLI 作为依赖安装：它是运行期产物
   }
 
-  if (existsSync(ASSEMBLED_DSH)) {
-    log(`使用桌面端已装配的 dsh：${ASSEMBLED_DSH}`)
+  if (existsSync(ASSEMBLED_DSH))
     return [ASSEMBLED_DSH]
-  }
 
   throw new Error(
     'DSH_E2E_DSH_BIN 未设置，PATH 与桌面端装配目录都没有 dsh 入口；'
@@ -154,10 +162,10 @@ function resolveDshCommand(): string[] {
   )
 }
 
-/** 读包版本号；读不到返回 `0.0.0`（仅用于日志）。 */
-function packageVersion(pkgDir: string): string {
+/** 从 dsh 入口反推核心版本；读不到返回 `unknown`（仅用于日志）。 */
+function coreVersion(dshBin: string): string {
   interface Manifest { version?: string }
-  return readJson<Manifest>(join(pkgDir, 'package.json'))?.version ?? '0.0.0'
+  return readJson<Manifest>(join(dirname(dirname(dshBin)), 'package.json'))?.version ?? 'unknown'
 }
 
 /** 校验插件已构建 */
@@ -262,6 +270,19 @@ function addBundle(profileDir: string, pkg: string): void {
       },
     }
   })
+}
+
+/**
+ * 挂载自检：`packages` 必须全部登记进 profile 的 `dsh.profile.bundles`，否则启动前即失败。
+ *
+ * 独立导出是因为该分支在 link 模式下不可达——bundles 由 `addBundle` 自己写入，端到端
+ * 构造不出「挂载漏登记」；只有直接给一份 profile 才能覆盖这一失败形态。
+ */
+export function assertMountRegistered(profileDir: string, packages: readonly string[]): void {
+  const registered = readBundles(profileDir)
+  const missing = packages.filter(pkg => !registered.includes(pkg))
+  if (missing.length > 0)
+    throw new Error(`挂载未注册到 dsh.profile.bundles：${missing.join(', ')}`)
 }
 
 /* ==========================================
@@ -370,11 +391,14 @@ async function exchangeLaunchToken(url: string): Promise<string> {
  * ========================================== */
 
 /**
- * 起一个真实 dsh web 宿主并挂载指定插件。
- * 调用方负责 `stop()`（Playwright 用 globalSetup/globalTeardown 保证）。
+ * 只完成 scratch profile 的创建与挂载，**不启动 `dsh web`**。
+ *
+ * 独立导出是为了让「挂载模式」用例能单独验证 `dsh plugin add` 的落盘结果——
+ * 那条路径的产物就是 profile 本身，起宿主只会平白多一个进程与一行日志。
+ * 挂载失败时自行清理 scratch 目录后抛出。
  */
-export async function startDshHost(options: StartDshHostOptions): Promise<DshHost> {
-  const { plugin, also = [], keepHome = false } = options
+export async function scaffoldDshProfile(options: StartDshHostOptions): Promise<DshProfile> {
+  const { plugin, also = [] } = options
   const packages = [...also, plugin]
 
   for (const pkg of packages)
@@ -382,37 +406,47 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
 
   const home = join(tmpdir(), `dsh-e2e-${plugin}-${Date.now().toString(36)}`)
   const profileDir = join(home, 'profiles', PROFILE)
-  const logPath = join(home, 'dsh-web.log')
   const bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...packages]
 
   try {
     writeProfile(profileDir, bundles)
 
-    const mode = process.env.DSH_E2E_MOUNT ?? 'link'
-    if (mode === 'cli') {
-      log(`挂载方式：cli（dsh plugin add）；profile=${profileDir}`)
+    if ((process.env.DSH_E2E_MOUNT ?? 'link') === 'cli') {
       await mountViaCli(profileDir, home, packages)
     }
     else {
-      log(`挂载方式：link；profile=${profileDir}`)
       for (const pkg of packages) {
         linkPackage(profileDir, pkg)
         addBundle(profileDir, pkg)
       }
     }
 
-    const missing = packages.filter(pkg => !readBundles(profileDir).includes(pkg))
-    if (missing.length > 0)
-      throw new Error(`挂载未注册到 dsh.profile.bundles：${missing.join(', ')}`)
+    assertMountRegistered(profileDir, packages)
   }
   catch (error) {
     rmSync(home, { recursive: true, force: true })
     throw error
   }
 
+  return { home, profileDir, packages }
+}
+
+/**
+ * 起一个真实 dsh web 宿主并挂载指定插件。
+ * 调用方负责 `stop()`（globalSetup/globalTeardown 保证）。
+ */
+export async function startDshHost(options: StartDshHostOptions): Promise<DshHost> {
+  const { keepHome = false } = options
+  const { home, profileDir, packages } = await scaffoldDshProfile(options)
+  const logPath = join(home, 'dsh-web.log')
+
   const [dshBin] = resolveDshCommand()
   const args = [dshBin, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open']
-  log(`启动 dsh web（DSH_HOME=${home}）`)
+
+  // 每次起宿主只留两行定位信息 + 一行就绪；完整路径只进 home/dsh-web.log。
+  const profile = basename(home)
+  log(`🚀 挂载 DSH 核心 [${coreVersion(dshBin)}] (profile: ${profile})`)
+  log(`└─ 路径: ${dshBin}`)
 
   // **优化点**：改用 WriteStream 追加写日志，避免大规模内存拼接以及全量文件 I/O 阻塞
   const logStream = createWriteStream(logPath, { flags: 'a' })
@@ -444,17 +478,15 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
 
     if (!keepHome)
       rmSync(home, { recursive: true, force: true })
-    else
-      log(`KEEP_HOME：保留 ${home}`)
   }
 
   try {
     const url = await waitForReady(child, logPath)
     const baseUrl = new URL(url).origin
     const cookie = await exchangeLaunchToken(url)
-    const version = packageVersion(join(REPO_ROOT, 'packages', plugin))
 
-    log(`就绪：${baseUrl}（已挂载 ${packages.join(', ')}；${plugin}@${version}；会话 Cookie ${cookie === '' ? '不适用' : '已获取'}）`)
+    // 就绪行带上地址与已挂载包，方便直接对着浏览器/curl 复现。
+    log(`✅ 就绪 [${baseUrl}] → ${packages.join(', ')}${keepHome ? ' [keepHome]' : ''}`)
 
     return { url, baseUrl, cookie, home, logPath, mounted: packages, stop }
   }

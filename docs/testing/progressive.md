@@ -61,9 +61,9 @@
 
 | 批次 | 用例 / 基础设施 | 对应文档 | 状态 | 备注 |
 | --- | --- | --- | --- | --- |
-| 00 | 总览、前置与追踪矩阵 | `00-overview.md` | 提案中 | 不承载用例本体 |
-| 01 | 编排骨架与共享路由契约 | `01-dsh-host-and-core-contract.md` | 提案中 | 编排代码 `test/e2e/support/dsh-host.ts` 已落地；包含 OPTIONS/405/403/413 契约 |
-| 02 | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | `02-dsh-tauri-pet.md` | 已实现 | SSE 首帧用例已迁至 `test/e2e/plugins/`；客户端与 L3 待接线 |
+| 00 | 总览、前置与追踪矩阵 | `00-overview.md` | 已验证 | 不承载用例本体；已按当前实现刷新事实表、缺口（G1/G4 消解、新增 G10 跨源遮蔽）与文件命名规则（测试文件与用例文档同名同序号） |
+| 01 | 编排骨架与共享路由契约 | `01-dsh-host-and-core-contract.md` | 已验证 | `test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts` 12 例全绿（编排骨架 6 + 共享路由契约 6）；编排新增导出 `assertMountRegistered` / `scaffoldDshProfile`；宿主最小化到 3 个进程、控制台每次起宿主只留 3 行（核心版本/路径/就绪地址）；跨源 403 期望值按实测修正（上游围栏 `forbidden`，路由层 `cross-origin-request` 在 L2 不可达，由 L1 覆盖） |
+| 02 | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | `02-dsh-tauri-pet.md` | 已实现 | 测试文件更名对齐序号（`session-stream.e2e.ts` → `02-dsh-tauri-pet.e2e.ts`）；SSE 首帧 2 例已落地；客户端与 L3 待接线 |
 | 03 | `dsh-tauri-rightclick` | `03-dsh-tauri-rightclick.md` | 提案中 | - |
 | 04 | `dsh-tauri-session` | `04-dsh-tauri-session.md` | 提案中 | - |
 | 05 | `dsh-tauri-worktree` | `05-dsh-tauri-worktree.md` | 提案中 | - |

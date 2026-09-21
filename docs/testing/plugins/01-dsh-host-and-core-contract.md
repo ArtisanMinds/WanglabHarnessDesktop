@@ -1,7 +1,7 @@
 # 编排骨架与共享路由契约（批次 01）：真实 dsh 宿主 + 所有插件路由的唯一收敛点
 
 > 层级：L2 插件宿主 E2E（真实 `dsh web` 进程；无浏览器、无 Tauri）
-> 自动化：`test/e2e/plugins/host-lane.e2e.ts`、`test/e2e/plugins/routes-contract.e2e.ts`（待建立；本文件是二者的用例来源）
+> 自动化：`test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts`（编排骨架 6 例 + 共享路由契约 6 例，共 12 个 `it()`）
 > 前置：`pnpm build:plugins` 已产出 `packages/*/dist`；`DSH_E2E_DSH_BIN` 或桌面端装配目录内存在 `@deepseek-ai/dsh/lib/bin.js`
 > 编排：`test/e2e/support/dsh-host.ts`；全局生命周期：`test/e2e/global-setup.ts`
 > 运行：`pnpm test:e2e:plugin`（= `vitest --project plugin`）
@@ -11,6 +11,7 @@
 本批内复杂度梯度：**命中就绪判定** → **挂载校验失败** → **产物缺失失败** → **环境变量边界** → **OPTIONS 预检** → **HEAD 隐含** → **405 + allow** → **跨源 403** → **请求体 413** → **未挂载 404**。
 
 > 分工：本文件只断言**编排行为与共享契约**。插件的业务语义（入参校验、领域错误码）一律落在对应插件文件，不在此重复。
+> 宿主用量：12 条用例共起 **3 个** `dsh web` 进程（共享宿主 + 001 + 005）；003/004/006 不启动宿主。控制台每次起宿主只留一行。
 
 ---
 
@@ -20,21 +21,23 @@
 
 | 行为 | 代码位置 |
 | --- | --- |
-| `startDshHost({ plugin, also, keepHome })` 一行起宿主 | `test/e2e/support/dsh-host.ts:307` |
-| scratch 目录：`<tmp>/dsh-e2e-<plugin>-<base36 时间戳>` | `test/e2e/support/dsh-host.ts:313` |
-| profile 三件套（`package.json` / `cordis.patch.yml` / `pnpm-workspace.yaml`） | `test/e2e/support/dsh-host.ts:149` |
-| 默认 bundle 列表＝`dsh-base` + `dsh-web-app` + 目标包 | `test/e2e/support/dsh-host.ts:316` |
-| link 挂载（junction / dir symlink，离线）或 cli 挂载（`dsh plugin add`） | `test/e2e/support/dsh-host.ts:179`、`test/e2e/support/dsh-host.ts:237` |
-| 挂载后必须出现在 `dsh.profile.bundles`，否则抛错 | `test/e2e/support/dsh-host.ts:335` |
-| 产物预检：`main` 与 `exports["./client"]` 指向的文件必须存在 | `test/e2e/support/dsh-host.ts:127` |
-| 核心解析：`DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录，皆无则抛错 | `test/e2e/support/dsh-host.ts:121`、`test/e2e/support/dsh-host.ts:42` |
-| 启动命令：`dsh web --host 127.0.0.1 --port 0 --no-open`（不带 `--skip-auth`） | `test/e2e/support/dsh-host.ts:392` |
-| 鉴权交换：根路径 token → `redirect:'manual'` 断言 303 + `Set-Cookie`，取 `name=value` | `test/e2e/support/dsh-host.ts:96` |
-| 就绪判定：从日志抓 `http://127.0.0.1:<port>...` 首个匹配 | `test/e2e/support/dsh-host.ts:36`、`test/e2e/support/dsh-host.ts:274` |
-| 就绪上限 120s | `test/e2e/support/dsh-host.ts:39` |
-| 收尾：Windows `taskkill /T /F`；其余 SIGTERM→SIGKILL | `test/e2e/support/dsh-host.ts:371`、`test/e2e/support/dsh-host.ts:255` |
-| 地址下传：`project.provide('dshBaseUrl' / 'dshUrl' / 'dshCookie' / 'dshHome' / 'dshMounted')` | `test/e2e/global-setup.ts:38` |
-| project 归属：`packages/*/test/**/*.e2e.ts`，`fileParallelism: false`，超时 120s | `vitest.plugin.config.ts:15`、`vitest.plugin.config.ts:18` |
+| `scaffoldDshProfile({ plugin, also })` 只建 profile + 挂载，不起宿主 | `test/e2e/support/dsh-host.ts:400` |
+| `startDshHost({ plugin, also, keepHome })` = 上面的脚手架 + 拉起宿主 | `test/e2e/support/dsh-host.ts:438` |
+| scratch 目录：`<tmp>/dsh-e2e-<plugin>-<base36 时间戳>` | `test/e2e/support/dsh-host.ts:407` |
+| profile 三件套（`package.json` / `cordis.patch.yml` / `pnpm-workspace.yaml`） | `test/e2e/support/dsh-host.ts:198` |
+| 默认 bundle 列表＝`dsh-base` + `dsh-web-app` + 目标包 | `test/e2e/support/dsh-host.ts:409` |
+| link 挂载（junction / dir symlink，离线）或 cli 挂载（`dsh plugin add`） | `test/e2e/support/dsh-host.ts:229`、`test/e2e/support/dsh-host.ts:312` |
+| 挂载后必须出现在 `dsh.profile.bundles`，否则抛错 | `test/e2e/support/dsh-host.ts:281` |
+| 产物预检：`main` 与 `exports["./client"]` 指向的文件必须存在 | `test/e2e/support/dsh-host.ts:172` |
+| 核心解析：`DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录，皆无则抛错 | `test/e2e/support/dsh-host.ts:144`、`test/e2e/support/dsh-host.ts:43` |
+| 启动命令：`dsh web --host 127.0.0.1 --port 0 --no-open`（不带 `--skip-auth`） | `test/e2e/support/dsh-host.ts:444` |
+| 鉴权交换：根路径 token → `redirect:'manual'` 断言 303 + `Set-Cookie`，取 `name=value` | `test/e2e/support/dsh-host.ts:367` |
+| 就绪判定：从日志抓 `http://127.0.0.1:<port>...` 首个匹配 | `test/e2e/support/dsh-host.ts:37`、`test/e2e/support/dsh-host.ts:349` |
+| 就绪上限 120s | `test/e2e/support/dsh-host.ts:40` |
+| 收尾：Windows `taskkill /T /F`；其余 SIGTERM→SIGKILL | `test/e2e/support/dsh-host.ts:329`、`test/e2e/support/dsh-host.ts:460` |
+| 控制台输出：每次起宿主 3 行——`🚀 挂载 DSH 核心 [<版本>] (profile: <scratch 目录名>)` / `└─ 路径: <dsh bin>` / `✅ 就绪 [<baseUrl>] → <已挂载包>` | `test/e2e/support/dsh-host.ts:448` |
+| 地址下传：`project.provide('dshBaseUrl' / 'dshUrl' / 'dshCookie' / 'dshHome' / 'dshMounted')` | `test/e2e/global-setup.ts:43` |
+| project 归属：`test/e2e/plugins/**/*.e2e.ts`，`fileParallelism: false`，超时 120s | `vitest.plugin.config.ts:15`、`vitest.plugin.config.ts:18` |
 
 ### 1.2 共享路由契约（`packages/dsh-tauri/src/host/routes/index.ts`）
 
@@ -65,10 +68,10 @@
 [Case ID] TC-HOST-L2-01-001
 [层级] L2（真实 dsh 进程）
 [类型] 正向
-[追踪] `docs/specs/plugin.test.md` §8 批次 1；`test/e2e/support/dsh-host.ts:307`
-[自动化] 否（待建立 `test/e2e/plugins/host-lane.e2e.ts`）
-[前置条件] `pnpm build:plugins` 已执行；`DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`）指向的包已构建；系统临时目录可写；dsh 核心可解析（`DSH_E2E_DSH_BIN`、仓库依赖树或桌面端装配目录任一命中）
-[测试数据] `DSH_E2E_PLUGIN=dsh-tauri`；`DSH_E2E_MOUNT=link`（默认）
+[追踪] `docs/specs/plugin.test.md` §8 批次 1；`test/e2e/support/dsh-host.ts:389`
+[自动化] 是（`01-dsh-host-and-core-contract.e2e.ts` → `describe('编排骨架')`）
+[前置条件] `pnpm build:plugins` 已执行（`dsh-tauri` 的 `dist` 与 `dist/client.cjs` 都在）；系统临时目录可写；dsh 核心可解析（`DSH_E2E_DSH_BIN`、仓库依赖树或桌面端装配目录任一命中）
+[测试数据] `startDshHost({ plugin: 'dsh-tauri' })`；`DSH_E2E_MOUNT` 不设置（走默认 `link`）
 [测试步骤] 1. 调用 `startDshHost({ plugin: 'dsh-tauri' })`。2. 读返回的 `url` / `baseUrl` / `cookie` / `home` / `mounted`。3. 带 `cookie` 对 `baseUrl` 发起 `GET /`。4. 读 `home/dsh-web.log` 末尾内容。
 [预期结果] 1. `startDshHost` 在 120s 内 resolve，不抛错。2. `baseUrl` 形如 `http://127.0.0.1:<非 0 端口>`；`cookie` 非空；`mounted` 精确包含 `dsh-tauri`；`home` 路径包含 `dsh-e2e-dsh-tauri-`。3. `GET /` 返回 2xx 且响应体非空。4. 日志内出现与 `url` 一致的就绪行，且未出现 `ERR_MODULE_NOT_FOUND`。
 [清理] 用例结束（含失败）必须调用 `stop()`；断言 `home` 目录已被删除
@@ -78,12 +81,12 @@
 [Case ID] TC-HOST-L2-01-002
 [层级] L2（真实 dsh 进程）
 [类型] 正向
-[追踪] `test/e2e/support/dsh-host.ts:316`、`test/e2e/support/dsh-host.ts:199`
-[自动化] 是（同上文件）
-[前置条件] 同 TC-HOST-L2-01-001；未设置 `DSH_E2E_KEEP_HOME`
-[测试数据] `DSH_E2E_PLUGIN=dsh-tauri`；`DSH_E2E_ALSO=dsh-tauri-pet`（制造「基础包 + 目标包」两段挂载）
-[测试步骤] 1. 用上述环境启动宿主。2. 读 `home/profiles/web/package.json`。3. 取 `dsh.profile.bundles` 与 `dependencies`。
-[预期结果] 1. 启动成功。2. `bundles` 同时包含 `dsh-tauri-pet` 与 `dsh-tauri`，且无重复项。3. `dependencies` 中两者的值均以 `link:` 开头并指向仓库 `packages/<name>`。
+[追踪] `test/e2e/support/dsh-host.ts:409`、`test/e2e/support/dsh-host.ts:229`
+[自动化] 是（同上文件 → `describe('编排骨架')`）
+[前置条件] 复用 globalSetup 的共享宿主（`inject('dshHome')` / `inject('dshMounted')`），其默认挂载为 `dsh-tauri-pet` + `also: dsh-tauri,dsh-tauri-rightclick`
+[测试数据] 共享宿主的 `home/profiles/web/package.json`
+[测试步骤] 1. 读 `inject('dshHome')/profiles/web/package.json`。2. 取 `dsh.profile.bundles` 与 `dependencies`。3. 解引用 `profiles/web/node_modules/<name>` 链接。
+[预期结果] 1. `bundles` 同时包含 `dsh-tauri-pet` 与 `dsh-tauri`，且无重复项。2. `dependencies` 中每个已挂载包的值均以 `link:` 开头并指向仓库 `packages/<name>`。3. 每条链接的 realpath 都落在仓库包目录上（规格写对 ≠ 挂得上）。
 [清理] 同 TC-HOST-L2-01-001
 
 #### [P3] [反向] 验证挂载未登记进 bundles 时立刻失败，而不是带着半成品起服务
@@ -91,51 +94,55 @@
 [Case ID] TC-HOST-L2-01-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
-[追踪] `test/e2e/support/dsh-host.ts:335`
-[自动化] 是（同上文件；用桩 profile 触发）
-[前置条件] 手工构造只写了 `package.json` 与链接、但 `dsh.profile.bundles` 缺目标包的 profile；或直接调用内部校验分支
-[测试数据] `bundles` 故意缺 `dsh-tauri-pet`
-[测试步骤] 1. 以被篡改的 profile 触发挂载校验。2. 捕获抛出的错误文本。3. 检查 scratch 目录是否残留。
-[预期结果] 1. 抛错，且错误文本包含 `挂载未注册到 dsh.profile.bundles` 与缺失包名。2. 不产生 `dsh web` 子进程（无就绪 URL）。3. scratch 目录被清理（`dsh-host.ts:340` 的 catch 分支）。
-[清理] 无需额外清理
+[追踪] `test/e2e/support/dsh-host.ts:273`
+[自动化] 是（同上文件 → `describe('编排骨架')`）
+[前置条件] 手工构造一份只登记了 `dsh-tauri-pet` 的 profile `package.json`；直接调用编排导出的校验分支 `assertMountRegistered`
+[测试数据] `bundles` 故意缺 `dsh-tauri`
+[测试步骤] 1. 以被篡改的 profile 触发挂载校验（一次只请求已登记的包，一次同时请求已登记与未登记的包）。2. 捕获抛出的错误文本。
+[预期结果] 1. 请求已登记的包不抛错（正向对照，避免断言变成恒真）。2. 请求含未登记的包时抛错，且错误文本恰为 `挂载未注册到 dsh.profile.bundles：dsh-tauri`——只列出缺失的那个。
+[清理] 删除夹具 profile 目录
+[未覆盖] 「失败后 scratch 目录被清理」在此分支不可达：link 模式下 bundles 由 `addBundle` 自己写入，该分支恒不触发，故造不出「挂载失败后清理」的场景；而 `assertBuilt` 的失败发生在 `home` 创建之前，本就不涉及清理。清理契约由 TC-HOST-L2-01-001 与 TC-HOST-L2-01-005 覆盖。
 
 #### [P3] [反向] 验证产物缺失时报出可操作的构建指引
 
 [Case ID] TC-HOST-L2-01-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
-[追踪] `test/e2e/support/dsh-host.ts:127`
-[自动化] 是（同上文件；以未构建的包触发）
-[前置条件] 选定一个 `packages/<name>/dist/index.js` 不存在的包（或临时重命名产物）
-[测试数据] 未构建的包名，例如 `dsh-tauri-panel-scheduler`
-[测试步骤] 1. 对其调用 `startDshHost`。2. 捕获错误文本。
-[预期结果] 1. 抛错，文本包含「尚未构建」与 `pnpm build:plugins` 指引。2. 不进入 `dsh web` 启动阶段（无日志文件产生或日志为空）。
-[清理] 恢复被重命名的产物
+[追踪] `test/e2e/support/dsh-host.ts:164`
+[自动化] 是（同上文件 → `describe('编排骨架')`）
+[前置条件] `packages/dsh-tauri-tsdown` 保持源码即产物（无 `main`、无 `dist`，且被 `build:plugins` 的 `--filter !dsh-tauri-tsdown` 显式排除）
+[测试数据] `startDshHost({ plugin: 'dsh-tauri-tsdown' })`
+[测试步骤] 1. 对其调用 `startDshHost`。2. 捕获错误文本。3. 对比调用前后临时目录中 `dsh-e2e-dsh-tauri-tsdown-*` 的集合。
+[预期结果] 1. 抛错，文本同时含「尚未构建」与 `pnpm build:plugins` 指引。2. 不进入 `dsh web` 启动阶段：临时目录中不出现该 plugin 的 scratch 目录（即无日志文件产生）。
+[清理] 无（不移动、不改写任何产物）
 
 #### [P4] 验证环境变量边界：`DSH_E2E_KEEP_HOME` 控制 scratch 去留
 
 [Case ID] TC-HOST-L2-01-005
 [层级] L2（真实 dsh 进程）
 [类型] 边界
-[追踪] `test/e2e/support/dsh-host.ts:376`、`test/e2e/global-setup.ts:31`
-[自动化] 是（同上文件）
-[前置条件] 可重复启动宿主两次（串行，`fileParallelism` 已为 false）
-[测试数据] 第一轮不设 `DSH_E2E_KEEP_HOME`；第二轮设 `DSH_E2E_KEEP_HOME=1`
-[测试步骤] 1. 第一轮启动后 `stop()`，检查 `home` 是否存在。2. 第二轮启动后 `stop()`，检查 `home` 是否存在。3. 手工删除第二轮目录。
-[预期结果] 1. 第一轮 `home` 目录不存在（已清理）。2. 第二轮 `home` 目录仍存在，且 `dsh-web.log` 可读。3. 删除成功，无残留锁文件。
-[清理] 删除第二轮 scratch 目录
+[追踪] `test/e2e/support/dsh-host.ts:438`、`test/e2e/support/dsh-host.ts:460`
+[自动化] 是（同上文件 → `describe('编排骨架')`）
+[前置条件] 可启动并停止一个宿主（自带，不复用共享宿主：`keepHome` 只在 `stop()` 时生效）
+[测试数据] `startDshHost({ plugin: 'dsh-tauri-pet', keepHome: true })`（即 globalSetup 在 `DSH_E2E_KEEP_HOME=1` 时传入的取值）
+[测试步骤] 1. 启动后 `stop()`，检查 `home` 与 `dsh-web.log`。2. 手工删除该目录。3. 再检查一次。
+[预期结果] 1. `home` 目录仍存在，且 `dsh-web.log` 可读（保留分支生效）。2. 删除成功，无残留锁文件。
+[清理] 删除该 scratch 目录
+[分工] 「默认必须清理」那一半由 TC-HOST-L2-01-001 的 `stop()` 后断言覆盖，本条只验保留分支——两条用例各只变更一个变量。
 
 #### [P2] 验证 `DSH_E2E_MOUNT=cli` 走真实 CLI 挂载路径
 
 [Case ID] TC-HOST-L2-01-006
 [层级] L2（真实 dsh 进程）
 [类型] 回归
-[追踪] `test/e2e/support/dsh-host.ts:237`、`docs/specs/plugin.test.md` §5
-[自动化] 是（同上文件）
-[前置条件] 机器可联网、`pnpm` 可用；`DSH_E2E_PNPM_STORE_DIR` 可选指向本地 store
-[测试数据] `DSH_E2E_MOUNT=cli`；`DSH_E2E_PLUGIN=dsh-tauri`
-[测试步骤] 1. 以 cli 模式启动宿主。2. 读 `home/profiles/web/package.json`。3. 对 `baseUrl` 发起 `GET /`。
-[预期结果] 1. 启动成功（允许明显长于 link 模式）。2. `dependencies` 由 `dsh plugin add` 写入，值指向仓库包路径而非自建链接。3. `GET /` 返回 2xx。
+[追踪] `test/e2e/support/dsh-host.ts:312`、`docs/specs/plugin.test.md` §5
+[自动化] 是（同上文件 → `describe('编排骨架')`）
+[前置条件] `pnpm` 在 PATH 上（`dsh plugin add` 是 pnpm 的薄转发，`link:` 规格不解析被链接包自身的 `catalog:` 依赖，故无需 registry 元数据）；`DSH_E2E_PNPM_STORE_DIR` 可选指向本地 store
+[测试数据] 进程内设 `DSH_E2E_MOUNT=cli`；`scaffoldDshProfile({ plugin: 'dsh-tauri' })`；结束后恢复该环境变量
+[测试步骤] 1. 以 cli 模式只做挂载（**不起 `dsh web`**）。2. 读 `home/profiles/web/package.json`。3. 解引用 `profiles/web/node_modules/dsh-tauri`。
+[预期结果] 1. 挂载成功。2. `dependencies` 由 `dsh plugin add` 写入，值为 `link:` 规格并指向仓库 `packages/dsh-tauri`（不是自建链接）。3. 链接 realpath 落在仓库包目录上。
+[清理] 删除该 scratch 目录
+[分工] 「宿主能起来」由 TC-HOST-L2-01-001 覆盖；本条只验 cli 挂载路径的落盘结果，故不必再起一个进程（每个宿主多付一个进程 + 一行日志）。
 [清理] 同 TC-HOST-L2-01-001
 
 ### 2.2 共享路由契约（`TC-CORE-L2-01-*`）
@@ -146,11 +153,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:270`
-[自动化] 是（`test/e2e/plugins/routes-contract.e2e.ts`）
-[前置条件] 宿主已挂载 `dsh-tauri-pet`（提供代表路由）；`DSH_E2E_MOUNT=link`；本批所有请求均须带 `startDshHost()` 换回的会话 Cookie（`inject('dshCookie')`），否则 `/api` 一律 401，断言会把鉴权失败误读成路由契约失败
-[测试数据] `DSH_E2E_PLUGIN=dsh-tauri`；`DSH_E2E_ALSO=dsh-tauri-pet`
+[自动化] 是（`01-dsh-host-and-core-contract.e2e.ts` → `describe('共享路由契约')`）
+[前置条件] 复用 globalSetup 的共享宿主（`inject('dshBaseUrl')` / `inject('dshCookie')`），其默认挂载为 `dsh-tauri-pet` + `also: dsh-tauri,dsh-tauri-rightclick`，已覆盖 GET 与 POST 两个代表路由；`DSH_E2E_MOUNT=link`；本段所有请求均须带会话 Cookie，否则 `/api` 一律 401，断言会把鉴权失败误读成路由契约失败
+[测试数据] 对 `GET_ONLY_PATH` 发 `OPTIONS`
 [测试步骤] 1. 对代表路由发起 `OPTIONS`（不带 body）。2. 读状态码与 `allow` 头。
-[预期结果] 1. 状态码 204，响应体长度为 0。2. `allow` 头存在，且同时包含 `GET` 与 `OPTIONS`；因为 GET 隐含允许 HEAD，`allow` 中还应包含 `HEAD`。
+[预期结果] 1. 状态码 204，响应体长度为 0。2. `allow` 头存在，按集合比较恰为 `{GET, HEAD, OPTIONS}`（`OPTIONS` 是默认预检，`HEAD` 由 GET 隐含）。
 [清理] 无
 
 #### [P2] 验证只声明 GET 的路径接受 HEAD 而不被判 405
@@ -159,22 +166,22 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:255`
-[自动化] 是（同上文件）
+[自动化] 是（同上文件 → `describe('共享路由契约')`）
 [前置条件] 同 TC-CORE-L2-01-001
 [测试数据] 同一代表路由
 [测试步骤] 1. 对代表路由发起 `HEAD`。2. 读状态码。
-[预期结果] 1. 状态码**不是** 405（GET 隐含 HEAD 的规则生效）。2. 若因 SSE 长连接导致 200 后挂起，用例在读取响应头后立即中止连接，不等待 body。
-[清理] 中止连接
+[预期结果] 1. 状态码 200——既不是 405（GET 隐含 HEAD 的规则生效），也说明确实命中了真实 handler。2. SSE 长连接不会阻塞 HEAD：用例在读完响应头后立即 `abort()`，不等待 body。
+[清理] `abort()` 中止连接
 
 #### [P3] [反向] 验证未声明的方法返回 405 且给出可用的 allow
 
 [Case ID] TC-CORE-L2-01-003
 [层级] L2（真实 dsh 进程）
 [类型] 异常
-[追踪] `packages/dsh-tauri/src/host/routes/index.ts:275`
-[自动化] 是（同上文件）
+[追踪] `packages/dsh-tauri/src/host/routes/index.ts:276`
+[自动化] 是（同上文件 → `describe('共享路由契约')`）
 [前置条件] 同 TC-CORE-L2-01-001
-[测试数据] 对只声明 GET 的代表路由发 `POST`（body `{}`，`content-type: application/json`）
+[测试数据] 对 `GET_ONLY_PATH` 发 `POST`（body `{}`，`content-type: application/json`）
 [测试步骤] 1. 发起请求。2. 读状态码、`allow` 头、响应体 JSON。
 [预期结果] 1. 状态码 405。2. `allow` 头包含 `GET`。3. 响应体 `error` 字段以 `仅支持 ` 开头且包含 `GET`。
 [清理] 无
@@ -184,13 +191,14 @@
 [Case ID] TC-CORE-L2-01-004
 [层级] L2（真实 dsh 进程）
 [类型] 异常
-[追踪] `packages/dsh-tauri/src/host/routes/index.ts:286`
-[自动化] 是（同上文件）
+[追踪] `packages/dsh-tauri/src/host/routes/index.ts:287`（**在 L2 被上游围栏遮蔽，见下**）
+[自动化] 是（同上文件 → `describe('共享路由契约')`）
 [前置条件] 同 TC-CORE-L2-01-001；代表路由改为只声明 POST 的 `/api/desktop/dsh-tauri-rightclick/open/url`
 [测试数据] 请求头 `Origin: http://evil.example`；`content-type: application/json`；body `{}`
-[测试步骤] 1. 发起请求。2. 读状态码与响应体。
-[预期结果] 1. 状态码 403。2. 响应体 `error` 恰为 `cross-origin-request`。3. 宿主日志中不出现该插件 handler 的执行痕迹（拒绝发生在路由层）。
+[测试步骤] 1. 发起请求。2. 读状态码与响应体 JSON。
+[预期结果] 1. 状态码 403。2. 响应体 `error` 恰为 `forbidden`（连接门词汇），**不是** `cross-origin-request`。3. 响应体里不出现 handler 的成功载荷 `{"ok":true}`——拒绝发生在任何插件 handler 之前。
 [清理] 无
+[已定论 · 期望值修正] 本条原写「`error` 恰为 `cross-origin-request`」，实测不成立：dsh 0.1.5-rc.2 的 `@deepseek-ai/dsh-client-connection` 先做 Host/Origin 围栏（`HostConnectionService.requestRejection` → `isTrustedApiRequest`，Origin 的 host 与请求 Host 不一致即返回 403），编排层的 `createHostHandler` 再把该 403 渲染成 `{ error: 'forbidden' }`。因此 `routes/index.ts:287` 的 `cross-origin-request` 分支在真实宿主里是**不可达的纵深防御**，L2 只能观察到连接门的 403。该分支由 L1 覆盖：`packages/dsh-tauri/src/host/routes/index.test.ts:240`（`it('变更操作拒绝跨源 Origin（CSRF / DNS rebinding），无 Origin 的非浏览器调用方放行')`，`:254` 断言 `cross-origin-request`）。
 
 #### [P4] [反向] 验证超过 1 MiB 的请求体被 413 终止
 
@@ -198,11 +206,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:128`、`packages/dsh-tauri/src/host/config/constants.ts:13`
-[自动化] 是（同上文件）
+[自动化] 是（同上文件 → `describe('共享路由契约')`）
 [前置条件] 同 TC-CORE-L2-01-001；使用只声明 POST 的代表路由
 [测试数据] body 为 `1 MiB + 1 字节` 的 JSON（`{"pad":"<填充>"}`）
-[测试步骤] 1. 发起 `POST`，`content-type: application/json`。2. 读状态码。
-[预期结果] 1. 状态码 413。2. 用例不因连接被中断而抛未处理异常（读取响应前先容错）。
+[测试步骤] 1. 发起 `POST`，`content-type: application/json`。2. 读状态码与响应体。
+[预期结果] 1. 状态码 413。2. 响应体含上限字节数 `1048576`（与 `MAX_REQUEST_BODY_BYTES` 对齐）。3. 若连接被中断，用例把它转成带说明的断言失败，而不是抛出未处理异常。
 [清理] 无
 
 #### [P2] [反向] 验证未挂载插件的路径返回 404，用于区分「没挂载」与「没鉴权」
@@ -211,8 +219,8 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `docs/specs/plugin.test.md` §5 鉴权说明（Cookie 交换下 401 与 404 的区分）
-[自动化] 是（同上文件）
-[前置条件] 宿主**未**挂载 `dsh-tauri-turnrewind`；请求带会话 Cookie
+[自动化] 是（同上文件 → `describe('共享路由契约')`）
+[前置条件] 该段宿主**未**挂载 `dsh-tauri-turnrewind`；请求带会话 Cookie
 [测试数据] `GET /api/desktop/dsh-tauri-turnrewind/summary?sessionId=x`
 [测试步骤] 1. 发起请求。2. 读状态码。
 [预期结果] 1. 状态码 404（既不是 401 也不是 200）。2. 该结果与「挂载后同路径返回 200/4xx 业务码」形成对照，证明失败来自路由缺失而非鉴权围栏。
@@ -227,19 +235,19 @@
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
 | `docs/specs/plugin.test.md` §8 批次 1（骨架挂载 + 随机端口） | TC-HOST-L2-01-001、TC-HOST-L2-01-002 | 正向 | 未覆盖「随机端口是否真的每次不同」 |
-| `docs/specs/plugin.test.md` §5 步骤 5（挂载校验） | TC-HOST-L2-01-003 | 异常 | 依赖内部校验分支的可触达性，可能需抽函数后才可测 |
-| `docs/specs/plugin.test.md` §5 步骤 1（构建产物） | TC-HOST-L2-01-004 | 异常 | 会短暂移动产物，串行执行下安全 |
-| `docs/specs/plugin.test.md` §9（`DSH_E2E_KEEP_HOME`） | TC-HOST-L2-01-005 | 边界 | 依赖可重复启动宿主 |
-| `docs/specs/plugin.test.md` §5 挂载模式 `link`/`cli` | TC-HOST-L2-01-006 | 回归 | cli 模式需网络，不作为门禁必跑 |
+| `docs/specs/plugin.test.md` §5 步骤 5（挂载校验） | TC-HOST-L2-01-003 | 异常 | 该分支在 link 模式下恒不触发，故直接调用导出的 `assertMountRegistered`；「失败后 scratch 清理」随之不可达，改由 001/005 覆盖 |
+| `docs/specs/plugin.test.md` §5 步骤 1（构建产物） | TC-HOST-L2-01-004 | 异常 | 以「源码即产物」的 `dsh-tauri-tsdown` 触发，不移动、不改写任何产物 |
+| `docs/specs/plugin.test.md` §9（`DSH_E2E_KEEP_HOME`） | TC-HOST-L2-01-005 | 边界 | 依赖可重复启动宿主（串行） |
+| `docs/specs/plugin.test.md` §5 挂载模式 `link`/`cli` | TC-HOST-L2-01-006 | 回归 | `dsh plugin add` 是 pnpm 薄转发；`link:` 规格不解析被链接包自身的 `catalog:` 依赖，故不依赖 registry |
 
 ### 3.2 共享路由契约
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `dsh-tauri` 路由契约：OPTIONS 204 | TC-CORE-L2-01-001 | 正向 | — |
-| 路由契约：GET 隐含 HEAD | TC-CORE-L2-01-002 | 正向 | SSE 路由会挂起连接，需在读完头后中止 |
+| `dsh-tauri` 路由契约：OPTIONS 204 | TC-CORE-L2-01-001 | 正向 | `allow` 按集合比较，不吃成员顺序 |
+| 路由契约：GET 隐含 HEAD | TC-CORE-L2-01-002 | 正向 | SSE 路由会挂起连接，读完响应头即 `abort()` |
 | 路由契约：405 + allow | TC-CORE-L2-01-003 | 异常 | 与各插件文件中的 405 断言**不重复**：此处只验共享层 |
-| 路由契约：跨源 403 | TC-CORE-L2-01-004 | 异常 | — |
+| 路由契约：跨源 403 | TC-CORE-L2-01-004 | 异常 | L2 只能观察到上游 Host/Origin 围栏的 `forbidden`；路由层 `cross-origin-request` 分支被遮蔽，改由 L1 `packages/dsh-tauri/src/host/routes/index.test.ts:240` 覆盖 |
 | 路由契约：413 bodyLimit | TC-CORE-L2-01-005 | 边界 | — |
 | `plugin.test.md` §5 鉴权说明：带 Cookie 后 404 与 401 可区分 | TC-CORE-L2-01-006 | 异常 | — |
 
@@ -249,13 +257,20 @@
 
 ### 4.1 编排骨架
 
-- **假设**：`dsh-tauri` 可作为 bundle 独立挂载（它是其它插件的宿主能力提供方）。若它不能被单独挂载，TC-HOST-L2-01-001 改用 `dsh-tauri-pet` 作为目标包。
-- **缺口**：`assertBuilt`（`dsh-host.ts:127`）当前不可从外部注入，TC-HOST-L2-01-004 需要临时移动产物或后续把该函数导出。
-- **缺口**：本文件不覆盖「端口冲突」「宿主提前退出」分支（`dsh-host.ts:278` 已有错误路径），留待骨架跑稳后补。
+- **已定论**：`dsh-tauri` 可作为 bundle 独立挂载（实测通过，TC-HOST-L2-01-001 无需退化为 `dsh-tauri-pet`）。
+- **已定论**：`assertBuilt` 无需注入即可测——`packages/dsh-tauri-tsdown` 与 `packages/dsh-tauri-bundle` 都是「源码即产物」（无 `main`、无 `dist`）且被 `build-plugins.ts:542`、`build-plugins.ts:544` 的 `--filter !` 显式排除，是稳定且不污染仓库的「未构建」夹具。已改用 `dsh-tauri-tsdown`。
+- **已定论**：bundles 校验分支在 link 模式下不可达（bundles 由 `addBundle` 自己写入），已抽成导出的 `assertMountRegistered`（`test/e2e/support/dsh-host.ts:273`）供直接调用。代价是该用例不再能顺带断言「失败后 scratch 目录被清理」——那一段由 001/005 的清理断言覆盖。
+- **缺口**：本文件不覆盖「端口冲突」「宿主提前退出」分支（`test/e2e/support/dsh-host.ts:341` 已有错误路径），留待骨架跑稳后补。
 - **未纳入范围**：浏览器渲染、Tauri 窗口、插件业务语义——分别属于 02 起的各插件文件与桌面端宿主层。
 
 ### 4.2 共享路由契约
 
-- **不可覆盖**：非回环地址发起的变更请求 403（`routes/index.ts:279`）需要非本机来源，本套用例不做，仅登记为已知未覆盖分支。
+- **不可覆盖**：非回环地址发起的变更请求 403（`routes/index.ts:279`）需要非本机来源，本套用例不做；由 L1 `packages/dsh-tauri/src/host/routes/index.test.ts:219` 覆盖。
+- **已定论（遮蔽）**：路由层的跨源 403（`routes/index.ts:287`，`cross-origin-request`）在真实宿主里不可达——上游 `@deepseek-ai/dsh-client-connection` 的 Host/Origin 围栏（`HostConnectionService.requestRejection` → `isTrustedApiRequest`）先拒绝，编排层把它渲染成 `{ error: 'forbidden' }`。L2 断言按可观察事实写（403 + `forbidden` + 无 handler 载荷），路由层词汇留给 L1。
 - **已定论**：不带会话 Cookie 时 `/api` 与插件路由返回 401（上游 `authorizeIndex` 在根路径之外不做 token 交换）。因此本批一律显式携带 Cookie；L2 不再依赖桌面端的载体放行——那是 `dsh-tauri-connection` 插件在 `DSH_TAURI_EMBEDDED=1` 时提供的运行时覆写，npm 上的核心没有这个插件。
-- **假设**：`allow` 头的成员顺序稳定（`SUPPORTED_METHODS` 过滤后 join，见 `routes/index.ts:255`）。若顺序不稳定，断言改为集合包含而非字符串相等。
+- **已定论**：`allow` 头的成员顺序实测为 `SUPPORTED_METHODS` 过滤后的 join 顺序（`GET, HEAD, OPTIONS`）；断言仍按集合比较，避免把实现顺序固化成契约。
+- **已定论（宿主最小化）**：本批 12 条用例总共只起 **3 个** `dsh web` 进程——globalSetup 的共享宿主（001/002 与共享契约段共 8 条复用）、001 自带的那一个（验完整生命周期）、005 自带的那一个（`keepHome` 只在 `stop()` 时生效）；003/004/006 完全不启动宿主（纯校验分支 / 预检失败 / 只挂载）。能复用共享宿主的绝不另起进程。
+- **已定论（日志格式）**：每次起宿主只在控制台留 3 行——
+  `🚀 挂载 DSH 核心 [<核心版本>] (profile: <scratch 目录名>)`、
+  `└─ 路径: <dsh bin>`、`✅ 就绪 [<baseUrl>] → <已挂载包>`。
+  长路径不再各自成行刷屏；`dsh web` 的完整 stdout/stderr 只进 `home/dsh-web.log`。
