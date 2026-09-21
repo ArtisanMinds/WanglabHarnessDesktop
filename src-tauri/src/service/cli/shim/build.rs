@@ -189,6 +189,7 @@ if defined DSH_PNPM (
 
 rem Prefer a user-installed pnpm (skip our own shim dir), fall back to bundled.
 rem Accept only executable extensions (.cmd/.exe/.bat), ignore extensionless shell scripts.
+:user_search
 set "SELF_PREFIX=%~dp0"
 set "SELF_PREFIX=%SELF_PREFIX:~0,-1%"
 set "USER_PNPM="
@@ -210,10 +211,18 @@ if defined USER_PNPM goto :use_user
 goto :after_user
 
 :use_selected
+rem Re-entry guard: DSH_PNPM may itself be a shim that resolves back through PATH
+rem into this file; forwarding twice would exec the two shims into each other
+rem forever and the installer child would never exit. Once forwarded, fall back
+rem to the PATH search and then to the bundled pnpm.
+if "%DSH_PNPM_SHIM_GUARD%"=="1" goto :user_search
+set "DSH_PNPM_SHIM_GUARD=1"
 call "%DSH_PNPM%" %*
 exit /b %ERRORLEVEL%
 
 :use_user
+if "%DSH_PNPM_SHIM_GUARD%"=="1" goto :after_user
+set "DSH_PNPM_SHIM_GUARD=1"
 call "%USER_PNPM%" %*
 exit /b %ERRORLEVEL%
 
@@ -266,19 +275,25 @@ if (-not $systemGitWorks) {{
 
 $useBundled = $env:DSH_PREFER_BUNDLED_PNPM -eq '1' -and (Test-Path -LiteralPath $pnpmBin -PathType Leaf)
 
-# Use the exact user pnpm discovered by the desktop app unless bundled was requested.
-if (-not $useBundled -and $env:DSH_PNPM -and (Test-Path -LiteralPath $env:DSH_PNPM -PathType Leaf)) {{
-    & $env:DSH_PNPM @args
-    exit $LASTEXITCODE
-}}
+# Re-entry guard: DSH_PNPM, or the first pnpm found on PATH, may itself be a shim
+# that resolves back through PATH into this file; forwarding twice would exec the
+# two shims into each other forever and the installer child would never exit.
+# Once forwarded, skip user resolution and use the bundled pnpm.
+if (-not $useBundled -and $env:DSH_PNPM_SHIM_GUARD -ne '1') {{
+    # Use the exact user pnpm discovered by the desktop app.
+    if ($env:DSH_PNPM -and (Test-Path -LiteralPath $env:DSH_PNPM -PathType Leaf)) {{
+        $env:DSH_PNPM_SHIM_GUARD = '1'
+        & $env:DSH_PNPM @args
+        exit $LASTEXITCODE
+    }}
 
-# Prefer a user-installed pnpm (skip our own shim dir), fall back to bundled.
-if (-not $useBundled) {{
+    # Prefer a user-installed pnpm (skip our own shim dir), fall back to bundled.
     $selfDir = $PSScriptRoot.TrimEnd('\') + '\'
     $userPnpm = Get-Command pnpm -All -ErrorAction SilentlyContinue |
         Where-Object {{ $_.Source -and -not $_.Source.StartsWith($selfDir, [System.StringComparison]::OrdinalIgnoreCase) }} |
         Select-Object -First 1
     if ($userPnpm) {{
+        $env:DSH_PNPM_SHIM_GUARD = '1'
         & $userPnpm.Source @args
         exit $LASTEXITCODE
     }}
@@ -318,13 +333,20 @@ if [ "$DSH_PREFER_BUNDLED_PNPM" = "1" ] && [ -f "$PNPM_BIN" ]; then
   USE_BUNDLED=1
 fi
 
-# Use the exact user pnpm discovered by the desktop app unless bundled was requested.
-if [ -z "$USE_BUNDLED" ] && [ -n "$DSH_PNPM" ] && [ -x "$DSH_PNPM" ]; then
-  exec "$DSH_PNPM" "$@"
-fi
+# Re-entry guard: DSH_PNPM, or the first pnpm found on PATH, may itself be a shim
+# that resolves back through PATH into this file (mise shims exec whatever `pnpm`
+# PATH resolves to). Forwarding twice would then exec the two shims into each
+# other forever, so the installer child never exits and the app hangs with no
+# output at all. Once forwarded, skip user resolution and use the bundled pnpm.
+if [ -z "$USE_BUNDLED" ] && [ "$DSH_PNPM_SHIM_GUARD" != "1" ]; then
+  # Use the exact user pnpm discovered by the desktop app unless bundled was requested.
+  if [ -n "$DSH_PNPM" ] && [ -x "$DSH_PNPM" ]; then
+    DSH_PNPM_SHIM_GUARD=1
+    export DSH_PNPM_SHIM_GUARD
+    exec "$DSH_PNPM" "$@"
+  fi
 
-# Prefer a user-installed pnpm (skip our own shim dir), fall back to bundled.
-if [ -z "$USE_BUNDLED" ]; then
+  # Prefer a user-installed pnpm (skip our own shim dir), fall back to bundled.
   SELF_DIR=$(cd "$(dirname "$0")" && pwd)
   IFS=:
   for dir in $PATH; do
@@ -332,6 +354,8 @@ if [ -z "$USE_BUNDLED" ]; then
       continue
     fi
     if [ -x "$dir/pnpm" ]; then
+      DSH_PNPM_SHIM_GUARD=1
+      export DSH_PNPM_SHIM_GUARD
       exec "$dir/pnpm" "$@"
     fi
   done
@@ -737,6 +761,109 @@ mod tests {
         assert!(output.status.success());
         assert!(stdout.contains("BUNDLED"));
         assert!(!stdout.contains("SELECTED"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// 三个平台的 pnpm shim 都必须带重入保护（见各模板注释）。
+    #[test]
+    fn pnpm_shims_guard_against_reentrant_forwarding() {
+        let app_dir = sample_app_dir();
+        for (name, content) in [
+            ("pnpm.sh", build_pnpm_sh_shim(&app_dir)),
+            ("pnpm.cmd", build_pnpm_cmd_shim(&app_dir)),
+            ("pnpm.ps1", build_pnpm_ps1_shim(&app_dir)),
+        ] {
+            assert!(
+                content.contains("DSH_PNPM_SHIM_GUARD"),
+                "{name}: missing re-entry guard"
+            );
+        }
+        // cmd 的转发目标改用标签回跳，两个 `:use_*` 都必须受保护（各含一次判断 + 一次置位）。
+        let cmd = build_pnpm_cmd_shim(&app_dir);
+        assert_eq!(cmd.matches("\n:user_search").count(), 1);
+        assert_eq!(cmd.matches("DSH_PNPM_SHIM_GUARD").count(), 4);
+    }
+
+    /// 回归：`DSH_PNPM` 指向的 shim 若按 PATH 解析回本 shim（mise shims 的真实
+    /// 行为，见 `cli::path::pnpm` 的 mise 目录回退），没有重入保护时两者会互相
+    /// `exec` 形成死循环——安装子进程永不退出，应用表现为永久卡在
+    /// 「Loading internal plugins…」且后端日志一行输出都没有。有保护时必须有界
+    /// 结束并回退捆绑 pnpm。
+    #[cfg(unix)]
+    #[test]
+    fn pnpm_sh_shim_breaks_self_referential_forward_loop() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = temp_dir("pnpm-sh-reentry");
+        let app_dir = dir.join("app");
+        let pnpm_bin = app_dir.join("dependencies/pnpm/bin/pnpm.cjs");
+        std::fs::create_dir_all(pnpm_bin.parent().unwrap()).unwrap();
+        std::fs::write(&pnpm_bin, "fixture").unwrap();
+
+        let bin_dir = dir.join("bin");
+        let loop_dir = dir.join("loop-bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        std::fs::create_dir_all(&loop_dir).unwrap();
+
+        let node = dir.join("node");
+        std::fs::write(&node, "#!/bin/sh\necho BUNDLED \"$@\"\n").unwrap();
+        // 本 shim 落在 PATH 中，等价于桌面端把自身 shim 目录前置到子进程 PATH。
+        let shim = bin_dir.join("pnpm");
+        std::fs::write(&shim, build_pnpm_sh_shim(&app_dir)).unwrap();
+        // 模拟 mise shim：自身没有实现，只把调用交回 PATH 上的 pnpm。
+        let forwarder = loop_dir.join("pnpm");
+        std::fs::write(&forwarder, "#!/bin/sh\nexec pnpm \"$@\"\n").unwrap();
+
+        for path in [&node, &shim, &forwarder] {
+            let mut permissions = std::fs::metadata(path).unwrap().permissions();
+            permissions.set_mode(0o700);
+            std::fs::set_permissions(path, permissions).unwrap();
+        }
+
+        let path_env = std::env::join_paths([
+            bin_dir.clone(),
+            loop_dir.clone(),
+            PathBuf::from("/usr/bin"),
+            PathBuf::from("/bin"),
+        ])
+        .unwrap();
+        let child = std::process::Command::new(&shim)
+            .arg("reentry")
+            .env("PATH", &path_env)
+            .env("DSH_NODE", &node)
+            .env("DSH_PNPM", &forwarder)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        // exec 保留 pid，因此超时后按 pid 一定杀得中循环中的那个进程。
+        let pid = child.id();
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let waiter = std::thread::spawn(move || {
+            let output = child.wait_with_output();
+            let _ = sender.send(output);
+        });
+        let output = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
+            Ok(output) => output.unwrap(),
+            Err(_) => {
+                let _ = std::process::Command::new("kill")
+                    .args(["-9", &pid.to_string()])
+                    .status();
+                let _ = waiter.join();
+                let _ = std::fs::remove_dir_all(&dir);
+                panic!(
+                    "self-referential pnpm shim chain must terminate instead of looping forever"
+                );
+            }
+        };
+        let _ = waiter.join();
+
+        assert!(output.status.success());
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("BUNDLED"),
+            "re-entered shim must fall back to the bundled pnpm"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 
