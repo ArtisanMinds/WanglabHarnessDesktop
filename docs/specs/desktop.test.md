@@ -103,7 +103,7 @@
 | 元素归属 | 锚点 | 说明 |
 | --- | --- | --- |
 | 桌面壳层 `src/**` | `data-testid` | **本规范域**。命名 `dsh-<业务域>-<元素名>`（全小写连字符，如 `dsh-shell-iframe`） |
-| 插件包 `packages/*` | `data-dsh-<plugin>` 等 `data-dsh-*` | 归 [plugin.test.md](./plugin.test.md) §6。其中一部分 `data-dsh-*` 是**行为钩子**而非测试钩子（如 `packages/dsh-tauri-ui/src/client/obstructions.ts:88` 的 `attributeFilter` 按它过滤 DOM 变更），**不得**为测试改名 |
+| 插件包 `packages/*` | `data-dsh-<plugin>` 等 `data-dsh-*` | 归 [plugin.test.md](./plugin.test.md) §6。其中一部分 `data-dsh-*` 是**行为钩子**而非测试钩子（如 `packages/dsh-tauri-ui/src/client/register/obstructions.ts:88` 的 `attributeFilter` 按它过滤 DOM 变更），**不得**为测试改名 |
 | 内嵌 dsh 页面 | 稳定结构锚点（如挂载点 `#root`）、上游 `data-slot` / `role` | dsh 属上游产物，其内部 DOM 不受本仓库约束；帧内断言只认稳定锚点，并在用例文档的缺口小节登记 |
 
 * **维护原则**：字面量直接写入业务组件；跨用例复用的选择器常量统一收录于 `test/e2e/support/selectors.ts`；新增用例必须同步补全元素 `data-testid`。

@@ -178,7 +178,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:201`
-[自动化] 待接线（L3 通道尚未接入本插件用例）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 应用与内置 DSH 界面就绪；至少一条会话行可见
 [测试数据] 在会话行上派发 `contextmenu`
 [测试步骤] 1. 建立 WebDriver 会话并切到 iframe。2. 派发右键。3. 查询菜单根与菜单项。4. Escape 关闭。
@@ -191,7 +191,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:175`
-[自动化] 待接线（L3 通道尚未接入本插件用例）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 同 TC-RC-L3-03-001
 [测试数据] `ArrowDown` ×2、`Home`、`End`、`Escape`
 [测试步骤] 1. 打开菜单。2. 逐键派发并读 `document.activeElement`。3. `Escape`。

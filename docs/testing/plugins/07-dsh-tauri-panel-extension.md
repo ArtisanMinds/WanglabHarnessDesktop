@@ -365,7 +365,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/client/register/extension-panel.tsx:39`
-[自动化] 待接线（L3 通道尚未接入：需真实 Tauri 窗口并在内嵌 iframe 内驱动，`00-overview.md` G6；`desktop` project 已配置，见该文 G4）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言，需在内嵌 iframe 内驱动，见 `00-overview.md` G6）
 [前置条件] 应用就绪；`get_dsh_plugins` 返回中包含本插件
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 打开扩展面板。3. 依次点击 `skills` 与 `mcp` 标签。

@@ -181,7 +181,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/sidebar.tsx:92`
-[自动化] 待接线（L3 通道尚未接入；`00-overview.md` G4 已消解）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 应用与 iframe 内界面均已就绪；`dsh-tauri-ui` 已挂载（经 `get_dsh_plugins` 确认）
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 点击 `.dshp-settings-trigger`。3. 查询 `[data-slot-sidebar="dsh-tauri-ui"]`。
@@ -194,7 +194,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/trigger.tsx:52`
-[自动化] 待接线（L3 通道尚未接入）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 同 TC-UI-L3-06-001；壳层侧栏折叠按钮存在（依赖 `dsh-tauri` 已挂载）
 [测试数据] 无
 [测试步骤] 1. 折叠侧栏。2. 读触发器几何宽度与相关 class。

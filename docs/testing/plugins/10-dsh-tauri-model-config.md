@@ -173,7 +173,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/client/register/models.ts:64`
-[自动化] 待接线（`desktop` project 未配置，`00-overview.md` G4）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言，`desktop` project 已配置，见 `00-overview.md` G4）
 [前置条件] 应用就绪；`<DSH_E2E_HOME>/home/.dsh.dev/settings.yaml` 存在（或允许首次生成）
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 打开设置并进入模型分区。3. 查询模型卡片与页脚区域。

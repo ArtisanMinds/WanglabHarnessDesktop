@@ -119,7 +119,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/register/turn-tail.ts:25`
-[自动化] 待接线（L3 通道尚未接入；`desktop` project 已配置，但本插件用例仍需真实 Tauri 窗口与回合数据）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言，`desktop` project 已配置）
 [前置条件] 应用就绪；工作区为 git 仓库顶层；已产生一个带文件改动的回合
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 查询 `[data-turnrewind-card]`。3. 读卡片内的文件计数与 `GET /summary` 返回比对。

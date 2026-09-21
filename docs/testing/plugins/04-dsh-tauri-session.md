@@ -188,7 +188,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/archive-section.ts:18`
-[自动化] 待接线（L3 通道尚未接入）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 应用就绪；iframe 内 dsh 界面加载完成
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话。2. 切到 iframe 并打开设置。3. 定位 id `dsh-tauri-session-archive` 的分区并读其标题。
@@ -201,7 +201,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/client/register/workspace-patch.tsx:125`
-[自动化] 待接线（L3 通道尚未接入）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 存在至少 1 个真实工作区；已打开其「…」菜单
 [测试数据] 点击 `[data-dsh-tauri-session-archive-item]`
 [测试步骤] 1. 记录点击前工作区数量。2. 点击归档项。3. 关闭弹出的确认对话框。4. 重新读取工作区数量。

@@ -135,7 +135,7 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 
 | 元素归属 | 锚点 | 说明 |
 | --- | --- | --- |
-| 插件包 `packages/*` | `data-dsh-<plugin>` 等 `data-dsh-*` | 插件自渲染 DOM 的挂载点。**部分 `data-dsh-*` 是行为钩子而非测试钩子**（如 `packages/dsh-tauri-ui/src/client/obstructions.ts:88` 的 `attributeFilter` 按它过滤 DOM 变更），**不得**为测试改名或增删 |
+| 插件包 `packages/*` | `data-dsh-<plugin>` 等 `data-dsh-*` | 插件自渲染 DOM 的挂载点。**部分 `data-dsh-*` 是行为钩子而非测试钩子**（如 `packages/dsh-tauri-ui/src/client/register/obstructions.ts:88` 的 `attributeFilter` 按它过滤 DOM 变更），**不得**为测试改名或增删 |
 | 桌面壳层 `src/**` | `data-testid` | 归 [desktop.test.md](./desktop.test.md) §5，命名 `dsh-<业务域>-<元素名>` |
 | 内嵌 dsh 页面内部（设置面板、侧栏、tab、对话框、Rail 形态） | 上游稳定锚点：`data-slot` / `role` / 稳定的 `dsh`·`dshp-` 前缀锚点 | dsh 属上游产物，其内部结构不受本仓库约束；这类断言归 **L2 浏览器层**，并在文档缺口小节登记，不占 `desktop` 车道 |
 | 客户端挂载证据（L2 浏览器层） | 同源嵌套 frame 内的 `data-dsh-*` 挂载点 + `pageerror` / 插件错误条为空 | 插件 client 入口有 `window.parent === window` 早退（`packages/dsh-tauri/src/client/apply.ts:29`、`packages/dsh-tauri-pet/src/client/index.ts:24`），必须在同源嵌入 frame 内断言；共享常量与编排见 `test/e2e/support/browser.ts` |
@@ -163,19 +163,19 @@ docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 | 批次 | 主题 | `[Case ID]` | `[自动化] 是` | 车道 |
 | --- | --- | --- | --- | --- |
 | `01` | 编排骨架与共享路由契约 | 12 | 12 | `plugin` |
-| `02` | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | 14 | 13 | `plugin` 9 + `desktop` 4 |
+| `02` | `dsh-tauri-pet`（SSE → 客户端 → 桌面端窗口） | 13 | 13 | `plugin` 9 + `desktop` 4 |
 | `03` | `dsh-tauri-rightclick` | 12 | 5 | `plugin` |
 | `04` | `dsh-tauri-session` | 13 | 9 | `plugin` |
-| `05` | `dsh-tauri-worktree` | 11 | 7 | `plugin` |
+| `05` | `dsh-tauri-worktree` | 16 | 11 | `plugin` 7 + L1 4 |
 | `06` | `dsh-tauri-ui` | 12 | 6 | `plugin` |
 | `07` | `dsh-tauri-panel-extension` | 23 | 19 | `plugin` |
 | `08` | `dsh-tauri-panel-scheduler` | 15 | 11 | `plugin` |
 | `09` | `dsh-tauri-turnrewind` | 7 | 3 | `plugin` |
 | `10` | `dsh-tauri-model-config` | 10 | 8 | `plugin` |
 | `11` | `dsh-tauri-connection` | 3 | 3 | `plugin` |
-| 合计 | `01`–`11` 共 11 个用例文件 | 132 | 96 | `plugin` 92 + `desktop` 4 |
+| 合计 | `01`–`11` 共 11 个用例文件 | 136 | 100 | `plugin` 92 + `desktop` 4（e2e 96）+ L1 4 |
 
-**口径**：`[Case ID]` 是文档声明的用例条目总数；`[自动化] 是` 与 `it()` 两列**逐文件相等**（文档 ↔ 代码 1:1），逐文件明细见 `docs/testing/plugins/00-overview.md` §7.1 追踪矩阵。批次 `03`–`10` 原有的 `-L3-*` 条目已按「Tauri 原生产物」原则降级为 L2 浏览器断言并保留原编号与条数；只有批次 `02` 的 4 条留在 `desktop` 车道（跨文件例外见 §4）。
+**口径**：`[Case ID]` 是文档声明的用例条目总数（按 `^[Case ID]` 字段行计）；`[自动化] 是` 与代码一一对应——**L2/L3 层**与 e2e `it()` 逐文件相等（96 = `plugin` 92 + `desktop` 4），批次 `05` 另有 **4 条 L1 单元层**（`TC-WT-U-05-001`–`004`）由 `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts` 覆盖、不占 e2e `it()`（该文件所在 `unit` project 17 例全绿），故 `05` 的 `[自动化] 是` = 11 = e2e 7 + L1 4。逐文件明细见 `docs/testing/plugins/00-overview.md` §7.1 追踪矩阵。批次 `03`–`10` 原有的 `-L3-*` 条目已按「Tauri 原生产物」原则降级为 L2 浏览器断言并保留原编号与条数；只有批次 `02` 的 4 条留在 `desktop` 车道（跨文件例外见 §4）。
 
 **本轮实测**：`plugin` 车道连续 5 次运行均 11 files / 92 tests 全绿。
 

@@ -14,7 +14,7 @@
 
 | 层级 | 宿主 | 驱动方式 | 覆盖对象 |
 | --- | --- | --- | --- |
-| L2 插件宿主 E2E | 真实 `dsh web` 进程（+ 真实浏览器页面） | Vitest `plugin` project；HTTP 断言先行，浏览器断言待接线 | 宿主路由、客户端挂载点、崩溃防护 |
+| L2 插件宿主 E2E | 真实 `dsh web` 进程（+ 真实浏览器页面） | Vitest `plugin` project（`environment: 'node'`）；HTTP 断言与 Playwright 库 API 浏览器断言**均已接线** | 宿主路由、客户端挂载点、崩溃防护 |
 | L3 桌面端宿主 E2E | 真实 Tauri 窗口（`deepseek-harness-desktop.exe`） | Vitest `desktop` project + WebdriverIO（内嵌 WebDriver server） | 依赖 Tauri 桥的插件与壳层集成 |
 
 - **纳入范围**：`packages/` 下 10 个产品可见插件、核心桥接包 `dsh-tauri`、编排骨架与共享路由契约。
@@ -28,11 +28,11 @@
 
 | 来源 | 提供的规则 |
 | --- | --- |
-| `docs/specs/plugin.test.md` | L1/L2/L3 分层、批次 1–18 路线图、断言准则、环境变量表、L2 执行流程 |
+| `docs/specs/plugin.test.md` | L1/L2/L3 分层、批次 `01`–`11` 路线图、断言准则、环境变量表、L2 执行流程 |
 | `docs/specs/desktop.test.md` | 用例文档字段与优先级口径、`data-testid` 规范、端口/数据目录隔离、目录归属 |
 | `docs/testing/progressive.md` | 单批单卡、状态定义与台账位置 |
 | 源码事实 | `packages/*/src/**`、`src/**`、`src-tauri/src/**`、`test/e2e/support/**` |
-| 现有测试 | `test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts`（编排骨架 + 共享路由契约 12 例已落地）、`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts`（SSE 首帧 2 例已落地） |
+| 现有测试 | `test/e2e/plugins/01`–`11` 共 **11 个文件**全部落地，`plugin` 车道实测 **11 files / 92 tests** 全绿（连续 5 次运行）；批次 `02` 另有 4 条 Tauri 原生窗口用例在 `desktop` 车道（`test/e2e/desktop/02-pet-window.e2e.ts`），该文档合计 13 例 = `plugin` 9 + `desktop` 4；`desktop` 车道另含启动冒烟 `test/e2e/desktop/boot.e2e.ts` 1 例（合计 **2 files / 5 tests**） |
 
 **已记录的冲突与取舍**：
 
@@ -127,19 +127,19 @@
 | 文件 | Case ID 前缀 | `[Case ID]` 条数 | `[自动化] 是` | `it()` | 层级分布 |
 | --- | --- | --- | --- | --- | --- |
 | `01-dsh-host-and-core-contract.md` | `TC-HOST-L2-01-*` / `TC-CORE-L2-01-*` | 12 | 12 | 12 | L2 |
-| `02-dsh-tauri-pet.md` | `TC-PET-L2-02-*` / `-C-02-*` / `-L3-02-*` | 14 | 13 | 9 + 4（L3 段在 `desktop` 车道） | L2 → L3 |
+| `02-dsh-tauri-pet.md` | `TC-PET-L2-02-*` / `-C-02-*` / `-L3-02-*` | 13 | 13 | 9 + 4（L3 段在 `desktop` 车道） | L2 → L3 |
 | `03-dsh-tauri-rightclick.md` | `TC-RC-L2-03-*` / `-C-03-*` / `-L3-03-*` | 12 | 5 | 5 | L2 |
 | `04-dsh-tauri-session.md` | `TC-SESS-L2-04-*` / `-C-04-*` / `-L3-04-*` | 13 | 9 | 9 | L2 |
-| `05-dsh-tauri-worktree.md` | `TC-WT-L2-05-*` / `-C-05-*` / `-L3-05-*` | 11 | 7 | 7 | L2 |
+| `05-dsh-tauri-worktree.md` | `TC-WT-L2-05-*` / `-U-05-*` / `-C-05-*` / `-L3-05-*` | 16 | 11 | 7 + 4（L1 单元层） | L2 + L1 |
 | `06-dsh-tauri-ui.md` | `TC-UI-L2-06-*` / `-C-06-*` | 12 | 6 | 6 | L2 |
 | `07-dsh-tauri-panel-extension.md` | `TC-EXT-L2-07-*` / `-C-07-*` / `-L3-07-*` | 23 | 19 | 19 | L2 |
 | `08-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-08-*` / `-C-08-*` / `-L3-08-*` | 15 | 11 | 11 | L2 |
 | `09-dsh-tauri-turnrewind.md` | `TC-REW-L2-09-*` / `-C-09-*` / `-L3-09-*` | 7 | 3 | 3 | L2 |
 | `10-dsh-tauri-model-config.md` | `TC-MC-L2-10-*` / `-C-10-*` / `-L3-10-*` | 10 | 8 | 8 | L2 |
 | `11-dsh-tauri-connection.md` | `TC-CONN-L2-11-*` | 3 | 3 | 3 | L2 |
-| **合计** | — | **132** | **96** | **96** | — |
+| **合计** | — | **136** | **100** | **96** | — |
 
-> **口径**：`[Case ID]` 是文档声明的用例条目总数；`[自动化] 是` 与 `it()` 两列必须逐文件相等（文档↔代码 1:1）。本轮实测的 `files/tests` 计数以 `pnpm test:e2e:plugin -- --run` 的真实输出为准（见 §8 G11 的运行记录）。批次的 `-L3-*` 条目按「Tauri 原生产物」原则折算：仅批次 `02` 保留 4 条（落在 `desktop` 车道），其余批次的 `-L3-*` 条目已降级为浏览器断言并保留原编号与条数。
+> **口径**：`[Case ID]` 是文档声明的用例条目总数，按 `^[Case ID]` **字段行**计数（正文里对该字段的引用不计入条目）；`[自动化] 是` 与 `it()` 两列必须逐文件相等（文档↔代码 1:1）——**唯一例外是批次 `05`**：其 `[自动化] 是` 11 = e2e `it()` 7 + 4 条 L1 单元层（`TC-WT-U-05-001`–`004`，由 `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts` 覆盖，不占 e2e `it()`），故选例文档的 e2e 合计仍是 96。本轮实测的 `files/tests` 计数以 `pnpm test:e2e:plugin -- --run` 的真实输出为准（见 §8 G11 的运行记录）。批次的 `-L3-*` 条目按「Tauri 原生产物」原则折算：仅批次 `02` 保留 4 条（落在 `desktop` 车道），其余批次的 `-L3-*` 条目已降级为浏览器断言并保留原编号与条数。
 
 ### 7.2 关键来源 → 覆盖位置
 

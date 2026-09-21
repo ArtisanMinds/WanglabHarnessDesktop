@@ -245,7 +245,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/surface.tsx:35`
-[自动化] 待接线（L3 通道尚未接入；`desktop` project 本身已配置，`00-overview.md` G4 已消解）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言，`desktop` project 已配置）
 [前置条件] 应用就绪；存在活动会话
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 查询 `[data-dsh-worktree-surface]`。3. 读其值。
