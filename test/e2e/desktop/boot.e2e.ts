@@ -3,8 +3,9 @@
  *
  * 桌面壳层的职责只有一件：把 dsh 装起来、跑起来、嵌进来。因此桌面端只保留这一条 E2E，
  * 断言四件事：
- *   ① 进入下载：`startDesktopApp()` 默认给本次运行一个**独占空缓存**，装配必须真的下载
- *      并落盘（Node 运行时 + dsh 本体），断言据此观察；
+ *   ① 进入下载：本用例显式 `coldCache: true` 要一份**独占空缓存**，装配必须真的下载
+ *      并落盘（Node 运行时 + dsh 本体），断言据此观察；`startDesktopApp()` 默认复用
+ *      跨运行的共享缓存（`$DSH_E2E_DOWNLOAD_CACHE_DIR`），核心不再每次重下；
  *   ② 内核启动：`get_runtime_info().service_url` 指向本机端口，且壳层挂出 iframe——
  *      `src/layout/components/iframe.tsx` 只在 `harness.serviceHealthy` 为真时挂载；
  *   ③ dsh 页面出现：进帧（跨域，靠仓库 vendor 补丁的 `ICoreWebView2Frame2::ExecuteScript`）
@@ -86,7 +87,7 @@ describe.skipIf(process.platform === 'darwin')('桌面端启动冒烟', () => {
   let browser: WebdriverIO.Browser
 
   beforeAll(async () => {
-    app = await startDesktopApp()
+    app = await startDesktopApp({ coldCache: true })
     browser = app.browser
     // 尽早装壳层收集器：装配失败、iframe 加载失败都会在壳层留下痕迹
     await browser.execute(collectPageErrors)
@@ -100,7 +101,8 @@ describe.skipIf(process.platform === 'darwin')('桌面端启动冒烟', () => {
   })
 
   it('TC-DSK-L3-01-001 进入下载装配后 dsh 内核启动、页面渲染且无报错', async () => {
-    // ① 进入下载：本次运行独占的空缓存里必须落下 dsh 本体
+    // ① 进入下载：本用例显式要一份**独占空缓存**（`coldCache: true`），装配必须真的下载并落盘
+    // （`startDesktopApp()` 默认复用跨运行的共享缓存，核心不再每次重下）
     // （Node 可能直接复用系统安装，`<cache>/runtime` 因此不保证存在，故不据此断言）
     const cacheDir = app?.downloadCacheDir ?? ''
     expect(existsSync(join(cacheDir, 'dependencies', 'dsh')), 'dsh 本体未落盘（装配没走下载）').toBe(true)

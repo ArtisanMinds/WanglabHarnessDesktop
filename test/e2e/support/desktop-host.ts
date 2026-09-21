@@ -93,11 +93,17 @@ export interface StartDesktopAppOptions {
   /**
    * 覆盖下载缓存根。
    *
-   * 默认是**本次运行独占的空目录**（`<home>/download-cache`）：装配必然真的走一遍
-   * 下载与落盘，跑完随 scratch home 一起删除，跨运行零残留。想让本地反复跑时复用
-   * 已下好的 Node/dsh（省一次联网），传一个稳定目录即可。
+   * 默认**复用跨运行的共享缓存**（`$DSH_E2E_DOWNLOAD_CACHE_DIR`，缺省
+   * `<os.tmpdir()>/dsh-e2e-download-cache`）：已下好的 Node/dsh 不再每次重下。
+   * 需要观察「装配真的走了一遍下载」的用例用 `coldCache`（或 `DSH_E2E_COLD_ASSEMBLY=1`）
+   * 退回「本次运行独占的空目录」。
    */
   downloadCacheDir?: string
+  /**
+   * 本次运行使用空缓存：装配必然真的下载并落盘，跑完随 scratch home 一起删除。
+   * 等价于 `DSH_E2E_COLD_ASSEMBLY=1`。
+   */
+  coldCache?: boolean
   /**
    * 复用指定的隔离根（跨重启持久化用例）。
    *
@@ -154,9 +160,13 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   const home = options.homeDir ?? makeHome(keepHome)
   ensureHomeDirs(home)
 
-  // 默认独占空缓存：装配必须真的下载并落盘 Node/dsh，用例据此断言「进入了下载」。
-  // 复用共享缓存会让「有没有下载」取决于上一次运行的运气，断言随之失去意义。
-  const cacheDir = options.downloadCacheDir ?? join(home, 'download-cache')
+  // 默认复用跨运行的共享下载缓存：核心（Node/dsh）不再每次重下。只有显式 `coldCache`
+  // （或 `DSH_E2E_COLD_ASSEMBLY=1`）才退回本次运行独占的空目录，供「必须真的下载」的用例。
+  const coldCache = options.coldCache ?? process.env.DSH_E2E_COLD_ASSEMBLY === '1'
+  const cacheDir = options.downloadCacheDir
+    ?? (coldCache
+      ? join(home, 'download-cache')
+      : process.env.DSH_E2E_DOWNLOAD_CACHE_DIR ?? join(tmpdir(), 'dsh-e2e-download-cache'))
   mkdirSync(cacheDir, { recursive: true })
 
   const profile = join(home, 'home')
