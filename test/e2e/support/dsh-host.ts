@@ -116,7 +116,8 @@ function log(message: string): void {
   process.stderr.write(`[dsh-host] ${message}\n`)
 }
 
-function resolveNodeBin(): string {
+/** node 入口：显式环境变量优先，便于在 CI 里固定解释器。 */
+export function resolveNodeBin(): string {
   return process.env.DSH_E2E_NODE_BIN ?? process.execPath
 }
 
@@ -158,8 +159,11 @@ function tailOf(path: string, lines = 30): string {
  * 业务逻辑与依赖解析
  * ========================================== */
 
-/** 解析 dsh 入口：显式环境变量 → PATH 上的 `dsh` → 桌面端已装配的 bin.js。 */
-function resolveDshCommand(): string[] {
+/**
+ * 解析 dsh 入口：显式环境变量 → 依赖树里的 `@deepseek-ai/dsh/lib/bin.js` → 桌面端装配目录
+ * （新标识符优先，兼容旧标识符）。三处都落空时直接抛错，不回退到「可能不存在」的路径。
+ */
+export function resolveDshCommand(): string[] {
   const explicit = process.env.DSH_E2E_DSH_BIN
   if (explicit)
     return [explicit]

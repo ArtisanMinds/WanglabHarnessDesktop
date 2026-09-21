@@ -5,15 +5,17 @@
  * 立刻刷一帧注释（`get.ts` 的 pushComment），所以「收到 `:` 开头的一行」就是
  * 「路由已注册且 handler 跑起来了」的正向证据。
  *
- * 无浏览器：本用例只走 HTTP，先把编排骨架跑稳；客户端渲染（Bundle Slot 挂载、
- * DOM 节点）待 `docs/testing/plugins/02-dsh-tauri-pet.md` 的客户端部分接线。
+ * 上半部分只走 HTTP：断言对象是路由注册与 SSE 字节；下半部分是浏览器层用例，
+ * 覆盖 Bundle Slot 挂载与侧栏 DOM 补丁。
  */
 
 import type { Browser } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
+import { PET_ICON_RETRY_MAX, PET_ICON_RETRY_MS } from '../../../packages/dsh-tauri-pet/src/client/constants/index.ts'
 import {
+  expectNoSyntheticFallbacks,
   launchDshBrowser,
   newDshPage,
   openSettings,
@@ -58,6 +60,16 @@ const KEEPALIVE_MS = 15_000
 
 /** 第 2 帧心跳的可接受上界：一个周期 + 2s 抖动余量，不因读慢了就放宽。 */
 const KEEPALIVE_WINDOW_MAX_MS = 17_000
+
+/**
+ * 侧栏入口兜底轮询的最长存活窗口，取自插件真实常量：
+ * `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:110-114` 每 `PET_ICON_RETRY_MS`
+ * 走一轮，`tries > PET_ICON_RETRY_MAX` 即停止，因此最长 31 轮。
+ */
+const RETRY_WINDOW_MS = PET_ICON_RETRY_MS * (PET_ICON_RETRY_MAX + 1)
+
+/** 观察时长：必须长于轮询窗口，否则「预算耗尽之后」的断言无从谈起。 */
+const RETRY_SETTLE_MS = 18_000
 
 /** 一次读取的结果：累计文本、自建连起的耗时、已消费的响应块数。 */
 interface SseRead {
@@ -223,7 +235,7 @@ describe('L2 客户端', () => {
   it('验证顶层页面不注册任何桌宠槽位', async () => {
     const top = await newDshPage(browser, { path: '/', ready: SETTINGS_TRIGGER })
     try {
-      await openSettings(top.page, top.frame)
+      await openSettings(top.page, top.frame, top.syntheticFallbacks)
 
       const slots = await top.frame.evaluate(() => ({
         hasTrigger: document.querySelector('.dshp-settings-trigger') !== null,
@@ -234,6 +246,7 @@ describe('L2 客户端', () => {
       expect(slots.hasTrigger, '顶层页面必须真的渲染出设置触发器（否则这条断言是空转）').toBe(true)
       expect(slots.petIcons, '顶层页面不得被插入桌宠入口（window.parent === window 早退）').toBe(0)
       expect(slots.petSections, '顶层页面不得注册桌宠设置分区').toBe(0)
+      expectNoSyntheticFallbacks(top)
       expect(top.errors, '早退路径不得产出应用级错误').toEqual([])
     }
     finally {
@@ -244,7 +257,7 @@ describe('L2 客户端', () => {
   it('验证 iframe 内桌宠设置分区正常渲染且无崩溃', async () => {
     const app = await newDshPage(browser)
     try {
-      await openSettings(app.page, app.frame)
+      await openSettings(app.page, app.frame, app.syntheticFallbacks)
 
       const nav = app.frame.locator(SETTINGS_NAV_ITEM).filter({ hasText: '宠物' })
       expect(await nav.count(), '桌宠分区必须在导航里注册且唯一（同 id 不得重复注册）').toBe(1)
@@ -253,7 +266,7 @@ describe('L2 客户端', () => {
         '分区导航项必须由设置侧栏渲染',
       ).toBe(true)
 
-      await selectSettingsSection(app.page, app.frame, '宠物')
+      await selectSettingsSection(app.page, app.frame, '宠物', app.syntheticFallbacks)
 
       const panel = app.frame.locator('.dshp-pet__page')
       await expect.poll(
@@ -280,6 +293,7 @@ describe('L2 客户端', () => {
       expect(panelState.sizeSlider!.min, '尺寸下限必须与插件常量一致').toBe('50')
       expect(panelState.sizeSlider!.max, '尺寸上限必须与插件常量一致').toBe('200')
       expect(panelState.alerts, '正常渲染时不得出现错误条').toEqual([])
+      expectNoSyntheticFallbacks(app)
       expect(app.errors, '分区注册与渲染不得抛出应用级错误').toEqual([])
     }
     finally {
@@ -342,11 +356,12 @@ describe('L2 客户端', () => {
   it('验证侧栏长时间未就绪时停止轮询且不抛错', async () => {
     const app = await newDshPage(browser, { ready: SETTINGS_TRIGGER })
     try {
-      const budget = await app.frame.evaluate(() => ({ retryMs: 500, retryMax: 30 }))
-      expect(budget.retryMs, '夹具必须与插件的兜底轮询周期一致').toBe(500)
-      expect(budget.retryMs * (budget.retryMax + 1), '轮询兜底预算必须是一个可等完的有限窗口').toBeLessThanOrEqual(20_000)
+      expect(
+        RETRY_WINDOW_MS,
+        `观察窗口 ${RETRY_SETTLE_MS}ms 必须覆盖插件真实轮询预算 ${RETRY_WINDOW_MS}ms（PET_ICON_RETRY_MS×PET_ICON_RETRY_MAX，常量变大时本用例必须失败）`,
+      ).toBeLessThan(RETRY_SETTLE_MS)
 
-      await new Promise(resolve => setTimeout(resolve, 18_000))
+      await new Promise(resolve => setTimeout(resolve, RETRY_SETTLE_MS))
 
       const state = await app.frame.evaluate(() => {
         const button = document.querySelector('[data-dsh-tauri-pet-icon]')

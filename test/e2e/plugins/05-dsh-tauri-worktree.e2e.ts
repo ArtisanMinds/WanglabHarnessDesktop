@@ -1,5 +1,5 @@
 /**
- * 批次 05 · `dsh-tauri-worktree` 宿主路由（用例来源：`docs/testing/plugins/05-dsh-tauri-worktree.md`）。
+ * 批次 05 · `dsh-tauri-worktree` 宿主路由（契约见 `docs/specs/plugin.test.md`）。
  *
  * 断言对象是外部世界（状态码、响应字节、清单回读），不采信插件自报。
  * 本文件刻意只覆盖**无需真实 git 仓库**的路径：`linkDependencies` 默认 `true`

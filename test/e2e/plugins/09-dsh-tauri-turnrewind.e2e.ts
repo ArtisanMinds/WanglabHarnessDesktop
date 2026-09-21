@@ -1,5 +1,5 @@
 /**
- * 批次 09 · `dsh-tauri-turnrewind` 的宿主路由（用例来源：`docs/testing/plugins/09-dsh-tauri-turnrewind.md`）。
+ * 批次 09 · `dsh-tauri-turnrewind` 的宿主路由（契约见 `docs/specs/plugin.test.md`）。
  *
  * 插件只读：两个 GET 端点把账本里的逐回合变更记录回传给客户端卡片。判定依赖会话与工作区
  * 上下文，而 scratch 宿主不造会话，因此本批刻意只覆盖无会话条件下即可判定的分支：入参校验、

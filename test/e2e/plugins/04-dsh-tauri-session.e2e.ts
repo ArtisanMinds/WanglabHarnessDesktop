@@ -1,5 +1,5 @@
 /**
- * 批次 04 · `dsh-tauri-session` 宿主路由（用例来源：`docs/testing/plugins/04-dsh-tauri-session.md`）。
+ * 批次 04 · `dsh-tauri-session` 宿主路由（契约见 `docs/specs/plugin.test.md`）。
  *
  * 本批只走 HTTP，断言对象是外部世界（状态码、响应字节、`allow` 头），不采信插件自报。
  * `DELETE` 也按 JSON 读体是本插件与常规 REST 直觉相反的负向考点；`allow` 成员顺序属

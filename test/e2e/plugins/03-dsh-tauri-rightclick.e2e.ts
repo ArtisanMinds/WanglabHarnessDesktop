@@ -1,5 +1,5 @@
 /**
- * 批次 03 · `dsh-tauri-rightclick` 的宿主路由（用例来源：`docs/testing/plugins/03-dsh-tauri-rightclick.md`）。
+ * 批次 03 · `dsh-tauri-rightclick` 的宿主路由（契约见 `docs/specs/plugin.test.md`）。
  *
  * 本插件是唯一带真实系统副作用的 L2 路由：`open/url` 与 `open/path` 的正向分支会真的
  * 拉起本机浏览器 / 文件管理器。因此这里只落地**在副作用之前就返回**的拒绝分支；

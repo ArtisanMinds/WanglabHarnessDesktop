@@ -1,5 +1,5 @@
 /**
- * 批次 08 · `dsh-tauri-panel-scheduler` 宿主路由（用例来源：`docs/testing/plugins/08-dsh-tauri-panel-scheduler.md`）。
+ * 批次 08 · `dsh-tauri-panel-scheduler` 宿主路由（契约见 `docs/specs/plugin.test.md`）。
  *
  * 本批只覆盖只读清单、缺参与落盘形态，**不触发真实执行**：`run_now` 需要模型与网络，
  * 归入后续批次。断言对象一律是外部世界（HTTP 状态码、响应字节、`<DSH_HOME>/crons/tasks`

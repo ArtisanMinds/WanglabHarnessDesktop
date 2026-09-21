@@ -1,12 +1,14 @@
 /**
- * 批次 10 · `dsh-tauri-model-config` 的宿主路由（用例来源：`docs/testing/plugins/10-dsh-tauri-model-config.md`）。
+ * 批次 10 · `dsh-tauri-model-config` 的宿主路由（L1/L2 契约见 `docs/specs/plugin.test.md`）。
  *
  * 插件顶替官方模型设置页：宿主侧只有 5 条路由，本批覆盖其中 4 条的无会话分支——预设表结构、
  * 端点探测无 endpoint、打开配置文件、设置文件缺失时退回目录。`settings.yaml` 的真实解析与
  * `POST /presets?force=true` 的上游下载由 `packages/dsh-tauri-model-config/src/host/service/`
  * 下的 unit 用例覆盖，不在 L2 重复。
  *
- * 断言对象是外部世界（HTTP 状态码、响应字节、scratch `DSH_HOME` 的文件状态），不采信插件自报。
+ * 断言对象是外部世界（HTTP 状态码、响应字节、scratch `DSH_HOME` 的文件状态、真实 DOM 结构），
+ * 不采信插件自报。
+ *
  * 宿主复用 globalSetup 的共享实例（已挂载 dsh-tauri-model-config），不另起进程。
  */
 
@@ -18,6 +20,7 @@ import {
   APP_MODAL,
   appUrl,
   dismissAppModals,
+  expectNoSyntheticFallbacks,
   launchDshBrowser,
   newDshPage,
   openSettings,
@@ -37,6 +40,17 @@ const PRESETS_FIELDS = ['ok', 'source', 'fetchedAt', 'stale', 'count', 'presets'
 
 /** 密钥字段名黑名单：服务端从不回显凭据（G-MC-1）。 */
 const SECRET_FIELDS = ['apiKey', 'api_key', 'key', 'token'] as const
+
+/**
+ * 模型页的结构锚点：CSS Module 运行期类名保留原语义
+ * （`packages/dsh-tauri-model-config/src/client/models/styles.ts:69,79,82,14`）。
+ */
+const MODELS_TITLE_ROW = '[class*="titleRow"]'
+const MODELS_PROVIDER_CARD = '[class*="rowCard"],[class*="setupCard"]'
+const MODELS_ADD_ACTIONS = '[class*="addActions"]'
+
+/** 空态下页脚操作区的按钮文案（`models/locales.ts:151,212`），不含任何宽泛词。 */
+const MODELS_ADD_LABELS = ['添加提供方', '添加自定义提供方'] as const
 
 interface PresetsBody {
   ok?: boolean
@@ -173,10 +187,10 @@ describe('L2 客户端', () => {
     await browser.close()
   })
 
-  it('验证模型设置分区由本插件接管且排在首位', async () => {
+  it('验证模型设置分区由本插件接管且不重复', async () => {
     const app = await newDshPage(browser)
     try {
-      await openSettings(app.page, app.frame)
+      await openSettings(app.page, app.frame, app.syntheticFallbacks)
 
       const nav = await app.frame.evaluate(() =>
         Array.from(document.querySelectorAll('nav[aria-label] button')).map(button => button.textContent?.trim() ?? ''))
@@ -184,7 +198,7 @@ describe('L2 客户端', () => {
       expect(nav, '设置侧栏必须注册模型分区').toContain('模型')
       expect(nav.filter(label => label.includes('模型')).length, 'patch 关闭官方 models 后「模型」分区必须恰好一个').toBe(1)
 
-      await selectSettingsSection(app.page, app.frame, '模型')
+      await selectSettingsSection(app.page, app.frame, '模型', app.syntheticFallbacks)
 
       const panel = await app.frame.evaluate(() => {
         const content = document.querySelector('[class*="content-inner"]')
@@ -195,6 +209,7 @@ describe('L2 客户端', () => {
       })
       expect(panel.text, '模型分区必须真的渲染出内容').not.toBe('')
       expect(panel.text, '模型分区必须落到本插件的模型页（含提供商/模型字样）').toMatch(/提供商|模型/)
+      expectNoSyntheticFallbacks(app)
       expect(app.errors, '分区注册与渲染不得抛出应用级错误').toEqual([])
     }
     finally {
@@ -205,7 +220,7 @@ describe('L2 客户端', () => {
   it('验证官方提供商引导弹层由本插件的 onboarding 槽位渲染且可收起', async () => {
     const app = await newDshPage(browser, { dismissModals: false })
     try {
-      const modal = await waitForCredentialModal(app.page, app.frame)
+      const modal = await waitForCredentialModal(app.page, app.frame, app.syntheticFallbacks)
       const state = await modal.evaluate((element) => {
         const text = element.textContent ?? ''
         return {
@@ -218,9 +233,10 @@ describe('L2 客户端', () => {
       expect(state.hasDeepseek, '引导弹层必须渲染官方 DeepSeek 提供商卡片').toBe(true)
       expect(state.inputCount, '引导卡片必须渲染可输入的 API 密钥字段').toBeGreaterThan(0)
       expect(state.alerts, '首次进入不得出现错误条').toEqual([])
+      expectNoSyntheticFallbacks(app)
       expect(app.errors, '引导弹层渲染不得抛出应用级错误').toEqual([])
 
-      await dismissAppModals(app.page, app.frame)
+      await dismissAppModals(app.page, app.frame, app.syntheticFallbacks)
       await expect.poll(
         async () => await app.frame.locator(APP_MODAL).count(),
         { timeout: 15_000, message: '点「稍后配置」后引导弹层必须收起' },
@@ -234,29 +250,32 @@ describe('L2 客户端', () => {
   it('验证模型页渲染提供商卡片与页脚操作区', async () => {
     const app = await newDshPage(browser)
     try {
-      await openSettings(app.page, app.frame)
-      await selectSettingsSection(app.page, app.frame, '模型')
+      await openSettings(app.page, app.frame, app.syntheticFallbacks)
+      await selectSettingsSection(app.page, app.frame, '模型', app.syntheticFallbacks)
 
-      const state = await app.frame.evaluate(() => {
+      const state = await app.frame.evaluate(({ titleRow, providerCard, addActions }) => {
         const content = document.querySelector('[class*="content-inner"]')
-        const text = content?.textContent ?? ''
+        const footer = content?.querySelector(addActions)
         return {
-          text,
-          cardish: content?.querySelectorAll('[class*="card"],[class*="provider"],[class*="setup"]').length ?? 0,
+          titleRows: content?.querySelectorAll(titleRow).length ?? 0,
+          providerCards: content?.querySelectorAll(providerCard).length ?? 0,
+          footerButtons: Array.from(footer?.querySelectorAll('button') ?? []).map(button => button.textContent?.trim() ?? ''),
           buttons: content?.querySelectorAll('button').length ?? 0,
           alerts: Array.from(content?.querySelectorAll('[role="alert"]') ?? []).map(alert => alert.textContent?.trim()),
           navLabels: Array.from(document.querySelectorAll('nav[aria-label] button')).map(button => button.textContent?.trim()),
         }
-      })
+      }, { titleRow: MODELS_TITLE_ROW, providerCard: MODELS_PROVIDER_CARD, addActions: MODELS_ADD_ACTIONS })
 
-      expect(state.text, '模型页必须非空').not.toBe('')
+      expect(state.titleRows, '模型页必须渲染标题行（证明走的是正常分支而非加载失败分支）').toBeGreaterThan(0)
       expect(
-        state.cardish > 0 || /暂无|添加|提供商|API/i.test(state.text),
-        '模型页必须给出提供商卡片或明确的空态文案',
+        state.providerCards > 0 || MODELS_ADD_LABELS.some(label => state.footerButtons.includes(label)),
+        `模型页必须为提供商渲染卡片 ${MODELS_PROVIDER_CARD}，或渲染带「添加提供方」按钮的明确空态`
+        + `（实际页脚按钮：${JSON.stringify(state.footerButtons)}）`,
       ).toBe(true)
       expect(state.buttons, '模型页必须渲染可交互的页脚操作区').toBeGreaterThan(0)
       expect(state.alerts, '预设可用时不得出现错误条').toEqual([])
       expect(state.navLabels.filter(label => label === '模型').length, '切换到模型页后同 id 分区不得重复').toBe(1)
+      expectNoSyntheticFallbacks(app)
       expect(app.errors, '模型页渲染不得抛出应用级错误').toEqual([])
     }
     finally {
@@ -277,8 +296,8 @@ describe('L2 客户端', () => {
         })
       })
 
-      await openSettings(app.page, app.frame)
-      await selectSettingsSection(app.page, app.frame, '模型')
+      await openSettings(app.page, app.frame, app.syntheticFallbacks)
+      await selectSettingsSection(app.page, app.frame, '模型', app.syntheticFallbacks)
       await new Promise(resolve => setTimeout(resolve, 2_000))
 
       const state = await app.frame.evaluate(() => {
@@ -296,6 +315,7 @@ describe('L2 客户端', () => {
       expect(state.buttons, '失败时仍必须保留可交互入口').toBeGreaterThan(0)
       expect(state.inputs, '失败时仍必须保留可编辑字段').toBeGreaterThan(0)
       expect(state.errorLines, '预设失败不得让模型页出现 entry.error 级错误条').toEqual([])
+      expectNoSyntheticFallbacks(app)
       expect(
         app.errors.filter(line => line.startsWith('PAGEERROR')),
         '预设 502 只允许留下浏览器对 502 响应的 console 记录，不得有未捕获异常',

@@ -3,7 +3,7 @@
 // D0 临时探针：验证 debug 二进制内嵌的 WebDriver server 能否被纯 HTTP 驱动。
 // 只验这一个不确定性，通过后由正式接线（test/e2e/support/desktop-host.ts）取代；
 // 现状：桌面端冒烟已走 desktop-host.ts，本探针保留为不依赖 WDIO 的最小诊断通道，
-// 供插件用例集引用（见 docs/testing/plugins/02-dsh-tauri-pet.md）。
+// 保留为不依赖 WDIO 的最小诊断通道之一（测试协议见 docs/specs/plugin.test.md）。
 
 import { spawn } from 'node:child_process'
 import { closeSync, existsSync, openSync, readFileSync } from 'node:fs'

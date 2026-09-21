@@ -1,18 +1,19 @@
 /**
- * 批次 06 · `dsh-tauri-ui` 宿主路由（用例来源：`docs/testing/plugins/06-dsh-tauri-ui.md`）。
+ * 批次 06 · `dsh-tauri-ui` 宿主路由与设置侧栏（契约见 `docs/specs/plugin.test.md`）。
  *
- * 本批只覆盖续跑路由的两条拒绝分支：缺参（400）与会话不存在（404）。断言对象是外部
+ * 宿主侧只覆盖续跑路由的两条拒绝分支：缺参（400）与会话不存在（404）。断言对象是外部
  * 世界（HTTP 状态码与响应字节），不采信插件自报；`error` 文案必须逐字相等，否则
  * 「路由在跑」与「路由换了实现」在测试里不可区分。
  *
  * 复用 globalSetup 的共享宿主（`also` 默认已挂载本插件），不另起进程。
  * 运行中 / 已正常结束（409）与两条注入失败（500：loader 缺失 / `dsh-llm` 导出缺失）都需要
- * 真实会话，scratch 宿主无造会话手段，保持待补（`00-overview.md` G9）。
+ * 真实会话，scratch 宿主无造会话手段，保持待补。
  */
 
 import type { Browser } from 'playwright'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import {
+  expectNoSyntheticFallbacks,
   launchDshBrowser,
   newDshPage,
   openSettings,
@@ -88,7 +89,7 @@ describe('L2 客户端', () => {
       expect(triggerHost.triggerInsideSidebar, '设置触发器必须是侧栏内的原生按钮').toBe(true)
       expect(triggerHost.triggerTag, '触发器必须是 button').toBe('BUTTON')
 
-      await openSettings(app.page, app.frame)
+      await openSettings(app.page, app.frame, app.syntheticFallbacks)
 
       const state = await app.frame.evaluate(() => {
         const root = document.querySelector('[data-slot-sidebar="dsh-tauri-ui"]')
@@ -109,6 +110,7 @@ describe('L2 客户端', () => {
       expect(state.railWidth, '侧栏宽度必须落在插件声明的 264–420px 夹紧区间内（插件不覆写宿主宽度）')
         .toBeGreaterThanOrEqual(264)
       expect(state.railWidth!).toBeLessThanOrEqual(420)
+      expectNoSyntheticFallbacks(app)
       expect(app.errors, '侧栏注入不得抛出应用级错误').toEqual([])
     }
     finally {
@@ -123,7 +125,7 @@ describe('L2 客户端', () => {
       expect(await trigger.getAttribute('aria-expanded'), '初始必须为 false').toBe('false')
       expect(await app.frame.locator(SETTINGS_SIDEBAR).count(), '初始不得渲染设置侧栏').toBe(0)
 
-      await openSettings(app.page, app.frame)
+      await openSettings(app.page, app.frame, app.syntheticFallbacks)
       expect(await trigger.getAttribute('aria-expanded'), '首次点击后必须为 true').toBe('true')
       await expect.poll(
         async () => await app.frame.locator(SETTINGS_SIDEBAR).first().isVisible(),
@@ -138,6 +140,7 @@ describe('L2 客户端', () => {
         { timeout: 10_000, message: 'Escape 后必须回到 false' },
       ).toBe('false')
       expect(await app.frame.locator(SETTINGS_SIDEBAR).count(), '收起后设置侧栏必须卸载').toBe(0)
+      expectNoSyntheticFallbacks(app)
       expect(app.errors, '开合不得抛出应用级错误').toEqual([])
     }
     finally {

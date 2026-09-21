@@ -1,5 +1,5 @@
 /**
- * 批次 07 · 扩展管理面板的 L2 宿主路由（用例来源：`docs/testing/plugins/07-dsh-tauri-panel-extension.md`）。
+ * 批次 07 · 扩展管理面板的 L2 宿主路由（契约见 `docs/specs/plugin.test.md`）。
  *
  * 本批只走 HTTP：断言对象是宿主返回的状态码与响应字节，以及 scratch profile 里配置文件的内容，
  * 不采信插件自报。写入分支（技能保存 / 导入 / 仓库创建）会改动用户配置，本批一概不碰。

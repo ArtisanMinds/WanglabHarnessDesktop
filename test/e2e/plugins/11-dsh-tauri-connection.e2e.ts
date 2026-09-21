@@ -1,5 +1,5 @@
 /**
- * 批次 11 · `dsh-tauri-connection` 的桌面载体鉴权适配（用例来源：`docs/testing/plugins/11-dsh-tauri-connection.md`）。
+ * 批次 11 · `dsh-tauri-connection` 的桌面载体鉴权适配（契约见 `docs/specs/plugin.test.md`）。
  *
  * 本插件是全仓唯一的网络安全边界型插件：当且仅当子进程带 `DSH_TAURI_EMBEDDED=1` 时，它在
  * `connection` 服务上把 401 降级为放行、把索引放行；其余取值下 `attach()` 返回 noop，鉴权完全不变。
@@ -7,17 +7,18 @@
  * 三条用例都必须控制该环境变量，因此各自自带 scratch 宿主。这里不用 `support/dsh-host.ts` 的
  * `startDshHost`：它在返回宿主前先做根路径 token 交换，而该交换在注入态被鉴权适配放行成 200
  * （没有 303 + Set-Cookie），会把「被测行为」当成启动失败抛掉。自带编排只做脚手架与就绪等待，
- * 复用 `scaffoldDshProfile` 与 `REPO_ROOT`，不起第二个共享宿主。
+ * 复用 `scaffoldDshProfile` / `resolveDshCommand` / `resolveNodeBin` 与 `REPO_ROOT`，不起第二个共享宿主。
  */
 
 import type { ChildProcess } from 'node:child_process'
+import type { WriteStream } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { createWriteStream, readFileSync, type WriteStream } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { createWriteStream, readFileSync, rmSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import process from 'node:process'
 import { finished } from 'node:stream/promises'
 import { describe, expect, it } from 'vitest'
-import { scaffoldDshProfile } from '../support/dsh-host'
+import { resolveDshCommand, resolveNodeBin, scaffoldDshProfile } from '../support/dsh-host'
 
 const EMBEDDED_ENV = 'DSH_TAURI_EMBEDDED'
 
@@ -40,23 +41,6 @@ interface GateHost {
 
 function log(message: string): void {
   process.stderr.write(`[gate-host] ${message}\n`)
-}
-
-function resolveDshBin(): string {
-  const explicit = process.env.DSH_E2E_DSH_BIN
-  if (explicit)
-    return explicit
-  return join(
-    process.env.APPDATA ?? '',
-    'io.github.hairyf.deepseek-harness-desktop',
-    'dependencies',
-    'dsh',
-    'node_modules',
-    '@deepseek-ai',
-    'dsh',
-    'lib',
-    'bin.js',
-  )
 }
 
 async function killTree(child: ChildProcess): Promise<void> {
@@ -115,11 +99,12 @@ async function startGateHost(): Promise<GateHost> {
   })
   const logPath = join(profile.home, 'dsh-web.log')
   const logStream: WriteStream = createWriteStream(logPath, { flags: 'a' })
-  const args = [resolveDshBin(), 'web', '--host', '127.0.0.1', '--port', '0', '--no-open']
+  const [dshBin] = resolveDshCommand()
+  const args = [dshBin, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open']
 
   log(`🚀 挂载 [${basename(profile.home)}] carrier=${process.env[EMBEDDED_ENV] ?? '(unset)'}`)
 
-  const child = spawn(process.execPath, args, {
+  const child = spawn(resolveNodeBin(), args, {
     cwd: profile.profileDir,
     env: { ...process.env, DSH_HOME: profile.home },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -129,6 +114,7 @@ async function startGateHost(): Promise<GateHost> {
   child.stdout?.pipe(logStream, { end: false })
   child.stderr?.pipe(logStream, { end: false })
 
+  const home = profile.home
   let stopped = false
   const stop = async (): Promise<void> => {
     if (stopped)
@@ -139,13 +125,14 @@ async function startGateHost(): Promise<GateHost> {
     child.stderr?.unpipe(logStream)
     logStream.end()
     await finished(logStream).catch(() => {})
+    rmSync(home, { recursive: true, force: true })
   }
 
   try {
     const url = await waitForReady(child, logPath)
     const baseUrl = new URL(url).origin
     log(`✅ 就绪 [${baseUrl}] carrier=${process.env[EMBEDDED_ENV] ?? '(unset)'}`)
-    return { baseUrl, url, home: profile.home, logPath, stop }
+    return { baseUrl, url, home, logPath, stop }
   }
   catch (error) {
     await stop()
