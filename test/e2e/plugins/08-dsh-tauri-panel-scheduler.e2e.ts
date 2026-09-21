@@ -18,9 +18,11 @@ import { describe, expect, inject, it } from 'vitest'
 const SCHEDULER_ROOT = '/api/desktop/dsh-tauri-panel-scheduler'
 
 const TASKS_PATH = `${SCHEDULER_ROOT}/tasks`
+const TASKS_TOGGLE_PATH = `${SCHEDULER_ROOT}/tasks/toggle`
 const TASKS_RUN_PATH = `${SCHEDULER_ROOT}/tasks/run`
 const HISTORY_PATH = `${SCHEDULER_ROOT}/history`
 const OPTIONS_PATH = `${SCHEDULER_ROOT}/options`
+const RUNS_RECOVER_PATH = `${SCHEDULER_ROOT}/runs/recover`
 
 /** 与 `packages/dsh-tauri-panel-scheduler/src/host/storage/index.ts:4` 的 `base: 'crons'` 对齐。 */
 const TASKS_LEDGER = join('crons', 'tasks')
@@ -270,5 +272,66 @@ describe('L2 宿主路由', () => {
     expect(typeof body, '选项载荷必须是对象').toBe('object')
     expect(Array.isArray(body), '选项载荷必须是对象，而不是数组').toBe(false)
     expect(Object.keys(body as Record<string, unknown>).length, '选项载荷不得为空对象').toBeGreaterThan(0)
+  })
+
+  it('[反向] 验证整任务更新缺 id 返回 400', async () => {
+    const response = await fetch(url(TASKS_PATH), {
+      method: 'PUT',
+      headers: apiHeaders(JSON_HEADERS),
+      body: '{}',
+    })
+
+    expect(response.status, '缺 id 必须 400').toBe(400)
+    expect(await response.json() as ActionResultPayload, '缺参文案必须逐字相等').toEqual({ error: '缺少任务 id' })
+
+    expect(await readTasks(), '被拒的更新不得改动清单').toEqual([])
+  })
+
+  it('[反向] 验证启停任务缺 id 返回 400', async () => {
+    const response = await fetch(url(TASKS_TOGGLE_PATH), {
+      method: 'POST',
+      headers: apiHeaders(JSON_HEADERS),
+      body: '{}',
+    })
+
+    expect(response.status, '缺 id 必须 400').toBe(400)
+    expect(await response.json() as ActionResultPayload, '缺参文案必须逐字相等').toEqual({ error: '缺少任务 id' })
+
+    expect(await readTasks(), '被拒的启停不得改动清单').toEqual([])
+  })
+
+  it('验证执行记录清单在无记录时为空数组', async () => {
+    const response = await fetch(url(HISTORY_PATH), { headers: apiHeaders() })
+
+    expect(response.status, '执行记录清单必须可读').toBe(200)
+
+    const body = await response.json() as HistoryPayload
+    expect(Array.isArray(body.runs), '响应体必须带 runs 数组字段').toBe(true)
+    expect(body.error, '成功路径不得带 error 字段').toBeUndefined()
+    expect(body.runs, '未执行过任何任务的 scratch 宿主必须恰好为空数组').toEqual([])
+  })
+
+  it('验证执行记录恢复端点幂等且不改写记录', async () => {
+    const before = await readRuns()
+
+    const first = await fetch(url(RUNS_RECOVER_PATH), {
+      method: 'POST',
+      headers: apiHeaders(JSON_HEADERS),
+      body: '{}',
+    })
+
+    expect(first.status, '恢复端点必须存在且返回 200').toBe(200)
+    expect(await first.json() as ActionResultPayload, '恢复成功必须带 ok:true').toEqual({ ok: true })
+
+    const second = await fetch(url(RUNS_RECOVER_PATH), {
+      method: 'POST',
+      headers: apiHeaders(JSON_HEADERS),
+      body: '{}',
+    })
+
+    expect(second.status, '重复恢复必须幂等').toBe(200)
+    expect(await second.json() as ActionResultPayload, '重复恢复必须同样带 ok:true').toEqual({ ok: true })
+
+    expect((await readRuns()).length, '无 running 记录时恢复不得改动执行记录').toBe(before.length)
   })
 })

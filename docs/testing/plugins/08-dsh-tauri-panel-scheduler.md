@@ -1,7 +1,7 @@
 # dsh-tauri-panel-scheduler：定时任务面板与任务生命周期
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts`（L2 宿主路由 7 例已落地）；客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts`（L2 宿主路由 11 例已落地）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`（本批全部复用 `globalSetup` 的共享宿主，不另起进程）；真实执行（`run_now`）需模型与网络，不属本批
 > 运行：L2 `pnpm vitest run --project plugin test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts`；L3 待接线（L3 通道尚未接入）
 
@@ -21,6 +21,10 @@
 | `GET /history` 按 `startedAt` 倒序 | `packages/dsh-tauri-panel-scheduler/src/host/service/runs.ts:15` |
 | 任务账本 `$DSH_HOME/crons/tasks` 为 `{version:1,tasks:[…]}` | `packages/dsh-tauri-panel-scheduler/src/host/service/task.ts:124`、`packages/dsh-tauri-panel-scheduler/src/host/storage/index.ts:4` |
 | 执行记录账本 `$DSH_HOME/crons/runs`，上限 200 | `packages/dsh-tauri-panel-scheduler/src/host/service/runs.ts:9`、`packages/dsh-tauri-panel-scheduler/src/host/service/runs.ts:60` |
+| `PUT /tasks` 缺 `id` → 400 `缺少任务 id` | `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/put.ts:11` |
+| `POST /tasks/toggle` 缺 `id` → 400 `缺少任务 id` | `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/toggle/post.ts:11` |
+| `GET /history` 返回 `{runs}`（无 `taskId` 时全量） | `packages/dsh-tauri-panel-scheduler/src/host/routes/history/get.ts:10` |
+| `POST /runs/recover` 无参、恒 `{ok:true}`、幂等 | `packages/dsh-tauri-panel-scheduler/src/host/routes/runs/recover/post.ts:8` |
 | 调度 tick 1s，并发上限 4 | `packages/dsh-tauri-panel-scheduler/src/host/apply.ts:13`、`packages/dsh-tauri-panel-scheduler/src/host/service/scheduler.ts:10` |
 | 任务校验：name ≤120、prompt ≤64000、schedule 合法 | `packages/dsh-tauri-panel-scheduler/src/host/service/task.ts:155` |
 | Agent 工具：`scheduler_create/list/toggle/delete/run_now` | `packages/dsh-tauri-panel-scheduler/src/host/tools/create-task.ts:19`、`packages/dsh-tauri-panel-scheduler/src/host/tools/run-task.ts:6` |
@@ -37,7 +41,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/get.ts:8`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:114`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:116`）
 [前置条件] scratch `DSH_HOME` 全新
 [测试数据] `GET /api/desktop/dsh-tauri-panel-scheduler/tasks`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -50,7 +54,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/post.ts:6`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:124`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:126`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] `{ "name": "e2e-smoke", "prompt": "say hi", "schedule": { "kind": "daily", "time": "09:00" } }`
 [测试步骤] 1. `POST /tasks`。2. 读响应体 `task.id` 与 `task.nextRunAt`。3. `GET /tasks` 搜索 `e2e-smoke`。4. 读 scratch 目录下 `crons/tasks` 文件内容。
@@ -63,7 +67,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/post.ts:13`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:179`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:181`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] 依次提交 `{}`、缺 `prompt`、`schedule.kind` 为非法值
 [测试步骤] 1. 逐一提交。2. 每次读状态码与响应体。
@@ -76,7 +80,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/delete.ts:6`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:203`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:205`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] body `{}`；再以 `{ "id": "task-missing" }` 请求
 [测试步骤] 1. 两次 `DELETE /tasks`。2. 读状态码与 `error` 文案。
@@ -89,7 +93,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/run/post.ts:6`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:223`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:225`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] `POST /tasks/run`，body `{ "id": "task-missing" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -102,7 +106,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/history/delete.ts:6`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:240`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:242`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] body `{}`；再以 `{ "id": "run-missing" }` 请求
 [测试步骤] 1. 两次 `DELETE /history`。2. 读状态码与 `error` 文案。
@@ -115,11 +119,67 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/options/get.ts:6`
-[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:262`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:264`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] `GET /options`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体字段名。
 [预期结果] 1. 状态码 200。2. 响应体为对象（非数组、非空）。
+
+### [P3] [反向] 验证整任务更新缺 id 返回 400
+
+[Case ID] TC-SCH-L2-08-008
+[层级] L2（真实 dsh 进程）
+[类型] 异常
+[追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/put.ts:11`
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:277`）
+[前置条件] 同 TC-SCH-L2-08-001
+[测试数据] `PUT /tasks`，body `{}`
+[测试步骤] 1. 发起请求。2. 读状态码与响应体。3. 回读 `GET /tasks`。
+[预期结果] 1. 状态码 400。2. 响应体恰为 `{"error":"缺少任务 id"}`。3. 任务清单仍为空（被拒的更新未落盘）。
+[实测] 400 + 逐字文案，清单仍为空数组，与预期一致；该分支在读体后立刻返回，未触及 `task.update`。
+[清理] 无
+
+### [P3] [反向] 验证启停任务缺 id 返回 400
+
+[Case ID] TC-SCH-L2-08-009
+[层级] L2（真实 dsh 进程）
+[类型] 异常
+[追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/toggle/post.ts:11`
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:290`）
+[前置条件] 同 TC-SCH-L2-08-001
+[测试数据] `POST /tasks/toggle`，body `{}`
+[测试步骤] 1. 发起请求。2. 读状态码与响应体。3. 回读 `GET /tasks`。
+[预期结果] 1. 状态码 400。2. 响应体恰为 `{"error":"缺少任务 id"}`。3. 任务清单仍为空。
+[实测] 400 + 逐字文案，清单仍为空数组，与预期一致。
+[清理] 无
+
+### [P4] 验证执行记录清单在无记录时为空数组
+
+[Case ID] TC-SCH-L2-08-010
+[层级] L2（真实 dsh 进程）
+[类型] 边界
+[追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/history/get.ts:10`
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:303`）
+[前置条件] 同 TC-SCH-L2-08-001
+[测试数据] `GET /history`
+[测试步骤] 1. 发起请求。2. 读状态码与响应体。
+[预期结果] 1. 状态码 200。2. 响应体含 `runs` 数组字段且无 `error`。3. 未执行过任何任务的 scratch 宿主里 `runs` 恰为空数组。
+[实测] 200 + `{runs: []}`，与预期一致。**倒序语义未覆盖**：`runs.list` 用 `orderBy(..., 'startedAt', 'desc')`（`packages/dsh-tauri-panel-scheduler/src/host/service/runs.ts:15`），但要观察到「新在前」必须先有至少两条执行记录，而造记录等于真实执行任务（`run_now`，需模型与网络），故本批只断言空集形态，倒序登记于 §6 G-SCH-5。
+[清理] 无
+
+### [P4] 验证执行记录恢复端点幂等且不改写记录
+
+[Case ID] TC-SCH-L2-08-011
+[层级] L2（真实 dsh 进程）
+[类型] 边界
+[追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/runs/recover/post.ts:8`
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:314`）
+[前置条件] 同 TC-SCH-L2-08-001；无 `status: 'running'` 的残留记录
+[测试数据] `POST /runs/recover`，body `{}`，连续两次
+[测试步骤] 1. 读 `GET /history`。2. 第一次 `POST /runs/recover`。3. 第二次 `POST /runs/recover`。4. 回读 `GET /history` 比较条数。
+[预期结果] 1. 两次状态码均 200 且响应体均为 `{"ok":true}`（该路由不读 body、不要求参数）。2. 无 `running` 记录时执行记录条数不变（幂等）。
+[实测] 两次均 200 + `{ok:true}`，`runs` 条数不变（本机 0 → 0），与预期一致。
+[清理] 无
 
 ---
 
@@ -194,6 +254,10 @@
 | `tasks/run/post.ts` 不存在 | TC-SCH-L2-08-005 | 异常 | `任务正在执行中` 需要真实并发，**未覆盖** |
 | `history/delete.ts` | TC-SCH-L2-08-006 | 边界 | — |
 | `options/get.ts` | TC-SCH-L2-08-007 | 边界 | 只断言形状；「随环境变化」需第二个宿主，见 G-SCH-3 |
+| `tasks/put.ts` 缺 id | TC-SCH-L2-08-008 | 异常 | — |
+| `tasks/toggle/post.ts` 缺 id | TC-SCH-L2-08-009 | 异常 | 真实启停（命中任务）会写账本，**未覆盖** |
+| `history/get.ts` 空集 | TC-SCH-L2-08-010 | 边界 | 倒序语义需真实执行记录，**未覆盖**，见 G-SCH-5 |
+| `runs/recover/post.ts` | TC-SCH-L2-08-011 | 边界 | `running` → `interrupted` 的真实翻转需残留记录，**未覆盖**，见 G-SCH-5 |
 | 面板与对话框 | TC-SCH-C-08-001、TC-SCH-C-08-002、TC-SCH-L3-08-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
 | 会话行图标 | TC-SCH-C-08-003 | 正向 | 依赖浏览器驱动 |
 | 5 个 Agent 工具 | — | — | **未覆盖**：需要 Agent 会话与工具调用通道 |
@@ -213,4 +277,7 @@
 - **未接线（TC-SCH-L3-08-001）**：L3 通道尚未接入——`desktop` project 本身已配置（`00-overview.md` G4 已消解），缺的是桌面端宿主编排与 iframe 切换，故不写成「project 未配置」。
 - **未覆盖（Agent 工具）**：`scheduler_create/list/toggle/delete/run_now` 五个工具需要 Agent 会话与工具调用通道，本批不覆盖。
 - **用例自清理**：唯一落盘的 TC-SCH-L2-08-002 在 `finally` 里删除自建任务，并在收尾断言 `GET /tasks` 回到空数组，不把状态留给后续用例与后续批次。
+- **G-SCH-5**：`GET /history` 的**倒序语义**（`startedAt` 降序，`packages/dsh-tauri-panel-scheduler/src/host/service/runs.ts:15`）与 `POST /runs/recover` 的**真实翻转**（`running` → `interrupted` 并补 `finishedAt` / `error || 'host_interrupted'`，`packages/dsh-tauri-panel-scheduler/src/host/service/recovery.ts:8`）**均未覆盖**：两者都要求执行记录账本里先有数据，而造数据只能真实执行任务（`run_now`，需模型与网络）。本批只验证两条端点在空账本下的形态与幂等。
+- **路径更正（批次 08 补齐）**：派发单把恢复端点写作 `POST /tasks/recover`（`tasks/recover/post.ts`），实际注册的是 `POST /runs/recover`（`packages/dsh-tauri-panel-scheduler/src/host/routes/runs/recover/post.ts`，见 `packages/dsh-tauri-panel-scheduler/src/host/routes/index.ts:14` 的 10 条 exact 路由）。用例按**实际路径**请求。
+- **实测（批次 08 补齐）**：新增 4 条（TC-SCH-L2-08-008 ~ TC-SCH-L2-08-011）已落地并全绿，§2 共 11 条。实测与文档预期**逐字相符**的有：`PUT /tasks` 与 `POST /tasks/toggle` 缺 id 均 400 + `缺少任务 id` 且清单不变、`GET /history` 200 + `{runs:[]}`、`POST /runs/recover` 连续两次均 200 + `{ok:true}` 且记录条数不变。**无疑似缺陷**。
 - **假设**：`crons` 落盘根随 scratch `DSH_HOME` 隔离（`fsAtomicDriver` 以 `DSH_HOME` 为基，`packages/dsh-tauri/src/host/utils/driver.ts:9`）。

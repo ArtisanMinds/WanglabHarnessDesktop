@@ -1,7 +1,7 @@
 # dsh-tauri-ui：壳层注入（设置侧栏 / 触发器 / 续跑补丁）
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts`（L2 宿主路由 2 例已落地）；客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts`（L2 宿主路由 2/6 已落地，4 例待补：`TC-UI-L2-06-003` ~ `-006`，均缺「真实可续跑会话」，其中 `-005` / `-006` 另需残缺 loader，判定不可达）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`；L3 另需 debug 二进制 + 空闲端口
 > 运行：L2 `pnpm test:e2e:plugin`；L3 待接线（L3 通道尚未接入）
 
@@ -17,6 +17,7 @@
 | 唯一路由 `POST /api/desktop/dsh-tauri-ui/session/resume` | `packages/dsh-tauri-ui/src/host/routes/index.ts:5` |
 | 缺 sessionId → 400 | `packages/dsh-tauri-ui/src/host/routes/session/resume/post.ts:10` |
 | 未知会话 → 404；运行中 → 409；已正常结束 → 409 | `packages/dsh-tauri-ui/src/host/service/session.ts:30`、`packages/dsh-tauri-ui/src/host/service/session.ts:32`、`packages/dsh-tauri-ui/src/host/service/session.ts:35` |
+| 注入前置 `loadCreateUserMessage` 抛错 → 500：loader 缺 `import` → `TypeError: DSH_LOADER_MISSING: ctx.loader`；`@deepseek-ai/dsh-llm` 缺 `createUserMessage` → `TypeError: DSH_LLM_EXPORT_MISSING: createUserMessage` | `packages/dsh-tauri-ui/src/host/service/session.ts:76`（抛错点 `:78`、`:85`；`resume()` 的 catch 在 `:19`） |
 | 成功注入固定续跑指令，来源标记 `{kind:'plugin', plugin: PLUGIN_ID}` | `packages/dsh-tauri-ui/src/host/service/session.ts:39` |
 | 客户端 5 个槽位：`shell.overlay` / `sidebar.settings` / `settings.section` / `settings.trigger` / `settings.onboarding` | `packages/dsh-tauri-ui/src/client/constants/index.ts:6` |
 | 设置侧栏根：`class="dshp-settings-sidebar"` + `data-slot-sidebar="dsh-tauri-ui"` | `packages/dsh-tauri-ui/src/client/components/sidebar.tsx:92` |
@@ -79,6 +80,32 @@
 [测试数据] 该会话 id
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 409。2. 响应体 `error` 以 `上一轮已正常结束（` 开头，且括号内为 `completed`、`blocked`、`max-tokens` 之一。
+[清理] 无
+
+### [P4] [反向] 验证宿主缺 loader 时续跑以 500 收场
+
+[Case ID] TC-UI-L2-06-005
+[层级] L2（真实 dsh 进程）
+[类型] 异常
+[追踪] `packages/dsh-tauri-ui/src/host/service/session.ts:78`
+[自动化] 待补（**不可达**：需要「可续跑会话 + 缺 `ctx.loader` 的宿主」，见 §6 G-UI-5；本批不写 `it()`）
+[前置条件] scratch 宿主内存在一条 `idle` 且上一轮未正常结束的会话；该宿主的 `ctx.loader` 没有 `import` 方法
+[测试数据] 该会话 id
+[测试步骤] 1. 发起请求。2. 读状态码与响应体。
+[预期结果] 1. 状态码 500。2. 响应体 `error` 恰为 `TypeError: DSH_LOADER_MISSING: ctx.loader`（`renderThrown` 拼 `${error.name}: ${error.message}`，`packages/dsh-tauri-ui/src/host/service/session.ts:90`）。3. 该会话未收到 followup 消息。
+[清理] 无
+
+### [P4] [反向] 验证 dsh-llm 缺 createUserMessage 导出时续跑以 500 收场
+
+[Case ID] TC-UI-L2-06-006
+[层级] L2（真实 dsh 进程）
+[类型] 异常
+[追踪] `packages/dsh-tauri-ui/src/host/service/session.ts:85`
+[自动化] 待补（**不可达**：前置同 `TC-UI-L2-06-005`，见 §6 G-UI-5；本批不写 `it()`）
+[前置条件] 同 TC-UI-L2-06-005，但 `ctx.loader.import('@deepseek-ai/dsh-llm')` 的返回值（含 `unwrapExports` 结果）都没有 `createUserMessage`
+[测试数据] 该会话 id
+[测试步骤] 1. 发起请求。2. 读状态码与响应体。
+[预期结果] 1. 状态码 500。2. 响应体 `error` 恰为 `TypeError: DSH_LLM_EXPORT_MISSING: createUserMessage`。3. 该会话未收到 followup 消息。
 [清理] 无
 
 ---
@@ -176,6 +203,7 @@
 | `resume/post.ts:10` 缺参 | TC-UI-L2-06-001 | 异常 | — |
 | `session.ts:30` 会话不存在 | TC-UI-L2-06-002 | 异常 | — |
 | `session.ts:32` / `:35` 状态判定 | TC-UI-L2-06-003、TC-UI-L2-06-004 | 异常 / 边界 | 需要造真实会话，当前待补 |
+| `session.ts:78` / `:85` 注入前置抛错 500 | TC-UI-L2-06-005、TC-UI-L2-06-006 | 异常 | **待补（不可达）**：需要「可续跑会话 + 缺 `ctx.loader` / 缺 `createUserMessage` 导出」，共享宿主两者皆无，见 G-UI-5 |
 | 侧栏与触发器注入 | TC-UI-C-06-001、TC-UI-C-06-002、TC-UI-L3-06-001 | 正向 | 依赖浏览器驱动 / L3 通道 |
 | 续跑补丁 | TC-UI-C-06-003、TC-UI-C-06-004 | 正向 / 异常 | 需要中断轮次数据 |
 | Rail 形态 | TC-UI-L3-06-002 | 正向 | 需要 `dsh-tauri` 同时挂载 |
@@ -189,5 +217,6 @@
 - **G-UI-2**：`settings.section` / `settings.onboarding` 的内容由其它插件提供（`packages/dsh-tauri-ui/src/client/register/sections.ts:6`）。单独挂载本插件时该槽位为空，属预期。
 - **G-UI-3**：`[data-composer-card]` / `[data-composer-placeholder]` 是内核 DOM 约定，本仓库内无定义处；内核升级时补丁会静默失效，因此 TC-UI-C-06-003 必须断言「按钮文案已改写」而非「未报错」。
 - **G-UI-4**：TC-UI-L2-06-003 / TC-UI-L2-06-004 需要一条真实「运行中 / 已正常结束」的会话，而当前 scratch 宿主由 `globalSetup` 直接拉起、不播种任何会话，也没有造会话的 helper；续跑路由的会话解析走 `ctx.agents.get(sessionId)`（`packages/dsh-tauri-ui/src/host/service/session.ts:28`），空注册表只会落到 404 分支（实测 TC-UI-L2-06-002 即此路径），无法构造 `idle` / 运行中两种状态。故两条标记为**待补**；补齐造会话能力后这两条进入核心集。
-- **实测（批次 06）**：TC-UI-L2-06-001 / TC-UI-L2-06-002 已落地并全绿；实测状态码与 `error` 文案（`缺少 sessionId`、`会话不存在或尚未运行`）与文档预期逐字一致，无预期修正、无疑似缺陷。
+- **G-UI-5**：TC-UI-L2-06-005 / TC-UI-L2-06-006 覆盖 `loadCreateUserMessage` 的两条抛错路径（`packages/dsh-tauri-ui/src/host/service/session.ts:76`，抛错点 `:78` 与 `:85`），由 `session.resume()` 的 catch 统一转成 `{ ok: false, code: 500, error: renderThrown(error) }`（`packages/dsh-tauri-ui/src/host/service/session.ts:19`、`:89`）。**判定不可达，故不写 `it()`**：两道前置门是叠加的——先要 `agent.status === 'idle'` 且「上一轮未正常结束」（`packages/dsh-tauri-ui/src/host/service/session.ts:31`、`:34`），即必须先有一条真实可续跑会话（同 G-UI-4 的阻塞）；再要一个 `ctx.loader` 无 `import`、或 `@deepseek-ai/dsh-llm` 无 `createUserMessage` 的宿主，而共享宿主由 `globalSetup` 固定配置、loader 完好（`test/e2e/support/dsh-host.ts` 只脚手架 profile 并拉起 `dsh web`，不注入残缺 loader），本批也不另起宿主。构造不出来时唯一能写的断言只能是「状态码是 4xx/5xx」，等于不验任何契约，属恒绿，故放弃。
+- **实测（批次 06）**：TC-UI-L2-06-001 / TC-UI-L2-06-002 已落地并全绿；实测状态码与 `error` 文案（`缺少 sessionId`、`会话不存在或尚未运行`）与文档预期逐字一致，无预期修正、无疑似缺陷。本轮再次实测两条 500 分支的**最外层前置门**：以未知 `sessionId` 请求得到 404 + `会话不存在或尚未运行`，证明共享宿主的 `ctx.agents` 注册表为空，请求在 `:29` 就被 404 截断，根本走不到 `:38` 的注入前置。
 - **假设**：中文 locale 固定（用例断言 `继续任务`）；多语种覆盖留待 locale 专项。

@@ -6,8 +6,8 @@
  * 「路由在跑」与「路由换了实现」在测试里不可区分。
  *
  * 复用 globalSetup 的共享宿主（`also` 默认已挂载本插件），不另起进程。
- * 运行中 / 已正常结束（409）两条需要真实会话，scratch 宿主无造会话手段，保持待补
- * （`00-overview.md` G9）。
+ * 运行中 / 已正常结束（409）与两条注入失败（500：loader 缺失 / `dsh-llm` 导出缺失）都需要
+ * 真实会话，scratch 宿主无造会话手段，保持待补（`00-overview.md` G9）。
  */
 
 import { describe, expect, inject, it } from 'vitest'
