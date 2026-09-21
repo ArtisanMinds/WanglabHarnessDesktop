@@ -11,12 +11,12 @@
 | [`../specs/desktop.test.md`](../specs/desktop.test.md) | 桌面端测试规范：分层、驱动选型、`data-testid`、环境隔离、执行命令 |
 | [`../specs/plugin.test.md`](../specs/plugin.test.md) | 插件测试规范：L2/L3 宿主分层、真实挂载流程、断言准则、依赖替身规则 |
 | [`progressive.md`](./progressive.md) | 推进规则与**进度台账**：单批单卡、审核阻塞、批次状态 |
-| [`desktop/00-overview.md`](./desktop/00-overview.md) | 桌面端总览：环境事实、前置校验、数据目录隔离、追踪矩阵、缺口 |
-| [`desktop/01-window-shell.md`](./desktop/01-window-shell.md) … [`11-assembly-isolation-privacy.md`](./desktop/11-assembly-isolation-privacy.md) | 桌面端用例，单文件即一个批次（可含多个业务模块） |
+| [`desktop/00-overview.md`](./desktop/00-overview.md) | 桌面端总览：覆盖范围、环境事实、前置校验、数据目录隔离、运行命令 |
+| [`desktop/01-boot.md`](./desktop/01-boot.md) | 桌面端唯一 L3 用例：进入下载装配 → dsh 内核启动 → 页面无报错 |
 | [`plugins/00-overview.md`](./plugins/00-overview.md) | 插件总览：分层策略、可立即运行的部分、追踪矩阵、缺口 |
-| [`plugins/01-dsh-host-and-core-contract.md`](./plugins/01-dsh-host-and-core-contract.md) … [`16-cross-plugin-desktop.md`](./plugins/16-cross-plugin-desktop.md) | 插件用例，单文件即一个批次 |
+| [`plugins/01-dsh-host-and-core-contract.md`](./plugins/01-dsh-host-and-core-contract.md) … [`10-dsh-tauri-model-config.md`](./plugins/10-dsh-tauri-model-config.md) | 插件用例，单文件即一个批次 |
 
-**用例规模**：桌面端 11 个文件 / **109** 条 E2E（另有 106 条下沉「单元测试层」，共用文件内连续编号）；插件 16 个文件 / **170** 条。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体。
+**用例规模**：桌面端 2 个文件 / **1** 条 E2E（已收敛为启动冒烟，原用例文档归档到 `archive/docs/testing/desktop/`）；插件 10 个文件 / **108** 条（原 `11`–`16` 治理与跨插件批次文档已归档到 `archive/docs/testing/plugins/`）。每个 `00-overview.md` 只承载总览与矩阵，不含用例本体。
 
 ---
 
