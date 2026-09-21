@@ -179,7 +179,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:29`、`src-tauri/src/bridge/pet.rs:164`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:139`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:202`）
 [前置条件] debug 二进制与 `dist/` 就绪；`3081` 与 WebDriver 端口空闲；宿主 harness 已就绪
 [测试数据] 经桥命令 `set_pet_enabled({enabled:true})`
 [测试步骤] 1. 读 `getWindowHandles()` 基线。2. 帧内调用 `set_pet_enabled(true)`。3. 轮询窗口句柄集合。4. 读 `get_pet_status()`。
@@ -192,7 +192,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/pet.rs:54`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:154`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:217`）
 [前置条件] 干净数据目录（首个会话，`enabled` 默认关闭）
 [测试数据] 无
 [测试步骤] 1. 复位到 `enabled=false` 并等窗口集合收敛。2. 读 `get_pet_status()`。3. 读窗口句柄集合。
@@ -205,7 +205,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:48`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:164`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:227`）
 [前置条件] 同上；内置 DSH 界面已加载完侧栏
 [测试数据] 点击 `[data-dsh-tauri-pet-icon]` 两次
 [测试步骤] 1. 复位 `enabled=false` 并等窗口集合收敛为 `['main']`。2. 点击侧栏入口，等窗口集合出现 `pet` 并读 `get_pet_status().enabled`。3. 再次点击，等窗口集合回到 `['main']` 并复读状态。
@@ -219,7 +219,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/bridge/pet.rs:217-222`（`PET_SIZE_MIN`/`PET_SIZE_MAX` 见 `src-tauri/src/bridge/pet.rs:48-49`）
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:180`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:239`）
 [前置条件] 桌宠已启用
 [测试数据] 范围内依次提交 `50`、`200`；越界依次提交 `0`、`49`、`201`、`999`
 [测试步骤] 1. 逐值调用 `set_pet_size({size})`。2. 每次读 `get_pet_status().pet_size`。3. 越界提交须捕获 `PET_SIZE_OUT_OF_RANGE` 并复读尺寸确认未变动。4. 收尾恢复 100。
@@ -255,6 +255,7 @@
 - **G-PET-6（浏览器层，实测缺口）**：`TC-PET-C-02-004` 想要的前置是「侧栏始终不出现」，但 scratch 宿主里侧栏总是就绪，`scan()` 首轮即命中，`sidebar-icon.ts:105-111` 的**缺席分支在 L2 不可达**。观察到的事实是：侧栏就绪后 `MutationObserver` 看护会持续补插，用例据「入口恒为 1 个且位置正确 + 无应用级错误」断言重入稳定性，兜底轮询的预算参数（`PET_ICON_RETRY_MS` 500ms × `PET_ICON_RETRY_MAX` 30）由用例读取常量值核对。真正的「侧栏缺席 → 停止轮询」建议在 L1（jsdom）覆盖。
 - **G-PET-7（浏览器层，环境事实）**：`aria-pressed` 在纯浏览器里恒为 `"false"`——状态真值来自 `get_pet_status`，而浏览器没有 Tauri 桥，`loadPetStatus()` 必然超时（控制台留下 `NODE_NOT_ANSWERED`，属预期噪声，已在 `browser.ts` 的 `IGNORED_APP_ERRORS` 里过滤）。因此本文件只断言该属性「显式表达两态」，**不断言**它与真实 `enabled` 的一致；后者由 L3 段（`desktop` 车道，有真实桥）覆盖。
 - **G-PET-8（浏览器层，上游 DOM 事实）**：设置分区的注册 id（`dsh-tauri-pet-settings`）**不出现在 DOM 里**——`SettingsSidebar` 只渲染 `label`（`packages/dsh-tauri-ui/src/client/components/sidebar.tsx:113-127`），`id` 只活在 `store.sections` 快照与导航项的 key 上。因此 `TC-PET-C-02-002` 改用「导航项 `宠物` 唯一 + 点开后 `.dshp-pet__page` 内容侧锚点」这一对可观察事实，而不是 `[id=...]`。
-- **G-PET-9（L3 实测，疑似缺陷）**：`TC-PET-L3-02-003` 真跑发现——点击侧栏入口**确实**创建/销毁桌宠窗口（窗口句柄集合按预期变化，`get_pet_status().enabled` 同步为真/假），但入口按钮的 `aria-pressed` 在 30s 轮询窗口内**没有翻转**。写入点是 `syncIconState`（`sidebar-icon.utils.ts:23-26`），由 `sidebar-icon.ts:71` 的 `store.pet.$subscribe` 驱动。可能原因：父节点被 React 重渲染后按钮元素被替换，订阅闭包仍写旧节点；或 store 未随 `togglePet` 收敛。**本轮未定位到根因也未改产品代码**（子设计 02 的写入范围仅 `test/e2e/**` 与 `docs/testing/plugins/**`）。用例已改按产品级契约（窗口生命周期 + 状态）断言，按钮两态刷新**登记于此不静默丢弃**。
+- **G-PET-9（L3 实测，已定位的事实）**：入口按钮的两态（`aria-pressed`）**只来自客户端 store**（`packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:38` 的 `iconActive()`），而该 store **没有任何带外订阅**——Rust 侧的 `pet://status` 只 `emit_to(PET_WINDOW_LABEL)`（桌宠窗口），iframe 里的入口按钮收不到；`loadPetStatus()` 也只在注册时拉一次。因此用壳层 `set_pet_enabled(...)` 从带外改写状态后，窗口按预期创建/销毁，但入口 `aria-pressed` **停在旧值**；紧接着的那次点击算出 `enabled: !旧值`，可能只是一次**幂等写**（用户观感＝点了没反应）。`TC-PET-L3-02-003` 据此把「点击前入口必须处于期望态」写成**显式前置断言**（不一致时直接报「入口 store 与后端失同步」，而不是伪装成窗口 bug），并把用例内的清理改走同一条 UI 点击路径以保持同源。**产品侧未改**（子设计 02 的写入范围仅 `test/e2e/**` 与 `docs/testing/plugins/**`）。
 - **G-PET-10（L3 实测，断言面改写）**：`set_pet_size` 对越界值返回 `PET_SIZE_OUT_OF_RANGE` 错误（`src-tauri/src/bridge/pet.rs:218-222`），**不夹紧**；范围夹紧只存在于设置页滑条的 `min/max`。`TC-PET-L3-02-004` 已由「越界被夹紧」改为「范围内接受 + 越界拒绝且不改状态」。
-- **假设**：`sidebar-icon.utils.ts:25` 的 `aria-pressed` 与 store 中 `status.enabled` 同步（`sidebar-icon.ts:71` 订阅保证）。
+- **G-PET-11（L3 实测，驱动事实）**：壳层 `execute` 里 `invoke` 的**拒绝**会被 vendor 驱动回成 **HTTP 500 + `error: "javascript error"`**（`src-tauri/vendor/tauri-plugin-wdio-webdriver/src/server/response.rs`），而 `webdriver@9.31.9` 的 `RETRYABLE_STATUS_CODES` 含 500 且不排除该 error 名，`_request` 于是走 `Retrying 1/10…9/10` 指数退避——**单次被拒的 invoke 要约 46–56s 才把错误交给用例**（实测两组：`13:47:11.5→13:47:57.6`、`14:00:04.2→14:00:50.2`）。这不是页面 promise 链能拦住的（在页面内 `catch` 实测无效），`TC-PET-L3-02-004` 因此在越界断言期间把**会话选项** `connectionRetryCount` 置 0、`finally` 还原，让 500 立即返回；断言内容不变（仍必须验到 `PET_SIZE_OUT_OF_RANGE` 且已落盘尺寸不变）。
+- **假设**：入口按钮两态与 store 中 `status.enabled` 同源（`sidebar-icon.ts:71` 的订阅保证）；**带外**改写不经该订阅，见 G-PET-9。
