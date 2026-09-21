@@ -1,3 +1,5 @@
+> 该文档已被固定，禁止修改
+
 # 插件客户端架构规范 (Plugin Client Architecture Protocol)
 
 > 本规范是 [通用软件开发规范与协议 (devlopment.md)](./devlopment.md)[cite: 1] 在 **DeepSeek Harness 插件客户端半区（Browser Runtime）** 的具象化工程落地协议。所有插件的 `src/client` 实现必须严格遵循本规范。
