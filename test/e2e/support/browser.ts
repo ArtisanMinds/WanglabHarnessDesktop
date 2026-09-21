@@ -122,14 +122,41 @@ async function installEmbedRoute(page: Page): Promise<void> {
     }))
 }
 
-/** 采集父页与 frame 的错误；返回的数组由用例在断言前读取。 */
-export function collectAppErrors(page: Page): string[] {
-  const errors: string[] = []
+/**
+ * 一页的诊断采集状态：监听始终挂着（廉价），但只有失败路径才被读出来格式化。
+ * `errors` 保持既有语义（已过滤 `IGNORED_APP_ERRORS`），其余字段只服务于失败现场报告。
+ */
+export interface AppDiagnostics {
+  /** 未命中 `IGNORED_APP_ERRORS` 的错误，即用例断言读取的列表。 */
+  errors: string[]
+  /** 命中 `IGNORED_APP_ERRORS` 而被抑制的错误；诊断时按原始串打印，便于区分「真噪声」与「掩盖了真因」。 */
+  ignored: string[]
+  /** 4xx/5xx 响应，含 iframe 内的插件客户端 bundle 请求。 */
+  httpErrors: string[]
+  /** 请求层失败（连接被拒/中断/abort）。 */
+  requestFailures: string[]
+}
+
+const DIAGNOSTIC_LIMIT = 40
+const diagnosticsByPage = new WeakMap<Page, AppDiagnostics>()
+
+/** 取（或首次建立）某一页的诊断状态；同一页重复调用只挂一次监听。 */
+export function pageDiagnostics(page: Page): AppDiagnostics {
+  const existing = diagnosticsByPage.get(page)
+  if (existing)
+    return existing
+
+  const state: AppDiagnostics = { errors: [], ignored: [], httpErrors: [], requestFailures: [] }
+  diagnosticsByPage.set(page, state)
+
   const record = (source: string, message: string): void => {
     const line = `${source} ${message.split('\n')[0]}`
-    if (!IGNORED_APP_ERRORS.some(ignored => line.includes(ignored))) {
-      errors.push(line)
+    if (IGNORED_APP_ERRORS.some(ignored => line.includes(ignored))) {
+      if (state.ignored.length < DIAGNOSTIC_LIMIT)
+        state.ignored.push(line)
+      return
     }
+    state.errors.push(line)
   }
 
   page.on('pageerror', error => record('PAGEERROR', error.message))
@@ -138,11 +165,170 @@ export function collectAppErrors(page: Page): string[] {
       record('CONSOLE', message.text())
     }
   })
-  return errors
+  page.on('response', (response) => {
+    if (response.status() < 400 || state.httpErrors.length >= DIAGNOSTIC_LIMIT)
+      return
+    state.httpErrors.push(`HTTP ${response.status()} ${response.request().method()} ${response.url()}`)
+  })
+  page.on('requestfailed', (request) => {
+    if (state.requestFailures.length >= DIAGNOSTIC_LIMIT)
+      return
+    state.requestFailures.push(`REQFAIL ${request.failure()?.errorText ?? 'unknown'} ${request.url()}`)
+  })
+  return state
+}
+
+/** 采集父页与 frame 的错误；返回的数组由用例在断言前读取。 */
+export function collectAppErrors(page: Page): string[] {
+  return pageDiagnostics(page).errors
 }
 
 // ==========================================
-// 4. 页面初始化与生命周期编排
+// 4. 失败现场诊断
+// ==========================================
+
+/**
+ * frame 内可序列化的现场快照。
+ *
+ * 刻意不读 `document.body.innerHTML` 全量：宿主页面在 CI 上体积不可控，只取计数、
+ * 已注入的 `data-dsh-*` 属性表、插件 combo 脚本与启动图，足以区分
+ * 「插件客户端没进启动图」/「进了但浏览器侧没跑起来」/「跑起来但没注入 DOM」。
+ */
+interface FrameSnapshot {
+  readyState: string
+  hasRoot: boolean
+  rootChildren: number
+  rootHtmlLength: number
+  bodyHtmlLength: number
+  slotCount: number
+  slots: string[]
+  dshAttrs: string[]
+  pluginScripts: string[]
+  bootModules: number
+  bootIds: string[]
+  loaderKeys: string[]
+  loaderMode: string
+  loaderPending: number
+  petIcon: boolean
+  settingsTrigger: boolean
+  settingsSidebar: boolean
+}
+
+const SNAPSHOT_TIMEOUT_MS = 5_000
+const SNAPSHOT_ELEMENT_BUDGET = 4_000
+
+/** 采集 frame 内快照；自身绝不抛错、绝不拖死用例（超时降级成一行文本）。 */
+async function captureFrameSnapshot(frame: Frame): Promise<FrameSnapshot | string> {
+  const dump = frame.evaluate((budget: number) => {
+    const doc = document
+    const root = doc.querySelector('#root')
+    const slots = Array.from(doc.querySelectorAll('[data-slot]'), el => el.getAttribute('data-slot') ?? '')
+      .filter(Boolean)
+
+    const dshAttrs: string[] = []
+    const all = doc.querySelectorAll('*')
+    for (let index = 0; index < all.length && index < budget && dshAttrs.length < 40; index += 1) {
+      const el = all[index] as Element
+      for (const attr of Array.from(el.attributes)) {
+        if (!attr.name.startsWith('data-dsh-'))
+          continue
+        const entry = `<${el.tagName.toLowerCase()} ${attr.name}${attr.value === '' ? '' : `="${attr.value}"`}>`
+        if (!dshAttrs.includes(entry))
+          dshAttrs.push(entry)
+      }
+    }
+
+    const pluginScripts = Array.from(doc.scripts, script => script.src)
+      .filter(src => src.includes('/plugins/'))
+      .slice(0, 20)
+
+    const globals = window as unknown as Record<string, unknown>
+    const boot = globals.__DSH_BOOT__ as { modules?: { id?: unknown }[] } | undefined
+    const loader = globals.__ModuleLoader__ as { mode?: unknown, pendingQueue?: unknown[] } | undefined
+    const modules = Array.isArray(boot?.modules) ? boot.modules : []
+
+    return {
+      readyState: doc.readyState,
+      hasRoot: root !== null,
+      rootChildren: root?.childElementCount ?? -1,
+      rootHtmlLength: root?.innerHTML.length ?? -1,
+      bodyHtmlLength: doc.body?.innerHTML.length ?? -1,
+      slotCount: slots.length,
+      slots: [...new Set(slots)].slice(0, 30),
+      dshAttrs,
+      pluginScripts,
+      bootModules: Array.isArray(boot?.modules) ? modules.length : -1,
+      bootIds: modules.map(item => String(item?.id)).slice(0, 40),
+      loaderKeys: loader === undefined ? [] : Object.keys(loader),
+      loaderMode: String(loader?.mode ?? 'n/a'),
+      loaderPending: Array.isArray(loader?.pendingQueue) ? loader.pendingQueue.length : -1,
+      petIcon: doc.querySelector('[data-dsh-tauri-pet-icon]') !== null,
+      settingsTrigger: doc.querySelector('.dshp-settings-trigger') !== null,
+      settingsSidebar: doc.querySelector('[data-slot-sidebar="dsh-tauri-ui"]') !== null,
+    }
+  }, SNAPSHOT_ELEMENT_BUDGET)
+
+  try {
+    return await Promise.race([
+      dump,
+      new Promise<string>(resolve => setTimeout(resolve, SNAPSHOT_TIMEOUT_MS, 'SNAPSHOT_TIMEOUT')),
+    ])
+  }
+  catch (error) {
+    return `SNAPSHOT_FAILED ${(error as Error).message.split('\n')[0]}`
+  }
+}
+
+/**
+ * 生成失败现场报告：DOM 锚点计数、插件注入痕迹、客户端启动图与启动期的错误/网络失败。
+ * 只在等待锚点失败时调用，成功路径不产生任何输出。
+ */
+export async function describePageState(page: Page, frame: Frame): Promise<string> {
+  const state = pageDiagnostics(page)
+  const snapshot = await captureFrameSnapshot(frame)
+  const lines: string[] = []
+  const pushList = (title: string, items: readonly string[], empty: string): void => {
+    lines.push(`${title} [${items.length}]${items.length === 0 ? ` ${empty}` : ''}`)
+    for (const item of items)
+      lines.push(`    ${item}`)
+  }
+
+  lines.push(`frames=${page.frames().length} mainUrl=${page.mainFrame().url()} frameUrl=${frame.url()} isMainFrame=${frame === page.mainFrame()}`)
+
+  if (typeof snapshot === 'string') {
+    lines.push(snapshot)
+  }
+  else {
+    const rootState = snapshot.hasRoot
+      ? `children=${snapshot.rootChildren} html=${snapshot.rootHtmlLength}`
+      : 'MISSING'
+    lines.push(`readyState=${snapshot.readyState} #root=${rootState} bodyHtml=${snapshot.bodyHtmlLength}`)
+    lines.push(`[data-slot] count=${snapshot.slotCount} values=${snapshot.slots.join(',') || '(none)'}`)
+    lines.push(`__DSH_BOOT__.modules=${snapshot.bootModules} ids=${snapshot.bootIds.join(',') || '(none)'}`)
+    lines.push(`__ModuleLoader__ keys=${snapshot.loaderKeys.join(',') || '(none)'} mode=${snapshot.loaderMode} pendingQueue=${snapshot.loaderPending}`)
+    lines.push(`pluginAnchors petIcon=${snapshot.petIcon} settingsTrigger=${snapshot.settingsTrigger} settingsSidebar=${snapshot.settingsSidebar}`)
+    pushList('pluginComboScripts', snapshot.pluginScripts, '(none: 启动 HTML 里没有任何 /plugins/ 脚本)')
+    pushList('injectedDataDshAttrs', snapshot.dshAttrs, '(none: 没有任何插件注入的元素)')
+  }
+
+  pushList('appErrors(未命中忽略表)', state.errors, '(none)')
+  pushList('ignoredAppErrors(命中 IGNORED_APP_ERRORS，原始串)', state.ignored, '(none)')
+  pushList('httpErrors(status>=400，含 iframe)', state.httpErrors, '(none)')
+  pushList('requestFailures', state.requestFailures, '(none)')
+  return lines.join('\n')
+}
+
+/** 在锚点等待超时时，把「等不到」升级成「为什么等不到」。 */
+async function failWithDiagnostics(page: Page, frame: Frame, reason: string, cause: unknown): Promise<never> {
+  const report = await describePageState(page, frame)
+  throw new Error(
+    `${reason}：${(cause as Error).message.split('\n')[0]}\n--- 失败现场 ---\n${report}`,
+    { cause },
+  )
+}
+
+// ==========================================
+// 5. 页面初始化与生命周期编排
 // ==========================================
 
 /**
@@ -180,7 +366,14 @@ export async function newDshPage(
   }
 
   await frame.waitForLoadState('domcontentloaded')
-  await frame.locator(options.ready ?? SIDEBAR).first().waitFor({ state: 'attached', timeout: 30_000 })
+
+  const ready = options.ready ?? SIDEBAR
+  try {
+    await frame.locator(ready).first().waitFor({ state: 'attached', timeout: 30_000 })
+  }
+  catch (error) {
+    await failWithDiagnostics(page, frame, `就绪锚点 ${ready} 在 30s 内未出现`, error)
+  }
 
   if (options.dismissModals ?? true) {
     await dismissAppModals(page, frame, syntheticFallbacks)
@@ -214,7 +407,7 @@ export async function openDshApp(options: NewDshPageOptions = {}): Promise<DshPa
 }
 
 // ==========================================
-// 5. 交互与 DOM 事件辅助
+// 6. 交互与 DOM 事件辅助
 // ==========================================
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -289,7 +482,7 @@ async function clickWithFallback(
 }
 
 // ==========================================
-// 6. 弹层与设置面板特定操作
+// 7. 弹层与设置面板特定操作
 // ==========================================
 
 /** 关掉当前帧内的一个阻塞弹层。 */
@@ -376,7 +569,12 @@ export async function openSettings(
 ): Promise<Locator> {
   await dismissAppModals(page, frame, fallbacks)
   const trigger = frame.locator(SETTINGS_TRIGGER).first()
-  await trigger.waitFor({ state: 'attached', timeout: 20_000 })
+  try {
+    await trigger.waitFor({ state: 'attached', timeout: 20_000 })
+  }
+  catch (error) {
+    await failWithDiagnostics(page, frame, `设置触发器 ${SETTINGS_TRIGGER} 在 20s 内未出现`, error)
+  }
 
   if (await trigger.getAttribute('aria-expanded') !== 'true') {
     await clickWithFallback(
