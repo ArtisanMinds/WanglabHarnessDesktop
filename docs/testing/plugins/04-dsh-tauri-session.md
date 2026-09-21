@@ -1,7 +1,7 @@
 # dsh-tauri-session：会话归档资源与工作区菜单补丁
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/archive-routes.e2e.ts`（待建立）；客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/04-dsh-tauri-session.e2e.ts`（本文件 §2 的 7 条 L2 用例已落地并全绿）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`；L3 另需 debug 二进制 + 空闲端口
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
 
@@ -18,7 +18,7 @@
 | `GET /session/archive` 直接回读账本 | `packages/dsh-tauri-session/src/host/routes/session/archive/get.ts:5` |
 | `POST`/`DELETE /session/archive` 空 id → 400 `invalid-session-id` | `packages/dsh-tauri-session/src/host/routes/session/archive/post.ts:8`、`packages/dsh-tauri-session/src/host/routes/session/archive/delete.ts:8` |
 | `POST`/`DELETE …/archive/clear` 共用同一处理器 | `packages/dsh-tauri-session/src/host/routes/index.ts:23` |
-| 空归档集合执行永久删除会抛 `缺少 sessionIds` | `packages/dsh-tauri-session/src/host/service/archive.ts:62` |
+| 空归档集合执行永久删除会抛 `缺少 sessionIds`（该文案只进宿主日志，不下发客户端） | `packages/dsh-tauri-session/src/host/service/archive.ts:62` |
 | 工作区批量入参空 → 400 `invalid-session-ids` | `packages/dsh-tauri-session/src/host/routes/session/workspace/archive/post.ts:10` |
 | `open/path` 失败 → 400（`session-directory-not-found` / `not-a-directory`） | `packages/dsh-tauri-session/src/host/routes/session/open/path/post.ts:14`、`packages/dsh-tauri-session/src/host/service/session.ts:55` |
 | 客户端分区 id `dsh-tauri-session-archive`；仅注册 `settings.section` | `packages/dsh-tauri-session/src/client/constants/index.ts:7`、`packages/dsh-tauri-session/src/client/register/archive-section.ts:18` |
@@ -36,7 +36,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/archive/get.ts:5`
-[自动化] 是（`test/e2e/plugins/archive-routes.e2e.ts`）
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:61`）
 [前置条件] scratch `DSH_HOME` 全新（无历史归档）
 [测试数据] `GET /api/desktop/dsh-tauri-session/session/archive`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体 JSON。
@@ -49,7 +49,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/archive/post.ts:8`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:73`）
 [前置条件] 同 TC-SESS-L2-04-001
 [测试数据] `POST` 同路径，body `{}`；再以 `{ "sessionId": 123 }` 重复一次
 [测试步骤] 1. 两次发起请求。2. 读状态码与响应体。
@@ -62,7 +62,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/archive/delete.ts:6`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:93`）
 [前置条件] 同 TC-SESS-L2-04-001
 [测试数据] `DELETE` 同路径，无 body
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -75,11 +75,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/host/service/archive.ts:62`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:100`）
 [前置条件] 归档集合为空（全新 scratch）
 [测试数据] 对 `/session/archive/clear` 分别发起 `POST` 与 `DELETE`
 [测试步骤] 1. 发起 `POST`，读状态码与响应体。2. 发起 `DELETE`，读状态码与响应体。
-[预期结果] 1. 当前实现两者均返回 500，错误信息含 `缺少 sessionIds`。2. `GET` 清单仍为空。
+[预期结果] 1. 当前实现两者均返回 500，响应体为宿主未处理异常的标准载荷 `{"status":500,"unhandled":true,"message":"HTTPError"}`。2. 抛出的领域文案 `缺少 sessionIds` 只出现在宿主日志，**不下发客户端**（实测修正，见 G-SESS-4）。3. `GET` 清单仍为空。
 [清理] 无
 
 ### [P3] [反向] 验证工作区批量归档缺 ids 返回 400
@@ -88,7 +88,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/workspace/archive/post.ts:10`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:116`）
 [前置条件] 同 TC-SESS-L2-04-001
 [测试数据] `POST /session/workspace/archive`，body `{}` 与 `{ "sessionIds": [] }`
 [测试步骤] 1. 两次发起请求。2. 读状态码与响应体。
@@ -101,7 +101,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-session/src/host/routes/session/open/path/post.ts:14`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:134`）
 [前置条件] 同 TC-SESS-L2-04-001；系统文件管理器动作不会真正执行（目录不存在）
 [测试数据] `POST /session/open/path`，body `{ "sessionId": "does-not-exist" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -114,7 +114,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/host/routes/index.ts:19`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/04-dsh-tauri-session.e2e.ts:145`）
 [前置条件] 同 TC-SESS-L2-04-001
 [测试数据] 对 `/session/archive`、`/session/archive/clear`、`/session/workspace/archive`、`/session/archive/restore`、`/session/open/path` 各发一次 `OPTIONS`
 [测试步骤] 1. 逐一 `OPTIONS`。2. 读每条响应的 `allow` 头。
@@ -161,7 +161,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/archive-section.ts:18`
-[自动化] 待接线（G4）
+[自动化] 待接线（L3 通道尚未接入）
 [前置条件] 应用就绪；iframe 内 dsh 界面加载完成
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话。2. 切到 iframe 并打开设置。3. 定位 id `dsh-tauri-session-archive` 的分区并读其标题。
@@ -174,7 +174,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-session/src/client/register/workspace-patch.tsx:125`
-[自动化] 待接线（G4）
+[自动化] 待接线（L3 通道尚未接入）
 [前置条件] 存在至少 1 个真实工作区；已打开其「…」菜单
 [测试数据] 点击 `[data-dsh-tauri-session-archive-item]`
 [测试步骤] 1. 记录点击前工作区数量。2. 点击归档项。3. 关闭弹出的确认对话框。4. 重新读取工作区数量。
@@ -204,5 +204,5 @@
 - **G-SESS-1**：`client/constants/index.ts:18` 与 `:19` 的 `SIDEBAR_ATTACH_POLL_MS` / `SIDEBAR_ATTACH_MAX_TRIES` 在 `src` 内零引用，疑为死常量。**不影响用例**，但清理后需复核本文件是否引用。
 - **G-SESS-2**：归档→恢复→删除的完整历史态流转需要宿主真实会话配合（`archive.restore` 依赖 `workspaceRegistry`）。当前 scratch 宿主无会话数据，**未覆盖**；建议后续以「宿主 API 造一条会话」的方式补齐。
 - **G-SESS-3**：工作区菜单补丁依赖官方中文/英文文案与 `[class*="itemWrap"]` 结构（`workspace-patch.utils.ts:57`）。宿主 UI 改版时补丁会静默不插入，因此 TC-SESS-C-04-002 的失败信息必须包含「菜单容器未带补丁标记」而非笼统超时。
-- **G-SESS-4**：**待确认期望**——在空归档集合上执行 `/session/archive/clear` 当前返回 500（`packages/dsh-tauri-session/src/host/service/archive.ts:62`）。是否应改为幂等返回 `{ ok: true }` 需产品确认；确认后 TC-SESS-L2-04-004 的期望同步更新，若判定为缺陷则同时补缺陷单。
+- **G-SESS-4**：**实测修正 + 待确认期望**——在空归档集合上执行 `/session/archive/clear`（`POST` 与 `DELETE` 共用 `clearSessionArchive`），实测两者均返回 **500**，响应体为 `{"status":500,"unhandled":true,"message":"HTTPError"}`（宿主未处理异常的标准载荷）。原文档预期「错误信息含 `缺少 sessionIds`」**不成立**：该文案是 `permanentlyDelete` 抛出的 `Error('缺少 sessionIds')`（`packages/dsh-tauri-session/src/host/service/archive.ts:62`），而宿主把未处理异常统一序列化为 `HTTPError`，领域文案只落宿主日志（实测日志栈：`permanentlyDelete` → `Object.deleteAll`，`packages/dsh-tauri-session/dist/index.js:271` / `:259`）。TC-SESS-L2-04-004 已按实测行为固化，**疑似缺陷 / 待产品确认**：空集合清空是否应改为幂等返回 `{ ok: true }`，并确认 500 是否应改用可读的领域错误载荷；若判定为缺陷则同时补缺陷单，确认后本条期望与断言同步更新。
 - **假设**：`POST /session/archive` 对**不存在的** sessionId 的行为由宿主 `archiveSession` 决定（`archive.ts:13`），本套用例不断言该分支。

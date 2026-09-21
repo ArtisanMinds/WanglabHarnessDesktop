@@ -9,9 +9,8 @@ import { startDshHost } from './support/dsh-host'
  * 地址一律经 `project.provide()` 下传，用例用 `inject('dshBaseUrl')` 取。
  *
  * 被挂载的插件由 `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`）与 `DSH_E2E_ALSO` 指定。
- * `also` 的默认值覆盖插件路由用例需要的三个代表包：`dsh-tauri`（核心桥）、
- * `dsh-tauri-pet`（只声明 GET 的代表路由）、`dsh-tauri-rightclick`（只声明 POST 的代表路由）。
- * 这样多数用例都能复用这一个宿主，不必各自再起一个——每次起宿主都会多一个进程与一行日志。
+ * `also` 的默认值覆盖全部产品可见插件，使各批次的路由用例都能复用这一个宿主，
+ * 不必各自再起一个——每次起宿主都会多一个进程与一行日志。
  */
 
 declare module 'vitest' {
@@ -32,8 +31,23 @@ declare module 'vitest' {
   }
 }
 
-/** 共享宿主的默认附加挂载：核心桥 + 只声明 GET 与只声明 POST 的两个代表路由提供方。 */
-const DEFAULT_ALSO = 'dsh-tauri,dsh-tauri-rightclick'
+/**
+ * 共享宿主的默认附加挂载：全部产品可见插件。
+ *
+ * 批次 03–09 各自断言不同插件的路由，若每个批次自起宿主，一次全车道要多付 7 个进程；
+ * 一次挂齐后所有批次共用 globalSetup 这一个宿主（实测 10 包同时挂载可正常就绪）。
+ */
+const DEFAULT_ALSO = [
+  'dsh-tauri',
+  'dsh-tauri-rightclick',
+  'dsh-tauri-session',
+  'dsh-tauri-worktree',
+  'dsh-tauri-ui',
+  'dsh-tauri-panel-extension',
+  'dsh-tauri-panel-scheduler',
+  'dsh-tauri-turnrewind',
+  'dsh-tauri-model-config',
+].join(',')
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   const plugin = process.env.DSH_E2E_PLUGIN ?? 'dsh-tauri-pet'

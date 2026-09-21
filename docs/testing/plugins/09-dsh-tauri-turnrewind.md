@@ -1,7 +1,7 @@
 # dsh-tauri-turnrewind：回合变更记录的两个端点
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/turnrewind-routes.e2e.ts`（待建立）；客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/09-dsh-tauri-turnrewind.e2e.ts`（§2 的 3 条 L2 用例已落地并全绿）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
 
@@ -33,7 +33,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/live/get.ts:17`、`packages/dsh-tauri-turnrewind/src/host/routes/summary/get.ts:24`
-[自动化] 是（`test/e2e/plugins/turnrewind-routes.e2e.ts`）
+[自动化] 是（`test/e2e/plugins/09-dsh-tauri-turnrewind.e2e.ts:55`）
 [前置条件] 插件已构建并挂载
 [测试数据] `GET /summary`、`GET /live`（均不带查询串）
 [测试步骤] 1. 逐一发起请求。2. 每次读状态码与 `error` 文案。
@@ -46,7 +46,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/summary/get.ts:28`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/09-dsh-tauri-turnrewind.e2e.ts:71`）
 [前置条件] 同 TC-REW-L2-09-001
 [测试数据] `GET /summary?sessionId=does-not-exist`
 [测试步骤] 1. 发起请求。2. 读状态码与 `error` 文案。
@@ -59,7 +59,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-turnrewind/src/host/routes/index.ts:17`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/09-dsh-tauri-turnrewind.e2e.ts:83`）
 [前置条件] 同 TC-REW-L2-09-001
 [测试数据] 对 `/summary`、`/live` 各发一次 `OPTIONS`，再各发一次 `POST`
 [测试步骤] 1. 逐一 `OPTIONS`，读 `allow` 头。2. 逐一 `POST`，读状态码与 `allow` 头。
@@ -119,7 +119,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/register/turn-tail.ts:25`
-[自动化] 待接线（`desktop` project 未配置，`00-overview.md` G4）
+[自动化] 待接线（L3 通道尚未接入；`desktop` project 已配置，但本插件用例仍需真实 Tauri 窗口与回合数据）
 [前置条件] 应用就绪；工作区为 git 仓库顶层；已产生一个带文件改动的回合
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 查询 `[data-turnrewind-card]`。3. 读卡片内的文件计数与 `GET /summary` 返回比对。
@@ -134,7 +134,7 @@
 | --- | --- | --- | --- |
 | 两处缺参校验 | TC-REW-L2-09-001 | 异常 | — |
 | 会话缺失判定 | TC-REW-L2-09-002 | 异常 | — |
-| 方法矩阵 | TC-REW-L2-09-003 | 边界 | — |
+| 方法矩阵 | TC-REW-L2-09-003 | 边界 | `allow` 实测在 `OPTIONS`/`POST` 两种响应上均恰为 `GET / HEAD / OPTIONS` 三元集合 |
 | 卡片与运行态 | TC-REW-C-09-001、TC-REW-C-09-002、TC-REW-L3-09-001 | 正向 | 需要真实 git 仓库与回合数据 |
 | 非 git 降级 | TC-REW-C-09-003 | 异常 | 需要非 git 工作区 |
 | `GET /live` 读数 | — | — | **未覆盖**：无会话时语义未确认，见 G-REW-1 |
@@ -143,7 +143,9 @@
 
 ## 6. 缺口与假设
 
+- **实测（L2 全绿）**：§2 的 3 条用例实测行为与预期**逐条一致**，无预期修正。补充实证：`allow` 在 `OPTIONS`（204）与 `POST`（405）两种响应上均**恰为** `GET / HEAD / OPTIONS` 三元集合，故按集合等值断言，而不是只断言「含」或「不含」；`TC-REW-L2-09-001` 另以插件数据目录 `$DSH_HOME/dsh-tauri-turnrewind` 的递归清单在两次拒绝前后一致，证明缺参校验确实在 `ledger` / `snapshot` 之前返回，**零落盘副作用**。
 - **G-REW-1**：`GET /live` 只读内存缓存（`packages/dsh-tauri-turnrewind/src/host/service/capture.ts:207`），对未知 `sessionId` 是否返回 200 `active:false` 还是 404，源码未体现；确认前不写用例，避免编造预期。
 - **G-REW-2**：`turn-tail` 复用官方 id `@deepseek-ai/dsh-client-ui-deliverables`（`packages/dsh-tauri-turnrewind/src/client/register/turn-tail.ts:28`）。若官方插件同时装载，需先确认两者不争抢同一行。
 - **G-REW-3**：容量治理回收 refs 后，账本行以 `TURNREWIND_EXPIRED` 呈现（`packages/dsh-tauri-turnrewind/src/host/service/turns.utils.ts`）——需要真实账本构造，当前 scratch 宿主无法制造前置。
+- **G-REW-4（已修复）**：`packages/dsh-tauri-turnrewind/src/host/routes/summary/get.ts:2`、`live/get.ts:2` 的头部注释曾把端点写成 `/api/desktop/dsh-tauri-turnrewind/session/summary`、`.../session/live`，实际注册路径是 `/summary`、`/live`（`packages/dsh-tauri-turnrewind/src/host/routes/index.ts:18-19`），客户端（`packages/dsh-tauri-turnrewind/src/client/apis/index.ts:15`、`:20`）亦按同一路径调用。行为无差异，两条过期注释已改正；用例以实测路径为准。
 - **假设**：用例断言的 `data-turnrewind-*` 属性属于插件自有前缀，不受宿主类名变化影响。

@@ -165,8 +165,8 @@ const GET_ONLY_PATH = '/api/desktop/dsh-tauri-pet/session/stream'
 /** 只声明 POST 的代表路由（`packages/dsh-tauri-rightclick/src/host/routes/index.ts`）。 */
 const POST_ONLY_PATH = '/api/desktop/dsh-tauri-rightclick/open/url'
 
-/** 本批不挂载的插件路径，用于证明「路由缺失」而非「鉴权失败」。 */
-const UNMOUNTED_PATH = '/api/desktop/dsh-tauri-turnrewind/summary?sessionId=x'
+/** 仓库内不存在的插件 id，用于证明「路由缺失」而非「鉴权失败」或「会话缺失」。 */
+const UNMOUNTED_PATH = '/api/desktop/dsh-tauri-unmounted-probe/ping'
 
 const BODY_LIMIT_BYTES = 1024 * 1024
 
@@ -266,5 +266,8 @@ describe('共享路由契约', () => {
 
     expect(response.status, '带 Cookie 时未挂载必须 404，而不是 401').toBe(404)
     expect(response.status, '不能误落到 200').not.toBe(200)
+
+    const body = await response.text()
+    expect(body, '路由缺失的 404 不得带插件领域错误文案').not.toContain('会话不存在或尚未就绪')
   })
 })

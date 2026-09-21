@@ -1,9 +1,9 @@
 # dsh-tauri-panel-scheduler：定时任务面板与任务生命周期
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/scheduler-routes.e2e.ts`（待建立）；客户端与 L3 见各用例标注
-> 前置：`pnpm build:plugins`；会真实创建任务的用例需在网络/模型可用时才执行
-> 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
+> 自动化：`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts`（L2 宿主路由 7 例已落地）；客户端与 L3 见各用例标注
+> 前置：`pnpm build:plugins`（本批全部复用 `globalSetup` 的共享宿主，不另起进程）；真实执行（`run_now`）需模型与网络，不属本批
+> 运行：L2 `pnpm vitest run --project plugin test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts`；L3 待接线（L3 通道尚未接入）
 
 本插件同时暴露 **HTTP 路由**、**5 个 Agent 工具** 与 **落盘任务账本**。渐进顺序：**只读清单** → **缺参与领域拒绝** → **落盘形态** → **面板呈现**。真实执行（跑一次任务）需要模型与网络，归入后续批次。
 
@@ -37,7 +37,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/get.ts:8`
-[自动化] 是（`test/e2e/plugins/scheduler-routes.e2e.ts`）
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:114`）
 [前置条件] scratch `DSH_HOME` 全新
 [测试数据] `GET /api/desktop/dsh-tauri-panel-scheduler/tasks`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -50,7 +50,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/post.ts:6`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:124`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] `{ "name": "e2e-smoke", "prompt": "say hi", "schedule": { "kind": "daily", "time": "09:00" } }`
 [测试步骤] 1. `POST /tasks`。2. 读响应体 `task.id` 与 `task.nextRunAt`。3. `GET /tasks` 搜索 `e2e-smoke`。4. 读 scratch 目录下 `crons/tasks` 文件内容。
@@ -63,11 +63,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/post.ts:13`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:179`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] 依次提交 `{}`、缺 `prompt`、`schedule.kind` 为非法值
 [测试步骤] 1. 逐一提交。2. 每次读状态码与响应体。
-[预期结果] 1. 三次均 400。2. 每次响应体含非空 `error` 字符串。3. 清单仍为空（未落盘半成品）。
+[预期结果] 1. 三次均 400。2. 每次响应体含非空 `error` 字符串，且逐字为 `任务名称不能为空`（空对象）、`任务指令不能为空`（缺 `prompt`）、`计划配置无效`（非法 `schedule.kind`）。3. 清单仍为空（未落盘半成品）。
 [清理] 无
 
 ### [P3] [反向] 验证删除任务的两类 400 文案可区分
@@ -76,7 +76,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/delete.ts:6`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:203`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] body `{}`；再以 `{ "id": "task-missing" }` 请求
 [测试步骤] 1. 两次 `DELETE /tasks`。2. 读状态码与 `error` 文案。
@@ -89,7 +89,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/tasks/run/post.ts:6`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:223`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] `POST /tasks/run`，body `{ "id": "task-missing" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -102,7 +102,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/history/delete.ts:6`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:240`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] body `{}`；再以 `{ "id": "run-missing" }` 请求
 [测试步骤] 1. 两次 `DELETE /history`。2. 读状态码与 `error` 文案。
@@ -115,7 +115,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-panel-scheduler/src/host/routes/options/get.ts:6`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/08-dsh-tauri-panel-scheduler.e2e.ts:262`）
 [前置条件] 同 TC-SCH-L2-08-001
 [测试数据] `GET /options`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体字段名。
@@ -174,7 +174,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/register/panel.tsx:34`
-[自动化] 待接线（`desktop` project 未配置，`00-overview.md` G4）
+[自动化] 待接线（L3 通道尚未接入；`00-overview.md` G4 已消解）
 [前置条件] 应用就绪；`<DSH_E2E_HOME>/home/.dsh.dev` 下无同名任务
 [测试数据] 任务名 `e2e-l3-smoke`
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 打开调度面板并新建任务。3. 关闭并重新打开面板。4. 直接以 HTTP 读 `GET /tasks`。
@@ -189,11 +189,11 @@
 | --- | --- | --- | --- |
 | `tasks/get.ts` 只读清单 | TC-SCH-L2-08-001 | 正向 | — |
 | `tasks/post.ts` 创建与落盘 | TC-SCH-L2-08-002 | 正向 | 真实执行（`run_now`）不在此列 |
-| `tasks/post.ts` 校验 | TC-SCH-L2-08-003 | 异常 | 长度上限（120 / 64000）未覆盖，见 G-SCH-2 |
+| `tasks/post.ts` 校验 | TC-SCH-L2-08-003 | 异常 | 已按实测逐字固化三条文案；长度上限（120 / 64000）未覆盖，见 G-SCH-2 |
 | `tasks/delete.ts` 两类文案 | TC-SCH-L2-08-004 | 异常 | — |
 | `tasks/run/post.ts` 不存在 | TC-SCH-L2-08-005 | 异常 | `任务正在执行中` 需要真实并发，**未覆盖** |
 | `history/delete.ts` | TC-SCH-L2-08-006 | 边界 | — |
-| `options/get.ts` | TC-SCH-L2-08-007 | 边界 | 字段级断言待确认 |
+| `options/get.ts` | TC-SCH-L2-08-007 | 边界 | 只断言形状；「随环境变化」需第二个宿主，见 G-SCH-3 |
 | 面板与对话框 | TC-SCH-C-08-001、TC-SCH-C-08-002、TC-SCH-L3-08-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
 | 会话行图标 | TC-SCH-C-08-003 | 正向 | 依赖浏览器驱动 |
 | 5 个 Agent 工具 | — | — | **未覆盖**：需要 Agent 会话与工具调用通道 |
@@ -204,6 +204,13 @@
 
 - **G-SCH-1**：面板每 5s 轮询（`packages/dsh-tauri-panel-scheduler/src/client/constants/index.ts:26`），与用户操作存在竞态。TC-SCH-L3-08-001 因此断言「重开面板后可见」而非「立刻可见」，并在失败信息中附上最后一次 `GET /tasks` 结果。
 - **G-SCH-2**：`name` ≤120、`prompt` ≤64000、`schedule.kind` 为 8 种枚举之一（`packages/dsh-tauri-panel-scheduler/src/shared/constants.ts:12`）。边界值用例（120/121、64000/64001）留待后续批次。
-- **G-SCH-3**：`GET /options` 的字段集未在事实基线中确认；TC-SCH-L2-08-007 故意只断言形状，避免编造字段名。
+- **G-SCH-3**：`GET /options` 的字段集未在事实基线中确认；TC-SCH-L2-08-007 故意只断言形状，避免编造字段名。该条标题里的「随环境变化」同样**未覆盖**——验证它需要第二个 `llm` / `permissionPresets` 配置不同的宿主，本批只有一个共享宿主，故标题按原样保留、缺口记于此。
 - **G-SCH-4**：`custom` 计划的 cron 串产出路径未核实（`packages/dsh-tauri-panel-scheduler/src/host/utils/schedule.ts:78`），相关表单用例**未覆盖**。
+- **实测（批次 08）**：7 条 L2 用例已落地并全绿（连续 4 次运行无 Flake，单次约 8s）。实测与文档预期**逐字相符**的有：状态码（200 / 400）、`GET /tasks` 空清单形状（`tasks` 为空数组且无 `error`）、`task.id` 为 `task-<uuid>`、`nextRunAt` 是创建时刻之后的 ISO 时刻、`DELETE /tasks` 的两类文案（`缺少任务 id` / `任务不存在`）、`POST /tasks/run` 的 `任务不存在`、`DELETE /history` 的两类文案（`缺少执行记录 id` / `执行记录不存在`）、`GET /options` 返回 200 且为非数组非空对象。
+- **实测修正（批次 08，非缺陷）**：TC-SCH-L2-08-003 的三条 `error` 文案在原文档只写「非空 `error` 字符串」，实测为 `任务名称不能为空` / `任务指令不能为空` / `计划配置无效`；用例按逐字相等断言（比文档更强的口径），§2 对应条目已按实测回填，**无疑似缺陷**。
+- **实测落盘路径（批次 08）**：账本实测落在 `<dshHome>/crons/tasks`——`inject('dshHome')` 就是 `globalSetup` 传给 `dsh web` 的 `DSH_HOME`，文件名无扩展名（`unstorage` 的 `fs` 驱动不做后缀改写，`packages/dsh-tauri/src/host/utils/driver.ts:14`）。与假设一致。
+- **未接线（TC-SCH-C-08-001 / -002 / -003）**：`playwright` 未列入 `package.json` / `pnpm-lock.yaml`（`00-overview.md` G2），客户端渲染证据缺失，保留设计不写 `it()`。
+- **未接线（TC-SCH-L3-08-001）**：L3 通道尚未接入——`desktop` project 本身已配置（`00-overview.md` G4 已消解），缺的是桌面端宿主编排与 iframe 切换，故不写成「project 未配置」。
+- **未覆盖（Agent 工具）**：`scheduler_create/list/toggle/delete/run_now` 五个工具需要 Agent 会话与工具调用通道，本批不覆盖。
+- **用例自清理**：唯一落盘的 TC-SCH-L2-08-002 在 `finally` 里删除自建任务，并在收尾断言 `GET /tasks` 回到空数组，不把状态留给后续用例与后续批次。
 - **假设**：`crons` 落盘根随 scratch `DSH_HOME` 隔离（`fsAtomicDriver` 以 `DSH_HOME` 为基，`packages/dsh-tauri/src/host/utils/driver.ts:9`）。

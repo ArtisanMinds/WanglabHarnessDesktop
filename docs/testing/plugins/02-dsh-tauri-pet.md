@@ -1,8 +1,8 @@
 # dsh-tauri-pet：从 SSE 路由到桌面端桌宠窗口
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts`（单文件承载本批全部用例，批内按层用 `describe` 分区；L2 SSE 首帧 2 例已落地，客户端段与 L3 段待接线）
-> 宿主：L2 段复用 `globalSetup` 的共享宿主（默认挂载 `dsh-tauri-pet` + `also: dsh-tauri,dsh-tauri-rightclick`），不再自带进程
+> 自动化：`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts`（单文件承载本批全部用例，批内按 L2 / 客户端 / L3 分段；L2 SSE 首帧与连接语义 5 例已落地；客户端段与 L3 段待接线）
+> 宿主：L2 段复用 `globalSetup` 的共享宿主（默认挂载 `dsh-tauri-pet`，`also` 默认覆盖全部产品可见插件，见 `test/e2e/global-setup.ts:40`），不再自带进程
 > 前置：`pnpm build:plugins`；L3 另需 debug 二进制 + `3081` 空闲 + `TAURI_WEBDRIVER_PORT`
 > 编排：`test/e2e/support/dsh-host.ts`；L3 通道见 `test/e2e/support/wdio-probe.mjs`
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
@@ -42,7 +42,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/host/routes/session/stream/get.ts:24`；`plugin.test.md` §8 批次 3
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:43`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:114`）
 [前置条件] 插件已构建并挂载进 scratch profile；宿主已就绪
 [测试数据] `GET /api/desktop/dsh-tauri-pet/session/stream`，`accept: text/event-stream`
 [测试步骤] 1. 发起请求。2. 读状态码与 `content-type`。3. 读响应体前 4 个字符后中止流。
@@ -55,7 +55,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:276`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:55`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:126`）
 [前置条件] 同 TC-PET-L2-02-001
 [测试数据] 同路径 `POST`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与 `allow` 头。
@@ -68,11 +68,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/host/routes/session/stream/get.ts:58`
-[自动化] 是（同上文件，新增）
-[前置条件] 同 TC-PET-L2-02-001；用例超时预算 ≥ 20s
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:136`）
+[前置条件] 同 TC-PET-L2-02-001；用例超时预算 ≥ 20s（本用例独立设 40s）
 [测试数据] 保持连接 17s
 [测试步骤] 1. 建立 SSE 连接。2. 累计读取响应体，直到出现第 2 次 `keepalive` 或超时。
-[预期结果] 1. 在 15s–17s 窗口内收到第 2 帧 `: keepalive`。2. 两帧之间无 `data:` 帧（无会话事件时不应伪造数据）。
+[预期结果] 1. 自发起连接起，第 2 帧 `: keepalive` 落在 15s–17s 窗口内（既不得早于一个心跳周期，也不得晚于 17s）。2. 两帧之间无 `data:` 帧（无会话事件时不应伪造数据）。
 [清理] 中止连接
 
 ### [P2] 验证连接断开后重连仍能立刻拿到就绪帧
@@ -81,11 +81,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 回归
 [追踪] `packages/dsh-tauri-pet/src/host/service/session-stream.ts:36`
-[自动化] 是（同上文件）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:154`）
 [前置条件] 同 TC-PET-L2-02-001
 [测试数据] 连续建立两次连接
-[测试步骤] 1. 建立连接 A，读到 `: keepalive` 后立即中止。2. 间隔 200ms 建立连接 B。
-[预期结果] 1. 连接 B 同样在首个响应块内返回 `: keepalive`。2. 宿主日志中不出现未捕获异常或 `ERR_STREAM_` 类错误。
+[测试步骤] 1. 建立连接 A，读到 `: keepalive` 后立即中止。2. 间隔 200ms 建立连接 B。3. 读共享宿主的日志（`inject('dshHome')` + `dsh-web.log`）。
+[预期结果] 1. 连接 B 同样在首个响应块内返回 `: keepalive`（不能等到 15s 心跳）。2. 宿主日志中不出现未捕获异常或 `ERR_STREAM_` 类错误。
 [清理] 中止连接 B
 
 ### [P4] 验证两个并发消费者各自独立就绪
@@ -94,11 +94,11 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/host/config/runtime.ts:8`
-[自动化] 是（同上文件）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:178`）
 [前置条件] 同 TC-PET-L2-02-001
 [测试数据] 同时发起两次 GET
-[测试步骤] 1. 并发建立连接 A、B。2. 分别读取首个响应块。
-[预期结果] 1. 两条连接均返回 200 且各自收到 `: keepalive`。2. 任一连接中止后，另一条仍可继续读取（互不牵连）。
+[测试步骤] 1. 并发建立连接 A、B。2. 分别读取首个响应块。3. 中止 A 后继续读 B，直到 B 出现第 2 帧 `: keepalive`。
+[预期结果] 1. 两条连接均返回 200 且各自收到 `: keepalive`。2. 任一连接中止后，另一条仍可继续读取（互不牵连），以 B 在 A 断开后仍收到新帧为证。
 [清理] 中止两条连接
 
 ---
@@ -169,7 +169,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:30`、`src-tauri/src/desktop/pet.rs:303`；`plugin.test.md` §8 批次 4+
-[自动化] 待接线（`desktop` project 未配置，见 `00-overview.md` G4）
+[自动化] 待接线（L3 通道尚未接入）
 [前置条件] debug 二进制与 `dist/` 就绪；`3081` 与 WebDriver 端口空闲；`TAURI_WEBDRIVER_PORT` 已设置；宿主 harness 已就绪
 [测试数据] 通过设置页或桥命令将 `enabled` 置为 true
 [测试步骤] 1. `POST /session` 建会话。2. 读 `GET /session/<id>/window/handles` 基线。3. 触发启用。4. 轮询窗口句柄集合。
@@ -182,7 +182,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `packages/dsh-tauri-pet/src/client/service/pet.types.ts:6`
-[自动化] 待接线（G4）
+[自动化] 待接线（L3 通道尚未接入）
 [前置条件] 干净数据目录（首个会话，`enabled` 默认关闭）
 [测试数据] 无
 [测试步骤] 1. 启动应用并建会话。2. 读窗口句柄集合。3. 读 `get_pet_status`。
@@ -195,7 +195,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:48`
-[自动化] 待接线（G4）
+[自动化] 待接线（L3 通道尚未接入）
 [前置条件] 同 TC-PET-L3-02-001；内置 DSH 界面已加载完侧栏
 [测试数据] 点击 `[data-dsh-tauri-pet-icon]` 两次
 [测试步骤] 1. 记录点击前窗口集合与 `aria-pressed`。2. 点击按钮。3. 轮询窗口集合与 `aria-pressed`。4. 再次点击。
@@ -208,7 +208,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/client/constants/index.ts:45`、`packages/dsh-tauri-pet/src/client/constants/index.ts:46`
-[自动化] 待接线（G4）
+[自动化] 待接线（L3 通道尚未接入）
 [前置条件] 桌宠已启用
 [测试数据] 依次提交 `0`、`50`、`200`、`999`
 [测试步骤] 1. 逐值调用 `set_pet_size`。2. 每次读 `get_pet_status().pet_size`。
@@ -222,12 +222,12 @@
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
 | `plugin.test.md` §8 批次 3（SSE 首帧） | TC-PET-L2-02-001、TC-PET-L2-02-002 | 正向 / 异常 | 已落地 |
-| `get.ts:58` 心跳 | TC-PET-L2-02-003 | 边界 | 用例耗时 ≥ 17s，不进冒烟子集 |
+| `get.ts:58` 心跳 | TC-PET-L2-02-003 | 边界 | 单例耗时 ≈15s（一个心跳周期），不进冒烟子集 |
 | `session-stream.ts:36` 消费者注销 | TC-PET-L2-02-004、TC-PET-L2-02-005 | 回归 / 边界 | 注销本身只能经重连间接观察 |
 | `client/index.ts:24` iframe 守卫 | TC-PET-C-02-001 | 边界 | 依赖浏览器驱动 |
 | `pet-section.ts:11` / `sidebar-icon.ts:94` | TC-PET-C-02-002、TC-PET-C-02-003 | 正向 | 依赖浏览器驱动 |
 | `sidebar-icon.ts:110` 轮询兜底 | TC-PET-C-02-004 | 边界 | 需人为阻断侧栏 |
-| `plugin.test.md` §8 批次 4+（桌面端窗口） | TC-PET-L3-02-001、TC-PET-L3-02-002、TC-PET-L3-02-003 | 正向 / 异常 | 依赖 `desktop` project |
+| `plugin.test.md` §8 批次 4+（桌面端窗口） | TC-PET-L3-02-001、TC-PET-L3-02-002、TC-PET-L3-02-003 | 正向 / 异常 | 依赖 L3 通道接入 |
 | `constants/index.ts:45` 尺寸范围 | TC-PET-L3-02-004 | 边界 | — |
 
 ---
@@ -237,4 +237,7 @@
 - **G-PET-1**：数据帧形状（`data: {"action","payload"}`，`packages/dsh-tauri-pet/src/host/types/index.ts:53`）与首帧 `retry: 1000` 需要真实会话事件才能观察。当前无「触发一次会话事件」的稳定手段，**未覆盖**；建议后续用 scratch profile 直接 POST 一次会话动作后再断言帧形状。
 - **G-PET-2**：`window.handles` 是否包含 Tauri 的多 WebView 窗口（`pet`）尚未验证——`wdio-probe.mjs:146` 只在默认状态断言了 `["main"]`。若驱动只暴露主窗口，TC-PET-L3-02-001 需改用原生窗口枚举（Rust 侧）或前端 `get_pet_status().visible`。
 - **G-PET-3**：`packages/dsh-tauri-pet/skills/` 在本 checkout 不存在，而 `cordis.patch.yml` 引用了它；技能相关的用户可见产物**不在覆盖范围**，直到该目录真实存在。
+- **G-PET-4（已消解）**：`TC-PET-L2-02-001` / `TC-PET-L2-02-002` 的 `it()` 标题曾与本文档条目标题字面不一致，且这两例用的是 `test()` 别名。已统一：标题改回文档口径，别名统一为 `it()`，本文件与其余 e2e 文件写法一致。
+- **G-PET-5（实测，非缺口）**：宿主日志**可达**——`inject('dshHome')` 即共享宿主的 scratch 根，其 `dsh-web.log` 就是 `dsh web` 的 stdout+stderr（`test/e2e/support/dsh-host.ts:441`）。`TC-PET-L2-02-004` 已实读该文件并断言；实测整批跑完后该文件仅 83 字节（只有就绪 URL 一行），即连接中止与重连都没有触发任何宿主侧输出。断言不是空转（宿主一旦打印 `ERR_STREAM_` / 未捕获异常必然落在该文件），但证据强度仅限「宿主未打印异常」。
+- **实测记录（L2 段，连续 3 次运行全绿）**：第 2 帧心跳 15.01s / 15.02s / 15.02s，命中 15–17s 窗口；重连后**首个响应块**即含就绪帧（`chunks === 1`，整例 ~0.22s）；中止 A 后 B 仍收到第 2 帧心跳（15.02s）。**未发现与本文档预期不符的行为**，故无「预期 → 实测」改写项。
 - **假设**：`sidebar-icon.utils.ts:25` 的 `aria-pressed` 与 store 中 `status.enabled` 同步（`sidebar-icon.ts:71` 订阅保证）。

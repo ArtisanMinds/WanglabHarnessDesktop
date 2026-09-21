@@ -91,7 +91,7 @@
 | 入口解析 | `DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录 | `test/e2e/support/dsh-host.ts:144` |
 | Node 入口 | `DSH_E2E_NODE_BIN`（默认 `process.execPath`） | `test/e2e/support/dsh-host.ts:101` |
 | 目标插件 | `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`） | `test/e2e/global-setup.ts:39` |
-| 附加挂载 | `DSH_E2E_ALSO`（逗号分隔，默认 `dsh-tauri,dsh-tauri-rightclick`） | `test/e2e/global-setup.ts:36` |
+| 附加挂载 | `DSH_E2E_ALSO`（逗号分隔，默认挂载全部产品可见插件） | `test/e2e/global-setup.ts:42` |
 | 挂载模式 | `DSH_E2E_MOUNT=link`（默认）/ `cli` | `test/e2e/support/dsh-host.ts:412` |
 | 保留现场 | `DSH_E2E_KEEP_HOME=1` | `test/e2e/global-setup.ts:41` |
 | 运行 | `pnpm test:e2e:plugin`（= `vitest --project plugin`） | `package.json:22` |

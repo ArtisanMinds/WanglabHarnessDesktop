@@ -1,11 +1,11 @@
 # dsh-tauri-rightclick：外部打开接口与自绘右键菜单
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/open-routes.e2e.ts`（待建立）、客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts`（宿主路由 4 例已落地并全绿）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`；L3 另需 debug 二进制 + 空闲端口
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
 
-本插件是**唯一带真实系统副作用**的 L2 路由（会拉起浏览器/文件管理器），因此正向用例把副作用压到最小，异常与边界用例全部走**不触发副作用**的分支。
+本插件是**唯一带真实系统副作用**的 L2 路由（会拉起浏览器/文件管理器）。因此自动化只覆盖**在副作用之前就返回**的异常与边界分支；唯一一条正向用例（合法外链 200）会真的打开用户桌面上的默认浏览器，不进无人值守流水线，标注为**手工执行**。
 
 ---
 
@@ -36,7 +36,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:22`
-[自动化] 是（`test/e2e/plugins/open-routes.e2e.ts`）
+[自动化] 否（有真实系统副作用，手工执行）
 [前置条件] 插件已构建并挂载；执行环境允许拉起系统浏览器
 [测试数据] `POST /open/url`，body `{ "url": "https://example.com" }`，`content-type: application/json`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -49,7 +49,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:9`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts:43`）
 [前置条件] 同 TC-RC-L2-03-001
 [测试数据] body `url=https://example.com`，`content-type: text/plain`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -62,7 +62,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:16`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts:57`）
 [前置条件] 同 TC-RC-L2-03-001
 [测试数据] 依次提交 `javascript:alert(1)`、`file:///etc/passwd`、`""`、`123`
 [测试步骤] 1. 逐一发起请求。2. 每次读状态码与响应体。
@@ -75,7 +75,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/path/post.ts:19`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts:73`）
 [前置条件] 同 TC-RC-L2-03-001
 [测试数据] 依次提交 `{ "path": "" }`、`{ "path": "   " }`、`{ "path": "https://example.com" }`
 [测试步骤] 1. 逐一发起请求。2. 每次读状态码与响应体。
@@ -88,7 +88,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-rightclick/src/host/service/opener.ts:30`
-[自动化] 是
+[自动化] 是（`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts:87`）
 [前置条件] 同 TC-RC-L2-03-001
 [测试数据] `{ "path": "<scratch DSH_HOME>/definitely-missing-dir" }`（由 `inject('dshHome')` 拼接，保证不存在）
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -163,7 +163,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:201`
-[自动化] 待接线（`desktop` project 未配置，`00-overview.md` G4）
+[自动化] 待接线（L3 通道尚未接入本插件用例）
 [前置条件] 应用与内置 DSH 界面就绪；至少一条会话行可见
 [测试数据] 在会话行上派发 `contextmenu`
 [测试步骤] 1. 建立 WebDriver 会话并切到 iframe。2. 派发右键。3. 查询菜单根与菜单项。4. Escape 关闭。
@@ -176,7 +176,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:175`
-[自动化] 待接线（G4）
+[自动化] 待接线（L3 通道尚未接入本插件用例）
 [前置条件] 同 TC-RC-L3-03-001
 [测试数据] `ArrowDown` ×2、`Home`、`End`、`Escape`
 [测试步骤] 1. 打开菜单。2. 逐键派发并读 `document.activeElement`。3. `Escape`。
@@ -189,12 +189,12 @@
 
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
-| `open/url/post.ts` 三态（415/400/500） | TC-RC-L2-03-001、TC-RC-L2-03-002、TC-RC-L2-03-003 | 正向 / 异常 | 500 分支无法在不破坏系统默认打开器的前提下构造，**未覆盖** |
+| `open/url/post.ts` 三态（415/400/500） | TC-RC-L2-03-001、TC-RC-L2-03-002、TC-RC-L2-03-003 | 正向（手工）/ 异常 | 正向会真的拉起默认浏览器，故不进自动化；500 分支无法在不破坏系统默认打开器的前提下构造，**未覆盖** |
 | `open/path/post.ts` 三态（415/400/not-a-directory） | TC-RC-L2-03-004、TC-RC-L2-03-005 | 异常 / 边界 | 415 已由 TC-RC-L2-03-002 同源覆盖，不重复 |
 | 菜单挂载与关闭 | TC-RC-C-03-001、TC-RC-C-03-002 | 正向 | 依赖浏览器驱动 |
 | `EDITABLE_SELECTOR` 例外 | TC-RC-C-03-003 | 异常 | 依赖浏览器驱动 |
 | 剪贴板降级 | TC-RC-C-03-004 | 异常 | `execCommand` 回退分支需单独造环境，**未覆盖** |
-| 桌面端 WebView 内行为一致性 | TC-RC-L3-03-001、TC-RC-L3-03-002 | 正向 / 边界 | 依赖 `desktop` project |
+| 桌面端 WebView 内行为一致性 | TC-RC-L3-03-001、TC-RC-L3-03-002 | 正向 / 边界 | L3 通道尚未接入本插件用例 |
 
 ---
 
@@ -203,4 +203,6 @@
 - **G-RC-1**：`open/url` 的 500 分支（`opener.ts:17`）需要让系统打开动作失败。当前不构造该环境，**未覆盖**，登记为已知盲区。
 - **G-RC-2**：`src/host/routes/index.test.ts:146` 已有 415/400 的单元级回归；本文件的 L2 用例是**真实宿主**下的同一断言，属有意重复的信任边界加固。
 - **G-RC-3**：扩展注册表（`Symbol.for('dsh.rightclick-menu.extensions')`）在本包内无注册者，第三方扩展项的行为**不在范围**。
+- **G-RC-4**：TC-RC-L2-03-001（合法外链 200）会真的拉起本机默认浏览器，属**真实系统副作用**，不进自动化流水线，仅手工执行；`open/url` 的成功路径因此在无人值守运行中无覆盖。异常与边界用例（002–005）全部落在校验阶段、打开动作之前，可安全自动化。
+- **G-RC-5**：本文件已实现的 4 条 L2 用例（002–005）在真实宿主下的实测行为与预期**完全一致**（415 `unsupported-media-type`、400 `invalid-url` ×4、400 `invalid-path` ×3、400 `not-a-directory`），无「文档预期 vs 实测」差异，不涉及疑似缺陷。
 - **假设**：菜单容器类名 `dshp-menu` 属于插件前缀 class，按 `plugin.client.md` §4「允许使用插件前缀 class」可作为稳定选择器；若改为 `data-testid`，用例同步更新。
