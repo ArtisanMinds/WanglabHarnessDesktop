@@ -1,20 +1,6 @@
 > 该文档已被固定，禁止修改
 
-# 插件开发与测试规范
-
-## 架构规范指引
-
-开发时须按所在模块严格遵守对应规范：
-
-| 适用模块 | 规范文件 | 说明 / 特殊要求 |
-| --- | --- | --- |
-| **插件客户端** | [`plugin.client.md`](./plugin.client.md) | 禁止直接引入 `lodash-es`，须从 `dsh-tauri/client/` 导出模块引用 |
-| **插件宿主端** | [`plugin.host.md`](./plugin.host.md) | 直接将 `lodash-es` 安装为依赖 |
-| **宿主端服务** | [`plugin.host.service.md`](./plugin.host.service.md) | — |
-| **全局面板** | [`plugin.client.panel.md`](./plugin.client.panel.md) | — |
-| **测试编写** | [`plugin.test.md`](./plugin.test.md) | 包含分层归属、目录结构、隔离红线等 |
-
----
+# 插件基础规范
 
 ## 常量归属规范
 
