@@ -17,6 +17,7 @@ export default defineProject({
   test: {
     name: 'desktop',
     include: ['test/e2e/desktop/*.e2e.ts'],
+    globalSetup: ['./test/e2e/setup-desktop.ts'],
     environment: 'node',
     fileParallelism: false,
     testTimeout: 180_000,

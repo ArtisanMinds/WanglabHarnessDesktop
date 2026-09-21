@@ -37,6 +37,7 @@ L3 车道仅验证：**壳层是否将 dsh 正确装配、启动并嵌入**。
 
 | 维度 | 规范与约定 |
 | --- | --- |
+| **车道入口** | `test/e2e/setup-desktop.ts` 是本 project 的 `globalSetup`（`vitest.desktop.config.ts` 的 `globalSetup`）：整条车道只跑一次——清理上一轮遗留的 scratch 根，并校验 debug 二进制存在、WebDriver 与 debug 端口空闲，让「端口被占 / 二进制缺失」在车道开始前一次性报错，而不是每个用例文件各报一次。应用实例仍由各用例文件自己 `startDesktopApp()` 起（`fileParallelism: false` 保证串行、一次一个实例）。 |
 | **平台** | **Windows 优先**（WebView2 + 内嵌 W3C WebDriver）。CI 作业 `desktop-e2e` (windows-latest) 为 PR 必过门禁。 |
 | **构建与二进制** | 执行 `pnpm build:debug`；产物为 `src-tauri/target/debug/deepseek-harness-desktop.exe`，**缺失即 Fail**，不在测试中重新构建。 |
 | **前端产物** | `dist/` 缺失将导致应用回退至 `devUrl` 且页面为空。 |

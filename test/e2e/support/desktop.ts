@@ -1,21 +1,7 @@
-/**
- * test/e2e/support/desktop.ts — L3 桌面端 E2E 的宿主编排。
- *
- * 目标：把「真实 Debug 二进制 + WDIO 会话」变成一行 `startDesktopApp()`。
- *
- * 与插件 L2 的 `dsh.ts` 的关键区别：应用由 `@wdio/tauri-service` 的 embedded
- * provider 自己 spawn（它注入 `TAURI_WEBDRIVER_PORT` 并轮询应用内嵌的 WebDriver server），
- * 本文件只负责前置校验、环境隔离与收尾。
- *
- * 隔离：dsh 数据目录由 `get_dsh_data_path()` 决定，它读 `USERPROFILE`/`HOME` 并
- * 忽略 `DSH_HOME`（`src-tauri/src/config/runtime.rs:471`）；`app_data_dir()` 同源
- * 派生。因此只重定向 home 根即可隔离，绝不写用户真实的 `~/.dsh.dev` 与 Store。
- */
-
 import type { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
-import { readdir, rm, stat } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, readdir, rm, stat } from 'node:fs/promises'
 import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -43,27 +29,6 @@ export const APP_TITLE = 'Deepseek Harness Desktop'
  */
 export const MAIN_WEBVIEW = 'main'
 
-/**
- * 应用内嵌 WebDriver server 的端口（`@wdio/tauri-service` 的 embedded provider 默认 4445，
- * 应用侧由 `TAURI_WEBDRIVER_PORT` 门控）。
- *
- * 与 provider 同源读取 `TAURI_WEBDRIVER_PORT`：本机若正跑着另一个桌面实例（它同样占着
- * 4445），用 `TAURI_WEBDRIVER_PORT=<空闲端口>` 即可让本车道另开一路，无需结束用户实例。
- * 未设置或为空时取 4445；非法值当场 Fail，避免 `Number()` 的 NaN / 越界值落到 socket 层
- * 才报 `ERR_SOCKET_BAD_PORT`（或被 provider 当作未设置而静默回落 4445）。
- */
-function resolveWebDriverPort(): number {
-  const raw = process.env.TAURI_WEBDRIVER_PORT
-  if (raw === undefined || raw.trim() === '')
-    return 4445
-  const port = Number(raw)
-  if (!Number.isInteger(port) || port < 1 || port > 65535)
-    throw new Error(`TAURI_WEBDRIVER_PORT 非法：${JSON.stringify(raw)}（需 1–65535 的整数）`)
-  return port
-}
-
-export const WEBDRIVER_PORT = resolveWebDriverPort()
-
 /** 残留实例的进程名（按 `productName` 推导）。 */
 const APP_PROCESS_NAME = 'deepseek-harness-desktop'
 
@@ -78,6 +43,26 @@ const STALE_HOME_AGE_MS = 30 * 60 * 1000
 
 /** WDIO 会话建立上限。 */
 const SESSION_TIMEOUT_MS = 120_000
+
+/** 默认 WebDriver 端口。 */
+const DEFAULT_WEBDRIVER_PORT = 4445
+
+/**
+ * 解析并校验内嵌 WebDriver 服务端口。
+ */
+function resolveWebDriverPort(): number {
+  const raw = process.env.TAURI_WEBDRIVER_PORT?.trim()
+  if (!raw)
+    return DEFAULT_WEBDRIVER_PORT
+
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`TAURI_WEBDRIVER_PORT 非法：${JSON.stringify(raw)}（需 1–65535 的整数）`)
+  }
+  return port
+}
+
+export const WEBDRIVER_PORT = resolveWebDriverPort()
 
 // ============================================================================
 // 类型接口
@@ -95,8 +80,6 @@ export interface StartDesktopAppOptions {
    *
    * 默认**复用跨运行的共享缓存**（`$DSH_E2E_DOWNLOAD_CACHE_DIR`，缺省
    * `<os.tmpdir()>/dsh-e2e-download-cache`）：已下好的 Node/dsh 不再每次重下。
-   * 需要观察「装配真的走了一遍下载」的用例用 `coldCache`（或 `DSH_E2E_COLD_ASSEMBLY=1`）
-   * 退回「本次运行独占的空目录」。
    */
   downloadCacheDir?: string
   /**
@@ -106,9 +89,6 @@ export interface StartDesktopAppOptions {
   coldCache?: boolean
   /**
    * 复用指定的隔离根（跨重启持久化用例）。
-   *
-   * WebView2 profile 与 dsh 数据都在隔离根内，语言这类 localStorage 状态只有
-   * 复用同一个根才会跨重启保留。不传则新建 scratch 根。
    */
   homeDir?: string
   /** 启动前清理 `<app-data>/.store.test.dat`；复用隔离根（= 重启）时传 `false` 保留 store。 */
@@ -124,11 +104,7 @@ export interface DesktopApp {
   readonly downloadCacheDir: string
   /** 应用二进制实际路径。 */
   readonly binaryPath: string
-  /**
-   * 结束会话（幂等）。
-   *
-   * `keepHome` 保留隔离根供下一次启动复用；否则删除。
-   */
+  /** 结束会话（幂等）。 */
   readonly stop: (options?: { keepHome?: boolean }) => Promise<void>
 }
 
@@ -137,7 +113,7 @@ export interface DesktopApp {
 // ============================================================================
 
 /**
- * 起一个真实桌面应用并建立 WDIO 会话。
+ * 拉起真实桌面应用并建立 WDIO 会话。
  */
 export async function startDesktopApp(options: StartDesktopAppOptions = {}): Promise<DesktopApp> {
   const {
@@ -152,31 +128,30 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     await assertPreconditions({ binaryPath })
   }
 
-  // 触发异步垃圾回收清理（不阻塞当前应用启动）
+  // 触发后台异步垃圾回收与 Store 重置（非阻塞）
   void purgeStaleHomes()
-  if (resetStore)
-    resetTestStore()
+  const resetStorePromise = resetStore ? resetTestStore() : Promise.resolve()
 
   const home = options.homeDir ?? makeHome(keepHome)
-  ensureHomeDirs(home)
 
-  // 默认复用跨运行的共享下载缓存：核心（Node/dsh）不再每次重下。只有显式 `coldCache`
-  // （或 `DSH_E2E_COLD_ASSEMBLY=1`）才退回本次运行独占的空目录，供「必须真的下载」的用例。
+  // 并行初始化目录与重置 Store
   const coldCache = options.coldCache ?? process.env.DSH_E2E_COLD_ASSEMBLY === '1'
   const cacheDir = options.downloadCacheDir
     ?? (coldCache
       ? join(home, 'download-cache')
       : process.env.DSH_E2E_DOWNLOAD_CACHE_DIR ?? join(tmpdir(), 'dsh-e2e-download-cache'))
-  mkdirSync(cacheDir, { recursive: true })
+
+  await Promise.all([
+    ensureHomeDirs(home),
+    mkdir(cacheDir, { recursive: true }),
+    resetStorePromise,
+  ])
 
   const profile = join(home, 'home')
   const env: Record<string, string> = {
     USERPROFILE: profile,
     HOME: profile,
     DSH_DOWNLOAD_CACHE_DIR: cacheDir,
-    // WebView2 profile 独占：`app_local_data_dir()` 走 `SHGetKnownFolderPath`，
-    // 重定向 `LOCALAPPDATA` 无效，不覆盖就会与用户正在使用的开发版共用
-    // `EBWebView-dev`——用例写入的语言等 localStorage 会污染开发会话。
     DSH_E2E_WEBVIEW_DATA_DIR: join(home, 'webview2'),
   }
 
@@ -198,7 +173,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   let browser: WebdriverIO.Browser | undefined
   let stopped = false
 
-  const stop = async (options: { keepHome?: boolean } = {}): Promise<void> => {
+  const stop = async (stopOptions: { keepHome?: boolean } = {}): Promise<void> => {
     if (stopped)
       return
     stopped = true
@@ -212,23 +187,21 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
       }
     }
 
-    // 收掉本车道遗留的 dsh：它是应用独立拉起的进程，应用被强杀时不会被一起带走
-    await killOrphanHarness(cacheDir)
+    // 并行执行孤儿进程清理与端口释放等待，提升收尾效率
+    await Promise.all([
+      killOrphanHarness(cacheDir),
+      waitForPortRelease(WEBDRIVER_PORT, 20),
+    ])
 
-    // 探测 WebDriver 端口以等待 WebView2 子进程释放资源
-    for (let i = 0; i < 20 && (await isPortBusy(WEBDRIVER_PORT)); i++) {
-      await sleep(150)
-    }
-
-    if (keepHome || options.keepHome) {
+    if (keepHome || stopOptions.keepHome) {
       log(`保留 scratch home：${home}`)
       return
     }
 
-    // 带退避重试删除临时工作目录
+    // 带退避重试清理临时隔离目录
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        rmSync(home, { recursive: true, force: true })
+        await rm(home, { recursive: true, force: true })
         log(`收尾完成（${Date.now() - startedAt}ms）`)
         return
       }
@@ -237,7 +210,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
           log(`scratch 未删除（残留 ${home}）：${(error as Error).message}`)
           return
         }
-        await sleep(200)
+        await sleep(200 * attempt) // 退避等待
       }
     }
   }
@@ -272,10 +245,13 @@ export function defaultBinaryPath(): string {
 export function isPortBusy(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host: '127.0.0.1', port })
+
     const cleanup = (busy: boolean): void => {
+      socket.removeAllListeners()
       socket.destroy()
       resolve(busy)
     }
+
     socket.setTimeout(1_000)
     socket.once('connect', () => cleanup(true))
     socket.once('timeout', () => cleanup(false))
@@ -283,7 +259,18 @@ export function isPortBusy(port: number): Promise<boolean> {
   })
 }
 
-/** 应用真实 app-data 目录（`SHGetKnownFolderPath` 解析，环境变量改不动它）。 */
+/** 轮询等待指定端口释放（采用指数退避机制）。 */
+async function waitForPortRelease(port: number, maxAttempts = 20): Promise<void> {
+  let delay = 50
+  for (let i = 0; i < maxAttempts; i++) {
+    if (!(await isPortBusy(port)))
+      return
+    await sleep(delay)
+    delay = Math.min(delay * 1.5, 300) // 动态退避
+  }
+}
+
+/** 应用真实 app-data 目录。 */
 function getAppDataDir(): string {
   const roaming = process.env.APPDATA ?? join(process.env.USERPROFILE ?? '', 'AppData', 'Roaming')
   return join(roaming, 'dsh-tauri')
@@ -306,25 +293,22 @@ function execPowerShell(script: string): Promise<string> {
 }
 
 /**
- * 收掉本车道遗留的 dsh 服务进程。
- *
- * 应用会真的拉起 dsh；它是应用独立拉起的进程，应用被强杀时不会被一起带走，残留实例
- * 会一直占着 debug 端口，让下一次启动的前置校验（刻意不自动杀进程）直接失败。只匹配
- * 「命令行里带本次下载缓存目录」的进程，因此不会误伤用户正在使用的正式版 / 开发版实例。
+ * 清理本车道遗留的 dsh 服务进程。
  */
 async function killOrphanHarness(cacheDir: string): Promise<void> {
   if (process.platform !== 'win32')
     return
 
-  const pattern = cacheDir.replace(/'/g, '\'\'')
-  const script = `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*${pattern}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`
+  // PowerShell 路径单引号安全转义
+  const safePattern = cacheDir.replace(/'/g, '\'\'')
+  const script = `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*${safePattern}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`
   await execPowerShell(script)
 }
 
 /**
- * 指定二进制是否仍有存活进程。
- * 按**可执行文件路径**比对，避免误判正式版实例。
- */async function hasLiveProcess(binaryPath: string): Promise<boolean> {
+ * 检查指定二进制路径是否有活动的进程。
+ */
+async function hasLiveProcess(binaryPath: string): Promise<boolean> {
   if (process.platform !== 'win32')
     return false
 
@@ -342,7 +326,7 @@ async function killOrphanHarness(cacheDir: string): Promise<void> {
 // ============================================================================
 
 /**
- * 前置校验：不满足即 fail，**不自动强杀用户进程**。
+ * 前置校验：确保环境就绪（端口/残余进程检查）。
  */
 export async function assertPreconditions(options: { port?: number, binaryPath?: string } = {}): Promise<void> {
   const port = options.port ?? APP_PORT
@@ -354,31 +338,43 @@ export async function assertPreconditions(options: { port?: number, binaryPath?:
     )
   }
 
-  if (await isPortBusy(port)) {
+  // 并行检测端口与残留进程，缩短校验耗时
+  const [appPortBusy, webdriverPortBusy, liveProcess] = await Promise.all([
+    isPortBusy(port),
+    isPortBusy(WEBDRIVER_PORT),
+    hasLiveProcess(binaryPath),
+  ])
+
+  if (appPortBusy) {
     throw new Error(`端口 ${port} 已被监听（debug 固定端口）；请先停掉 dev/debug 实例。本校验不自动杀进程。`)
   }
 
-  if (await isPortBusy(WEBDRIVER_PORT)) {
+  if (webdriverPortBusy) {
     throw new Error(
       `WebDriver 端口 ${WEBDRIVER_PORT} 已被占用（多半是另一个桌面实例在跑）；此时会话会静默挂到对方的窗口上，必须先释放。本校验不自动杀进程。`,
     )
   }
 
-  if (await hasLiveProcess(binaryPath)) {
+  if (liveProcess) {
     throw new Error(`检测到残留桌面实例（${binaryPath}）；请先关闭后再跑 E2E。本校验不自动杀进程。`)
   }
 }
 
-/** 清空测试 Store。 */
-export function resetTestStore(): void {
+/** 清空测试 Store（异步）。 */
+export async function resetTestStore(): Promise<void> {
   const file = join(getAppDataDir(), TEST_STORE_FILE)
-  rmSync(file, { force: true })
+  try {
+    await rm(file, { force: true })
+  }
+  catch {
+    // 忽略文件不存在或删除失败
+  }
 }
 
 let isStaleHomesPurged = false
 
 /**
- * 异步清理历史运行残留的 scratch home（每个进程只执行一次，非阻塞）。
+ * 异步清理历史运行残留的 scratch home（单例非阻塞执行）。
  */
 export async function purgeStaleHomes(): Promise<void> {
   if (isStaleHomesPurged)
@@ -387,50 +383,54 @@ export async function purgeStaleHomes(): Promise<void> {
 
   const root = tmpdir()
   const deadline = Date.now() - STALE_HOME_AGE_MS
-  let removedCount = 0
 
   try {
     const entries = await readdir(root)
-    for (const entry of entries) {
-      if (!entry.startsWith(SCRATCH_PREFIX))
-        continue
-      const targetPath = join(root, entry)
+    const candidates = entries.filter(e => e.startsWith(SCRATCH_PREFIX))
 
+    const removePromises = candidates.map(async (entry) => {
+      const targetPath = join(root, entry)
       try {
         const stats = await stat(targetPath)
         if (stats.mtimeMs <= deadline) {
           await rm(targetPath, { recursive: true, force: true })
-          removedCount++
+          return true
         }
       }
       catch {
-        // 忽略单个目录清理失败（仍被占用或无权限）
+        // 忽略单个目录异常
       }
+      return false
+    })
+
+    const results = await Promise.all(removePromises)
+    const removedCount = results.filter(Boolean).length
+
+    if (removedCount > 0) {
+      log(`清理历史 scratch：${removedCount} 个`)
     }
   }
   catch {
-    // 忽略读取临时根目录失败
-  }
-
-  if (removedCount > 0) {
-    log(`清理历史 scratch：${removedCount} 个`)
+    // 忽略根目录读取异常
   }
 }
 
 /** 建隔离根并派生 home 根。 */
 function makeHome(keep: boolean): string {
   const home = join(tmpdir(), `${SCRATCH_PREFIX}${Date.now().toString(36)}`)
-
-  if (keep)
+  if (keep) {
     log(`KEEP_HOME：${home}`)
-  return ensureHomeDirs(home)
+  }
+  return home
 }
 
-/** 建立（或补齐）隔离根内的 profile 目录；应用缺 `AppData/Local|Roaming` 会 panic。 */
-function ensureHomeDirs(home: string): string {
+/** 建立隔离根内的 profile 目录。 */
+async function ensureHomeDirs(home: string): Promise<string> {
   const profile = join(home, 'home')
-  mkdirSync(join(profile, 'AppData', 'Local'), { recursive: true })
-  mkdirSync(join(profile, 'AppData', 'Roaming'), { recursive: true })
+  await Promise.all([
+    mkdir(join(profile, 'AppData', 'Local'), { recursive: true }),
+    mkdir(join(profile, 'AppData', 'Roaming'), { recursive: true }),
+  ])
   return home
 }
 

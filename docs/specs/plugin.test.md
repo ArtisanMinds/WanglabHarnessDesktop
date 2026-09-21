@@ -38,7 +38,7 @@
 packages/<name>/src/**/*.test.ts   # L1 单元（源码同级）
 test/**/*.test.ts                  # L1 单元（跨包/编排级）
 test/e2e/
-  global-setup.ts                  # plugin 层的 globalSetup：启动共享宿主，下发地址/Cookie/Home
+  setup-plugin.ts                  # plugin 层的 globalSetup：启动共享宿主，下发地址/Cookie/Home
   support/
     dsh.ts                    # 宿主环境脚手架：DSH_HOME 隔离、Profile 构造、挂载、启动、鉴权与回收
     browser.ts                     # C 浏览器层编排：Chromium 启动、同源 Frame 嵌入、Cookie 注入、报错收集
@@ -98,7 +98,7 @@ node node_modules/vitest/vitest.mjs run --project plugin test/e2e/plugins/dsh-ta
 
 ## 4. 宿主编排与鉴权
 
-由 `test/e2e/support/dsh.ts` 提供底座，`test/e2e/global-setup.ts` 实例化全局单一共享宿主，通过 `project.provide()`（`inject()`）跨 Worker 下发参数。
+由 `test/e2e/support/dsh.ts` 提供底座，`test/e2e/setup-plugin.ts` 实例化全局单一共享宿主，通过 `project.provide()`（`inject()`）跨 Worker 下发参数。
 
 ```
 [globalSetup]
