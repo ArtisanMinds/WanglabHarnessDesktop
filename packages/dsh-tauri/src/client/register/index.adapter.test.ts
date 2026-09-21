@@ -641,3 +641,46 @@ describe('defineAdapter — 0.1.6-alpha.2 会话面投影', () => {
     expect(openSession).not.toHaveBeenCalled()
   })
 })
+
+describe('defineAdapter — sessionList 投影', () => {
+  it('sessionList：过滤非字符串 id、只带字符串 current，subscribe 转发到核心列表', () => {
+    const list = makeLiveList<{ ids: unknown[], current?: unknown }>({ ids: ['s1', 7, 's2', null], current: 's2' })
+    const adapter = defineAdapter(makeContext({ sessions: { list } }))
+
+    const projection = adapter.sessionList()
+    expect(projection?.ids).toEqual(['s1', 's2'])
+    expect(projection?.current).toBe('s2')
+
+    const listener = vi.fn()
+    const off = projection?.subscribe(listener)
+    list.publish({ ids: ['s3'], current: 's3' })
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(adapter.sessionList()?.ids).toEqual(['s3'])
+    expect(adapter.sessionList()?.current).toBe('s3')
+    off?.()
+    list.publish({ ids: ['s4'], current: 's4' })
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(adapter.sessionList()?.ids).toEqual(['s4'])
+  })
+
+  it('sessionList：快照非对象时按「无法判断」返回 undefined，ids 非数组时退化为空列表', () => {
+    const nullSnapshot = makeLiveList<unknown>(null)
+    expect(defineAdapter(makeContext({ sessions: { list: nullSnapshot } })).sessionList()).toBeUndefined()
+
+    const stringIds = makeLiveList<unknown>({ ids: 's1' })
+    expect(defineAdapter(makeContext({ sessions: { list: stringIds } })).sessionList())
+      .toEqual({ ids: [], subscribe: expect.any(Function) })
+
+    // current 只认字符串：非字符串一律当缺席，不猜一个结论
+    const numericCurrent = makeLiveList<unknown>({ ids: ['s1'], current: 42 })
+    expect(defineAdapter(makeContext({ sessions: { list: numericCurrent } })).sessionList())
+      .toEqual({ ids: ['s1'], subscribe: expect.any(Function) })
+  })
+
+  it('sessionList：核心没有 list 投影时返回 undefined', () => {
+    const adapter = defineAdapter(makeContext({ sessions: { getSnapshot: vi.fn() } }))
+
+    expect(adapter.has('sessions.list')).toBe(false)
+    expect(adapter.sessionList()).toBeUndefined()
+  })
+})

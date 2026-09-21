@@ -83,4 +83,54 @@ describe('session.resume', () => {
     expect(outcome.ok).toBe(false)
     expect(outcome.ok === false && outcome.code).toBe(500)
   })
+
+  it('reports 500 with the DSH_LOADER_MISSING literal when the host exposes no loader', async () => {
+    const followed: unknown[] = []
+    setCurrentHostInstance({
+      agents: {
+        get: () => ({
+          status: 'idle',
+          session: { snapshotEvents: () => [turnEnd('aborted')] },
+          followup: (message: unknown) => void followed.push(message),
+        }),
+      },
+      logger: { warn: () => {} },
+    } as HostContext)
+    expect(await session.resume('s1')).toEqual({
+      ok: false,
+      code: 500,
+      error: 'TypeError: DSH_LOADER_MISSING: ctx.loader',
+    })
+    expect(followed).toHaveLength(0)
+  })
+
+  it('reports 500 with the DSH_LOADER_MISSING literal when the loader lacks import()', async () => {
+    setup({ events: [turnEnd('aborted')], loader: { unwrapExports: (value: unknown) => value } })
+    expect(await session.resume('s1')).toEqual({
+      ok: false,
+      code: 500,
+      error: 'TypeError: DSH_LOADER_MISSING: ctx.loader',
+    })
+  })
+
+  it('reports 500 with the DSH_LLM_EXPORT_MISSING literal when import() carries no createUserMessage', async () => {
+    const { followed } = setup({
+      events: [turnEnd('aborted')],
+      loader: { import: async () => ({ createUserMessage: 'not-a-function' }), unwrapExports: () => undefined },
+    })
+    expect(await session.resume('s1')).toEqual({
+      ok: false,
+      code: 500,
+      error: 'TypeError: DSH_LLM_EXPORT_MISSING: createUserMessage',
+    })
+    expect(followed).toHaveLength(0)
+  })
+
+  it('turns a throwing loader into a 500 naming the thrown error', async () => {
+    setup({
+      events: [turnEnd('aborted')],
+      loader: { import: async () => { throw new Error('boom') }, unwrapExports: (value: unknown) => value },
+    })
+    expect(await session.resume('s1')).toEqual({ ok: false, code: 500, error: 'Error: boom' })
+  })
 })

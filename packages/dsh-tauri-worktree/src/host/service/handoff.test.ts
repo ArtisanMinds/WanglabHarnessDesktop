@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { clearHostRuntime, setCurrentHostInstance } from '../config/runtime'
 import { handoff } from './handoff'
 
+vi.mock('dsh-tauri', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dsh-tauri')>()
+  const { testDshHome: home } = await import('../../../../.test/test-utils')
+  return { ...actual, DSH_HOME: home }
+})
+
 const events = [
   { type: 'user/message', seq: 0, time: 1, data: { message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } } },
   { type: 'turn/end', seq: 1, time: 2, data: { reason: { kind: 'completed' } } },

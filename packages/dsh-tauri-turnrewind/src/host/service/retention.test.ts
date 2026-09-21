@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { execFile } from 'node:child_process'
 import { existsSync, rmSync } from 'node:fs'
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
@@ -25,6 +25,8 @@ const temporaryDirectories: string[] = []
 
 type Store = ReturnType<typeof snapshot.resolve>
 
+const GIT_IDENTITY = ['-c', 'user.email=test@example.com', '-c', 'user.name=test']
+
 async function fixture(): Promise<{ worktree: string, store: Store }> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-turnrewind-retention-'))
   temporaryDirectories.push(root)
@@ -32,6 +34,8 @@ async function fixture(): Promise<{ worktree: string, store: Store }> {
   await mkdir(worktree, { recursive: true })
   await run('git', ['-c', 'init.defaultBranch=main', 'init', '--quiet', worktree], { windowsHide: true })
   await writeFile(join(worktree, 'a.txt'), 'tracked\n', 'utf8')
+  await run('git', ['-C', worktree, ...GIT_IDENTITY, 'add', '--all'], { windowsHide: true })
+  await run('git', ['-C', worktree, ...GIT_IDENTITY, 'commit', '--quiet', '-m', 'init'], { windowsHide: true })
   const store = snapshot.resolve(worktree)
   const ensured = await snapshot.capture(store, snapshot.ref('retention-fixture', 1, 'before'), 'retention fixture')
   expect(ensured.ok).toBe(true)
@@ -163,10 +167,23 @@ describe('describeRepository', () => {
 describe('工作区状态', () => {
   it('治理不修改用户仓库（私有仓之外零副作用）', async () => {
     const { worktree, store } = await fixture()
+    await writeFile(join(worktree, 'a.txt'), 'dirty\n', 'utf8')
+
     const head = await gitInRepo(worktree, ['rev-parse', 'HEAD']).then(result => (result.ok ? result.out.trim() : 'no-head'))
+    const status = await gitInRepo(worktree, ['status', '--porcelain=v1']).then(result => (result.ok ? result.out.trim() : ''))
+    const content = await readFile(join(worktree, 'a.txt'), 'utf8')
+    expect(head).toMatch(/^[0-9a-f]{40}$/)
+    expect(status).toBe('M a.txt')
+    expect(content).toBe('dirty\n')
+
     await retention.enforce(store, { maxRepoMb: 0 })
+
     const after = await gitInRepo(worktree, ['rev-parse', 'HEAD']).then(result => (result.ok ? result.out.trim() : 'no-head'))
+    const afterStatus = await gitInRepo(worktree, ['status', '--porcelain=v1']).then(result => (result.ok ? result.out.trim() : ''))
+    const afterContent = await readFile(join(worktree, 'a.txt'), 'utf8')
     expect(after).toBe(head)
-    expect((await gitInRepo(worktree, ['status', '--porcelain=v1'])).ok).toBe(true)
+    expect(after).toMatch(/^[0-9a-f]{40}$/)
+    expect(afterStatus).toBe('M a.txt')
+    expect(afterContent).toBe(content)
   })
 })
