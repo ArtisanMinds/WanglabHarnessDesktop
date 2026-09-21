@@ -623,25 +623,28 @@ fn parse_pnpm_major_output(pnpm: &Path, output: &std::process::Output) -> Option
     stdout.split('.').next()?.trim().parse::<u32>().ok()
 }
 
-/// 构建 pnpm 探测专用 PATH：选定 Node 目录、桌面端 shim 目录、用户 pnpm 所在
-/// 目录依次前置，其余环境保留。
+/// 构建 pnpm 探测专用 PATH：**与 `build_plugin_envs` 同序**——桌面端 shim 目录
+/// 首位，随后选定 Node 目录、用户 pnpm 所在目录，其余环境保留。
 ///
-/// `bin_dir` 必须参与：`build_plugin_envs` 把它放在子进程 PATH 首位，`dsh plugin`
-/// 的 `spawnSync("pnpm")` 命中的就是它。探测少了这一层，就会在一个「自身没有实现、
-/// 只按 PATH 转交」的用户 shim（如 mise shims）上得出与真实安装相反的结论。
+/// 顺序必须一致：安装子进程的 PATH 就是 `[bin_dir, node_dir, ...]`，`dsh plugin`
+/// 的 `spawnSync("pnpm")` 命中的是 `bin_dir/pnpm`，而该 shim 只会按 `DSH_PNPM`
+/// 或 PATH 继续转发。探测若把 `bin_dir` 排到用户 pnpm 之后，就可能解析出与真实
+/// 安装不同的 pnpm（Corepack / 转发型 shim 尤其明显），使选出的主版本与实际安装
+/// 的不一致；反过来，少了 `bin_dir` 这一层就会漏掉「按 PATH 解析回桌面 shim」的
+/// 间接层，得出与安装相反的结论。
 fn pnpm_probe_path(
     pnpm: &Path,
     node: Option<&Path>,
     bin_dir: Option<&Path>,
 ) -> Option<OsString> {
     let mut paths = Vec::new();
-    // 选定 Node 必须位于 pnpm shim 目录之前：corepack 目录可能残留另一份 node，
+    if let Some(bin_dir) = bin_dir {
+        paths.push(bin_dir.to_path_buf());
+    }
+    // 选定 Node 仍须位于 pnpm shim 目录之前：corepack 目录可能残留另一份 node，
     // bare `node` 应与桌面端预检和后续插件命令使用同一运行时。
     if let Some(parent) = node.and_then(Path::parent) {
         paths.push(parent.to_path_buf());
-    }
-    if let Some(bin_dir) = bin_dir {
-        paths.push(bin_dir.to_path_buf());
     }
     if let Some(parent) = pnpm.parent() {
         paths.push(parent.to_path_buf());
@@ -1152,5 +1155,40 @@ virtualStoreDir: node_modules/.pnpm
         assert_eq!(strip_store_version("/mnt/v-store"), "/mnt/v-store");
         assert_eq!(strip_store_version("v10"), "v10");
         assert_eq!(strip_store_version(""), "");
+    }
+
+    /// 探测 PATH 必须与 `build_plugin_envs`（安装子进程）同序：桌面端 shim 目录在
+    /// 首位，然后才是选定 Node 与用户 pnpm 所在目录。顺序不一致时探测与安装可能
+    /// 解析到不同的 pnpm，`ensure_pnpm` 据探测结果选出的主版本与实际安装的不相符。
+    #[test]
+    fn probe_path_puts_desktop_shim_dir_first() {
+        let path = pnpm_probe_path(
+            Path::new("/user/bin/pnpm"),
+            Some(Path::new("/opt/node/bin/node")),
+            Some(Path::new("/desktop/bin")),
+        )
+        .unwrap();
+        let entries: Vec<String> = std::env::split_paths(&path)
+            .map(|entry| entry.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries[0], "/desktop/bin");
+        assert_eq!(entries[1], "/opt/node/bin");
+        assert_eq!(entries[2], "/user/bin");
+    }
+
+    /// 不注入桌面 shim 目录（按精确路径探测）时保持原有顺序，不凭空插入空目录。
+    #[test]
+    fn probe_path_without_bin_dir_keeps_node_first() {
+        let path = pnpm_probe_path(
+            Path::new("/user/bin/pnpm"),
+            Some(Path::new("/opt/node/bin/node")),
+            None,
+        )
+        .unwrap();
+        let entries: Vec<String> = std::env::split_paths(&path)
+            .map(|entry| entry.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(entries[0], "/opt/node/bin");
+        assert_eq!(entries[1], "/user/bin");
     }
 }

@@ -182,6 +182,16 @@ if "%DSH_PREFER_BUNDLED_PNPM%"=="1" (
   if exist "%PNPM_BIN%" goto :after_user
 )
 
+rem Re-entry guard: DSH_PNPM, or the first pnpm found on PATH, may itself be a shim
+rem that resolves back through PATH into this file; forwarding twice would exec the
+rem two shims into each other forever and the installer child would never exit.
+rem Armed once here, before either forward, and checked on entry: a re-entered shim
+rem goes straight to the bundled pnpm. The forwarding blocks below therefore stay
+rem byte-identical to the issue #130 fix, whose exit-code propagation depends on
+rem `exit /b %ERRORLEVEL%` sitting directly after `call` outside any block.
+if "%DSH_PNPM_SHIM_GUARD%"=="1" goto :after_user
+set "DSH_PNPM_SHIM_GUARD=1"
+
 rem Use the exact user pnpm discovered by the desktop app.
 if defined DSH_PNPM (
   if exist "%DSH_PNPM%" goto :use_selected
@@ -189,7 +199,6 @@ if defined DSH_PNPM (
 
 rem Prefer a user-installed pnpm (skip our own shim dir), fall back to bundled.
 rem Accept only executable extensions (.cmd/.exe/.bat), ignore extensionless shell scripts.
-:user_search
 set "SELF_PREFIX=%~dp0"
 set "SELF_PREFIX=%SELF_PREFIX:~0,-1%"
 set "USER_PNPM="
@@ -211,18 +220,10 @@ if defined USER_PNPM goto :use_user
 goto :after_user
 
 :use_selected
-rem Re-entry guard: DSH_PNPM may itself be a shim that resolves back through PATH
-rem into this file; forwarding twice would exec the two shims into each other
-rem forever and the installer child would never exit. Once forwarded, fall back
-rem to the PATH search and then to the bundled pnpm.
-if "%DSH_PNPM_SHIM_GUARD%"=="1" goto :user_search
-set "DSH_PNPM_SHIM_GUARD=1"
 call "%DSH_PNPM%" %*
 exit /b %ERRORLEVEL%
 
 :use_user
-if "%DSH_PNPM_SHIM_GUARD%"=="1" goto :after_user
-set "DSH_PNPM_SHIM_GUARD=1"
 call "%USER_PNPM%" %*
 exit /b %ERRORLEVEL%
 
@@ -778,10 +779,25 @@ mod tests {
                 "{name}: missing re-entry guard"
             );
         }
-        // cmd 的转发目标改用标签回跳，两个 `:use_*` 都必须受保护（各含一次判断 + 一次置位）。
+        // cmd 在入口一次判断 + 一次置位；转发块保持 issue #130 修复时的原样。
         let cmd = build_pnpm_cmd_shim(&app_dir);
-        assert_eq!(cmd.matches("\n:user_search").count(), 1);
-        assert_eq!(cmd.matches("DSH_PNPM_SHIM_GUARD").count(), 4);
+        assert_eq!(cmd.matches("DSH_PNPM_SHIM_GUARD").count(), 2);
+        assert_eq!(cmd.matches("set \"DSH_PNPM_SHIM_GUARD=1\"").count(), 1);
+    }
+
+    /// 回归 issue #130：用户 pnpm 的退出码必须原样透出。`exit /b %ERRORLEVEL%`
+    /// 一旦落进括号块，或与 `call` 之间插进别的语句，`%ERRORLEVEL%` 就会在块解析
+    /// 时提前展开，失败码被吞成 0/1。这里锁死「call 之后紧跟 exit /b %ERRORLEVEL%」。
+    #[test]
+    fn cmd_shim_exit_code_stays_adjacent_to_call() {
+        let content = build_pnpm_cmd_shim(&sample_app_dir());
+        for call in [r#"call "%DSH_PNPM%" %*"#, r#"call "%USER_PNPM%" %*"#] {
+            let expected = format!("{call}\r\nexit /b %ERRORLEVEL%\r\n");
+            assert!(
+                content.contains(&expected),
+                "`{call}` must be followed directly by `exit /b %ERRORLEVEL%`"
+            );
+        }
     }
 
     /// 回归：`DSH_PNPM` 指向的 shim 若按 PATH 解析回本 shim（mise shims 的真实
