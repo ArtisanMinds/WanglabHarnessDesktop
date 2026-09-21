@@ -127,17 +127,17 @@
 | 文件 | Case ID 前缀 | `[Case ID]` 条数 | `[自动化] 是` | `it()` | 层级分布 |
 | --- | --- | --- | --- | --- | --- |
 | `01-dsh-host-and-core-contract.md` | `TC-HOST-L2-01-*` / `TC-CORE-L2-01-*` | 12 | 12 | 12 | L2 |
-| `02-dsh-tauri-pet.md` | `TC-PET-L2-02-*` / `-C-02-*` / `-L3-02-*` | 13 | 13 | 9 + 4（L3 段在 `desktop` 车道） | L2 → L3 |
-| `03-dsh-tauri-rightclick.md` | `TC-RC-L2-03-*` / `-C-03-*` / `-L3-03-*` | 11 | 5 | 5 | L2 |
-| `04-dsh-tauri-session.md` | `TC-SESS-L2-04-*` / `-C-04-*` / `-L3-04-*` | 11 | 9 | 9 | L2 |
-| `05-dsh-tauri-worktree.md` | `TC-WT-L2-05-*` / `-C-05-*` / `-L3-05-*` | 10 | 7 | 7 | L2 |
-| `06-dsh-tauri-ui.md` | `TC-UI-L2-06-*` / `-C-06-*` | 10 | 6 | 6 | L2 |
-| `07-dsh-tauri-panel-extension.md` | `TC-EXT-L2-07-*` / `-C-07-*` / `-L3-07-*` | 22 | 19 | 19 | L2 |
-| `08-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-08-*` / `-C-08-*` / `-L3-08-*` | 14 | 11 | 11 | L2 |
+| `02-dsh-tauri-pet.md` | `TC-PET-L2-02-*` / `-C-02-*` / `-L3-02-*` | 14 | 13 | 9 + 4（L3 段在 `desktop` 车道） | L2 → L3 |
+| `03-dsh-tauri-rightclick.md` | `TC-RC-L2-03-*` / `-C-03-*` / `-L3-03-*` | 12 | 5 | 5 | L2 |
+| `04-dsh-tauri-session.md` | `TC-SESS-L2-04-*` / `-C-04-*` / `-L3-04-*` | 13 | 9 | 9 | L2 |
+| `05-dsh-tauri-worktree.md` | `TC-WT-L2-05-*` / `-C-05-*` / `-L3-05-*` | 11 | 7 | 7 | L2 |
+| `06-dsh-tauri-ui.md` | `TC-UI-L2-06-*` / `-C-06-*` | 12 | 6 | 6 | L2 |
+| `07-dsh-tauri-panel-extension.md` | `TC-EXT-L2-07-*` / `-C-07-*` / `-L3-07-*` | 23 | 19 | 19 | L2 |
+| `08-dsh-tauri-panel-scheduler.md` | `TC-SCH-L2-08-*` / `-C-08-*` / `-L3-08-*` | 15 | 11 | 11 | L2 |
 | `09-dsh-tauri-turnrewind.md` | `TC-REW-L2-09-*` / `-C-09-*` / `-L3-09-*` | 7 | 3 | 3 | L2 |
-| `10-dsh-tauri-model-config.md` | `TC-MC-L2-10-*` / `-C-10-*` / `-L3-10-*` | 9 | 8 | 8 | L2 |
+| `10-dsh-tauri-model-config.md` | `TC-MC-L2-10-*` / `-C-10-*` / `-L3-10-*` | 10 | 8 | 8 | L2 |
 | `11-dsh-tauri-connection.md` | `TC-CONN-L2-11-*` | 3 | 3 | 3 | L2 |
-| **合计** | — | **122** | **96** | **96** | — |
+| **合计** | — | **132** | **96** | **96** | — |
 
 > **口径**：`[Case ID]` 是文档声明的用例条目总数；`[自动化] 是` 与 `it()` 两列必须逐文件相等（文档↔代码 1:1）。本轮实测的 `files/tests` 计数以 `pnpm test:e2e:plugin -- --run` 的真实输出为准（见 §8 G11 的运行记录）。批次的 `-L3-*` 条目按「Tauri 原生产物」原则折算：仅批次 `02` 保留 4 条（落在 `desktop` 车道），其余批次的 `-L3-*` 条目已降级为浏览器断言并保留原编号与条数。
 

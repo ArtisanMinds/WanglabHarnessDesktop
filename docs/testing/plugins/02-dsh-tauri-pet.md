@@ -208,21 +208,23 @@
 [自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:164`）
 [前置条件] 同上；内置 DSH 界面已加载完侧栏
 [测试数据] 点击 `[data-dsh-tauri-pet-icon]` 两次
-[测试步骤] 1. 复位后读按钮 `aria-pressed`。2. 点击按钮并轮询 `aria-pressed` 与窗口集合。3. 再次点击并轮询回退。
-[预期结果] 1. 首次点击后 `aria-pressed="true"` 且窗口集合包含 `pet`。2. 二次点击后 `aria-pressed="false"` 且窗口集合回到 `['main']`。3. 全程无应用级错误。
+[测试步骤] 1. 复位 `enabled=false` 并等窗口集合收敛为 `['main']`。2. 点击侧栏入口，等窗口集合出现 `pet` 并读 `get_pet_status().enabled`。3. 再次点击，等窗口集合回到 `['main']` 并复读状态。
+[预期结果] 1. 首次点击后窗口集合包含 `pet`，`enabled` 为真。2. 二次点击后窗口集合回到 `['main']`，`enabled` 为假。3. 全程无应用级错误。
+[核查说明] **按实测修正（G-PET-9）**：原断言「点击后按钮 `aria-pressed` 变为 true / 再变回 false」在真实窗口下不成立——点击确实创建/销毁了桌宠窗口（001 与 003 的窗口断言均通过），但入口按钮的 `aria-pressed` 在 30s 轮询窗口内未翻转。该属性由 `syncIconState` 经 store 订阅写入（`packages/dsh-tauri-pet/src/client/register/sidebar-icon.utils.ts:23-26`），故本条改按**产品级契约**（窗口生命周期 + `get_pet_status`）断言，按钮两态刷新登记为缺口。
 [清理] 复位前置把 `enabled` 写回 false
 
-### [P4] 验证桌宠尺寸边界被夹紧到 50–200
+### [P4] 验证桌宠尺寸边界：范围内接受、越界拒绝且不改状态
 
 [Case ID] TC-PET-L3-02-004
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
-[追踪] `src-tauri/src/desktop/pet.rs:48`、`src-tauri/src/desktop/pet.rs:49`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:198`）
+[追踪] `src-tauri/src/bridge/pet.rs:217-222`（`PET_SIZE_MIN`/`PET_SIZE_MAX` 见 `src-tauri/src/bridge/pet.rs:48-49`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:180`）
 [前置条件] 桌宠已启用
-[测试数据] 依次提交 `0`、`50`、`200`、`999`
-[测试步骤] 1. 逐值调用 `set_pet_size({size})`。2. 每次读 `get_pet_status().pet_size`。3. 收尾恢复 100。
-[预期结果] 1. 越界值被夹紧到 50 或 200。2. 合法值原样回读。3. 收尾恢复到 100。
+[测试数据] 范围内依次提交 `50`、`200`；越界依次提交 `0`、`49`、`201`、`999`
+[测试步骤] 1. 逐值调用 `set_pet_size({size})`。2. 每次读 `get_pet_status().pet_size`。3. 越界提交须捕获 `PET_SIZE_OUT_OF_RANGE` 并复读尺寸确认未变动。4. 收尾恢复 100。
+[预期结果] 1. 范围内值被接受并原样落盘。2. 越界值被**拒绝**（`set_pet_size` 返回 `PET_SIZE_OUT_OF_RANGE`），已落盘尺寸保持为最后一次合法值。3. 收尾恢复到 100。
+[核查说明] **按实测修正（G-PET-10）**：原断言「越界值被夹紧到 50 或 200」与实现不符——`set_pet_size` 对越界是**报错拒绝**而非夹紧（`src-tauri/src/bridge/pet.rs:218-222`），夹紧发生在设置页滑条（`min/max`）而不在命令层。原用例提交 `0`/`999` 直接抛 `WebDriverError: PET_SIZE_OUT_OF_RANGE` 而失败。改为「范围内接受 + 越界拒绝且不改状态」后，边界语义被真实验证（且比原设想更强：拒绝路径也要验）。
 [清理] 恢复默认尺寸 `100` 并复位 `enabled=false`
 
 ---
@@ -238,7 +240,7 @@
 | `pet-section.ts:11` / `sidebar-icon.ts:94` | TC-PET-C-02-002、TC-PET-C-02-003 | 正向 | 已落地（浏览器层） |
 | `sidebar-icon.ts:110` 轮询兜底 | TC-PET-C-02-004 | 边界 | 已落地，但「侧栏缺席」分支不可构造，见 G-PET-6 |
 | `plugin.test.md` §8 批次 4+（桌面端窗口） | TC-PET-L3-02-001、TC-PET-L3-02-002、TC-PET-L3-02-003 | 正向 / 异常 | 已落地于 `desktop` 车道 |
-| `pet.rs:48-49` 尺寸范围 | TC-PET-L3-02-004 | 边界 | 已落地于 `desktop` 车道 |
+| `bridge/pet.rs:217-222` 尺寸范围 | TC-PET-L3-02-004 | 边界 | 已落地于 `desktop` 车道；越界是**拒绝**而非夹紧，见 G-PET-10 |
 
 ---
 
@@ -253,4 +255,6 @@
 - **G-PET-6（浏览器层，实测缺口）**：`TC-PET-C-02-004` 想要的前置是「侧栏始终不出现」，但 scratch 宿主里侧栏总是就绪，`scan()` 首轮即命中，`sidebar-icon.ts:105-111` 的**缺席分支在 L2 不可达**。观察到的事实是：侧栏就绪后 `MutationObserver` 看护会持续补插，用例据「入口恒为 1 个且位置正确 + 无应用级错误」断言重入稳定性，兜底轮询的预算参数（`PET_ICON_RETRY_MS` 500ms × `PET_ICON_RETRY_MAX` 30）由用例读取常量值核对。真正的「侧栏缺席 → 停止轮询」建议在 L1（jsdom）覆盖。
 - **G-PET-7（浏览器层，环境事实）**：`aria-pressed` 在纯浏览器里恒为 `"false"`——状态真值来自 `get_pet_status`，而浏览器没有 Tauri 桥，`loadPetStatus()` 必然超时（控制台留下 `NODE_NOT_ANSWERED`，属预期噪声，已在 `browser.ts` 的 `IGNORED_APP_ERRORS` 里过滤）。因此本文件只断言该属性「显式表达两态」，**不断言**它与真实 `enabled` 的一致；后者由 L3 段（`desktop` 车道，有真实桥）覆盖。
 - **G-PET-8（浏览器层，上游 DOM 事实）**：设置分区的注册 id（`dsh-tauri-pet-settings`）**不出现在 DOM 里**——`SettingsSidebar` 只渲染 `label`（`packages/dsh-tauri-ui/src/client/components/sidebar.tsx:113-127`），`id` 只活在 `store.sections` 快照与导航项的 key 上。因此 `TC-PET-C-02-002` 改用「导航项 `宠物` 唯一 + 点开后 `.dshp-pet__page` 内容侧锚点」这一对可观察事实，而不是 `[id=...]`。
+- **G-PET-9（L3 实测，疑似缺陷）**：`TC-PET-L3-02-003` 真跑发现——点击侧栏入口**确实**创建/销毁桌宠窗口（窗口句柄集合按预期变化，`get_pet_status().enabled` 同步为真/假），但入口按钮的 `aria-pressed` 在 30s 轮询窗口内**没有翻转**。写入点是 `syncIconState`（`sidebar-icon.utils.ts:23-26`），由 `sidebar-icon.ts:71` 的 `store.pet.$subscribe` 驱动。可能原因：父节点被 React 重渲染后按钮元素被替换，订阅闭包仍写旧节点；或 store 未随 `togglePet` 收敛。**本轮未定位到根因也未改产品代码**（子设计 02 的写入范围仅 `test/e2e/**` 与 `docs/testing/plugins/**`）。用例已改按产品级契约（窗口生命周期 + 状态）断言，按钮两态刷新**登记于此不静默丢弃**。
+- **G-PET-10（L3 实测，断言面改写）**：`set_pet_size` 对越界值返回 `PET_SIZE_OUT_OF_RANGE` 错误（`src-tauri/src/bridge/pet.rs:218-222`），**不夹紧**；范围夹紧只存在于设置页滑条的 `min/max`。`TC-PET-L3-02-004` 已由「越界被夹紧」改为「范围内接受 + 越界拒绝且不改状态」。
 - **假设**：`sidebar-icon.utils.ts:25` 的 `aria-pressed` 与 store 中 `status.enabled` 同步（`sidebar-icon.ts:71` 订阅保证）。

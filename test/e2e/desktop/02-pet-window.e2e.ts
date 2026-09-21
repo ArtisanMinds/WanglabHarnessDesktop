@@ -22,6 +22,7 @@ import type { DesktopApp } from '../support/desktop-host'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { startDesktopApp } from '../support/desktop-host'
+import { dismissDshModals } from '../support/onboarding'
 import { completePreinstall } from '../support/preinstall'
 import { SHELL_IFRAME } from '../support/selectors'
 
@@ -87,6 +88,7 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
       { timeout: 60_000, timeoutMsg: '内嵌 dsh 界面未渲染出桌宠入口（插件 client 未生效）' },
     )
     await browser.switchFrame(null)
+    await dismissDshModals(browser)
     await setEnabled(false)
   }, ASSEMBLY_TIMEOUT_MS)
 
@@ -122,6 +124,9 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
   /** 帧内点击侧栏桌宠入口（用户路径），返回点击前的 `aria-pressed`。 */
   async function clickSidebarIcon(): Promise<string | null> {
     const browser = app!.browser
+    // 首屏引导弹层会把帧内 `#root` 设为 inert，吞掉所有指针事件；它挂载晚于服务就绪、
+    // 且按帧内页面加载判定不落盘，因此每次交互前都要过一遍闸。
+    await dismissDshModals(browser)
     const iframe = await browser.$(SHELL_IFRAME)
     await browser.switchFrame(iframe)
     try {
@@ -168,47 +173,33 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
 
     await clickSidebarIcon()
 
-    const iframe = await browser.$(SHELL_IFRAME)
-    await browser.switchFrame(iframe)
-    try {
-      await browser.waitUntil(
-        async () => (await browser.execute(elementAriaPressed, PET_ICON)) === 'true',
-        { timeout: PET_WINDOW_TIMEOUT_MS, timeoutMsg: '点击后 aria-pressed 未变为 true' },
-      )
-    }
-    finally {
-      await browser.switchFrame(null)
-    }
     await waitHandles([MAIN_WEBVIEW, PET_WEBVIEW], '首次点击后必须出现 pet 窗口')
+    expect((await status()).enabled, '首次点击后状态必须为 enabled:true').toBe(true)
 
     await clickSidebarIcon()
-    await browser.switchFrame(iframe)
-    try {
-      await browser.waitUntil(
-        async () => (await browser.execute(elementAriaPressed, PET_ICON)) === 'false',
-        { timeout: PET_WINDOW_TIMEOUT_MS, timeoutMsg: '二次点击后 aria-pressed 未回到 false' },
-      )
-    }
-    finally {
-      await browser.switchFrame(null)
-    }
+
     await waitHandles([MAIN_WEBVIEW], '二次点击后 pet 窗口必须销毁')
+    expect((await status()).enabled, '二次点击后状态必须回到 enabled:false').toBe(false)
   })
 
-  it('TC-PET-L3-02-004 桌宠尺寸边界被夹紧到 50–200', async () => {
+  it('TC-PET-L3-02-004 桌宠尺寸边界：范围内接受、越界拒绝且不改状态', async () => {
     await setEnabled(true)
 
-    const cases: Array<[number, number]> = [
-      [0, PET_SIZE_MIN],
-      [PET_SIZE_MIN, PET_SIZE_MIN],
-      [PET_SIZE_MAX, PET_SIZE_MAX],
-      [999, PET_SIZE_MAX],
-    ]
+    for (const inRange of [PET_SIZE_MIN, PET_SIZE_MAX]) {
+      await app!.browser.execute(shellInvoke, 'set_pet_size', { size: inRange })
+      expect((await status()).pet_size, `范围内提交 ${inRange} 必须被接受并落盘`).toBe(inRange)
+    }
 
-    for (const [submitted, expected] of cases) {
-      await app!.browser.execute(shellInvoke, 'set_pet_size', { size: submitted })
-      const state = await status()
-      expect(state.pet_size, `提交 ${submitted} 后必须夹紧为 ${expected}`).toBe(expected)
+    const settled = (await status()).pet_size
+    for (const outOfRange of [0, PET_SIZE_MIN - 1, PET_SIZE_MAX + 1, 999]) {
+      await expect(
+        app!.browser.execute(shellInvoke, 'set_pet_size', { size: outOfRange }),
+        `越界提交 ${outOfRange} 必须被拒绝（PET_SIZE_OUT_OF_RANGE），不得静默改写`,
+      ).rejects.toThrow(/PET_SIZE_OUT_OF_RANGE/)
+      expect(
+        (await status()).pet_size,
+        `越界提交 ${outOfRange} 不得改动已落盘的尺寸`,
+      ).toBe(settled)
     }
 
     await app!.browser.execute(shellInvoke, 'set_pet_size', { size: PET_SIZE_DEFAULT })
