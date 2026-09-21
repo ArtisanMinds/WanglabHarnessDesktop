@@ -65,20 +65,21 @@ test/e2e/
 ├── support/
 │   ├── dsh-host.ts           # 共享环境脚手架（Scratch DSH_HOME、挂载、启动、鉴权交换、清理）
 │   └── desktop-host.ts       # L3 桌面端宿主编排
-├── plugins/*.e2e.ts          # L2 插件宿主 E2E（由 plugin project 匹配）
+├── plugins/<序号>-<主题>.e2e.ts # L2 插件宿主 E2E（由 plugin project 匹配）
 └── desktop/*.e2e.ts          # L3 桌面端宿主 E2E（由 desktop project 匹配）
 test/archive/*                # 历史用例归档（只读参考，不被任何 project 匹配）
 vitest.config.ts              # 根配置：包含 Projects 清单与全局别名
 vitest.unit.config.ts         # unit project 配置
 vitest.plugin.config.ts       # plugin project 配置（插件 L2）
 vitest.desktop.config.ts      # desktop project 配置（桌面端 L3）
-docs/testing/plugins/<序号>-<插件名>.md # 插件测试文档
+docs/testing/plugins/<序号>-<主题>.md   # 插件测试文档
 ```
 
 * **命名约定**：L2/L3 文件必须使用 `*.e2e.ts`，与 L1 的 `*.test.ts` / `*.spec.ts` 严格区分。
+* **文件名对应**：`test/e2e/plugins/<序号>-<主题>.e2e.ts` 与 `docs/testing/plugins/<序号>-<主题>.md` **同名同序号一一对应**。一个编号只允许一个测试文件；同一批次内的 L2 / 客户端 / L3 用例用 `describe` 分区，不拆成多个文件。总览类文档（`00-overview.md`）不承载用例，故无对应测试文件。
 * **用例编号**：`TC-<业务域>-<层级>-<文件序号>-<序号>`，如 `TC-PET-L2-03-001`。业务域取该文件的主域前缀、文件序号取 `docs/testing/plugins/<序号>-*.md` 的序号、序号在「文件 + 层级」内从 `001` 起连续（层级取 `L2` / `L3` / `C`）。序号**不跨文件连续**：新增用例只影响本文件，不会波及后续文件。
 * **匹配策略**：`unit` 匹配 `*.{test,spec}.*`（自动排他 `.e2e.ts`）；`plugin` 显式指定 `test/e2e/plugins/**/*.e2e.ts`，`desktop` 指定 `test/e2e/desktop/*.e2e.ts`。
-* **映射关系**：文档中的每条用例条目必须与代码中的 `test()` 一一对应。
+* **映射关系**：文档中的每条用例条目必须与代码中的 `it()` 一一对应。
 
 ---
 

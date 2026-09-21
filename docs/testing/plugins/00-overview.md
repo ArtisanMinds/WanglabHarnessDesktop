@@ -3,7 +3,7 @@
 > 层级：总览（不承载可执行用例本体）
 > 规范来源：[插件 E2E 测试规范](../../specs/plugin.test.md)、[桌面端 E2E 测试规范](../../specs/desktop.test.md)
 > 流程来源：[渐进式测试推进规则](../progressive.md)
-> 状态：提案中（文档已提交，等待授权与运行验证）
+> 状态：已验证（总览事实已按当前实现刷新；批次 01 已通过运行验证）
 
 ---
 
@@ -32,11 +32,12 @@
 | `docs/specs/desktop.test.md` | 用例文档字段与优先级口径、`data-testid` 规范、端口/数据目录隔离、目录归属 |
 | `docs/testing/progressive.md` | 单批单卡、状态定义与台账位置 |
 | 源码事实 | `packages/*/src/**`、`src/**`、`src-tauri/src/**`、`test/e2e/support/**` |
-| 现有测试 | `test/e2e/plugins/session-stream.e2e.ts`（SSE 首帧已落地） |
+| 现有测试 | `test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts`（编排骨架 + 共享路由契约 12 例已落地）、`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts`（SSE 首帧 2 例已落地） |
 
 **已记录的冲突与取舍**：
 
 1. **用例文档目录**：`desktop.test.md` §3.2 写 `docs/testing/plugins/<插件名>.md`，`plugin.test.md` §4 写 `docs/testing/plugins/<name>.md`；两者一致。本次额外要求「从 00 编号开始」，故统一采用 `<序号>-<主题>.md`。
+   **测试文件同规则**：`test/e2e/plugins/<序号>-<主题>.e2e.ts`，与用例文档**同名同序号一一对应**（一个编号 = 一个文档 = 一个测试文件，批内多段用 `describe` 分区，不再拆文件）。
 2. **优先级口径**：用例编写通用口径为 P0–P3，本仓规范为 P1–P5。**以本仓规范为准**（见 §4），不混用。
 3. **L2 浏览器驱动**：`plugin.test.md` §3.2 指定 Playwright 库 API；当前 `package.json` 与 `pnpm-lock.yaml` 中均无 `playwright`（见 §8 缺口 G2），因此浏览器类用例在本套文档中保留设计，但标注为**未接线**。
 4. **桌面端端口是否固定**：`desktop.test.md` §6 称 debug 固定 `3081`、不可动态修改；实现侧存在端口占用后递增的逻辑（`src-tauri/src/service/workflow/launch.rs:874`，`src-tauri/capabilities/default.json:4` 注释亦声明 port is NOT fixed）。**本套文档以「默认 3081 + 运行前实测空闲」为准**，不假设端口绝对不变（见 §8 G5）。
@@ -48,19 +49,19 @@
 
 编号即推进顺序：编号越大，依赖越多、断言面越宽。
 
-| 编号 | 文件 | 被测对象 | 主层级 | 对应批次 |
-| --- | --- | --- | --- | --- |
-| 00 | `00-overview.md` | 总览、前置、追踪矩阵 | — | — |
-| 01 | `01-dsh-host-and-core-contract.md` | 编排骨架（scratch 宿主 + 挂载 + 随机端口）与共享路由契约（OPTIONS/405/403/413） | L2 | 批次 1–2 |
-| 02 | `02-dsh-tauri-pet.md` | 桌宠插件（SSE → 客户端挂载 → 桌面端窗口） | L2 → L3 | 批次 3 |
-| 03 | `03-dsh-tauri-rightclick.md` | 右键菜单与外部打开 | L2 → L3 | 批次 4+ |
-| 04 | `04-dsh-tauri-session.md` | 会话归档与打开目录 | L2 → L3 | 批次 4+ |
-| 05 | `05-dsh-tauri-worktree.md` | 工作树面板与路由 | L2 → L3 | 批次 4+ |
-| 06 | `06-dsh-tauri-ui.md` | 壳层槽位注入（导航/侧栏/设置） | L2 → L3 | 批次 4+ |
-| 07 | `07-dsh-tauri-panel-extension.md` | 扩展管理面板（技能 / MCP / 市场） | L2 → L3 | 批次 4+ |
-| 08 | `08-dsh-tauri-panel-scheduler.md` | 定时任务面板 | L2 → L3 | 批次 4+ |
-| 09 | `09-dsh-tauri-turnrewind.md` | 回合级变更记录 | L2 → L3 | 批次 4+ |
-| 10 | `10-dsh-tauri-model-config.md` | 模型配置 | L2 → L3 | 批次 4+ |
+| 编号 | 文件 | 测试文件（同名同序号） | 被测对象 | 主层级 | 对应批次 |
+| --- | --- | --- | --- | --- | --- |
+| 00 | `00-overview.md` | —（总览不承载用例） | 总览、前置、追踪矩阵 | — | — |
+| 01 | `01-dsh-host-and-core-contract.md` | `01-dsh-host-and-core-contract.e2e.ts` | 编排骨架（scratch 宿主 + 挂载 + 随机端口）与共享路由契约（OPTIONS/405/403/413） | L2 | 批次 1–2 |
+| 02 | `02-dsh-tauri-pet.md` | `02-dsh-tauri-pet.e2e.ts` | 桌宠插件（SSE → 客户端挂载 → 桌面端窗口） | L2 → L3 | 批次 3 |
+| 03 | `03-dsh-tauri-rightclick.md` | `03-dsh-tauri-rightclick.e2e.ts` | 右键菜单与外部打开 | L2 → L3 | 批次 4+ |
+| 04 | `04-dsh-tauri-session.md` | `04-dsh-tauri-session.e2e.ts` | 会话归档与打开目录 | L2 → L3 | 批次 4+ |
+| 05 | `05-dsh-tauri-worktree.md` | `05-dsh-tauri-worktree.e2e.ts` | 工作树面板与路由 | L2 → L3 | 批次 4+ |
+| 06 | `06-dsh-tauri-ui.md` | `06-dsh-tauri-ui.e2e.ts` | 壳层槽位注入（导航/侧栏/设置） | L2 → L3 | 批次 4+ |
+| 07 | `07-dsh-tauri-panel-extension.md` | `07-dsh-tauri-panel-extension.e2e.ts` | 扩展管理面板（技能 / MCP / 市场） | L2 → L3 | 批次 4+ |
+| 08 | `08-dsh-tauri-panel-scheduler.md` | `08-dsh-tauri-panel-scheduler.e2e.ts` | 定时任务面板 | L2 → L3 | 批次 4+ |
+| 09 | `09-dsh-tauri-turnrewind.md` | `09-dsh-tauri-turnrewind.e2e.ts` | 回合级变更记录 | L2 → L3 | 批次 4+ |
+| 10 | `10-dsh-tauri-model-config.md` | `10-dsh-tauri-model-config.e2e.ts` | 模型配置 | L2 → L3 | 批次 4+ |
 
 > `dsh-tauri-bundle`、`dsh-tauri-tsdown` 是打包/构建工具包（无 `exports["./client"]`，见各自 `package.json`），不属于产品可见插件，不在本套用例范围。
 
@@ -86,15 +87,18 @@
 
 | 项 | 值 | 来源 |
 | --- | --- | --- |
-| 构建前置 | `pnpm build:plugins`（**当前 `packages/*/dist` 均不存在**） | `test/e2e/support/dsh-host.ts:127` |
-| 入口解析 | `DSH_E2E_DSH_BIN` → PATH → 桌面端装配目录 | `test/e2e/support/dsh-host.ts:83` |
-| Node 入口 | `DSH_E2E_NODE_BIN`（默认 `process.execPath`） | `test/e2e/support/dsh-host.ts:106` |
-| 目标插件 | `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`） | `test/e2e/global-setup.ts:29` |
-| 附加挂载 | `DSH_E2E_ALSO`（逗号分隔） | `test/e2e/global-setup.ts:30` |
-| 挂载模式 | `DSH_E2E_MOUNT=link`（默认）/ `cli` | `test/e2e/support/dsh-host.ts:322` |
-| 保留现场 | `DSH_E2E_KEEP_HOME=1` | `test/e2e/global-setup.ts:31` |
-| 运行 | `pnpm test:e2e:plugin`（= `vitest --project plugin`） | `package.json:21` |
-| 隔离 | 每次运行独占 `<tmp>/dsh-e2e-<plugin>-<时间戳>`，不触碰用户真实 `DSH_HOME` | `test/e2e/support/dsh-host.ts:313` |
+| 构建前置 | `pnpm build:plugins`（除 `dsh-tauri-bundle` / `dsh-tauri-tsdown` 外，`packages/*/dist` 均已产出） | `test/e2e/support/dsh-host.ts:164` |
+| 入口解析 | `DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录 | `test/e2e/support/dsh-host.ts:134` |
+| Node 入口 | `DSH_E2E_NODE_BIN`（默认 `process.execPath`） | `test/e2e/support/dsh-host.ts:92` |
+| 目标插件 | `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`） | `test/e2e/global-setup.ts:34` |
+| 附加挂载 | `DSH_E2E_ALSO`（逗号分隔） | `test/e2e/global-setup.ts:35` |
+| 挂载模式 | `DSH_E2E_MOUNT=link`（默认）/ `cli` | `test/e2e/support/dsh-host.ts:404` |
+| 保留现场 | `DSH_E2E_KEEP_HOME=1` | `test/e2e/global-setup.ts:36` |
+| 运行 | `pnpm test:e2e:plugin`（= `vitest --project plugin`） | `package.json:22` |
+| 隔离 | 每次运行独占 `<tmp>/dsh-e2e-<plugin>-<时间戳>`，不触碰用户真实 `DSH_HOME` | `test/e2e/support/dsh-host.ts:396` |
+| 用例归属 | `test/e2e/plugins/<序号>-<主题>.e2e.ts`（`fileParallelism: false`） | `vitest.plugin.config.ts:15` |
+
+> 环境变量只影响 `globalSetup` 起的那一个共享宿主。自带宿主的用例（如 `01` 的编排骨架段与共享契约段）在进程内直接传参，不受这些变量左右。
 
 ---
 
@@ -155,21 +159,23 @@
 
 | 编号 | 类型 | 内容 | 影响 |
 | --- | --- | --- | --- |
-| G1 | 事实 | `packages/*/dist` **全部不存在**，`assertBuilt` 会先失败 | L2 用例在 `pnpm build:plugins` 之前一律不可运行 |
+| G1 | ~~事实~~ 已消解 | `packages/*/dist` 现已全部产出（仅 `dsh-tauri-bundle` / `dsh-tauri-tsdown` 无产物，且被 `build:plugins` 显式排除，已作为「未构建」夹具） | 不再阻塞 L2 |
 | G2 | 缺口 | `playwright` 未出现在 `package.json` / `pnpm-lock.yaml` / `node_modules`，与 `plugin.test.md` §3.2 的 L2 浏览器方案冲突 | 客户端渲染类用例（全部 `-C-*`）只能给出设计，标记「未接线」 |
-| G3 | 缺口 | 壳层（`src/`）`data-testid` 数量为 **0**，且 `test/e2e/support/selectors.ts` 不存在，而 `desktop.test.md` §5 要求 E2E 必须用 `data-testid` | 所有 L3 用例需先随用例补 `data-testid`；当前 L3 选择器暂用 `aria-label` / slot id / 插件前缀 class |
-| G4 | 缺口 | `desktop` project 尚未配置（无 `vitest.desktop.config.ts`、无 `test:e2e:desktop` 脚本、`test/e2e/specs/` 不存在） | L3 用例标注 `[自动化] 待接线`，不得写成可直接运行的 `it()` |
+| G3 | 缺口 | 壳层（`src/`）`data-testid` 数量为 **0**，而 `desktop.test.md` §5 要求 E2E 必须用 `data-testid` | 所有 L3 用例需先随用例补 `data-testid`；`test/e2e/support/selectors.ts` 已建立，新选择器须登记其中 |
+| G4 | ~~缺口~~ 已消解 | `desktop` project 已配置（`vitest.desktop.config.ts`、`test:e2e:desktop` 脚本、`test/e2e/desktop/boot.e2e.ts` 均已落地） | L3 用例可写成可直接运行的 `it()` |
 | G5 | 冲突 | `desktop.test.md` §6 称 debug 端口固定 `3081` 不可改；实现存在占用递增逻辑 | 全部 L3 用例的端口前置按「实测空闲」执行，不假设端口恒定 |
 | G6 | 事实 | 插件 client 入口仅在内嵌 frame 内生效（`window.parent !== window`） | 所有 `-C-*` 与 `-L3-*` 用例必须构造 iframe 环境；顶层页面断言槽位必然失败 |
-| G7 | 假设 | 各插件可被单独挂载（`DSH_E2E_PLUGIN=<pkg>`）；需要核心桥时通过 `DSH_E2E_ALSO=dsh-tauri` 一并挂载 | 若某插件强依赖其它插件，需在其文件中追加 `also` 说明 |
+| G7 | 假设 | 各插件可被单独挂载（`startDshHost({ plugin })`）；需要核心桥时通过 `also: ['dsh-tauri']` 一并挂载 | 若某插件强依赖其它插件，需在其文件中追加 `also` 说明 |
 | G8 | 缺口 | `test/e2e/.artifacts/` 仅有文档约定与 `.gitignore`，无实现 | 失败产物（截图 / stdout）需在接线时补齐，否则失败定位只能依赖日志 |
 | G9 | 缺口 | 会话类用例（`09` turnrewind、`06` ui 的部分分支）需要真实会话，scratch 宿主当前无造会话手段 | 相关用例标记「待补」，是本套文档最大的功能盲区 |
+| G10 | 事实 | 路由层的跨源 403（`routes/index.ts:287`，`cross-origin-request`）在真实宿主里被上游 Host/Origin 围栏遮蔽，L2 不可达 | 该类断言只能落在 L1（`packages/dsh-tauri/src/host/routes/index.test.ts:240`）；L2 按可观察事实断言 `forbidden` |
 
 ---
 
 ## 9. 维护规则
 
 1. 每条用例条目与测试代码 `it()` **1:1 对应**；改文档必改代码，反之亦然（`plugin.test.md` §4）。
-2. 状态变更实时登记到 `docs/testing/progressive.md` §4.2 台账，禁止滞后补记。
-3. 新增 L3 用例必须同步补 `data-testid`，并登记到 `test/e2e/support/selectors.ts`（`desktop.test.md` §5）。
-4. 单文件即单批次，未验证通过前不得推进到下一个编号。
+2. 测试文件与用例文档**同名同序号**（`<序号>-<主题>.e2e.ts` ↔ `<序号>-<主题>.md`）；一个批次只允许一个测试文件，批内多段用 `describe` 分区。
+3. 状态变更实时登记到 `docs/testing/progressive.md` §4.2 台账，禁止滞后补记。
+4. 新增 L3 用例必须同步补 `data-testid`，并登记到 `test/e2e/support/selectors.ts`（`desktop.test.md` §5）。
+5. 单文件即单批次，未验证通过前不得推进到下一个编号。

@@ -25,10 +25,12 @@
 | 层 | 用例位置 | 运行器 | 驱动 / 宿主 |
 | --- | --- | --- | --- |
 | **L1** 单元 | `packages/<name>/src/**/*.test.ts` | Vitest `unit` project | 无宿主，允许 Mock |
-| **L2** 插件宿主 E2E | `test/e2e/plugins/*.e2e.ts` | Vitest `plugin` project | 真实 `dsh web` 进程；需浏览器时用 Playwright 库 API |
+| **L2** 插件宿主 E2E | `test/e2e/plugins/<序号>-<主题>.e2e.ts` | Vitest `plugin` project | 真实 `dsh web` 进程；需浏览器时用 Playwright 库 API |
 | **L3** 桌面端宿主 E2E | `test/e2e/desktop/*.e2e.ts` | Vitest `desktop` project | 真实 Tauri 窗口；WebdriverIO + `@wdio/tauri-service` |
 
 全仓**只有一个测试运行器**（Vitest，通过 `test.projects` 分层）。WebdriverIO 与 Playwright 只作为**驱动库**被用例调用，不引入各自的 runner。
+
+插件用例的测试文件与用例文档**同名同序号一一对应**：`test/e2e/plugins/<序号>-<主题>.e2e.ts` ↔ `docs/testing/plugins/<序号>-<主题>.md`，一个编号只允许一个测试文件（批内按层用 `describe` 分区）。
 
 ---
 

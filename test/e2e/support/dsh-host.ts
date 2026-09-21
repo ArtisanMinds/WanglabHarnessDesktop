@@ -264,6 +264,19 @@ function addBundle(profileDir: string, pkg: string): void {
   })
 }
 
+/**
+ * 挂载自检：`packages` 必须全部登记进 profile 的 `dsh.profile.bundles`，否则启动前即失败。
+ *
+ * 独立导出是因为该分支在 link 模式下不可达——bundles 由 `addBundle` 自己写入，端到端
+ * 构造不出「挂载漏登记」；只有直接给一份 profile 才能覆盖这一失败形态。
+ */
+export function assertMountRegistered(profileDir: string, packages: readonly string[]): void {
+  const registered = readBundles(profileDir)
+  const missing = packages.filter(pkg => !registered.includes(pkg))
+  if (missing.length > 0)
+    throw new Error(`挂载未注册到 dsh.profile.bundles：${missing.join(', ')}`)
+}
+
 /* ==========================================
  * 进程与 CLI 交互
  * ========================================== */
@@ -401,9 +414,7 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
       }
     }
 
-    const missing = packages.filter(pkg => !readBundles(profileDir).includes(pkg))
-    if (missing.length > 0)
-      throw new Error(`挂载未注册到 dsh.profile.bundles：${missing.join(', ')}`)
+    assertMountRegistered(profileDir, packages)
   }
   catch (error) {
     rmSync(home, { recursive: true, force: true })
