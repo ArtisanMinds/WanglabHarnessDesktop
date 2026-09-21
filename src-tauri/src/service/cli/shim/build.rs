@@ -492,10 +492,15 @@ mod tests {
 
     /// issue #130：真实执行生成的 cmd shim，确保用户 pnpm 的失败码不会因 cmd
     /// 括号块预展开 `%ERRORLEVEL%` 而被吞成 0。
+    ///
+    /// 临时目录必须取规范长路径：CI（windows-latest）的 TEMP 是 8.3 短路径
+    /// （`C:\Users\RUNNER~1\...`），而 `where pnpm` 一律回长路径，shim 的自身
+    /// 排除比对（`%~dp0` 对 `where` 输出）随即失效、把自身当用户 pnpm 转发一次，
+    /// 本用例断言的「直达用户 pnpm」路径就不会被走到。
     #[cfg(windows)]
     #[test]
     fn pnpm_cmd_shim_propagates_user_exit_code_in_real_cmd() {
-        let dir = temp_dir("pnpm-exit-code");
+        let dir = dunce::canonicalize(temp_dir("pnpm-exit-code")).unwrap();
         let shim_dir = dir.join("desktop-bin");
         let user_dir = dir.join("user-bin");
         std::fs::create_dir_all(&shim_dir).unwrap();
