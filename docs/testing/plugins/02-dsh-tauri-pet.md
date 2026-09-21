@@ -44,7 +44,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/host/routes/session/stream/get.ts:24`；`plugin.test.md` §8 批次 3
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:114`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:125`）
 [前置条件] 插件已构建并挂载进 scratch profile；宿主已就绪
 [测试数据] `GET /api/desktop/dsh-tauri-pet/session/stream`，`accept: text/event-stream`
 [测试步骤] 1. 发起请求。2. 读状态码与 `content-type`。3. 读响应体前 4 个字符后中止流。
@@ -57,7 +57,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri/src/host/routes/index.ts:276`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:126`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:137`）
 [前置条件] 同 TC-PET-L2-02-001
 [测试数据] 同路径 `POST`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与 `allow` 头。
@@ -70,7 +70,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/host/routes/session/stream/get.ts:58`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:136`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:147`）
 [前置条件] 同 TC-PET-L2-02-001；用例超时预算 ≥ 20s（本用例独立设 40s）
 [测试数据] 保持连接 17s
 [测试步骤] 1. 建立 SSE 连接。2. 累计读取响应体，直到出现第 2 次 `keepalive` 或超时。
@@ -83,7 +83,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 回归
 [追踪] `packages/dsh-tauri-pet/src/host/service/session-stream.ts:36`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:154`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:165`）
 [前置条件] 同 TC-PET-L2-02-001
 [测试数据] 连续建立两次连接
 [测试步骤] 1. 建立连接 A，读到 `: keepalive` 后立即中止。2. 间隔 200ms 建立连接 B。3. 读共享宿主的日志（`inject('dshHome')` + `dsh-web.log`）。
@@ -96,7 +96,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/host/config/runtime.ts:8`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:178`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:189`）
 [前置条件] 同 TC-PET-L2-02-001
 [测试数据] 同时发起两次 GET
 [测试步骤] 1. 并发建立连接 A、B。2. 分别读取首个响应块。3. 中止 A 后继续读 B，直到 B 出现第 2 帧 `: keepalive`。
@@ -143,7 +143,7 @@
 [层级] L2（真实浏览器页面）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:94`、`packages/dsh-tauri-pet/src/client/register/sidebar-icon.utils.ts:25`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:263`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:290`）
 [前置条件] 侧栏 `[data-slot="sidebar"]` 与 `.dshp-settings-trigger` 均已存在
 [测试数据] 无
 [测试步骤] 1. 等待 `[data-dsh-tauri-pet-icon]` 出现。2. 读 `aria-pressed`。3. 读该按钮与触发器、宿主行的几何与计算样式。
@@ -156,7 +156,7 @@
 [层级] L2（真实浏览器页面）
 [类型] 边界
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:110`
-[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:315`）
+[自动化] 是（`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:342`）
 [前置条件] 页面加载后人为移除/阻止侧栏渲染
 [测试数据] 无
 [测试步骤] 1. 记录兜底轮询参数（500ms × 30 + 首轮）。2. 等待 ≥ 18s（覆盖整个兜底窗口）。3. 读入口数量、是否仍连接、位置是否仍正确，并收集错误。
@@ -179,7 +179,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `src-tauri/src/desktop/pet.rs:29`、`src-tauri/src/bridge/pet.rs:164`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:118`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:139`）
 [前置条件] debug 二进制与 `dist/` 就绪；`3081` 与 WebDriver 端口空闲；宿主 harness 已就绪
 [测试数据] 经桥命令 `set_pet_enabled({enabled:true})`
 [测试步骤] 1. 读 `getWindowHandles()` 基线。2. 帧内调用 `set_pet_enabled(true)`。3. 轮询窗口句柄集合。4. 读 `get_pet_status()`。
@@ -192,7 +192,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 异常
 [追踪] `src-tauri/src/bridge/pet.rs:54`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:139`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:154`）
 [前置条件] 干净数据目录（首个会话，`enabled` 默认关闭）
 [测试数据] 无
 [测试步骤] 1. 复位到 `enabled=false` 并等窗口集合收敛。2. 读 `get_pet_status()`。3. 读窗口句柄集合。
@@ -205,7 +205,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-pet/src/client/register/sidebar-icon.ts:48`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:151`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:164`）
 [前置条件] 同上；内置 DSH 界面已加载完侧栏
 [测试数据] 点击 `[data-dsh-tauri-pet-icon]` 两次
 [测试步骤] 1. 复位后读按钮 `aria-pressed`。2. 点击按钮并轮询 `aria-pressed` 与窗口集合。3. 再次点击并轮询回退。
@@ -218,7 +218,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 边界
 [追踪] `src-tauri/src/desktop/pet.rs:48`、`src-tauri/src/desktop/pet.rs:49`
-[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:196`）
+[自动化] 是（`test/e2e/desktop/02-pet-window.e2e.ts:198`）
 [前置条件] 桌宠已启用
 [测试数据] 依次提交 `0`、`50`、`200`、`999`
 [测试步骤] 1. 逐值调用 `set_pet_size({size})`。2. 每次读 `get_pet_status().pet_size`。3. 收尾恢复 100。

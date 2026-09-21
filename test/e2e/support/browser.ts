@@ -131,6 +131,7 @@ export function collectAppErrors(page: Page): string[] {
 export async function newDshPage(browser: Browser, options: {
   ready?: string
   path?: string
+  dismissModals?: boolean
 } = {}): Promise<DshPage> {
   const context = await newDshContext(browser)
   await addSessionCookie(context)
@@ -149,7 +150,8 @@ export async function newDshPage(browser: Browser, options: {
   }
   await frame.waitForLoadState('domcontentloaded')
   await frame.locator(options.ready ?? PET_ICON).first().waitFor({ state: 'attached', timeout: 30_000 })
-  await dismissAppModals(page, frame)
+  if (options.dismissModals ?? true)
+    await dismissAppModals(page, frame)
 
   return {
     browser,
@@ -168,6 +170,7 @@ export async function newDshPage(browser: Browser, options: {
 export async function openDshApp(options: {
   ready?: string
   path?: string
+  dismissModals?: boolean
 } = {}): Promise<DshPage> {
   const browser = await launchDshBrowser()
   const app = await newDshPage(browser, options)
@@ -217,6 +220,31 @@ export async function dismissAppModals(page: Page, frame: Frame, timeoutMs = 20_
       continue
     return
   }
+}
+
+/**
+ * 等「带凭据输入的 API Key 引导弹层」，返回它的 locator。
+ *
+ * 首屏的「内测声明」没有输入控件、排在引导之前，必须先关掉它才会出现真正的引导弹层；
+ * 因此这里把「无输入控件的弹层」逐个关掉，直到出现带输入控件的那个。
+ */
+export async function waitForCredentialModal(
+  page: Page,
+  frame: Frame,
+  timeoutMs = 45_000,
+): Promise<ReturnType<Frame['locator']>> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const withInput = frame.locator(`${APP_MODAL}:has(input, textarea)`)
+    if (await withInput.count() > 0)
+      return withInput.first()
+
+    if (await frame.locator(APP_MODAL).count() > 0)
+      await dismissOneModal(page, frame)
+    else
+      await new Promise(resolve => setTimeout(resolve, 300))
+  }
+  throw new Error('等待带凭据输入的 API Key 引导弹层超时')
 }
 
 /**
