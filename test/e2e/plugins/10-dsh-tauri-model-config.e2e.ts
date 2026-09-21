@@ -11,15 +11,18 @@
  */
 
 import type { Browser } from 'playwright'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import {
+  APP_MODAL,
   appUrl,
+  dismissAppModals,
   launchDshBrowser,
   newDshPage,
   openSettings,
   selectSettingsSection,
+  waitForCredentialModal,
 } from '../support/browser'
 
 const PRESETS_PATH = '/api/desktop/dsh-tauri-model-config/presets'
@@ -71,13 +74,20 @@ function secretFieldsIn(body: unknown): string[] {
 
 describe('宿主路由：预设表', () => {
   it('验证预设端点返回六个字段且 count 与 presets 长度一致', async () => {
+    // 预设表来自公网上游：不种缓存就会在离线机器上退化成 502（实测），断言随机器漂移。
+    // 这里按被测实现自己的缓存格式（`$DSH_HOME/dsh-tauri-model-config/model-presets.json`，
+    // 24h TTL 内命中即返回）种一份新鲜载荷，让「200 + 六字段契约」确定性可验、与外网解耦。
+    const cachePath = join(inject('dshHome'), 'dsh-tauri-model-config', 'model-presets.json')
+    mkdirSync(dirname(cachePath), { recursive: true })
+    writeFileSync(cachePath, JSON.stringify({
+      source: 'https://e2e.invalid/presets.json',
+      fetchedAt: new Date().toISOString(),
+      presets: { 'e2e-fixture': [1, 2, 3, 4] },
+    }))
+
     const response = await fetch(url(PRESETS_PATH), { headers: apiHeaders() })
 
-    expect(
-      response.status,
-      '预设上游不可达且 scratch DSH_HOME 无缓存时才允许 502；本宿主由 globalSetup 在联网下就绪，'
-      + '且 24h TTL 内的缓存会让后续请求稳定 200',
-    ).toBe(200)
+    expect(response.status, 'TTL 内命中本地缓存必须 200，且不依赖外网可达').toBe(200)
 
     const body = await response.json() as PresetsBody
     expect(Object.keys(body).sort(), '成功响应必须恰为六个字段').toEqual([...PRESETS_FIELDS].sort())
@@ -136,7 +146,10 @@ describe('宿主路由：打开设置文件', () => {
     const home = inject('dshHome')
     const settingsPath = join(home, SETTINGS_FILE)
 
-    expect(existsSync(settingsPath), '前置：宿主首次启动不得代生成 settings.yaml').toBe(false)
+    // 前置由用例自建：同车道先跑的浏览器用例确认「内测声明」会落 settings.yaml，
+    // 共享 scratch DSH_HOME 因此不再保证「文件缺失」。显式移除，确定性覆盖退目录分支。
+    rmSync(settingsPath, { force: true })
+    expect(existsSync(settingsPath), '前置：settings.yaml 必须已移除').toBe(false)
 
     const response = await fetch(url(CONFIG_OPEN_PATH), { method: 'POST', headers: apiHeaders() })
 
@@ -189,33 +202,29 @@ describe('L2 客户端', () => {
     }
   })
 
-  it('验证官方提供商引导卡片由本插件的 onboarding 槽位渲染', async () => {
-    const app = await newDshPage(browser)
+  it('验证官方提供商引导弹层由本插件的 onboarding 槽位渲染且可收起', async () => {
+    const app = await newDshPage(browser, { dismissModals: false })
     try {
-      await openSettings(app.page, app.frame)
-      await selectSettingsSection(app.page, app.frame, '模型')
-
-      const state = await app.frame.evaluate(() => {
-        const content = document.querySelector('[class*="content-inner"]')
-        const text = content?.textContent ?? ''
+      const modal = await waitForCredentialModal(app.page, app.frame)
+      const state = await modal.evaluate((element) => {
+        const text = element.textContent ?? ''
         return {
-          text,
-          hasDeepseekCard: /DeepSeek/.test(text),
-          hasApiKeyField: /API 密钥/.test(text),
-          hasConfigFileAction: /打开配置文件/.test(text),
-          inputCount: content?.querySelectorAll('input,textarea').length ?? 0,
-          onboardingSlotCount: document.querySelectorAll('[data-slot="settings.onboarding"]').length,
-          alerts: Array.from(content?.querySelectorAll('[role="alert"]') ?? []).map(alert => alert.textContent?.trim()),
+          hasDeepseek: /DeepSeek/.test(text),
+          inputCount: element.querySelectorAll('input,textarea').length,
+          alerts: Array.from(element.querySelectorAll('[role="alert"]')).map(alert => alert.textContent?.trim()),
         }
       })
 
-      expect(state.onboardingSlotCount, '模型页必须挂载 settings.onboarding 槽位').toBeGreaterThan(0)
-      expect(state.hasDeepseekCard, 'onboarding 必须渲染官方 DeepSeek 提供商卡片').toBe(true)
-      expect(state.hasApiKeyField, '引导卡片必须给出 API 密钥字段').toBe(true)
-      expect(state.hasConfigFileAction, '引导卡片必须给出手动配置入口').toBe(true)
-      expect(state.inputCount, '引导卡片必须渲染可输入的字段').toBeGreaterThan(0)
+      expect(state.hasDeepseek, '引导弹层必须渲染官方 DeepSeek 提供商卡片').toBe(true)
+      expect(state.inputCount, '引导卡片必须渲染可输入的 API 密钥字段').toBeGreaterThan(0)
       expect(state.alerts, '首次进入不得出现错误条').toEqual([])
-      expect(app.errors, '引导卡片渲染不得抛出应用级错误').toEqual([])
+      expect(app.errors, '引导弹层渲染不得抛出应用级错误').toEqual([])
+
+      await dismissAppModals(app.page, app.frame)
+      await expect.poll(
+        async () => await app.frame.locator(APP_MODAL).count(),
+        { timeout: 15_000, message: '点「稍后配置」后引导弹层必须收起' },
+      ).toBe(0)
     }
     finally {
       await app.close()

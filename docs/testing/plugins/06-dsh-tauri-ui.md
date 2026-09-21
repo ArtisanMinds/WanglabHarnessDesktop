@@ -38,7 +38,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/host/routes/session/resume/post.ts:10`
-[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:33`）
+[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:41`）
 [前置条件] 插件已构建并挂载
 [测试数据] `POST /session/resume`，body `{}`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -51,7 +51,7 @@
 [层级] L2（真实 dsh 进程）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/host/service/session.ts:30`
-[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:43`）
+[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:51`）
 [前置条件] 同 TC-UI-L2-06-001
 [测试数据] `{ "sessionId": "does-not-exist" }`
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
@@ -124,7 +124,7 @@
 [层级] L2（真实浏览器页面）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/sidebar.tsx:92`、`packages/dsh-tauri-ui/src/client/components/trigger.tsx:44`
-[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:80`）
+[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:77`）
 [前置条件] iframe 内 dsh 界面已加载；`sidebar.settings` 槽位存在
 [测试数据] 无
 [测试步骤] 1. 断言 `.dshp-settings-trigger` 位于 `[data-slot="sidebar"]` 内。2. 打开设置侧栏。3. 读侧栏根的标记数、搜索框、导航项与栏宽。
@@ -137,7 +137,7 @@
 [层级] L2（真实浏览器页面）
 [类型] 正向
 [追踪] `packages/dsh-tauri-ui/src/client/components/trigger.tsx:46`
-[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:118`）
+[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:119`）
 [前置条件] 同 TC-UI-C-06-001
 [测试数据] 点击触发器一次，再按 Escape
 [测试步骤] 1. 读初始 `aria-expanded` 与侧栏节点数。2. 用真实指针事件点击触发器。3. 读属性与侧栏可见性。4. 按 Escape 再读。
@@ -151,7 +151,7 @@
 [层级] L2（真实浏览器页面）
 [类型] 反向
 [追踪] `packages/dsh-tauri-ui/src/client/register/composer-resume.ts:53`
-[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:152`；**以反向断言落地**，见 §6 G-UI-7）
+[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:148`；**以反向断言落地**，见 §6 G-UI-7）
 [前置条件] composer 草稿为空
 [测试数据] 无
 [测试步骤] 1. 断言 composer 卡片存在且占位符可见（草稿为空）。2. 读主按钮的 `aria-label` 与 `svg` 内联宽度。
@@ -164,7 +164,7 @@
 [层级] L2（真实浏览器页面）
 [类型] 异常
 [追踪] `packages/dsh-tauri-ui/src/client/register/composer-resume.utils.ts:15`
-[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:180`；**以空草稿下的并发保护落地**，见 §6 G-UI-7）
+[自动化] 是（`test/e2e/plugins/06-dsh-tauri-ui.e2e.ts:174`；**以空草稿下的并发保护落地**，见 §6 G-UI-7）
 [前置条件] 同 TC-UI-C-06-003，但在 composer 中填入任意文本
 [测试数据] 草稿文本 `hello`
 [测试步骤] 1. 等待补丁周期。2. 读主按钮 `aria-label`。

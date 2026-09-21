@@ -52,6 +52,24 @@ const ASSEMBLED_DSH = join(
   'bin.js',
 )
 
+/**
+ * 标识符改名（`io.github.hairyf.deepseek-harness-desktop` → `dsh-tauri`）前的装配目录。
+ *
+ * app-data 迁移对 debug/E2E **刻意跳过**（`src-tauri/src/service/migrate.rs`），所以旧目录
+ * 往往仍是机器上唯一一份已装配的 dsh；不回退到它，插件车道在改名后的机器上必然起不来。
+ */
+const LEGACY_ASSEMBLED_DSH = join(
+  process.env.APPDATA ?? '',
+  'io.github.hairyf.deepseek-harness-desktop',
+  'dependencies',
+  'dsh',
+  'node_modules',
+  '@deepseek-ai',
+  'dsh',
+  'lib',
+  'bin.js',
+)
+
 export interface StartDshHostOptions {
   /** 要挂载的包名，如 `dsh-tauri-pet`。 */
   plugin: string
@@ -155,6 +173,9 @@ function resolveDshCommand(): string[] {
 
   if (existsSync(ASSEMBLED_DSH))
     return [ASSEMBLED_DSH]
+
+  if (existsSync(LEGACY_ASSEMBLED_DSH))
+    return [LEGACY_ASSEMBLED_DSH]
 
   throw new Error(
     'DSH_E2E_DSH_BIN 未设置，PATH 与桌面端装配目录都没有 dsh 入口；'
