@@ -8,8 +8,10 @@ import { startDshHost } from './support/dsh-host'
  * globalSetup 跑在测试 worker 之外、且早于它们创建，所以这里定义的变量用例读不到；
  * 地址一律经 `project.provide()` 下传，用例用 `inject('dshBaseUrl')` 取。
  *
- * 被挂载的插件由 `DSH_E2E_PLUGIN` 指定（默认 `dsh-tauri-pet`），同一份编排即可服务
- * 不同插件的 lane，不必为每个插件复制一份 setup。
+ * 被挂载的插件由 `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`）与 `DSH_E2E_ALSO` 指定。
+ * `also` 的默认值覆盖插件路由用例需要的三个代表包：`dsh-tauri`（核心桥）、
+ * `dsh-tauri-pet`（只声明 GET 的代表路由）、`dsh-tauri-rightclick`（只声明 POST 的代表路由）。
+ * 这样多数用例都能复用这一个宿主，不必各自再起一个——每次起宿主都会多一个进程与一行日志。
  */
 
 declare module 'vitest' {
@@ -30,9 +32,12 @@ declare module 'vitest' {
   }
 }
 
+/** 共享宿主的默认附加挂载：核心桥 + 只声明 GET 与只声明 POST 的两个代表路由提供方。 */
+const DEFAULT_ALSO = 'dsh-tauri,dsh-tauri-rightclick'
+
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   const plugin = process.env.DSH_E2E_PLUGIN ?? 'dsh-tauri-pet'
-  const also = (process.env.DSH_E2E_ALSO ?? '').split(',').map(item => item.trim()).filter(Boolean)
+  const also = (process.env.DSH_E2E_ALSO ?? DEFAULT_ALSO).split(',').map(item => item.trim()).filter(Boolean)
   const host = await startDshHost({ plugin, also, keepHome: process.env.DSH_E2E_KEEP_HOME === '1' })
 
   project.provide('dshBaseUrl', host.baseUrl)

@@ -6,17 +6,19 @@
  * - 共享路由契约跑偏时，所有插件的负向断言都会失真。
  *
  * 断言对象一律是外部世界（HTTP 响应字节、profile 文件、临时目录），不采信插件自报。
- * 唯一例外是「挂载未登记」：link 模式下 bundles 由编排自己写入，端到端构造不出该失败形态，
- * 故直接调用导出的校验分支。
+ * 宿主按需最小化：能复用 globalSetup 那一个共享宿主的就不另起进程——每次起宿主都要多付
+ * 一个进程与一行日志。只有三类用例必须自带：
+ * - TC-HOST-L2-01-001：验证「起→用→停→清理」这条完整生命周期本身；
+ * - TC-HOST-L2-01-005：`keepHome` 只在 `stop()` 时生效，必须真的起一个再停；
+ * - TC-HOST-L2-01-003/004/006：根本不启动 `dsh web`（校验分支 / 预检失败 / 只挂载）。
  */
 
-import type { DshHost } from '../support/dsh-host'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { assertMountRegistered, REPO_ROOT, startDshHost } from '../support/dsh-host'
+import { describe, expect, inject, it } from 'vitest'
+import { assertMountRegistered, REPO_ROOT, scaffoldDshProfile, startDshHost } from '../support/dsh-host'
 
 /** 源码即产物的包：无 `main`、无 `dist`，且被 `build:plugins` 显式排除，永远处于「未构建」。 */
 const UNBUILT_PACKAGE = 'dsh-tauri-tsdown'
@@ -61,32 +63,27 @@ describe('编排骨架', () => {
   })
 
   it('验证宿主启动后目标插件的 bundle 已登记进 profile', async () => {
-    const host = await startDshHost({ plugin: 'dsh-tauri', also: ['dsh-tauri-pet'] })
-    try {
-      const manifest = readProfileManifest(host.home)
-      const bundles = manifest.dsh?.profile?.bundles ?? []
+    const home = inject('dshHome')
+    const manifest = readProfileManifest(home)
+    const bundles = manifest.dsh?.profile?.bundles ?? []
 
-      expect(bundles).toContain('dsh-tauri-pet')
-      expect(bundles).toContain('dsh-tauri')
-      expect(new Set(bundles).size, 'bundles 不允许重复项').toBe(bundles.length)
+    // globalSetup 的共享宿主默认挂载 dsh-tauri-pet + also(dsh-tauri, dsh-tauri-rightclick)。
+    expect(bundles).toContain('dsh-tauri-pet')
+    expect(bundles).toContain('dsh-tauri')
+    expect(new Set(bundles).size, 'bundles 不允许重复项').toBe(bundles.length)
 
-      for (const name of ['dsh-tauri', 'dsh-tauri-pet']) {
-        const spec = manifest.dependencies?.[name] ?? ''
-        expect(spec, `${name} 必须由编排写成 link: 规格`).toMatch(/^link:/)
-        expect(linkedPath(spec), `${name} 必须指向仓库 packages/${name}`).toBe(join(REPO_ROOT, 'packages', name))
-      }
-
-      // 规格写得对不等于挂得上：profile 里的链接必须真的落在仓库包目录上。
-      const profileDir = join(host.home, 'profiles', 'web')
-      for (const name of ['dsh-tauri', 'dsh-tauri-pet']) {
-        expect(
-          realpathSync(join(profileDir, 'node_modules', name)),
-          `${name} 的挂载链接必须解引用到仓库包`,
-        ).toBe(realpathSync(join(REPO_ROOT, 'packages', name)))
-      }
+    for (const name of inject('dshMounted')) {
+      const spec = manifest.dependencies?.[name] ?? ''
+      expect(spec, `${name} 必须由编排写成 link: 规格`).toMatch(/^link:/)
+      expect(linkedPath(spec), `${name} 必须指向仓库 packages/${name}`).toBe(join(REPO_ROOT, 'packages', name))
     }
-    finally {
-      await host.stop()
+
+    // 规格写得对不等于挂得上：profile 里的链接必须真的落在仓库包目录上。
+    for (const name of inject('dshMounted')) {
+      expect(
+        realpathSync(join(home, 'profiles', 'web', 'node_modules', name)),
+        `${name} 的挂载链接必须解引用到仓库包`,
+      ).toBe(realpathSync(join(REPO_ROOT, 'packages', name)))
     }
   })
 
@@ -125,10 +122,7 @@ describe('编排骨架', () => {
   })
 
   it('验证环境变量边界：DSH_E2E_KEEP_HOME 控制 scratch 去留', async () => {
-    const disposable = await startDshHost({ plugin: 'dsh-tauri-pet' })
-    await disposable.stop()
-    expect(existsSync(disposable.home), '默认必须清理 scratch 目录').toBe(false)
-
+    // 「默认清理」那一半由 TC-HOST-L2-01-001 的 stop() 断言覆盖，这里只验保留分支。
     const kept = await startDshHost({ plugin: 'dsh-tauri-pet', keepHome: true })
     try {
       await kept.stop()
@@ -138,24 +132,25 @@ describe('编排骨架', () => {
     finally {
       rmSync(kept.home, { recursive: true, force: true })
     }
-    expect(existsSync(kept.home), '手工删除后不得有残留锁文件').toBe(false)
+    expect(existsSync(kept.home), '手工删除后不得残留锁文件').toBe(false)
   })
 
   it('验证 DSH_E2E_MOUNT=cli 走真实 CLI 挂载路径', async () => {
     process.env.DSH_E2E_MOUNT = 'cli'
     try {
-      const host = await startDshHost({ plugin: 'dsh-tauri' })
+      // 只验挂载落盘，不起宿主：`dsh plugin add` 的产物就是 profile 本身。
+      const profile = await scaffoldDshProfile({ plugin: 'dsh-tauri' })
       try {
-        const spec = readProfileManifest(host.home).dependencies?.['dsh-tauri'] ?? ''
+        const spec = readProfileManifest(profile.home).dependencies?.['dsh-tauri'] ?? ''
         expect(spec, 'dsh plugin add 必须把依赖写成 link: 规格').toMatch(/^link:/)
         expect(linkedPath(spec), 'CLI 写入的规格必须指向仓库包而非自建链接').toBe(join(REPO_ROOT, 'packages', 'dsh-tauri'))
-
-        const response = await fetch(`${host.baseUrl}/`, { headers: { cookie: host.cookie } })
-        expect(response.status, 'cli 挂载后宿主必须可用').toBeGreaterThanOrEqual(200)
-        expect(response.status).toBeLessThan(300)
+        expect(
+          realpathSync(join(profile.profileDir, 'node_modules', 'dsh-tauri')),
+          'CLI 安装结果必须真的落在仓库包目录上',
+        ).toBe(realpathSync(join(REPO_ROOT, 'packages', 'dsh-tauri')))
       }
       finally {
-        await host.stop()
+        rmSync(profile.home, { recursive: true, force: true })
       }
     }
     finally {
@@ -176,25 +171,13 @@ const UNMOUNTED_PATH = '/api/desktop/dsh-tauri-turnrewind/summary?sessionId=x'
 const BODY_LIMIT_BYTES = 1024 * 1024
 
 describe('共享路由契约', () => {
-  let host: DshHost
-
-  // 本段自带宿主而非复用 globalSetup：它需要「GET 代表路由 + POST 代表路由」这一特定挂载集，
-  // 与默认 lane 的 `dsh-tauri-pet` 不同，自带宿主才能保证本文件独立可运行。
-  beforeAll(async () => {
-    host = await startDshHost({ plugin: 'dsh-tauri-pet', also: ['dsh-tauri-rightclick'] })
-  })
-
-  afterAll(async () => {
-    await host.stop()
-  })
-
-  /** 所有请求都必须带会话 Cookie，否则 `/api` 一律 401，会把鉴权失败误读成路由契约失败。 */
+  /** 复用 globalSetup 的共享宿主；`also` 默认已覆盖 GET 与 POST 两个代表路由。 */
   function headers(extra: Record<string, string> = {}): Record<string, string> {
-    return { cookie: host.cookie, ...extra }
+    return { cookie: inject('dshCookie'), ...extra }
   }
 
   function url(path: string): string {
-    return `${host.baseUrl}${path}`
+    return `${inject('dshBaseUrl')}${path}`
   }
 
   /** `allow` 成员顺序属实现细节，按集合比较。 */

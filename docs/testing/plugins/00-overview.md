@@ -87,18 +87,20 @@
 
 | 项 | 值 | 来源 |
 | --- | --- | --- |
-| 构建前置 | `pnpm build:plugins`（除 `dsh-tauri-bundle` / `dsh-tauri-tsdown` 外，`packages/*/dist` 均已产出） | `test/e2e/support/dsh-host.ts:164` |
-| 入口解析 | `DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录 | `test/e2e/support/dsh-host.ts:134` |
-| Node 入口 | `DSH_E2E_NODE_BIN`（默认 `process.execPath`） | `test/e2e/support/dsh-host.ts:92` |
-| 目标插件 | `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`） | `test/e2e/global-setup.ts:34` |
-| 附加挂载 | `DSH_E2E_ALSO`（逗号分隔） | `test/e2e/global-setup.ts:35` |
-| 挂载模式 | `DSH_E2E_MOUNT=link`（默认）/ `cli` | `test/e2e/support/dsh-host.ts:404` |
-| 保留现场 | `DSH_E2E_KEEP_HOME=1` | `test/e2e/global-setup.ts:36` |
+| 构建前置 | `pnpm build:plugins`（除 `dsh-tauri-bundle` / `dsh-tauri-tsdown` 外，`packages/*/dist` 均已产出） | `test/e2e/support/dsh-host.ts:172` |
+| 入口解析 | `DSH_E2E_DSH_BIN` → 仓库依赖树 → 桌面端装配目录 | `test/e2e/support/dsh-host.ts:144` |
+| Node 入口 | `DSH_E2E_NODE_BIN`（默认 `process.execPath`） | `test/e2e/support/dsh-host.ts:101` |
+| 目标插件 | `DSH_E2E_PLUGIN`（默认 `dsh-tauri-pet`） | `test/e2e/global-setup.ts:39` |
+| 附加挂载 | `DSH_E2E_ALSO`（逗号分隔，默认 `dsh-tauri,dsh-tauri-rightclick`） | `test/e2e/global-setup.ts:36` |
+| 挂载模式 | `DSH_E2E_MOUNT=link`（默认）/ `cli` | `test/e2e/support/dsh-host.ts:412` |
+| 保留现场 | `DSH_E2E_KEEP_HOME=1` | `test/e2e/global-setup.ts:41` |
 | 运行 | `pnpm test:e2e:plugin`（= `vitest --project plugin`） | `package.json:22` |
-| 隔离 | 每次运行独占 `<tmp>/dsh-e2e-<plugin>-<时间戳>`，不触碰用户真实 `DSH_HOME` | `test/e2e/support/dsh-host.ts:396` |
+| 隔离 | 每次运行独占 `<tmp>/dsh-e2e-<plugin>-<时间戳>`，不触碰用户真实 `DSH_HOME` | `test/e2e/support/dsh-host.ts:407` |
 | 用例归属 | `test/e2e/plugins/<序号>-<主题>.e2e.ts`（`fileParallelism: false`） | `vitest.plugin.config.ts:15` |
 
-> 环境变量只影响 `globalSetup` 起的那一个共享宿主。自带宿主的用例（如 `01` 的编排骨架段与共享契约段）在进程内直接传参，不受这些变量左右。
+> 环境变量只影响 `globalSetup` 起的那一个共享宿主。自带宿主的用例（如 `01` 的 001/005）在进程内直接传参，不受这些变量左右。
+> **宿主最小化**：用例能复用共享宿主就绝不另起进程——每个 `dsh web` 都要多付一个进程与一行日志。
+> **控制台输出**：每次起宿主只留 3 行——`🚀 挂载 DSH 核心 [<版本>] (profile: <scratch 目录名>)`、`└─ 路径: <dsh bin>`、`✅ 就绪 [<baseUrl>] → <已挂载包>`；`dsh web` 的完整输出只进 `home/dsh-web.log`。
 
 ---
 

@@ -2,6 +2,7 @@
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
 > 自动化：`test/e2e/plugins/02-dsh-tauri-pet.e2e.ts`（单文件承载本批全部用例，批内按层用 `describe` 分区；L2 SSE 首帧 2 例已落地，客户端段与 L3 段待接线）
+> 宿主：L2 段复用 `globalSetup` 的共享宿主（默认挂载 `dsh-tauri-pet` + `also: dsh-tauri,dsh-tauri-rightclick`），不再自带进程
 > 前置：`pnpm build:plugins`；L3 另需 debug 二进制 + `3081` 空闲 + `TAURI_WEBDRIVER_PORT`
 > 编排：`test/e2e/support/dsh-host.ts`；L3 通道见 `test/e2e/support/wdio-probe.mjs`
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
