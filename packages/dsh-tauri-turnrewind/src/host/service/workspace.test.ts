@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -48,9 +48,8 @@ describe('workspace.resolve', () => {
   })
 
   it('refuses a system-sensitive cwd before consulting git', async () => {
-    const home = process.env.USERPROFILE ?? process.env.HOME ?? ''
-    if (home.length === 0)
-      return
+    const home = homedir()
+    expect(home.length).toBeGreaterThan(0)
     bindSessions({ session: home })
     const probe = await workspace.resolve('session')
     expect(probe).toEqual({ ok: false, reason: REASON_UNSAFE_WORKSPACE })
