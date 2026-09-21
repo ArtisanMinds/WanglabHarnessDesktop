@@ -66,7 +66,7 @@
 | 落盘位置 | 隔离方式 |
 | --- | --- |
 | dsh 数据（`~/.dsh.dev`） | `USERPROFILE`(Windows)/`HOME`(Unix) → `<home>/home` |
-| 应用 app-data | 同上派生 |
+| 应用 app-data（`<home>/home/AppData/Roaming/dsh-tauri`） | 同上派生 |
 | WebView2 profile | `DSH_E2E_WEBVIEW_DATA_DIR` → `<home>/webview2`（`app_local_data_dir()` 走 `SHGetKnownFolderPath`，重定向 `LOCALAPPDATA` 无效） |
 | 下载缓存 | `DSH_DOWNLOAD_CACHE_DIR` → `<home>/download-cache`（默认每次运行独占空目录） |
 | Store | 启动前删除 `<app-data>/.store.test.dat`（`resetTestStore()`） |
@@ -75,6 +75,8 @@
 
 1. 必须先建好 `<home>/home/AppData/Local` 与 `AppData/Roaming`，否则插件宿主初始化 panic（退出码 101）。
 2. **不要指望 `DSH_HOME`**：debug 构建恒用 `<home>/.dsh.dev`，`DSH_HOME` 被忽略（`src-tauri/src/config/runtime.rs`）。
+
+> **标识符改名**：app-data 目录名随 `identifier` 从长标识符缩短为 `dsh-tauri`，旧目录由启动期迁移搬入（`src-tauri/src/service/migrate.rs`，Rust 单测覆盖）。迁移**只在 release 构建执行**：debug/E2E 与生产共用 app-data 根目录（生产 `.store.dat` 就在其中），开发与测试运行不得搬动它。
 
 > **本机运行注意**：本机已有桌面实例占着 WebDriver 4445 时，用 `TAURI_WEBDRIVER_PORT=<空闲端口>` 另开一路即可，无需结束用户实例；另外请在后台/独立终端执行——前台终端会抢走应用窗口焦点，依赖窗口激活的交互断言会假失败。
 

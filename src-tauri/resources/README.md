@@ -3,8 +3,8 @@
 This directory is bundled into the installer as `resources/**`.
 
 At runtime, the application downloads everything it needs into the OS user-data
-directory (the Tauri app-data dir for identifier
-`io.github.hairyf.deepseek-harness-desktop`, e.g. `%APPDATA%/io.github.hairyf.deepseek-harness-desktop/` on Windows):
+directory (the Tauri app-data dir for identifier `dsh-tauri`, e.g.
+`%APPDATA%/dsh-tauri/` on Windows):
 
 - `runtime/` — the bundled Node.js runtime (downloaded on first run)
 - `dependencies/dsh/` — the packaged DeepSeek Harness distribution (downloaded from the
@@ -14,6 +14,13 @@ directory (the Tauri app-data dir for identifier
 - `.store.dat` — desktop settings (port, auto-start, language, etc.)
 
 No manual Node.js or pnpm installation is required.
+
+On the first launch after the identifier was shortened from
+`io.github.hairyf.deepseek-harness-desktop` to `dsh-tauri`, the app **moves** the
+whole legacy app-data directory (settings store, logs, downloaded runtime and
+`dependencies/`) into the new one, so upgrades keep their configuration. The move
+runs before the first-install check and is non-fatal on failure (legacy data stays
+in place and the next launch retries).
 
 ## `$DSH_HOME` — shared with the official Node.js install
 
