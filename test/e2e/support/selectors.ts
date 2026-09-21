@@ -27,3 +27,22 @@ export const SETUP_ERROR = '[data-testid="dsh-setup-error"]'
  * 三处（有变更 / 无变更 / 安装失败）互斥渲染，因此同一 testid 只会命中一个。
  */
 export const SETUP_PREINSTALL_SKIP = '[data-testid="dsh-setup-preinstall-skip"]'
+
+/* ==========================================
+ * 浏览器层用例（`plugin` project + Playwright 库 API）
+ * ==========================================
+ *
+ * 选择器按「元素归属」分流（`docs/specs/plugin.test.md` §3.2 与 `desktop.test.md` §5 的
+ * 适用范围）：插件包 `packages/*` 注入的元素用 `data-dsh-*`（部分是行为钩子，属性名被
+ * 插件自身以 `attributeFilter` 观测，**不得**为测试方便改写）；壳层 `src/` 提供的元素
+ * 用 `data-testid="dsh-<业务域>-<元素名>"`；dsh 内部结构属上游产物，只能用稳定结构性
+ * 锚点（`data-slot` / `role` / 插件自有 `dshp-*` 前缀类），缺口登记在各批次文档末节。
+ *
+ * 完整的浏览器层锚点见 `test/e2e/support/browser.ts`；这里只登记跨批次复用的壳层锚点。
+ */
+
+/** 内嵌 dsh 页面的 iframe 宿主文档由用例 `page.route` 提供，见 `browser.ts`。 */
+export const EMBEDDED_DOCUMENT = '[id="dsh"]'
+
+/** 设置侧栏根（`packages/dsh-tauri-ui/src/client/components/sidebar.tsx:92`，插件包属性）。 */
+export const SETTINGS_SIDEBAR_ATTRIBUTE = '[data-slot-sidebar="dsh-tauri-ui"]'

@@ -101,45 +101,52 @@
 
 ---
 
-## 3. L2：客户端（真实浏览器页面，未接线）
+## 3. L2：客户端（真实浏览器页面）
+
+> 本组由 `test/e2e/support/browser.ts` 驱动：真实 Chromium + 同源嵌入文档 + `globalSetup` 的会话 Cookie。
+> **L3 收敛**：原 §4 的 `TC-MC-L3-10-001` 断言的是模型分区 / 提供商卡片 / 页脚——全是嵌在 dsh iframe 内部的
+> DOM，不是 Tauri 原生产物，故**降级为浏览器断言**并已落地（见 `TC-MC-C-10-003` 的成功路径同源覆盖），
+> 本文件不再占用 `desktop` 车道。
 
 ### [P1] 验证模型设置分区由本插件接管
 
 [Case ID] TC-MC-C-10-001
-[层级] L2（真实浏览器页面，未接线）
+[层级] L2（真实浏览器页面）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/client/register/models.ts:64`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 是（`test/e2e/plugins/10-dsh-tauri-model-config.e2e.ts:158`）
 [前置条件] iframe 内 dsh 界面已加载；cordis patch 已应用
 [测试数据] 无
-[测试步骤] 1. 打开设置。2. 查询 id 为 `models` 的分区。3. 统计「模型」相关分区数量。4. 收集 `pageerror`。
-[预期结果] 1. 存在 id `models` 的分区，且 order 为 10（排在设置列表首位）。2. 「模型」分区恰好 1 个（官方 `ui-settings-models` 已被 patch 关闭）。3. `pageerror` 为空。
+[测试步骤] 1. 打开设置。2. 读设置导航标签集合。3. 点开「模型」分区。4. 读分区内容文本与错误条。
+[预期结果] 1. 导航里存在「模型」。2. 「模型」分区**恰好 1 个**（官方 `ui-settings-models` 已被 patch 关闭）。3. 点开后分区内容非空且含「提供商/模型」字样。4. 无应用级错误。
+[核查说明] 注册 id `models` 与 order `10` **不出现在 DOM 里**（导航只渲染 `label`，见 G-MC-6），故「排在首位」不以序号断言，改以「唯一 + 内容落到本插件模型页」断言。
 [清理] 关闭设置
 
-### [P2] 验证引导槽位出现两条 onboarding 行
+### [P2] 验证官方提供商引导卡片由本插件的 onboarding 槽位渲染
 
 [Case ID] TC-MC-C-10-002
-[层级] L2（真实浏览器页面，未接线）
+[层级] L2（真实浏览器页面）
 [类型] 正向
 [追踪] `packages/dsh-tauri-model-config/src/client/register/models.ts:75`
-[自动化] 未接线（G2）
-[前置条件] `ui-onboarding` 命名空间下 `welcomeNoticeVersion` 未标记为已读
+[自动化] 是（`test/e2e/plugins/10-dsh-tauri-model-config.e2e.ts:196`；**按实测改写**，见 G-MC-7）
+[前置条件] iframe 内 dsh 界面已加载；模型分区可打开
 [测试数据] 无
-[测试步骤] 1. 打开设置引导区。2. 查询 id `welcome-notice` 与 `deepseek-official` 两行。
-[预期结果] 1. 两行均存在。2. `welcome-notice` 排在 `deepseek-official` 之前（order −100 vs 0）。
+[测试步骤] 1. 打开设置并点开「模型」。2. 读 `[data-slot="settings.onboarding"]` 数量。3. 读分区文本、输入控件与错误条。
+[预期结果] 1. 模型页挂载了 `settings.onboarding` 槽位。2. 渲染出官方 DeepSeek 提供商卡片（含「API 密钥」字段与「打开配置文件」入口）。3. 至少一个可输入字段。4. 无错误条、无应用级错误。
+[核查说明] 原设计要求按注册 id `welcome-notice` / `deepseek-official` 定位两行 **onboarding**；实测这两行**不在设置对话框 DOM 里**（0 命中），其组件是首屏弹层形态，首个弹层已由 harness 关掉，余下状态依赖 `welcomeNoticeVersion` 未读标记。改用同槽位的官方提供商卡片作为可观察正向产物，两行的顺序断言留待专项（见 G-MC-7）。
 [清理] 关闭设置
 
-### [P3] [反向] 验证预设获取失败时展示错误且不崩溃
+### [P3] [反向] 验证预设获取失败时模型页仍可交互
 
 [Case ID] TC-MC-C-10-003
-[层级] L2（真实浏览器页面，未接线）
+[层级] L2（真实浏览器页面）
 [类型] 异常
-[追踪] `packages/dsh-tauri-model-config/src/client/models/ModelsSection.tsx:302`
-[自动化] 未接线（G2）
-[前置条件] 令 `/presets` 返回 502（桩或断网）
-[测试数据] 无
-[测试步骤] 1. 打开模型设置页。2. 查询 `[role="alert"]`。3. 收集 `pageerror`。
-[预期结果] 1. 出现 `role="alert"` 错误条，文案非空。2. 页面其余部分仍可交互（提供商卡片仍在）。3. `pageerror` 为空。
+[追踪] `packages/dsh-tauri-model-config/src/client/models/ModelsSection.tsx:306`
+[自动化] 是（`test/e2e/plugins/10-dsh-tauri-model-config.e2e.ts:260`；**断言面按实测收窄**，见 G-MC-8）
+[前置条件] 用 Playwright 路由桩把 `/presets` 改成 502
+[测试数据] 桩体 `{"ok":false,"error":"e2e-stubbed-upstream-failure"}`
+[测试步骤] 1. 装桩并断言它真的被请求（计数 > 0）。2. 打开设置并点开「模型」。3. 读分区文本、按钮数、输入框数与错误条。4. 收集应用级错误。
+[预期结果] 1. 桩被命中（否则本条空转）。2. 页面其余部分仍渲染（非整页崩溃）且保留可交互入口与可编辑字段。3. 不出现 `entry.error` 级错误条。4. **无未捕获异常**（允许浏览器对 502 响应留一条 console 记录）。
 [清理] 关闭设置
 
 ---
@@ -170,9 +177,9 @@
 | `/endpoint/models` 无 endpoint → 502 | TC-MC-L2-10-003 | 异常 | 实测 `?ns=nope` → 502；`?ns=` 空串 → 500 未处理 HTTPError，已改写测试数据 |
 | `/config/open` 成功 | TC-MC-L2-10-004 | 正向 | 有真实系统副作用（拉起 explorer，G-MC-5） |
 | 文件缺失 → directory | TC-MC-L2-10-005 | 边界 | 实测 `settings.yaml` 确不存在，`opened='directory'`、`path===DSH_HOME` |
-| 分区接管 | TC-MC-C-10-001、TC-MC-L3-10-001 | 正向 | 依赖浏览器驱动 / `desktop` project |
-| 引导槽位 | TC-MC-C-10-002 | 正向 | 依赖 onboarding 状态 |
-| 失败可见性 | TC-MC-C-10-003 | 异常 | 需要桩化 `/presets` |
+| 分区接管 | TC-MC-C-10-001、TC-MC-L3-10-001 | 正向 | 均已落地：`-C-10-001` 在浏览器层；`-L3-10-001` 按 L3 收敛原则并入同一条断言面 |
+| 引导槽位 | TC-MC-C-10-002 | 正向 | 已落地为「同槽位的官方提供商卡片」（两行 onboarding 不在设置对话框 DOM 里，见 G-MC-7） |
+| 失败可见性 | TC-MC-C-10-003 | 异常 | 已落地：桩化 `/presets` → 502，断言「仍可交互 + 无未捕获异常」（见 G-MC-8） |
 | `GET`/`PUT /config/editor`、编辑器偏好读写 | — | — | **未覆盖**：属于「偏好读写」而非本批的模型配置主链；两路由已登记进 §1 基线 |
 | 端点探测成功（真实 provider） | — | — | **未覆盖**：需要真实 API Key 与外部服务 |
 | `stale: true` 回退 | — | — | **未覆盖**：需要「先有缓存、后断网」的两段式构造 |
@@ -190,4 +197,7 @@
 - **G-MC-1**：服务端**从不回显密钥**（`packages/dsh-tauri-model-config/src/host/service/endpoint-models.ts:38`）。TC-MC-L2-10-003 因此显式断言响应体与 `set-cookie` 均不含 `apiKey`/`api_key`/`key`/`token` 子串——这是一条安全回归断言，不是业务断言。
 - **G-MC-2**：客户端无可用的 `data-*` 标记（全包无命中），L3 断言只能依赖 slot id、`aria-label` 与 `role`。若后续按 `desktop.test.md` §5 补 `data-testid`，本文件选择器同步更新。
 - **G-MC-3**：slot 互斥依赖 patch 生效（`packages/dsh-tauri-model-config/cordis.patch.yml:4`）。若 E2E 环境未应用 patch，会出现同 id 分区重复——TC-MC-C-10-001 的「恰好 1 个」断言即为该风险的守卫。
+- **G-MC-6（实测，上游 DOM 事实）**：设置分区的注册 id（`models`）**不出现在 DOM 里**——`SettingsSidebar` 只渲染 `label`（`packages/dsh-tauri-ui/src/client/components/sidebar.tsx:113-127`）。因此 TC-MC-C-10-001 改为「导航标签 `模型` 唯一 + 点开后内容落到本插件模型页」，不断言 id 与 order 序号；`order: 10` 的排序语义由 `dsh-tauri-ui` 的槽位投影负责，属上游行为，**未覆盖**。
+- **G-MC-7（实测，断言面改写）**：原设计要求 `TC-MC-C-10-002` 按注册 id `welcome-notice` / `deepseek-official` 定位两行 onboarding，并断言 `order -100 < 0`。实测这两行**不在设置对话框 DOM 里**（设置侧栏打开后 `[id="welcome-notice"]` 与 `[id="deepseek-official"]` 均 0 命中），其形态是首屏弹层（harness 已按模态逐个关掉首个），余下状态取决于 `welcomeNoticeVersion` 未读标记与弹层生命周期。本轮改用**同一槽位**（`settings.onboarding`）上的官方 DeepSeek 提供商卡片作为可观察正向产物：槽位存在、卡片含 API 密钥字段与打开配置文件入口、至少一个输入框。两行的存在性与顺序断言留待「onboarding 生命周期」专项批次，**登记于此不静默丢弃**。
+- **G-MC-8（实测，断言面收窄）**：`TC-MC-C-10-003` 原设计断言桩化 502 后出现 `role="alert"` 错误条。实测模型页的 `role="alert"` 只对 `entry.error` 渲染（`packages/dsh-tauri-model-config/src/client/models/ModelsSection.tsx:306`），预设表加载失败**不会**触发它；同时浏览器对 502 响应会留下一条 `Failed to load resource` 的 `console.error`（属浏览器行为，不是插件未捕获异常）。因此本轮按可观察事实收窄为「桩被命中 + 页面仍渲染且可交互 + 无 `entry.error` 级错误条 + 无未捕获异常（`PAGEERROR`）」。预设失败的用户可见提示形态属**未覆盖**，需先确认 `ModelsSection` 对 `presets.status !== 'ok'` 的实际呈现。
 - **假设**：`$DSH_HOME` 在 scratch 宿主内指向临时目录（`packages/dsh-tauri/src/host/config/constants.ts:5`），因此配置文件断言天然隔离。

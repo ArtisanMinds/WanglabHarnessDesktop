@@ -9,9 +9,20 @@
  * DOM 节点）待 `docs/testing/plugins/02-dsh-tauri-pet.md` 的客户端部分接线。
  */
 
+import type { Browser } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, inject, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
+import {
+  launchDshBrowser,
+  newDshPage,
+  openSettings,
+  PET_ICON,
+  selectSettingsSection,
+  SETTINGS_NAV_ITEM,
+  SETTINGS_TRIGGER,
+  SIDEBAR,
+} from '../support/browser'
 
 /** 与 `packages/dsh-tauri-pet/src/shared/constants.ts` 的 SESSION_STREAM_PATH 对齐。 */
 const SESSION_STREAM_PATH = '/api/desktop/dsh-tauri-pet/session/stream'
@@ -196,4 +207,163 @@ it('验证两个并发消费者各自独立就绪', async () => {
     await first.abort()
     await second.abort()
   }
+})
+
+describe('L2 客户端', () => {
+  let browser: Browser
+
+  beforeAll(async () => {
+    browser = await launchDshBrowser()
+  })
+
+  afterAll(async () => {
+    await browser.close()
+  })
+
+  it('验证顶层页面不注册任何桌宠槽位', async () => {
+    const top = await newDshPage(browser, { path: '/', ready: SETTINGS_TRIGGER })
+    try {
+      await openSettings(top.page, top.frame)
+
+      const slots = await top.frame.evaluate(() => ({
+        hasTrigger: document.querySelector('.dshp-settings-trigger') !== null,
+        petIcons: document.querySelectorAll('[data-dsh-tauri-pet-icon]').length,
+        petSections: document.querySelectorAll('[id="dsh-tauri-pet-settings"]').length,
+      }))
+
+      expect(slots.hasTrigger, '顶层页面必须真的渲染出设置触发器（否则这条断言是空转）').toBe(true)
+      expect(slots.petIcons, '顶层页面不得被插入桌宠入口（window.parent === window 早退）').toBe(0)
+      expect(slots.petSections, '顶层页面不得注册桌宠设置分区').toBe(0)
+      expect(top.errors, '早退路径不得产出应用级错误').toEqual([])
+    }
+    finally {
+      await top.close()
+    }
+  })
+
+  it('验证 iframe 内桌宠设置分区正常渲染且无崩溃', async () => {
+    const app = await newDshPage(browser)
+    try {
+      await openSettings(app.page, app.frame)
+
+      const nav = app.frame.locator(SETTINGS_NAV_ITEM).filter({ hasText: '宠物' })
+      expect(await nav.count(), '桌宠分区必须在导航里注册且唯一（同 id 不得重复注册）').toBe(1)
+      expect(
+        await nav.first().evaluate(element => element.className.includes('nav-item')),
+        '分区导航项必须由设置侧栏渲染',
+      ).toBe(true)
+
+      await selectSettingsSection(app.page, app.frame, '宠物')
+
+      const panel = app.frame.locator('.dshp-pet__page')
+      await expect.poll(
+        async () => await panel.count(),
+        { timeout: 20_000, message: '切到桌宠分区后必须渲染出 dshp-pet__page' },
+      ).toBe(1)
+
+      const panelState = await panel.evaluate(element => ({
+        tabs: Array.from(element.querySelectorAll('[role="tab"]')).map(tab => ({
+          text: tab.textContent?.trim(),
+          selected: tab.getAttribute('aria-selected'),
+        })),
+        sizeSlider: (() => {
+          const slider = element.querySelector('input[type="range"]') as HTMLInputElement | null
+          return slider === null ? null : { min: slider.min, max: slider.max, label: slider.getAttribute('aria-label') }
+        })(),
+        alerts: Array.from(element.querySelectorAll('[role="alert"]')).map(alert => alert.textContent?.trim()),
+      }))
+
+      expect(panelState.tabs.length, '桌宠分区必须渲染出两个来源标签').toBe(2)
+      expect(panelState.tabs.filter(tab => tab.selected === 'true').length, '恰有一个标签处于激活态').toBe(1)
+      expect(panelState.tabs[0]?.selected, '第一个标签必须是激活态').toBe('true')
+      expect(panelState.sizeSlider, '桌宠分区必须渲染尺寸滑块').not.toBeNull()
+      expect(panelState.sizeSlider!.min, '尺寸下限必须与插件常量一致').toBe('50')
+      expect(panelState.sizeSlider!.max, '尺寸上限必须与插件常量一致').toBe('200')
+      expect(panelState.alerts, '正常渲染时不得出现错误条').toEqual([])
+      expect(app.errors, '分区注册与渲染不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证侧栏桌宠入口按钮被插入到设置触发器右侧且状态可读', async () => {
+    const app = await newDshPage(browser)
+    try {
+      const icon = app.frame.locator(PET_ICON).first()
+      await icon.waitFor({ state: 'attached', timeout: 20_000 })
+
+      expect(await app.frame.locator(PET_ICON).count(), '守卫属性必须防止重复插入').toBe(1)
+      expect(await icon.getAttribute('aria-pressed'), 'aria-pressed 必须显式表达两态').toMatch(/^(true|false)$/)
+
+      const geometry = await app.frame.evaluate(() => {
+        const button = document.querySelector('[data-dsh-tauri-pet-icon]')
+        const trigger = document.querySelector('.dshp-settings-trigger')
+        const sidebar = document.querySelector('[data-slot="sidebar"]')
+        if (!button || !trigger || !sidebar)
+          return null
+        const buttonRect = button.getBoundingClientRect()
+        const triggerRect = trigger.getBoundingClientRect()
+        const host = button.parentElement as HTMLElement
+        return {
+          isNextSibling: button.previousElementSibling === trigger,
+          toTheRight: buttonRect.left >= triggerRect.right - 2,
+          verticalOverlap: Math.min(buttonRect.bottom, triggerRect.bottom) - Math.max(buttonRect.top, triggerRect.top),
+          iconCenterInsideTrigger: buttonRect.top + buttonRect.height / 2 >= triggerRect.top
+            && buttonRect.top + buttonRect.height / 2 <= triggerRect.bottom,
+          hostClass: host.className,
+          hostDisplay: getComputedStyle(host).display,
+          hostGap: getComputedStyle(host).gap,
+          hostFlexWrap: getComputedStyle(host).flexWrap,
+          triggerHostIsParent: trigger.parentElement === host,
+          insideSidebar: sidebar.contains(button) && sidebar.contains(trigger),
+        }
+      })
+
+      expect(geometry, '侧栏、触发器与桌宠入口必须同时存在').not.toBeNull()
+      expect(geometry!.isNextSibling, '桌宠入口必须是设置触发器的紧邻后继兄弟').toBe(true)
+      expect(geometry!.triggerHostIsParent, '触发器必须与桌宠入口同处一个宿主行').toBe(true)
+      expect(geometry!.toTheRight, '桌宠入口不得落在设置触发器左侧').toBe(true)
+      expect(geometry!.verticalOverlap, '桌宠入口必须与触发器同处一行（垂直区间重叠）').toBeGreaterThan(10)
+      expect(geometry!.iconCenterInsideTrigger, '桌宠入口必须与触发器垂直居中对齐').toBe(true)
+      expect(geometry!.hostClass, '触发器宿主必须被立成桌宠设置行').toContain('dshp-pet__settings-row')
+      expect(geometry!.hostDisplay, '触发器宿主必须被立成 flex 行').toBe('flex')
+      expect(geometry!.hostGap, 'flex 行必须带插件声明的间距').toBe('8px')
+      expect(geometry!.hostFlexWrap, 'flex 行不得换行').toBe('nowrap')
+      expect(geometry!.insideSidebar, '两者都必须在侧栏内').toBe(true)
+      expect(app.errors, '侧栏补丁不得抛出应用级错误').toEqual([])
+      expect(await app.frame.locator(SIDEBAR).count(), '侧栏根必须存在').toBeGreaterThan(0)
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证侧栏长时间未就绪时停止轮询且不抛错', async () => {
+    const app = await newDshPage(browser, { ready: SETTINGS_TRIGGER })
+    try {
+      const budget = await app.frame.evaluate(() => ({ retryMs: 500, retryMax: 30 }))
+      expect(budget.retryMs, '夹具必须与插件的兜底轮询周期一致').toBe(500)
+      expect(budget.retryMs * (budget.retryMax + 1), '轮询兜底预算必须是一个可等完的有限窗口').toBeLessThanOrEqual(20_000)
+
+      await new Promise(resolve => setTimeout(resolve, 18_000))
+
+      const state = await app.frame.evaluate(() => {
+        const button = document.querySelector('[data-dsh-tauri-pet-icon]')
+        return {
+          iconCount: document.querySelectorAll('[data-dsh-tauri-pet-icon]').length,
+          stillConnected: button?.isConnected ?? false,
+          previousIsTrigger: button?.previousElementSibling === document.querySelector('.dshp-settings-trigger'),
+        }
+      })
+
+      expect(state.iconCount, '补丁恰好插入一个入口，观察器重入不得叠加或移除').toBe(1)
+      expect(state.stillConnected, '兜底轮询窗口结束后入口必须留在 DOM 上').toBe(true)
+      expect(state.previousIsTrigger, '看护循环结束后位置必须仍然正确').toBe(true)
+      expect(app.errors, '轮询耗尽预算后必须静默停止，不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
 })

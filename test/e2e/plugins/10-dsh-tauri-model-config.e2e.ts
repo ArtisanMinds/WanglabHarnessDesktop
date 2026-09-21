@@ -10,9 +10,17 @@
  * 宿主复用 globalSetup 的共享实例（已挂载 dsh-tauri-model-config），不另起进程。
  */
 
+import type { Browser } from 'playwright'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, inject, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
+import {
+  appUrl,
+  launchDshBrowser,
+  newDshPage,
+  openSettings,
+  selectSettingsSection,
+} from '../support/browser'
 
 const PRESETS_PATH = '/api/desktop/dsh-tauri-model-config/presets'
 const ENDPOINT_MODELS_PATH = '/api/desktop/dsh-tauri-model-config/endpoint/models'
@@ -138,5 +146,154 @@ describe('宿主路由：打开设置文件', () => {
     expect(body.ok).toBe(true)
     expect(body.opened, '文件不存在时必须恰为 directory').toBe('directory')
     expect(body.path, '退回目录时 path 是 DSH_HOME 目录本身').toBe(home)
+  })
+})
+
+describe('L2 客户端', () => {
+  let browser: Browser
+
+  beforeAll(async () => {
+    browser = await launchDshBrowser()
+  })
+
+  afterAll(async () => {
+    await browser.close()
+  })
+
+  it('验证模型设置分区由本插件接管且排在首位', async () => {
+    const app = await newDshPage(browser)
+    try {
+      await openSettings(app.page, app.frame)
+
+      const nav = await app.frame.evaluate(() =>
+        Array.from(document.querySelectorAll('nav[aria-label] button')).map(button => button.textContent?.trim() ?? ''))
+
+      expect(nav, '设置侧栏必须注册模型分区').toContain('模型')
+      expect(nav.filter(label => label.includes('模型')).length, 'patch 关闭官方 models 后「模型」分区必须恰好一个').toBe(1)
+
+      await selectSettingsSection(app.page, app.frame, '模型')
+
+      const panel = await app.frame.evaluate(() => {
+        const content = document.querySelector('[class*="content-inner"]')
+        return {
+          text: content?.textContent?.trim().slice(0, 200) ?? '',
+          alerts: Array.from(content?.querySelectorAll('[role="alert"]') ?? []).map(alert => alert.textContent?.trim()),
+        }
+      })
+      expect(panel.text, '模型分区必须真的渲染出内容').not.toBe('')
+      expect(panel.text, '模型分区必须落到本插件的模型页（含提供商/模型字样）').toMatch(/提供商|模型/)
+      expect(app.errors, '分区注册与渲染不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证官方提供商引导卡片由本插件的 onboarding 槽位渲染', async () => {
+    const app = await newDshPage(browser)
+    try {
+      await openSettings(app.page, app.frame)
+      await selectSettingsSection(app.page, app.frame, '模型')
+
+      const state = await app.frame.evaluate(() => {
+        const content = document.querySelector('[class*="content-inner"]')
+        const text = content?.textContent ?? ''
+        return {
+          text,
+          hasDeepseekCard: /DeepSeek/.test(text),
+          hasApiKeyField: /API 密钥/.test(text),
+          hasConfigFileAction: /打开配置文件/.test(text),
+          inputCount: content?.querySelectorAll('input,textarea').length ?? 0,
+          onboardingSlotCount: document.querySelectorAll('[data-slot="settings.onboarding"]').length,
+          alerts: Array.from(content?.querySelectorAll('[role="alert"]') ?? []).map(alert => alert.textContent?.trim()),
+        }
+      })
+
+      expect(state.onboardingSlotCount, '模型页必须挂载 settings.onboarding 槽位').toBeGreaterThan(0)
+      expect(state.hasDeepseekCard, 'onboarding 必须渲染官方 DeepSeek 提供商卡片').toBe(true)
+      expect(state.hasApiKeyField, '引导卡片必须给出 API 密钥字段').toBe(true)
+      expect(state.hasConfigFileAction, '引导卡片必须给出手动配置入口').toBe(true)
+      expect(state.inputCount, '引导卡片必须渲染可输入的字段').toBeGreaterThan(0)
+      expect(state.alerts, '首次进入不得出现错误条').toEqual([])
+      expect(app.errors, '引导卡片渲染不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证模型页渲染提供商卡片与页脚操作区', async () => {
+    const app = await newDshPage(browser)
+    try {
+      await openSettings(app.page, app.frame)
+      await selectSettingsSection(app.page, app.frame, '模型')
+
+      const state = await app.frame.evaluate(() => {
+        const content = document.querySelector('[class*="content-inner"]')
+        const text = content?.textContent ?? ''
+        return {
+          text,
+          cardish: content?.querySelectorAll('[class*="card"],[class*="provider"],[class*="setup"]').length ?? 0,
+          buttons: content?.querySelectorAll('button').length ?? 0,
+          alerts: Array.from(content?.querySelectorAll('[role="alert"]') ?? []).map(alert => alert.textContent?.trim()),
+          navLabels: Array.from(document.querySelectorAll('nav[aria-label] button')).map(button => button.textContent?.trim()),
+        }
+      })
+
+      expect(state.text, '模型页必须非空').not.toBe('')
+      expect(
+        state.cardish > 0 || /暂无|添加|提供商|API/i.test(state.text),
+        '模型页必须给出提供商卡片或明确的空态文案',
+      ).toBe(true)
+      expect(state.buttons, '模型页必须渲染可交互的页脚操作区').toBeGreaterThan(0)
+      expect(state.alerts, '预设可用时不得出现错误条').toEqual([])
+      expect(state.navLabels.filter(label => label === '模型').length, '切换到模型页后同 id 分区不得重复').toBe(1)
+      expect(app.errors, '模型页渲染不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('[反向] 验证预设上游不可用时模型页仍可交互', async () => {
+    const app = await newDshPage(browser)
+    let stubbedCalls = 0
+    try {
+      await app.page.route(`${appUrl(PRESETS_PATH)}`, async (route) => {
+        stubbedCalls += 1
+        await route.fulfill({
+          status: 502,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'e2e-stubbed-upstream-failure' }),
+        })
+      })
+
+      await openSettings(app.page, app.frame)
+      await selectSettingsSection(app.page, app.frame, '模型')
+      await new Promise(resolve => setTimeout(resolve, 2_000))
+
+      const state = await app.frame.evaluate(() => {
+        const content = document.querySelector('[class*="content-inner"]')
+        return {
+          text: content?.textContent?.trim().slice(0, 240) ?? '',
+          buttons: content?.querySelectorAll('button').length ?? 0,
+          inputs: content?.querySelectorAll('input,textarea').length ?? 0,
+          errorLines: Array.from(content?.querySelectorAll('[role="alert"]') ?? []).map(alert => alert.textContent?.trim() ?? ''),
+        }
+      })
+
+      expect(stubbedCalls, '夹具必须真的拦到预设请求，否则这条断言是空转').toBeGreaterThan(0)
+      expect(state.text, '预设上游不可用时页面其余部分仍必须渲染（不是整页崩溃）').not.toBe('')
+      expect(state.buttons, '失败时仍必须保留可交互入口').toBeGreaterThan(0)
+      expect(state.inputs, '失败时仍必须保留可编辑字段').toBeGreaterThan(0)
+      expect(state.errorLines, '预设失败不得让模型页出现 entry.error 级错误条').toEqual([])
+      expect(
+        app.errors.filter(line => line.startsWith('PAGEERROR')),
+        '预设 502 只允许留下浏览器对 502 响应的 console 记录，不得有未捕获异常',
+      ).toEqual([])
+    }
+    finally {
+      await app.close()
+    }
   })
 })

@@ -10,7 +10,15 @@
  * 真实会话，scratch 宿主无造会话手段，保持待补（`00-overview.md` G9）。
  */
 
-import { describe, expect, inject, it } from 'vitest'
+import type { Browser } from 'playwright'
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
+import {
+  launchDshBrowser,
+  newDshPage,
+  openSettings,
+  SETTINGS_SIDEBAR,
+  SETTINGS_TRIGGER,
+} from '../support/browser'
 
 /** 与 `packages/dsh-tauri-ui/src/host/routes/index.ts:5` 的唯一路由对齐。 */
 const RESUME_PATH = '/api/desktop/dsh-tauri-ui/session/resume'
@@ -52,5 +60,139 @@ describe('L2 宿主路由', () => {
     const body = await response.json() as ResumeBody
     expect(body.error, '会话不存在文案必须逐字相等').toBe('会话不存在或尚未运行')
     expect(JSON.stringify(body), '未知会话不得走到注入成功分支').not.toContain('"ok":true')
+  })
+})
+
+describe('L2 客户端', () => {
+  let browser: Browser
+
+  beforeAll(async () => {
+    browser = await launchDshBrowser()
+  })
+
+  afterAll(async () => {
+    await browser.close()
+  })
+
+  it('验证设置侧栏与触发器被注入 dsh 界面', async () => {
+    const app = await newDshPage(browser)
+    try {
+      const triggerHost = await app.frame.evaluate(() => {
+        const trigger = document.querySelector('.dshp-settings-trigger')
+        const sidebar = document.querySelector('[data-slot="sidebar"]')
+        return {
+          triggerInsideSidebar: Boolean(trigger && sidebar?.contains(trigger)),
+          triggerTag: trigger?.tagName,
+        }
+      })
+      expect(triggerHost.triggerInsideSidebar, '设置触发器必须是侧栏内的原生按钮').toBe(true)
+      expect(triggerHost.triggerTag, '触发器必须是 button').toBe('BUTTON')
+
+      await openSettings(app.page, app.frame)
+
+      const state = await app.frame.evaluate(() => {
+        const root = document.querySelector('[data-slot-sidebar="dsh-tauri-ui"]')
+        const nav = root?.querySelector('nav')
+        return {
+          rootCount: document.querySelectorAll('[data-slot-sidebar="dsh-tauri-ui"]').length,
+          hasSearch: root?.querySelector('input') !== null,
+          navLabels: Array.from(nav?.querySelectorAll('button') ?? []).map(button => button.textContent?.trim()),
+          railWidth: root === null ? null : Math.round((root.firstElementChild as HTMLElement).getBoundingClientRect().width),
+        }
+      })
+
+      expect(state.rootCount, '设置侧栏标记必须唯一').toBe(1)
+      expect(state.hasSearch, '设置侧栏必须带搜索框').toBe(true)
+      expect(state.navLabels.length, '设置侧栏必须至少渲染一个导航项').toBeGreaterThan(0)
+      expect(state.navLabels, '插件分区与核心分区必须同时出现在同一侧栏').toContain('宠物')
+      expect(state.navLabels, '本插件提供的设置分区必须在同一侧栏').toContain('插件')
+      expect(state.railWidth, '侧栏宽度必须落在插件声明的 264–420px 夹紧区间内（插件不覆写宿主宽度）')
+        .toBeGreaterThanOrEqual(264)
+      expect(state.railWidth!).toBeLessThanOrEqual(420)
+      expect(app.errors, '侧栏注入不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证触发器 aria-expanded 随设置侧栏开合变化', async () => {
+    const app = await newDshPage(browser)
+    try {
+      const trigger = app.frame.locator(SETTINGS_TRIGGER).first()
+      expect(await trigger.getAttribute('aria-expanded'), '初始必须为 false').toBe('false')
+      expect(await app.frame.locator(SETTINGS_SIDEBAR).count(), '初始不得渲染设置侧栏').toBe(0)
+
+      await openSettings(app.page, app.frame)
+      expect(await trigger.getAttribute('aria-expanded'), '首次点击后必须为 true').toBe('true')
+      await expect.poll(
+        async () => await app.frame.locator(SETTINGS_SIDEBAR).first().isVisible(),
+        { timeout: 10_000, message: '展开后设置侧栏必须可见' },
+      ).toBe(true)
+
+      // 展开态下设置触发器被设置侧栏整体盖住（`trigger.boundingBox()` 为 null），
+      // 收起只能走侧栏自身的 Escape 通道（`sidebar.tsx` 的 keydown 监听）。
+      await app.page.keyboard.press('Escape')
+      await expect.poll(
+        async () => await trigger.getAttribute('aria-expanded'),
+        { timeout: 10_000, message: 'Escape 后必须回到 false' },
+      ).toBe('false')
+      expect(await app.frame.locator(SETTINGS_SIDEBAR).count(), '收起后设置侧栏必须卸载').toBe(0)
+      expect(app.errors, '开合不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('[反向] 验证无可续跑轮次时主按钮不被改写为「继续任务」', async () => {
+    const app = await newDshPage(browser)
+    try {
+      const state = await app.frame.evaluate(() => {
+        const card = document.querySelector('[data-composer-card]')
+        const buttons = Array.from(card?.querySelectorAll('button') ?? [])
+        const primary = buttons[buttons.length - 1]
+        return {
+          cardExists: card !== null,
+          placeholderVisible: card?.querySelector('[data-composer-placeholder]') !== null,
+          label: primary?.getAttribute('aria-label') ?? null,
+          svgWidth: primary?.querySelector('svg')?.style.width ?? null,
+        }
+      })
+
+      expect(state.cardExists, 'composer 卡片必须存在（否则这条断言没有目标）').toBe(true)
+      expect(state.placeholderVisible, 'scratch 宿主无活动会话，草稿必然为空').toBe(true)
+      expect(state.label, '没有可续跑轮次时不得把主按钮改写成「继续任务」').not.toBe('继续任务')
+      expect(state.svgWidth, '未被补丁改写时不得带补丁的 14px 内联宽度').not.toBe('14px')
+      expect(app.errors, '补丁在无匹配轮次时必须静默').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证空草稿下并发保护不启用发送按钮', async () => {
+    const app = await newDshPage(browser)
+    try {
+      const state = await app.frame.evaluate(() => {
+        const card = document.querySelector('[data-composer-card]')
+        const buttons = Array.from(card?.querySelectorAll('button') ?? [])
+        const primary = buttons[buttons.length - 1] as HTMLButtonElement | undefined
+        const placeholder = card?.querySelector('[data-composer-placeholder]')
+        return {
+          empty: placeholder !== null,
+          disabled: primary?.disabled ?? null,
+          label: primary?.getAttribute('aria-label') ?? null,
+        }
+      })
+
+      expect(state.empty, '夹具前置：草稿必须为空').toBe(true)
+      expect(state.disabled, '空草稿的主按钮必须保持不可点击').toBe(true)
+      expect(state.label, '空草稿的按钮文案必须是官方文案').not.toBe('继续任务')
+      expect(app.errors, '空草稿不得触发补丁异常').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
   })
 })
