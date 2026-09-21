@@ -140,4 +140,18 @@ describe('L2 宿主路由', () => {
 
     await expectNoBinding()
   })
+
+  it('[反向] 验证未知 jobId 的状态查询回落到 local', async () => {
+    for (const query of ['jobId=', 'jobId=missing']) {
+      const response = await fetch(`${url(STATUS_PATH)}?${query}`, { headers: headers() })
+
+      expect(response.status, `${query} 的未知任务不得落到 missing 的 404 分支`).toBe(200)
+      expect(
+        await response.json() as { mode?: string, projectPath?: string, isGit?: boolean | null },
+        `${query} 的未知任务实测按本地未绑定会话回读`,
+      ).toEqual({ mode: 'local', projectPath: '', isGit: null })
+    }
+
+    await expectNoBinding()
+  })
 })

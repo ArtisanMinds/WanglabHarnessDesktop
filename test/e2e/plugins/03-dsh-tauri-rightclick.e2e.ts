@@ -96,4 +96,18 @@ describe('宿主路由：open/path', () => {
       '失败理由必须点明不是目录，而不是路径格式非法',
     ).toEqual({ ok: false, error: 'not-a-directory' })
   })
+
+  it('[反向] 验证 open/path 的非 JSON 请求体被 415 拒绝', async () => {
+    const response = await fetch(url(OPEN_PATH_PATH), {
+      method: 'POST',
+      headers: apiHeaders({ 'content-type': 'text/plain' }),
+      body: 'path=/definitely-not-a-real-dir',
+    })
+
+    expect(response.status, '非 JSON 内容类型必须在读体与打开之前被拒').toBe(415)
+    expect(
+      await response.json() as OperationResult,
+      '拒绝理由必须来自 path 处理器自己的守卫，而不是路径校验',
+    ).toEqual({ ok: false, error: 'unsupported-media-type' })
+  })
 })

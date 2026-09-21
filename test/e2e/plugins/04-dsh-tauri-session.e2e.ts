@@ -164,4 +164,39 @@ describe('L2 宿主路由', () => {
       expect(allowMethods(response), `${path} 的 allow 集合必须与注册行一致`).toEqual(expected)
     }
   })
+
+  it('[反向] 验证取消归档缺 sessionId 返回 400 且未知 id 幂等返回 ok', async () => {
+    const missing = await fetch(url(ARCHIVE_RESTORE_PATH), {
+      method: 'POST',
+      headers: headers(JSON_HEADERS),
+      body: '{}',
+    })
+    expect(missing.status, '缺 sessionId 必须 400').toBe(400)
+    expect(await missing.json() as ErrorPayload, '缺参文案必须逐字相等').toEqual({ ok: false, error: 'invalid-session-id' })
+
+    const unknown = await fetch(url(ARCHIVE_RESTORE_PATH), {
+      method: 'POST',
+      headers: headers(JSON_HEADERS),
+      body: JSON.stringify({ sessionId: 'does-not-exist' }),
+    })
+    expect(unknown.status, '未归档的 id 不是领域错误，实测非 400 也非 500').toBe(200)
+    expect(await unknown.json() as { ok?: boolean }, '账本移除对缺失 id 为空操作，整体幂等成功').toEqual({ ok: true })
+
+    await expectArchiveEmpty()
+  })
+
+  it('[反向] 验证工作区批量归档对非字符串 id 的当前行为', async () => {
+    const unhandledError: UnhandledErrorPayload = { status: 500, unhandled: true, message: 'HTTPError' }
+
+    const response = await fetch(url(SESSION_WORKSPACE_ARCHIVE_PATH), {
+      method: 'POST',
+      headers: headers(JSON_HEADERS),
+      body: JSON.stringify({ sessionIds: [123] }),
+    })
+
+    expect(response.status, '非字符串项被 String() 强转后放行，落到宿主未处理异常（实测修正，见 G-SESS-5）').toBe(500)
+    expect(await response.json() as UnhandledErrorPayload, '响应体必须是宿主未处理异常的标准载荷').toEqual(unhandledError)
+
+    await expectArchiveEmpty()
+  })
 })

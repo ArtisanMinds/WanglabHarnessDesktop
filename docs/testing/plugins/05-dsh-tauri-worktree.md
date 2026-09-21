@@ -1,7 +1,7 @@
 # dsh-tauri-worktree：工作树路由、面板与模式选择
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts`（6 条 L2 已落地并全绿）；客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts`（7 条 L2 已落地并全绿）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`；涉及真实 git 的用例另需临时仓库
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
 
@@ -19,6 +19,7 @@
 | `DELETE` 恒 200，不校验 sessionId | `packages/dsh-tauri-worktree/src/host/routes/delete.ts:8` |
 | `GET /bindings` 只列出目录仍存在的绑定 | `packages/dsh-tauri-worktree/src/host/routes/bindings/get.ts:10` |
 | `GET /status` 的 `mode === 'missing'` → 404 | `packages/dsh-tauri-worktree/src/host/routes/status/get.ts:11` |
+| `GET /status` 的未知 `jobId` 与未知 `sessionId` 同判为本地未绑定会话 | `packages/dsh-tauri-worktree/src/host/routes/status/get.ts:9`、`packages/dsh-tauri-worktree/src/host/service/status.ts:10` |
 | `POST /bindings`：400 缺参、404 attach 失败 | `packages/dsh-tauri-worktree/src/host/routes/bindings/post.ts:9`、`packages/dsh-tauri-worktree/src/host/routes/bindings/post.ts:14` |
 | `POST /checkouts`：400 失败 | `packages/dsh-tauri-worktree/src/host/routes/checkouts/post.ts:14` |
 | Agent 工具 `create_worktree` / `checkout_worktree` | `packages/dsh-tauri-worktree/src/host/tools/create-worktree.ts:24`、`packages/dsh-tauri-worktree/src/host/tools/checkout-worktree.ts:6` |
@@ -107,6 +108,19 @@
 [预期结果] 1. 状态码 400。2. 响应体恰为 `{ error: '未找到绑定的工作树' }`（**无** `ok` 字段，与 `DELETE` 的成功/失败体形状不同）。3. 无 git 命令副作用，`GET /bindings` 仍为空。
 [清理] 无
 
+### [P3] [反向] 验证未知 jobId 的状态查询回落到 local
+
+[Case ID] TC-WT-L2-05-007
+[层级] L2（真实 dsh 进程）
+[类型] 异常
+[追踪] `packages/dsh-tauri-worktree/src/host/routes/status/get.ts:9`
+[自动化] 是（`test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts:144`）
+[前置条件] 同 TC-WT-L2-05-001，且不存在任何绑定与清理任务
+[测试数据] `GET /status?jobId=`（空串）与 `GET /status?jobId=missing`（未知 id）
+[测试步骤] 1. 逐一发起请求。2. 读状态码与响应体。3. 回读 `GET /bindings`。
+[预期结果] 1. 两种查询均返回 200（**不落 `mode === 'missing'` 的 404 分支**）。2. 响应体均为 `{ mode: 'local', projectPath: '', isGit: null }`（`cleaner.lookup` 未命中 → `status.resolve` 继续走本地分支；无绑定故 `projectPath` 为空串、`isGit` 为 `null`）。3. `GET /bindings` 仍为 `{ bindings: [], jobs: [] }`，查询不产生副作用。
+[清理] 无
+
 ---
 
 ## 3. L2：客户端（真实浏览器页面，未接线）
@@ -174,7 +188,7 @@
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
 | `bindings/get.ts:8` 清单结构 | TC-WT-L2-05-001 | 正向 | — |
-| `status/get.ts` mode 分支 | TC-WT-L2-05-002 | 异常 | `mode === 'missing'` 的 404 分支需要真实删除任务，**未覆盖** |
+| `status/get.ts` mode 分支 | TC-WT-L2-05-002、TC-WT-L2-05-007 | 异常 | 未知 `jobId`（`?jobId=` / `?jobId=missing`）实测 200 + `{ mode: 'local', projectPath: '', isGit: null }`，不落 404；`mode === 'missing'` 的 404 分支需要真实删除任务，**未覆盖** |
 | `bindings/post.ts:9` 缺参 | TC-WT-L2-05-003 | 异常 | — |
 | `post.ts:12` 缺参 | TC-WT-L2-05-004 | 异常 | 实测确认 400 + `{ error: '缺少 sessionId' }` 且无 `worktreePath`；`cwd 解析失败` 与 `create 失败` 分支需要真实会话/仓库，**未覆盖** |
 | `delete.ts:12` 幂等体 | TC-WT-L2-05-005 | 边界 | 实测确认：缺参为 200 + `{ ok: false, error: '未找到绑定的工作树' }`，重复请求同体；与其它插件「缺参即 400」的风格不一致，**疑似缺陷**（G-WT-4） |
@@ -188,9 +202,9 @@
 ## 6. 缺口与假设
 
 - **G-WT-1**：`linkDependencies` 默认 `true`（`packages/dsh-tauri-worktree/src/host/service/worktree.ts:47`），真实创建会改仓库依赖目录。本文件刻意不触发创建，避免污染工作区。
-- **G-WT-2**：`GET /status?jobId=<未知>` 会落到本地分支返回 200 `local`（`packages/dsh-tauri-worktree/src/host/service/status.ts:11`），与「未知任务应 404」的直觉冲突，**待确认**后补用例。
+- **G-WT-2**：**已实测确认**（原「待确认」已消解）——`GET /status?jobId=<未知>` 会落到本地分支返回 200，与「未知任务应 404」的直觉冲突。两种查询各测一次：`GET /status?jobId=`（空串）与 `GET /status?jobId=missing`，均为 `200` + `{"mode":"local","projectPath":"","isGit":null}`；无 `jobId` 的 `GET /status` 与 `GET /status?sessionId=not-bound` 返回同一载荷。根因在 `packages/dsh-tauri-worktree/src/host/service/status.ts:10`：`cleaner.lookup(sessionId, jobId)` 未命中即返回 `undefined`，`:11` 的 `if (jobId && job && job.sessionId !== sessionId)` 因 `job` 为空而短路，故不会进入 `missing`（`:11` 的 404 只在「job 存在但属于别的 session」时触发，见 `status/get.ts:11`）。已按实测固化 TC-WT-L2-05-007，**未改实现**；「未知 jobId 是否应 404」属产品语义问题，与 G-WT-4 一并留待确认。
 - **G-WT-3**：客户端依赖宿主 `aria-label` 文案（访问模式按钮，`packages/dsh-tauri-worktree/src/client/constants/index.ts:46`），语种变化会失配；L3 用例需固定中文 locale。
 - **G-WT-4**：`DELETE /api/desktop/dsh-tauri-worktree` 缺参时返回 200 而非 4xx（`packages/dsh-tauri-worktree/src/host/routes/delete.ts:8`），与其它插件（如 `dsh-tauri-session` 的 `DELETE` 缺参即 400）的入参校验风格不一致。**已实测确认**：body `{}` → 200 + `{ ok: false, error: '未找到绑定的工作树' }`，重复请求返回逐字相同的体（幂等）。本次按实测固化 TC-WT-L2-05-005 的期望，**未改实现**；是否应改为 400 仍**疑似缺陷**，留待产品确认。
 - **G-WT-5**：TC-WT-L2-05-004 的「未在文件系统创建任何目录」无法直接断言——缺 `sessionId` 在 `sessionContext.resolve` 之前就返回，不存在可定位的「预期目录」。改以回读 `GET /bindings` 为空作为「无副作用」的外部证据；真实目录创建链路由后续「真实 git 仓库」批次覆盖。
 - **假设**：`conversation.input.dock` / `shell.overlay` 槽位由宿主提供且已在本仓其它插件中稳定使用。
-- **实测基线**：`pnpm vitest run --project plugin test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts` → **6 passed / 0 failed**（复用 `globalSetup` 共享宿主，全部产品可见插件已挂载，核心 `0.1.5-rc.2`）。
+- **实测基线**：`node node_modules/vitest/vitest.mjs --project plugin --run test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts test/e2e/plugins/04-dsh-tauri-session.e2e.ts test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts` → **Test Files 3 passed（3）/ Tests 21 passed（21）**，其中本文件 **7 passed / 0 failed**（复用 `globalSetup` 共享宿主，全部产品可见插件已挂载，核心 `0.1.5-rc.2`）。

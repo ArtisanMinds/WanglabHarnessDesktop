@@ -1,7 +1,7 @@
 # dsh-tauri-rightclick：外部打开接口与自绘右键菜单
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts`（宿主路由 4 例已落地并全绿）；客户端与 L3 见各用例标注
+> 自动化：`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts`（宿主路由 5 例已落地并全绿）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`；L3 另需 debug 二进制 + 空闲端口
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
 
@@ -16,7 +16,7 @@
 | `PLUGIN_ID = 'dsh-tauri-rightclick'` | `packages/dsh-tauri-rightclick/src/shared/constants.ts:1` |
 | `POST /api/desktop/dsh-tauri-rightclick/open/url` | `packages/dsh-tauri-rightclick/src/host/routes/index.ts:6` |
 | `POST /api/desktop/dsh-tauri-rightclick/open/path` | `packages/dsh-tauri-rightclick/src/host/routes/index.ts:7` |
-| JSON content-type 守卫 → 415 `unsupported-media-type` | `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:9`、`packages/dsh-tauri-rightclick/src/host/config/constants.ts:1` |
+| JSON content-type 守卫 → 415 `unsupported-media-type`（`open/url` 与 `open/path` 各实现一处） | `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:9`、`packages/dsh-tauri-rightclick/src/host/routes/open/path/post.ts:13`、`packages/dsh-tauri-rightclick/src/host/config/constants.ts:1` |
 | url 校验失败 → 400 `invalid-url`；打开失败 → 500 | `packages/dsh-tauri-rightclick/src/host/routes/open/url/post.ts:16`、`packages/dsh-tauri-rightclick/src/host/service/opener.ts:17` |
 | path 校验失败 → 400 `invalid-path`；非目录 → 400 `not-a-directory` | `packages/dsh-tauri-rightclick/src/host/routes/open/path/post.ts:19`、`packages/dsh-tauri-rightclick/src/host/service/opener.ts:30` |
 | 打开动作串行化（一次一个） | `packages/dsh-tauri-rightclick/src/host/service/mutation-queue.ts:11` |
@@ -94,6 +94,21 @@
 [测试步骤] 1. 发起请求。2. 读状态码与响应体。
 [预期结果] 1. 状态码 400。2. 响应体 `{ ok: false, error: 'not-a-directory' }`。
 [清理] 无
+
+### [P3] [反向] 验证 open/path 的非 JSON 请求体被 415 拒绝
+
+[Case ID] TC-RC-L2-03-006
+[层级] L2（真实 dsh 进程）
+[类型] 异常
+[追踪] `packages/dsh-tauri-rightclick/src/host/routes/open/path/post.ts:13`
+[自动化] 是（`test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts:100`）
+[前置条件] 同 TC-RC-L2-03-001
+[测试数据] `POST /open/path`，body `path=/definitely-not-a-real-dir`，`content-type: text/plain`
+[测试步骤] 1. 发起请求。2. 读状态码与响应体。
+[预期结果] 1. 状态码 415。2. 响应体 `{ ok: false, error: 'unsupported-media-type' }`。3. 不产生任何系统打开动作。
+[清理] 无
+
+> 与 TC-RC-L2-03-002 文案相同，但**不是重复用例**：002 打的是 `open/url` 自己的守卫（`open/url/post.ts:9`），本条打的是 `open/path` 自己的守卫（`open/path/post.ts:13`）。两处守卫各写一遍、只有 `JSON_CONTENT_TYPE` 常量共享（`config/constants.ts:1`），任一 handler 漏写守卫都会让本条失败，故保留为独立 Case。
 
 ---
 
@@ -190,7 +205,7 @@
 | 来源 | 覆盖 Case ID | 覆盖类型 | 缺口备注 |
 | --- | --- | --- | --- |
 | `open/url/post.ts` 三态（415/400/500） | TC-RC-L2-03-001、TC-RC-L2-03-002、TC-RC-L2-03-003 | 正向（手工）/ 异常 | 正向会真的拉起默认浏览器，故不进自动化；500 分支无法在不破坏系统默认打开器的前提下构造，**未覆盖** |
-| `open/path/post.ts` 三态（415/400/not-a-directory） | TC-RC-L2-03-004、TC-RC-L2-03-005 | 异常 / 边界 | 415 已由 TC-RC-L2-03-002 同源覆盖，不重复 |
+| `open/path/post.ts` 三态（415/400/not-a-directory） | TC-RC-L2-03-004、TC-RC-L2-03-005、TC-RC-L2-03-006 | 异常 / 边界 | 415 直接由 TC-RC-L2-03-006 覆盖 `open/path` 自己的守卫实现（与 TC-RC-L2-03-002 同文案、不同 handler，不算重复） |
 | 菜单挂载与关闭 | TC-RC-C-03-001、TC-RC-C-03-002 | 正向 | 依赖浏览器驱动 |
 | `EDITABLE_SELECTOR` 例外 | TC-RC-C-03-003 | 异常 | 依赖浏览器驱动 |
 | 剪贴板降级 | TC-RC-C-03-004 | 异常 | `execCommand` 回退分支需单独造环境，**未覆盖** |
@@ -201,8 +216,9 @@
 ## 6. 缺口与假设
 
 - **G-RC-1**：`open/url` 的 500 分支（`opener.ts:17`）需要让系统打开动作失败。当前不构造该环境，**未覆盖**，登记为已知盲区。
-- **G-RC-2**：`src/host/routes/index.test.ts:146` 已有 415/400 的单元级回归；本文件的 L2 用例是**真实宿主**下的同一断言，属有意重复的信任边界加固。
+- **G-RC-2**：`src/host/routes/index.test.ts:146` 已有 415/400 的单元级回归；本文件的 L2 用例是**真实宿主**下的同一断言，属有意重复的信任边界加固。`open/path` 的 415 由 TC-RC-L2-03-006 覆盖——该守卫在两个 handler 里各写一遍，故按 handler 分别落地，不做「同源即合并」。
 - **G-RC-3**：扩展注册表（`Symbol.for('dsh.rightclick-menu.extensions')`）在本包内无注册者，第三方扩展项的行为**不在范围**。
-- **G-RC-4**：TC-RC-L2-03-001（合法外链 200）会真的拉起本机默认浏览器，属**真实系统副作用**，不进自动化流水线，仅手工执行；`open/url` 的成功路径因此在无人值守运行中无覆盖。异常与边界用例（002–005）全部落在校验阶段、打开动作之前，可安全自动化。
-- **G-RC-5**：本文件已实现的 4 条 L2 用例（002–005）在真实宿主下的实测行为与预期**完全一致**（415 `unsupported-media-type`、400 `invalid-url` ×4、400 `invalid-path` ×3、400 `not-a-directory`），无「文档预期 vs 实测」差异，不涉及疑似缺陷。
+- **G-RC-4**：TC-RC-L2-03-001（合法外链 200）会真的拉起本机默认浏览器，属**真实系统副作用**，不进自动化流水线，仅手工执行；`open/url` 的成功路径因此在无人值守运行中无覆盖。异常与边界用例（002–006）全部落在校验阶段、打开动作之前，可安全自动化。
+- **G-RC-5**：本文件已实现的 5 条 L2 用例（002–006）在真实宿主下的实测行为与预期**完全一致**（415 `unsupported-media-type` ×2（`open/url`、`open/path`）、400 `invalid-url` ×4、400 `invalid-path` ×3、400 `not-a-directory`），无「文档预期 vs 实测」差异，不涉及疑似缺陷。TC-RC-L2-03-006 的实测原始字节：`POST /open/path` + `content-type: text/plain` → `415` + `{"ok":false,"error":"unsupported-media-type"}`。
 - **假设**：菜单容器类名 `dshp-menu` 属于插件前缀 class，按 `plugin.client.md` §4「允许使用插件前缀 class」可作为稳定选择器；若改为 `data-testid`，用例同步更新。
+- **实测基线**：`node node_modules/vitest/vitest.mjs --project plugin --run test/e2e/plugins/03-dsh-tauri-rightclick.e2e.ts test/e2e/plugins/04-dsh-tauri-session.e2e.ts test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts` → **Test Files 3 passed（3）/ Tests 21 passed（21）**，其中本文件 **5 passed / 0 failed**（复用 `globalSetup` 共享宿主，全部产品可见插件已挂载，核心 `0.1.5-rc.2`）。
