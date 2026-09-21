@@ -351,10 +351,10 @@ node node_modules/vitest/vitest.mjs run --project unit --sequence.shuffle --sequ
 | `packages/dsh-tauri-turnrewind/src/host/utils/lock.test.ts:330` | 用例内 O(10000) 暴力搜索造碰撞夹具（本身即被测算法） |
 | `packages/dsh-tauri-rightclick/src/client/service/menu.test.ts` | 50 行左右的文件 mock 掉 `../apis`、`../locales`、`dsh-tauri/client` 三个依赖，用例全在验透传 / 验 mock 返回值（D4） |
 | `packages/dsh-tauri-worktree/src/host/service/worktree.test.ts` | `expect(ok).toBe(true); if (!ok) return` 收窄样板重复多次，未抽 helper |
-| `test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts:48` | 断言临时目录名这种实现细节（`toContain('dsh-e2e-dsh-tauri-')`） |
-| `test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts:268` | 先断 `toBe(404)` 再断 `not.toBe(200)`，第二条零信息（D1） |
-| `test/e2e/plugins/01-dsh-host-and-core-contract.e2e.ts:139` | 进程级 `process.env.DSH_E2E_MOUNT = 'cli'`，靠 `fileParallelism: false` + `finally` 兜底 |
-| `test/e2e/plugins/02-dsh-tauri-pet.e2e.ts:190` | 时序脆弱断言：`expect(read.chunks, '就绪帧必须在首个响应块内到达').toBe(1)` 依赖网络分块行为 |
+| `test/e2e/plugins/dsh-host-and-core-contract.e2e.ts:48` | 断言临时目录名这种实现细节（`toContain('dsh-e2e-dsh-tauri-')`） |
+| `test/e2e/plugins/dsh-host-and-core-contract.e2e.ts:268` | 先断 `toBe(404)` 再断 `not.toBe(200)`，第二条零信息（D1） |
+| `test/e2e/plugins/dsh-host-and-core-contract.e2e.ts:139` | 进程级 `process.env.DSH_E2E_MOUNT = 'cli'`，靠 `fileParallelism: false` + `finally` 兜底 |
+| `test/e2e/plugins/dsh-tauri-pet.e2e.ts:190` | 时序脆弱断言：`expect(read.chunks, '就绪帧必须在首个响应块内到达').toBe(1)` 依赖网络分块行为 |
 | `test/e2e/desktop/boot.e2e.ts:85` | `describe.skipIf(process.platform === 'darwin')` |
 | `test/e2e/desktop/02-pet-window.e2e.ts:108` | `describe.skipIf(process.platform !== 'win32')` |
 | `test/plugin-resource-closure.test.ts:43` | `describe.skipIf(!BUILT)`，不构建则整组用例在 CI 里从不执行（CI 用 `pnpm build:plugins` 兜住） |
