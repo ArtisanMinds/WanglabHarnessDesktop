@@ -191,7 +191,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/components/scheduler-panel.tsx:139`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] iframe 内 dsh 界面已加载；`sidebar.panellist` 可用
 [测试数据] 无
 [测试步骤] 1. 打开调度面板。2. 查询 `.dshp-scheduler__shell` 与 `[role="tab"]`。3. 收集 `pageerror`。
@@ -204,7 +204,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/components/task-create-dialog.tsx:183`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 同 TC-SCH-C-08-001
 [测试数据] 名称留空提交一次，再填合法值提交一次
 [测试步骤] 1. 点击「新建任务」。2. 直接提交。3. 查询 `.dshp-scheduler__modal` 内 `[role="alert"]`。4. 填写名称与指令后提交。
@@ -217,7 +217,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-scheduler/src/client/register/session-icons.ts:46`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 侧栏存在至少一条会话行
 [测试数据] 无
 [测试步骤] 1. 等待会话行渲染。2. 查询 `[data-dsh-scheduler-icon]`。3. 触发一次重渲染后再查询。
@@ -273,7 +273,7 @@
 - **实测（批次 08）**：7 条 L2 用例已落地并全绿（连续 4 次运行无 Flake，单次约 8s）。实测与文档预期**逐字相符**的有：状态码（200 / 400）、`GET /tasks` 空清单形状（`tasks` 为空数组且无 `error`）、`task.id` 为 `task-<uuid>`、`nextRunAt` 是创建时刻之后的 ISO 时刻、`DELETE /tasks` 的两类文案（`缺少任务 id` / `任务不存在`）、`POST /tasks/run` 的 `任务不存在`、`DELETE /history` 的两类文案（`缺少执行记录 id` / `执行记录不存在`）、`GET /options` 返回 200 且为非数组非空对象。
 - **实测修正（批次 08，非缺陷）**：TC-SCH-L2-08-003 的三条 `error` 文案在原文档只写「非空 `error` 字符串」，实测为 `任务名称不能为空` / `任务指令不能为空` / `计划配置无效`；用例按逐字相等断言（比文档更强的口径），§2 对应条目已按实测回填，**无疑似缺陷**。
 - **实测落盘路径（批次 08）**：账本实测落在 `<dshHome>/crons/tasks`——`inject('dshHome')` 就是 `globalSetup` 传给 `dsh web` 的 `DSH_HOME`，文件名无扩展名（`unstorage` 的 `fs` 驱动不做后缀改写，`packages/dsh-tauri/src/host/utils/driver.ts:14`）。与假设一致。
-- **未接线（TC-SCH-C-08-001 / -002 / -003）**：`playwright` 未列入 `package.json` / `pnpm-lock.yaml`（`00-overview.md` G2），客户端渲染证据缺失，保留设计不写 `it()`。
+- **未接线（TC-SCH-C-08-001 / -002 / -003）**：`playwright` 已接入（`00-overview.md` G2 已消解），但客户端渲染证据仍缺失，保留设计不写 `it()`。
 - **未接线（TC-SCH-L3-08-001）**：L3 通道尚未接入——`desktop` project 本身已配置（`00-overview.md` G4 已消解），缺的是桌面端宿主编排与 iframe 切换，故不写成「project 未配置」。
 - **未覆盖（Agent 工具）**：`scheduler_create/list/toggle/delete/run_now` 五个工具需要 Agent 会话与工具调用通道，本批不覆盖。
 - **用例自清理**：唯一落盘的 TC-SCH-L2-08-002 在 `finally` 里删除自建任务，并在收尾断言 `GET /tasks` 回到空数组，不把状态留给后续用例与后续批次。

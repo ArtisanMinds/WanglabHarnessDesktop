@@ -158,7 +158,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/archive-section.ts:18`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] iframe 内 dsh 界面已加载；官方 `ui-settings-unarchive-sessions` 已被 patch 关闭
 [测试数据] 无
 [测试步骤] 1. 等待槽位注册完成。2. 断言 id 为 `dsh-tauri-session-archive` 的分区存在。3. 断言同 id 的分区只有 1 个。4. 收集 `pageerror`。
@@ -171,7 +171,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-session/src/client/register/workspace-patch.tsx:87`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 页面存在工作区行的「…」按钮与官方「删除工作区」菜单项
 [测试数据] 点击工作区行的「…」按钮
 [测试步骤] 1. 打开菜单。2. 查询 `[data-dsh-tauri-session-archive-menu-patched="1"]`。3. 查询其内 `[data-dsh-tauri-session-archive-item]`。

@@ -114,7 +114,7 @@
 
 ## 3. L2：客户端（真实浏览器页面，未接线）
 
-> 依赖浏览器驱动，当前仓库无 `playwright`（`00-overview.md` G2），标注**未接线**。
+> 依赖浏览器驱动（`playwright` 已由子设计 `01` 接入，`00-overview.md` G2 已消解）；本段客户端用例待补，标注**未接线**。
 
 ### [P1] 验证会话行右键弹出菜单且焦点落在首项
 
@@ -122,7 +122,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:131`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 页面为 iframe 内的 dsh 界面；存在至少一条会话行（`[role="treeitem"]`）
 [测试数据] 在 `[data-slot="conversation.session"]` 上派发 `contextmenu`
 [测试步骤] 1. 派发右键事件。2. 查询 `div.dshp-menu[role=menu]`。3. 读 `document.activeElement`。
@@ -135,7 +135,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:136`、`packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:203`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 同 TC-RC-C-03-001
 [测试数据] 连续两次右键同一行，随后 Escape
 [测试步骤] 1. 右键两次。2. 查询 `div.dshp-menu` 数量。3. 派发 `Escape`。4. 再次查询。
@@ -148,7 +148,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/client/constants/index.ts:23`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 页面存在 `textarea` 或 `[contenteditable="true"]`
 [测试数据] 在 `textarea` 上派发 `contextmenu`
 [测试步骤] 1. 派发右键。2. 查询 `div.dshp-menu`。3. 检查事件默认行为是否被阻止。
@@ -161,7 +161,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-rightclick/src/client/register/context-menu.ts:61`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 通过驱动移除 `navigator.clipboard`，或令 `writeText` 抛错
 [测试数据] 在可选中的文本上右键并点击「复制」
 [测试步骤] 1. 打开菜单。2. 点击复制项。3. 查询 `div.dshp-toast`。

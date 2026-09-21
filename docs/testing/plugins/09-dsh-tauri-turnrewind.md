@@ -76,7 +76,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/components/turn-changes-card.tsx:133`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] iframe 内 dsh 界面已加载；工作区为 git 仓库顶层；至少完成一个回合
 [测试数据] 无
 [测试步骤] 1. 等待回合结束。2. 查询 `[data-turnrewind-card]`。3. 读其值与 `data-status` 明细。
@@ -89,7 +89,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/components/running-changes-chip.tsx:38`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 同 TC-REW-C-09-001，但回合仍在进行
 [测试数据] 无
 [测试步骤] 1. 在回合进行中查询 `[data-turnrewind-running]`。2. 回合结束后再次查询。
@@ -102,7 +102,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-turnrewind/src/client/utils/format.ts:99`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 会话工作区不是 git 仓库顶层
 [测试数据] 无
 [测试步骤] 1. 完成一个回合。2. 查询 `[data-turnrewind-card]`。
@@ -119,7 +119,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-turnrewind/src/client/register/turn-tail.ts:25`
-[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言，`desktop` project 已配置）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 应用就绪；工作区为 git 仓库顶层；已产生一个带文件改动的回合
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 查询 `[data-turnrewind-card]`。3. 读卡片内的文件计数与 `GET /summary` 返回比对。

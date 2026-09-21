@@ -189,7 +189,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.tsx:72`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] iframe 内 dsh 界面已加载且存在活动会话
 [测试数据] 无
 [测试步骤] 1. 等待输入区渲染。2. 查询 `[data-dsh-tauri-worktree-mode-anchor]`。3. 收集 `pageerror`。
@@ -202,7 +202,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/register/session-icons.ts:44`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 侧栏存在至少一条会话行
 [测试数据] 无
 [测试步骤] 1. 等待会话行渲染。2. 查询 `[data-dsh-worktree-icon]`。3. 触发一次 React 重渲染后再查询。
@@ -215,7 +215,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/dialog.tsx:41`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 存在可操作的工作树入口
 [测试数据] 无
 [测试步骤] 1. 触发对话框。2. 查询 `[data-dsh-worktree-dialog="1"]`。3. 关闭对话框后再查询。
@@ -228,7 +228,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.tsx:173`、`packages/dsh-tauri-worktree/src/client/components/surface.tsx:17`、`packages/dsh-tauri-worktree/src/client/components/surface.tsx:59`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 已校准为 git 的会话（`isGit === true`，切换框可见）；宿主 `POST /worktrees` 构造成失败（例如同名工作树已存在）
 [测试数据] 在模式菜单中选择「工作树」，随后输入文本并触发发送
 [测试步骤] 1. 选择「工作树」，确认 `mode` 变为 `pending`。2. 等待创建失败。3. 读该会话的 `mode` 与错误条。4. 再次输入并发送。5. 点击错误条上的「关闭」。
@@ -245,7 +245,7 @@
 [层级] L3（真实 Tauri 窗口）
 [类型] 正向
 [追踪] `packages/dsh-tauri-worktree/src/client/components/surface.tsx:35`
-[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言，`desktop` project 已配置）
+[自动化] 待接线（L3 通道尚未接入；本条已按 L3 准入原则归入 L2 浏览器断言）
 [前置条件] 应用就绪；存在活动会话
 [测试数据] 无
 [测试步骤] 1. 建 WebDriver 会话并切到 iframe。2. 查询 `[data-dsh-worktree-surface]`。3. 读其值。

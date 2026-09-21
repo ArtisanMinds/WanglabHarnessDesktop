@@ -322,7 +322,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/client/components/extension-panel.tsx:37`
-[自动化] 未接线（`00-overview.md` G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] iframe 内 dsh 界面已加载；`sidebar.panellist` 槽位可用
 [测试数据] 无
 [测试步骤] 1. 从面板列表打开扩展面板。2. 查询 `.dshp-extension__tabs` 与其中的 `[role="tab"]`。3. 读被激活标签的 `aria-selected`。
@@ -335,7 +335,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 正向
 [追踪] `packages/dsh-tauri-panel-extension/src/client/components/skills-tab.tsx:195`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 无用户技能
 [测试数据] 无
 [测试步骤] 1. 切到技能标签。2. 查询「打开技能目录」「导入仓库」「新建技能」三个按钮。3. 查询卡片列表容器。
@@ -348,7 +348,7 @@
 [层级] L2（真实浏览器页面，未接线）
 [类型] 异常
 [追踪] `packages/dsh-tauri-panel-extension/src/client/service/market.ts:32`
-[自动化] 未接线（G2）
+[自动化] 未接线（客户端用例待补；G2 已消解）
 [前置条件] 未安装提供 `market.render` 的市场插件
 [测试数据] 无
 [测试步骤] 1. 打开扩展面板。2. 统计 `[role="tab"]` 的文案集合。3. 收集 `pageerror`。
