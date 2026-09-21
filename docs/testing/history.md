@@ -1,0 +1,36 @@
+# 测试文档变更历史
+
+> 本文件承接原 `progressive.md` §5 的变更历史，独立成文以便查阅。
+> 推进规则与进度台账见 [progressive.md](./progressive.md)，文档入口见 [README.md](./README.md)。
+
+| 日期 | 变更说明 |
+| --- | --- |
+| 2026-09 | 初始化规则 |
+| 2026-09 | 补齐 `docs/testing/plugins/00`–`12` 用例文档（116 条） |
+| 2026-09 | 覆盖率补全：新增 `docs/testing/plugins/12`–`17`（54 条），覆盖归档套件的插件生命周期治理面 |
+| 2026-09 | 顺序调整：跨插件集成移至 `18` 收尾，原 `13`–`18` 前移为 `12`–`17` |
+| 2026-09 | 补齐 `docs/testing/desktop/00`–`19` 桌面端用例文档（148 条） |
+| 2026-09 | 参考 `archive/docs/testing` 旧套件与现有实现代码做覆盖率补全：新增 `desktop/20`–`29`（125 条），桌面端合计 273 条；数据目录隔离规范收敛到 `docs/specs/desktop.test.md` §6 |
+| 2026-09 | 规范文档更名为 `desktop.test.md` / `plugin.test.md`；清除生成残留段落；批次编号统一为用例文档序号，移除 `D*` / `B*` / `PP*` 别名 |
+| 2026-09 | 批次 `00` 验证通过：索引、前置、追踪矩阵与缺口清单核对无误；补 `docs/testing/README.md` 作为文档入口 |
+| 2026-09 | 批次 `02` 实现：导航栏 7 条接线（`013`/`014` 暂缓、`017` 手工）；修复 `webview.tsx` 无条件下发 iframe 回调（死按钮）、拖拽区双击被原生/网页两侧各切一次互相抵消（G-D02-4/5）、三个 `Dropdown.Popover` 的 `w-5!` 把菜单压成 20px 竖条（G-D02-7，视口 < 48rem 时暴露）；选择器常量收敛到 `test/e2e/support/selectors.ts`；同步 `01` 批次的导航栏高度断言改为亚像素容差（非 100% 显示缩放下回传 44.0000038） |
+| 2026-09 | 用例编号改为文件内连续：桌面端 `TC-DSK-L3-<文件序号>-<序号>`、插件 `TC-<业务域>-<层级>-<文件序号>-<序号>`；新增用例不再顺延后续文件（桌面端 274 → 275 条） |
+| 2026-09 | 禁用下载时渲染「下载已被环境禁用」页替代启动失败页（`RuntimeInfo::auto_download_disabled` → `setup.tsx`），布局与失败页同源；新增 `TC-DSK-L3-02-011`守门 |
+| 2026-09 | 桌面端 E2E 车道加固：会话建立后显式切到主窗口 webview `main`（默认窗口可能落在桌宠 `pet`），`assertPreconditions` 增加 WebDriver 端口 4445 占用校验（被别的实例占住时会静默挂到对方窗口） |
+| 2026-09 | 批次 `03` 实现：配置对话框 5 条接线（`005` 需服务运行中、`006` 需异常插件夹具，暂缓）；`config.tsx` 补 `dsh-config-dialog` / `-close` / `-nav-*` / `-nav-plugins-badge` / `-panel-body` 并给导航项加 `aria-current` 选中态；`Panel.Header` 增加 `testId` 与可选 `description`，据此给「应用」面板补上标题（原三面板自持标题、它独缺）；菜单操作从 `02` 抽出为 `test/e2e/support/navbar-menu.ts` 供两批复用 |
+| 2026-09 | 批次 `03` 运行验证：桌面端全车道 `01`+`02`+`03` 共 20 条全绿；修正 `TC-DSK-L3-03-007`的尺寸断言——HeroUI `modal__container` 的入场缩放动画（`matrix3d(scale)` 起手 ~1.03）会让 `getBoundingClientRect()` 把对话框读大最多 3%，断言前须等尺寸稳定（G-D03-6） |
+| 2026-09 | 批次 `03` CI 加固：windows runner 上对话框偶发在打开后 ~100–200ms 被收起（G-D03-7）。用例侧修两处竞态——`closeDialog()` 改为等节点从 DOM 卸载并排空 overlastic 退场窗口（`duration = 300`）后再重开；导航项点击改为每轮重新定位（`waitForClickable()` 只认首次句柄，节点被替换后必然轮询到超时）。失败信息附现场快照（`pageMark`/`navbar`/`disabledPage`/`url`） |
+| 2026-09 | 批次 `03` 合并（PR #623），台账置「已验证」 |
+| 2026-09 | 批次 `04` 实现：语言与主题 5 条接线（`006` 需 iframe 即全装配车道，暂缓）；`debug.tsx` 语言下拉补 `dsh-config-language-select` 与两个选项的 `data-testid`；配置对话框生命周期从 `03` 抽出为 `test/e2e/support/config-dialog.ts` 供后续批次复用；harness 增加 `homeDir`（复用隔离根重启）、`resetStore`、`stop({ keepHome })` |
+| 2026-09 | E2E 独占 WebView2 profile：`app_local_data_dir()` 由 `SHGetKnownFolderPath` 解析，重定向 `LOCALAPPDATA` 无效，原先 debug 构建的 `EBWebView-dev`（含 localStorage）与用户开发会话共用——E2E 切语言会污染开发会话。新增 `DSH_E2E_WEBVIEW_DATA_DIR`（仅 `is_e2e_run()` 下生效）并由 harness 指到 scratch home，实测开发 profile 时间戳不再变化 |
+| 2026-09 | 批次 `04` 运行验证：桌面端全车道 `01`–`04` 共 25 条全绿（`01` 7、`02` 8、`03` 5、`04` 5） |
+| 2026-09 | 批次 `04` 补 `TC-DSK-L3-04-006`（语言切换不重建 iframe）：该用例要验真实 iframe，改走**真实装配车道**（不置 `disableDownload`）。为让该车道可跑：预装引导跳过编排（`test/e2e/support/preinstall.ts`）、`stop()` 收掉被强杀应用遗留的 dsh 子进程（`killOrphanHarness`）、真实车道下点击统一改为每轮重新定位（`clickWhenReady`）。全车道 26 条全绿 |
+| 2026-09 | 修复**首次进入主题默认**：`theme.rs` 的 `DEFAULT_THEME` 由 `Dark` 改为 `System`（无 `settings.yaml` 与偏好非法时都跟随系统），`use-theme-adaptive.ts` 的折算同步覆盖「偏好尚未取到」窗口；新增 Rust 单测 `config::theme::tests`，`TC-DSK-L3-04-005`增加「首次进入必须回退 system」断言 |
+| 2026-09 | 纠正**导航栏装饰层**的理解：该层镜像 dsh 页面遮罩，dsh 弹官方模态（如首次进入的 apiKey 引导）时遮罩铺满，此时壳层**就该**不可点，因此**不**加 `pointer-events-none`（先前误加，已撤销）。随之 `TC-DSK-L3-04-006`的 `afterEach` 语言归一改为「导航栏被遮罩时跳过」，不因此判失败（G-D04-7） |
+| 2026-09 | 打通**跨域 iframe**（`TC-DSK-L3-04-006`的前置基础设施）：上游 `tauri-plugin-wdio-webdriver` 1.4.0 用 JS 模拟帧上下文（`frame.contentWindow.eval`），壳层 `tauri://localhost` 与内嵌 dsh `http://127.0.0.1:<port>` 跨域时 `contentDocument` 为 `null`，任何帧内脚本必然超时。以 `[patch.crates-io]` 指向 `src-tauri/vendor/tauri-plugin-wdio-webdriver`，Windows 路径改用原生 `ICoreWebView2Frame2::ExecuteScript`（引擎按帧路由，不受同源策略约束）；`frame_context` 为空时行为不变，深层嵌套帧仍回退上游路径。探针实测跨域帧内脚本从 167s 超时变为 173ms 正确返回。待上游支持后删除 vendor 与 `[patch.crates-io]`（`PATCH.md` 记载移除步骤；已提上游 issue [desktop-mobile#665](https://github.com/webdriverio/desktop-mobile/issues/665)） |
+| 2026-09 | **桌面端用例范围收敛（275 → 109）**：桌面端用例过多且与插件用例集存在重叠，按「P1 全保留 + 每批次补足 3 条（安全边界优先）」重定范围，保留 **109** 条 L3 E2E 用例。被裁条目分两类：① 断言对象为**后端纯逻辑**（函数/时序/协议、转义、状态机细节）的 **106 条**下沉为「单元测试层」，在各文档同名小节保留记录，不计入 E2E；② 无用户可见后果或重复断言面的 UI 细节**直接删除**。`17` 桌宠批次整章移出，改由插件用例集 `plugins/02-dsh-tauri-pet.md`（`TC-PET-L3-02-001`～`004`）承载，桌面端不再维护桌宠用例。`18` 批次保持原样（7 条），以避免与 main 的 Linux 剪贴板修复冲突。已接线的 `01`–`04`（26 条）不受影响 |
+| 2026-09 | **插件用例文档合并（19 → 17 个文件，用例总数不变 170 条）**：`01-host-lane-skeleton.md` + `02-dsh-tauri-core.md` → `01-dsh-host-and-core-contract.md`（编排骨架 + 共享路由契约）；`17-internal-plugins.md` 并入 `14-plugin-error-and-recovery.md`（异常与恢复 + 离线物化自愈）；`03`–`16` 顺移一位、`18` → `16`。用例编号按合并后文件序号重排（`TC-<域>-<层>-<文件序号>-<序号>`），`TC-HOST-L2-01-*`、`TC-CORE-L2-01-*`、`TC-REC-L3-14-*`、`TC-INT-L3-14-*` 四个前缀并存；`plugins/00-overview.md` §3/§6/§7、`docs/testing/README.md` 与插件文档内交叉引用同步 |
+| 2026-09 | **桌面端用例文档合并（29 → 11 个文件，用例总数不变：109 条 E2E + 106 条单元测试层）**：按业务分组合并为 `01`–`11`，`TC-DSK-L3-*` 与 `G-D*` 编号按「新文件序号 + 文件内连续」重排（含「单元测试层」条目）；E2E 代码同步合并为 `test/e2e/desktop/01-window-shell.e2e.ts` 与 `test/e2e/desktop/02-config-locale.e2e.ts`，已接线的 26 条编号随之更新 |
+| 2026-09 | **桌面端 E2E 收敛为一条启动冒烟**：桌面壳层职责收敛为「进入下载装配 → dsh 内核启动 → 页面无报错」。删除 `test/e2e/desktop/01-window-shell.e2e.ts`、`02-config-locale.e2e.ts` 与只服务它们的 `support/{navbar-menu,config-dialog,onboarding}.ts`，新增 `test/e2e/desktop/boot.e2e.ts`（`TC-DSK-L3-01-001`，含壳层与帧内报错收集）；`support/selectors.ts` 只保留冒烟用到的锚点。`desktop-host.ts` 去掉 `disableDownload` 车道，下载缓存默认改为本次运行独占空目录（装配必然真的下载并落盘），WebDriver 端口改从 `TAURI_WEBDRIVER_PORT` 读取（默认 4445，非法值当场 Fail）。生产侧「禁用自动下载」机制一并移除：`DISABLE_AUTO_DOWNLOAD`、`DSH_E2E_DISABLE_DOWNLOAD`、`auto_download_disabled()`、`RuntimeInfo.auto_download_disabled`、`setup.tsx` 的禁用页与 `status.download_disabled*` 文案、`store.harness.downloadDisabled` 及相关 Rust 单测。文档：`docs/testing/desktop/` 只保留 `00-overview.md`（重写）与 `01-boot.md`（新增），其余 11 份用例文档归档到 `archive/docs/testing/desktop/`；`docs/specs/desktop.test.md` 与 `docs/testing/README.md` 同步收敛 |
+| 2026-09 | **插件用例文档收敛（17 → 11 个文件，170 → 108 条）**：移除清单监控、生命周期指令、预装引导、异常恢复、档案与补丁隔离、跨插件集成 6 份文档（`11`–`16`），归档到 `archive/docs/testing/plugins/`；`plugins/00-overview.md` §3/§6/§7/§8、`docs/testing/README.md`、`docs/testing/progressive.md` §4.2 与 `docs/specs/desktop.test.md` §7 同步收敛 |
+| 2026-09 | 变更历史从 `progressive.md` §5 迁出为独立文件 `docs/testing/history.md`；`AGENTS.md` 增加测试入口约定（改动行为须同步 `docs/testing/README.md` 指向的用例文档与测试代码） |

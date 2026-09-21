@@ -44,13 +44,25 @@ export const APP_TITLE = 'Deepseek Harness Desktop'
 export const MAIN_WEBVIEW = 'main'
 
 /**
- * 应用内嵌 WebDriver server 的固定端口（`@wdio/tauri-service` 的 embedded provider 默认 4445，
+ * 应用内嵌 WebDriver server 的端口（`@wdio/tauri-service` 的 embedded provider 默认 4445，
  * 应用侧由 `TAURI_WEBDRIVER_PORT` 门控）。
+ *
+ * 与 provider 同源读取 `TAURI_WEBDRIVER_PORT`：本机若正跑着另一个桌面实例（它同样占着
+ * 4445），用 `TAURI_WEBDRIVER_PORT=<空闲端口>` 即可让本车道另开一路，无需结束用户实例。
+ * 未设置或为空时取 4445；非法值当场 Fail，避免 `Number()` 的 NaN / 越界值落到 socket 层
+ * 才报 `ERR_SOCKET_BAD_PORT`（或被 provider 当作未设置而静默回落 4445）。
  */
-export const WEBDRIVER_PORT = 4445
+function resolveWebDriverPort(): number {
+  const raw = process.env.TAURI_WEBDRIVER_PORT
+  if (raw === undefined || raw.trim() === '')
+    return 4445
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error(`TAURI_WEBDRIVER_PORT 非法：${JSON.stringify(raw)}（需 1–65535 的整数）`)
+  return port
+}
 
-/** 下载缓存根：跨运行复用，**不随 scratch home 删除**。 */
-export const DOWNLOAD_CACHE_DIR = join(tmpdir(), 'dsh-e2e-download-cache')
+export const WEBDRIVER_PORT = resolveWebDriverPort()
 
 /** 残留实例的进程名（按 `productName` 推导）。 */
 const APP_PROCESS_NAME = 'deepseek-harness-desktop'
@@ -72,20 +84,19 @@ const SESSION_TIMEOUT_MS = 120_000
 // ============================================================================
 
 export interface StartDesktopAppOptions {
-  /** 覆盖二进制路径（用例 007 用它构造「路径不存在」）。 */
+  /** 覆盖二进制路径（反向用例用它构造「路径不存在」）。 */
   appBinaryPath?: string
   /** 期望二进制存在；`false` 时跳过存在性校验（用于反向用例）。 */
   requireBinary?: boolean
   /** 保留 `$E2E_HOME`（调试用）。 */
   keepHome?: boolean
   /**
-   * 本次运行禁用自动下载（`DSH_E2E_DISABLE_DOWNLOAD=1`）。
+   * 覆盖下载缓存根。
    *
-   * 默认不禁用：应用照常走安装/联网核对。只验壳层、不关心装配流程的用例
-   * 可置位以省流量；覆盖启动 setup 流程的用例必须保持 `false`。
+   * 默认是**本次运行独占的空目录**（`<home>/download-cache`）：装配必然真的走一遍
+   * 下载与落盘，跑完随 scratch home 一起删除，跨运行零残留。想让本地反复跑时复用
+   * 已下好的 Node/dsh（省一次联网），传一个稳定目录即可。
    */
-  disableDownload?: boolean
-  /** 覆盖下载缓存根（默认 `DOWNLOAD_CACHE_DIR`）。 */
   downloadCacheDir?: string
   /**
    * 复用指定的隔离根（跨重启持久化用例）。
@@ -103,6 +114,8 @@ export interface DesktopApp {
   readonly browser: WebdriverIO.Browser
   /** 本次运行独占的隔离根。 */
   readonly home: string
+  /** 本次运行使用的下载缓存根（装配落盘断言的观察点）。 */
+  readonly downloadCacheDir: string
   /** 应用二进制实际路径。 */
   readonly binaryPath: string
   /**
@@ -124,8 +137,6 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   const {
     requireBinary = true,
     keepHome = false,
-    disableDownload = false,
-    downloadCacheDir = DOWNLOAD_CACHE_DIR,
     resetStore = true,
   } = options
 
@@ -143,14 +154,9 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
   const home = options.homeDir ?? makeHome(keepHome)
   ensureHomeDirs(home)
 
-  // 禁用下载的运行绝不会**写**缓存，却会**读**它：共享缓存里若已有一份可用的
-  // Node/dsh/pnpm，`runtime_ready()` 会为真，装配流程随之分叉（不再停在
-  // 「找不到 dsh CLI」），禁用页与「无 iframe 接收方」的断言就变成依赖上一次
-  // 运行的运气。因此禁用下载且调用方没指定缓存时，改用本次运行独占的空目录，
-  // 收尾随 scratch home 一起删除。
-  const cacheDir = disableDownload && options.downloadCacheDir === undefined
-    ? join(home, 'download-cache')
-    : downloadCacheDir
+  // 默认独占空缓存：装配必须真的下载并落盘 Node/dsh，用例据此断言「进入了下载」。
+  // 复用共享缓存会让「有没有下载」取决于上一次运行的运气，断言随之失去意义。
+  const cacheDir = options.downloadCacheDir ?? join(home, 'download-cache')
   mkdirSync(cacheDir, { recursive: true })
 
   const profile = join(home, 'home')
@@ -162,9 +168,6 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     // 重定向 `LOCALAPPDATA` 无效，不覆盖就会与用户正在使用的开发版共用
     // `EBWebView-dev`——用例写入的语言等 localStorage 会污染开发会话。
     DSH_E2E_WEBVIEW_DATA_DIR: join(home, 'webview2'),
-    // 显式二值化：子进程会继承父进程环境，开发者 shell 里若已置位该变量，
-    // 不禁用的用例会被悄悄带上「禁用下载」的语义（Rust 侧只认 1/true）。
-    DSH_E2E_DISABLE_DOWNLOAD: disableDownload ? '1' : '0',
   }
 
   const capabilities = createTauriCapabilities(binaryPath, {
@@ -174,6 +177,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
 
   capabilities['wdio:tauriServiceOptions'] = {
     ...capabilities['wdio:tauriServiceOptions'],
+    embeddedPort: WEBDRIVER_PORT,
     env,
     startTimeout: SESSION_TIMEOUT_MS,
   }
@@ -232,7 +236,7 @@ export async function startDesktopApp(options: StartDesktopAppOptions = {}): Pro
     browser = await startWdioSession(capabilities, { rootDir: REPO_ROOT })
     await focusMainWindow(browser)
     log(`应用就绪（${Date.now() - startedAt}ms）`)
-    return { browser, home, binaryPath, stop }
+    return { browser, home, downloadCacheDir: cacheDir, binaryPath, stop }
   }
   catch (error) {
     await stop()
@@ -294,10 +298,9 @@ function execPowerShell(script: string): Promise<string> {
 /**
  * 收掉本车道遗留的 dsh 服务进程。
  *
- * `disableDownload: false` 车道会真的拉起 dsh；它是应用独立拉起的进程，应用被强杀时
- * 不会被一起带走，残留实例会一直占着 debug 端口，让下一次启动的前置校验（刻意不自动
- * 杀进程）直接失败。只匹配「命令行里带本次下载缓存目录」的进程，因此不会误伤用户正在
- * 使用的正式版 / 开发版实例。
+ * 应用会真的拉起 dsh；它是应用独立拉起的进程，应用被强杀时不会被一起带走，残留实例
+ * 会一直占着 debug 端口，让下一次启动的前置校验（刻意不自动杀进程）直接失败。只匹配
+ * 「命令行里带本次下载缓存目录」的进程，因此不会误伤用户正在使用的正式版 / 开发版实例。
  */
 async function killOrphanHarness(cacheDir: string): Promise<void> {
   if (process.platform !== 'win32')
@@ -360,11 +363,6 @@ export async function assertPreconditions(options: { port?: number, binaryPath?:
 export function resetTestStore(): void {
   const file = join(getAppDataDir(), TEST_STORE_FILE)
   rmSync(file, { force: true })
-}
-
-/** 清空下载缓存，回到「首次装配」状态。 */
-export function resetDownloadCache(dir: string = DOWNLOAD_CACHE_DIR): void {
-  rmSync(dir, { recursive: true, force: true })
 }
 
 let isStaleHomesPurged = false
