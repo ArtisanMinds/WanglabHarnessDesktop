@@ -75,10 +75,15 @@ describe('turns', () => {
 
   it('only writes the workspace state when it actually changes', async () => {
     await turns.note('session-ws', { workspaceRoot: 'C:/p', isGit: true, unavailableReason: null })
-    const before = JSON.stringify(await ledger.load('session-ws'))
+    const save = vi.spyOn(ledger, 'save')
+
     await turns.note('session-ws', { workspaceRoot: 'C:/p', isGit: true, unavailableReason: null })
-    // 幂等：重复的同一结论不产生新的写入（内容一致）。
-    expect(JSON.stringify(await ledger.load('session-ws'))).toBe(before)
+    expect(save).toHaveBeenCalledTimes(0)
+    expect((await ledger.load('session-ws')).workspaceRoot).toBe('C:/p')
+
+    await turns.note('session-ws', { workspaceRoot: 'C:/q', isGit: true, unavailableReason: null })
+    expect(save).toHaveBeenCalledTimes(1)
+    expect((await ledger.load('session-ws')).workspaceRoot).toBe('C:/q')
   })
 })
 

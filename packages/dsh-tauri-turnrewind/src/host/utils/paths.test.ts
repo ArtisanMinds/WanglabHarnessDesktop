@@ -22,7 +22,7 @@ function linkOutside(linkPath: string, target: string): boolean {
     return true
   }
   catch {
-    // 无权限建链接（Windows 未开开发者模式等）：相关断言跳过，不假装通过。
+    // 无权限建链接（Windows 未开开发者模式等）：调用方改走「父级不是目录」的等价输入。
     return false
   }
 }
@@ -58,12 +58,13 @@ describe('assertSafeParents（撤销写盘前的最后一道防线）', () => {
     temporaryDirectories.push(outside)
     const link = join(root, 'linked')
     if (!linkOutside(link, outside))
-      return
+      writeFileSync(link, 'not-a-directory')
     // 词法上 `linked/evil.txt` 在工作区内——正因如此才必须按文件系统事实再判一次。
     const lexical = resolveInsideWorkspace(root, 'linked/evil.txt')
     expect(lexical).not.toBeNull()
     const safe = assertSafeParents(root, lexical as string)
     expect(safe).toEqual({ ok: false, reason: REASON_UNSAFE_PATH })
+    expect(existsSync(join(outside, 'evil.txt'))).toBe(false)
   })
 
   it('父级尚未存在时通过（新增文件的正常路径由恢复过程创建）', async () => {

@@ -59,15 +59,16 @@ describe('readMarket', () => {
   })
 
   it('每次都按当前注册表读数探测：服务消失后回到不可用（不缓存旧引用）', () => {
-    let service: unknown = { ...released() as object, render: () => null }
+    const service: unknown = { ...released() as object, render: () => null }
+    let current: unknown = service
     const ctx = {
       reflect: {
-        get: () => service,
+        get: () => current,
         provide: () => () => {},
       },
     } as unknown as ClientContext
-    expect(readMarket(ctx)).toBeDefined()
-    service = undefined
+    expect(readMarket(ctx)).toBe(service)
+    current = undefined
     expect(readMarket(ctx)).toBeUndefined()
   })
 })
