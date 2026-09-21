@@ -1,7 +1,7 @@
 /**
  * host/config/constants.ts — 宿主侧静态常量。
  *
- * 上限与原因码集中在此：捕获路径、撤销路径与容量治理共用同一组判定，
+ * 上限与原因码集中在此：捕获路径与容量治理共用同一组判定，
  * 避免「预览说超限、执行却照做」这类双份常量漂移。
  */
 
@@ -10,7 +10,6 @@ import {
   TURNREWIND_REASON_EXPIRED,
   TURNREWIND_REASON_GIT_REQUIRED,
   TURNREWIND_REASON_SNAPSHOT_FAILED,
-  TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
   TURNREWIND_REASON_WORKSPACE_BUSY,
 } from '../../shared/constants'
@@ -25,15 +24,15 @@ export const LEDGER_SUBDIR = 'sessions'
 /** 账本文件版本；字段或折叠语义变更时递增。 */
 export const LEDGER_VERSION = 1
 
-/** 保留为「可撤销」的最近 turn 数；更老的 turn 标记过期（保留审计行、删除 refs）。 */
+/** 保留快照 refs 的最近 turn 数；更老的 turn 标记过期（保留审计行、删除 refs）。 */
 export const MAX_TURNS_PER_SESSION = 50
 
 /** 每会话账本行的硬上限（审计窗口），超过即丢弃最老的行。 */
 export const MAX_TURN_RECORDS = 200
 
 /**
- * 单个文件超过此字节数即从快照中排除并在记录里标注（不是让整轮不可撤销）。
- * 恢复走 `git checkout` 流式写盘，因此这不是内存上限，而是防止单个巨大产物撑爆私有仓。
+ * 单个文件超过此字节数即从快照中排除并在记录里标注（不是让整轮不可用）。
+ * 这不是内存上限，而是防止单个巨大产物撑爆私有仓。
  */
 export const MAX_FILE_BYTES = 64 * 1024 * 1024
 
@@ -41,16 +40,16 @@ export const MAX_FILE_BYTES = 64 * 1024 * 1024
 /** 单 turn 允许纳入快照的最大文件数；超过即该 turn 记 unavailable。 */
 /** 一次预扫最多排除多少个超限文件；超过则该 turn 记 unavailable（避免 argv 爆炸）。 */
 /** 私有快照仓容量上限（MB）；超过即整仓隔离重建（旧 turn 全部转过期）。 */
-/** 单条 git 子进程的墙钟超时（快照/恢复等重活）。 */
+/** 单条 git 子进程的墙钟超时（快照/差异统计等重活）。 */
 export const GIT_TIMEOUT_MS = 5 * 60 * 1000
 
 /** 资格探测的墙钟超时：探测结果挂在 pre-step 执行屏障上，不能用重活预算。 */
 /** 工作区解析结果缓存 TTL（冷未命中才同步探测，过期先回缓存值再后台刷新）。 */
 /** 工作区解析缓存的条目上限。 */
 /** 摘要路由返回给客户端的文件明细上限（更大的会话只给汇总与截断标记）。 */
-/** 摘要路由每条 turn 最多回传多少个「不在撤销范围内」的路径。 */
+/** 摘要路由每条 turn 最多回传多少个「未纳入快照范围」的路径。 */
 /** 运行中实时读数的宿主端刷新间隔（客户端只读缓存值，轮询频率与 git 调用解耦）。 */
-/** 会话 cwd 不在 Git worktree 内：不做快照，撤销入口提示需要 Git 仓库。 */
+/** 会话 cwd 不在 Git worktree 内：不做快照。 */
 export const REASON_GIT_REQUIRED = TURNREWIND_REASON_GIT_REQUIRED
 
 /** PATH 上没有 git：必须与「不是 Git 仓库」区分，否则用户会去 git init 一个不存在的 git。 */
@@ -59,32 +58,21 @@ export const REASON_UNSAFE_WORKSPACE = 'TURNREWIND_UNSAFE_WORKSPACE'
 
 /** 快照文件数超限。 */
 /** 快照聚合字节超限。 */
-/** 超限文件太多，无法逐个排除（该轮不提供撤销）。 */
+/** 超限文件太多，无法逐个排除（该轮不提供变更明细）。 */
 /** 快照或统计过程失败（git 异常、仓库损坏等）。 */
 export const REASON_SNAPSHOT_FAILED = TURNREWIND_REASON_SNAPSHOT_FAILED
 
 /** 快照仓被隔离重建 / 手工删除，该 turn 的 refs 已不存在。 */
 export const REASON_EXPIRED = TURNREWIND_REASON_EXPIRED
 
-/** 该 turn 的产物已被一次性撤销，不能重复撤销。 */
-export const REASON_ALREADY_UNDONE = 'TURNREWIND_ALREADY_UNDONE'
-
-/** 撤销被并发修改拦截。 */
-export const REASON_CONFLICT = 'TURNREWIND_CONFLICT'
-
-/** 该 turn 仍在运行中（after 快照未结算），此时撤销没有意义。 */
-export const REASON_TURN_ACTIVE = TURNREWIND_REASON_TURN_ACTIVE
-
-/** 目标路径的父级是符号链接/junction，撤销拒绝穿透（防路径逃逸）。 */
+/** 目标路径的父级是符号链接/junction，拒绝穿透（防路径逃逸）。 */
 export const REASON_UNSAFE_PATH = TURNREWIND_REASON_UNSAFE_PATH
 
-/** 目标路径当前是非空目录：撤销不递归删除目录。 */
+/** 目标路径当前是非空目录：不递归删除目录。 */
 export const REASON_NON_EMPTY_DIR = 'TURNREWIND_NON_EMPTY_DIR'
 
-/** 工作区被另一个宿主进程占用（跨进程锁等待超时）：撤销回 409，用户稍后重试。 */
+/** 工作区被另一个宿主进程占用（跨进程锁等待超时）。 */
 export const REASON_WORKSPACE_BUSY = TURNREWIND_REASON_WORKSPACE_BUSY
-
-/** 恢复路径丢失/损坏的 tmp 残骸后缀（崩溃清扫用；本插件不写这类文件，仅防御性识别）。 */
 
 /** 旧版单文件锁协议的围栏/诊断目录（真正互斥由内核监听句柄持有，见 utils/lock.ts）。 */
 export const LOCK_DIR_NAME = 'locks'
@@ -94,7 +82,7 @@ export const LOCK_DIR_NAME = 'locks'
  *
  * 拿到锁意味着「轮到我动这个工作区的私有仓」，而一次捕获/结算本身就是 git 重活
  * （大仓库首次要几十秒），所以等待时长必须覆盖对方**一整次操作**。等不到就给调用方
- * 一个明确的结论（撤销照实回 409，捕获照实记不可用）。没有任何 TTL 接管活锁的通道：
+ * 一个明确的结论（捕获照实记不可用）。没有任何 TTL 接管活锁的通道：
  * 持有者挂死时这里就是唯一的收口——如实报「占用」，宁可暂时不可用也不去抢一把活着的锁。
  */
 export const LOCK_WAIT_TIMEOUT_MS = GIT_TIMEOUT_MS

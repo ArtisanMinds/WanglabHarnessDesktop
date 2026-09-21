@@ -5,7 +5,7 @@ const { bem: { b, e, m }, c } = cssr
 /**
  * 变更卡片（turn-changes-card.tsx）——按官方 deliverables 行的视觉重做：
  * 白底 + 弱描边 + 14px 圆角；左侧 40px 圆角图标块；标题 15px/600；
- * 副行是绿 `+N` / 红 `-M`；右侧「撤销 ↶」纯文本按钮与描边胶囊「审核」；
+ * 副行是绿 `+N` / 红 `-M`；右侧描边胶囊「审核」；
  * 多文件时下方是文件清单（路径 + 右对齐计数），超过三行折叠成
  * 「再显示 N 个文件」，底部带分隔线。
  *
@@ -133,35 +133,6 @@ export default b('turnrewind', {
     whiteSpace: 'nowrap',
   }),
   e('spacer', { flex: '1', minWidth: '8px' }),
-  e('badge', {
-    flex: 'none',
-    padding: '1px 7px',
-    borderRadius: '999px',
-    fontSize: '11px',
-    lineHeight: '17px',
-    color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))',
-    background: 'var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.08))',
-  }),
-  e('undo', {
-    flex: 'none',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    height: '28px',
-    padding: '0 8px',
-    border: 'none',
-    borderRadius: '999px',
-    background: 'transparent',
-    fontFamily: 'inherit',
-    fontSize: '12px',
-    lineHeight: '18px',
-    cursor: 'pointer',
-    color: 'var(--dsw-alias-label-primary)',
-  }, [
-    c('& svg', { marginTop: '1px' }),
-    c('&:hover:not(:disabled)', { background: 'var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.08))' }),
-    c('&:disabled', { cursor: 'default', opacity: '0.45' }),
-  ]),
   e('review', {
     flex: 'none',
     height: '28px',
@@ -240,23 +211,11 @@ export default b('turnrewind', {
     lineHeight: '18px',
     color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))',
   }, [
-    m('error', { color: 'var(--dsw-alias-state-error-primary, #d93025)' }),
-    // 「不在撤销范围内」的提示是中性说明（不是错误），用弱化色与更小字号区分。
+    // 「未纳入快照范围」的提示是中性说明（不是错误），用弱化色与更小字号区分。
     m('skip', {
       fontSize: '11px',
       lineHeight: '16px',
       color: 'var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary)))',
     }),
   ]),
-  e('conflict-list', {
-    margin: '4px 0 0',
-    padding: '0 0 0 16px',
-    maxHeight: '120px',
-    overflowY: 'auto',
-  }),
-  e('conflict-item', {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-  }),
 ])

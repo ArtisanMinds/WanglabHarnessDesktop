@@ -14,18 +14,16 @@ import type {
   CaptureLimits,
   CaptureOptions,
   CaptureResult,
-  RestoreReport,
   SnapshotStore,
   TurnFileChange,
 } from '../types'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readdirSync, unlinkSync } from 'node:fs'
-import { mkdir, readFile, rmdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { dirname, isAbsolute, join, resolve } from 'pathe'
-import { GIT_TIMEOUT_MS, MAX_FILE_BYTES, REASON_NON_EMPTY_DIR, REASON_SNAPSHOT_FAILED, REASON_UNSAFE_PATH, SNAPSHOT_FEATURE_DIR } from '../config/constants'
+import { GIT_TIMEOUT_MS, MAX_FILE_BYTES, REASON_SNAPSHOT_FAILED, SNAPSHOT_FEATURE_DIR } from '../config/constants'
 import { gitInRepo, gitInSnapshot, resolveSourceCommonDir } from '../utils/git'
-import { assertSafeParents, removeCreatedPath, resolveInsideWorkspace } from '../utils/paths'
 import { workspaceHash } from '../utils/workspace'
 
 const SNAPSHOT_REF_PREFIX = 'refs/turnrewind'
@@ -53,20 +51,19 @@ const SNAPSHOT_IDENTITY: Record<string, string> = {
 /** 随源仓库同步的配置键：影响 add 的归一化与 checkout 的还原方式。 */
 const MIRRORED_CONFIG_KEYS = ['core.autocrlf', 'core.eol', 'core.symlinks']
 
-/** 一次 checkout 调用携带的最大路径数（Windows argv 上限友好）。 */
-const CHECKOUT_CHUNK = 200
-
 /** 「体积超限 → 排除最大文件重试」与「解析出嵌套仓库 → 排除重试」的次数上限。 */
 const MAX_OVERSIZE_ATTEMPTS = 2
 const MAX_NESTED_ATTEMPTS = 3
 
 export const snapshot = defineService({
-  /** 某工作区对应的私有快照仓定位。 */
-  resolve(worktree: string, commonDir?: string | null): SnapshotStore {
+  /** 某工作区对应的私有快照仓定位；给出会话 id 时 index 也按会话隔离。 */
+  resolve(worktree: string, commonDir?: string | null, sessionId?: string | null): SnapshotStore {
+    const gitDir = join(snapshotWorkspacesDir(), `${workspaceHash(worktree)}.git`)
     return {
       worktree,
-      gitDir: join(snapshotWorkspacesDir(), `${workspaceHash(worktree)}.git`),
+      gitDir,
       commonDir: commonDir ?? null,
+      ...(sessionId ? { indexFile: sessionIndexFile(gitDir, sessionId) } : {}),
     }
   },
 
@@ -82,7 +79,7 @@ export const snapshot = defineService({
     return scanNestedRepos(worktree)
   },
 
-  /** 读取某工作区当前代数（撤销路径用；不存在返回 null）。 */
+  /** 读取某工作区当前代数（不存在返回 null）。 */
   async generation(worktree: string): Promise<string | null> {
     const marker = await readMarker(workspaceMarkerPath(snapshot.resolve(worktree)))
     return marker?.generation ?? null
@@ -102,7 +99,7 @@ export const snapshot = defineService({
    * 捕获一次快照：`add --all`（带排除）→ `write-tree` → `commit-tree` → `update-ref`。
    *
    * 体积超限时先排除最大的那几个文件重试（并回传给调用方持久化，后续 turn 不必再重捕），
-   * 否则一个巨大的构建产物会让整个工作区的撤销能力永久不可用且原因不可读。
+   * 否则一个巨大的构建产物会让整个工作区永久不可用且原因不可读。
    */
   async capture(store: SnapshotStore, ref: string, message: string, options: CaptureOptions = {}): Promise<CaptureResult> {
     if (!isSafeRef(ref))
@@ -219,6 +216,21 @@ export const snapshot = defineService({
   },
 
   /**
+   * 读源仓库当前 HEAD（只读探测，绝不写用户仓库）。
+   *
+   * 基线绑定用：before 快照取自**某个提交世代**的工作区。若之后工作区被带外操作
+   * （git checkout / worktree 更新 / 合并）换了世代，before 树与当前磁盘之间就横着
+   * 整段世代差——把它算成「这一轮的改动」，用户什么都没改也会报出成千上万行。
+   */
+  async head(worktree: string): Promise<string | null> {
+    const result = await gitInRepo(worktree, ['rev-parse', '--verify', '--quiet', 'HEAD'])
+    if (!result.ok)
+      return null
+    const oid = result.out.trim()
+    return /^[0-9a-f]{40,64}$/i.test(oid) ? oid : null
+  },
+
+  /**
    * 计算两个快照之间的逐文件差异（`+N -M` 与新增/修改/删除）。
    * 状态由两侧路径集合推导：只看 after 有=A，只看 before 有=D，两侧都有=M。
    */
@@ -301,119 +313,6 @@ export const snapshot = defineService({
     return { ok: true, stats: { fileCount, insertions, deletions } }
   },
 
-  /**
-   * 冲突明细：找出「当前磁盘内容 != 该 turn 结束时的快照」的路径。
-   *
-   * 用 `git diff <afterCommit> -- <paths>` 比较，与快照写入共用同一套换行/属性归一化。
-   * 另外三类必须独立拦住：删除态（用户后来重建的同名文件 git diff 看不到）、
-   * 不安全路径（父级是符号链接/junction）、A 型目标已变成非空目录。
-   */
-  async conflicts(store: SnapshotStore, afterCommit: string, changes: readonly TurnFileChange[]): Promise<{ ok: true, conflicts: Array<{ path: string, reason: string }> } | { ok: false, reason: string }> {
-    const paths = await conflictPaths(store, afterCommit, changes)
-    if (!paths.ok)
-      return paths
-    const details: Array<{ path: string, reason: string }> = []
-    for (const path of paths.paths) {
-      const change = changes.find(item => item.path === path)
-      let reason = '该文件在 turn 结束后又被修改过'
-      if (change !== undefined) {
-        const absolute = resolveInsideWorkspace(store.worktree, path)
-        if (absolute === null || !assertSafeParents(store.worktree, absolute).ok) {
-          reason = REASON_UNSAFE_PATH
-        }
-        else if (change.status === 'D' && existsSync(absolute)) {
-          reason = '该文件在 turn 结束后被重新创建'
-        }
-        else if (change.status === 'A') {
-          try {
-            if (lstatSync(absolute).isDirectory())
-              reason = REASON_NON_EMPTY_DIR
-          }
-          catch {
-            /* 已不存在：不是冲突 */
-          }
-        }
-      }
-      details.push({ path, reason })
-    }
-    return { ok: true, conflicts: details }
-  },
-
-  /**
-   * 执行恢复：修改/删除的文件从 before 快照 checkout 回来，本 turn 新增的文件删除。
-   *
-   * 每条路径在**真正动它之前**重跑一次父级符号链接校验（git 子进程与写盘之间存在
-   * TOCTOU 窗口），单路径失败只计入 `failed`，不影响其余路径。
-   */
-  async restore(store: SnapshotStore, beforeCommit: string, changes: readonly TurnFileChange[]): Promise<RestoreReport> {
-    const report: RestoreReport = { restored: [], removed: [], failed: [] }
-    const restorable: string[] = []
-    for (const change of changes) {
-      if (change.status === 'A')
-        continue
-      const absolute = resolveInsideWorkspace(store.worktree, change.path)
-      if (absolute === null) {
-        report.failed.push({ path: change.path, reason: REASON_UNSAFE_PATH })
-        continue
-      }
-      const safe = assertSafeParents(store.worktree, absolute)
-      if (!safe.ok) {
-        report.failed.push({ path: change.path, reason: safe.reason })
-        continue
-      }
-      restorable.push(change.path)
-    }
-    for (let index = 0; index < restorable.length; index += CHECKOUT_CHUNK) {
-      const chunk = restorable.slice(index, index + CHECKOUT_CHUNK)
-      // TOCTOU 复检：checkout 子进程启动前再确认一次父级没被换成链接。
-      const unsafe = chunk.filter((path) => {
-        const absolute = resolveInsideWorkspace(store.worktree, path)
-        return absolute === null || !assertSafeParents(store.worktree, absolute).ok
-      })
-      if (unsafe.length > 0) {
-        for (const path of unsafe)
-          report.failed.push({ path, reason: REASON_UNSAFE_PATH })
-      }
-      const safeChunk = chunk.filter(path => !unsafe.includes(path))
-      if (safeChunk.length === 0)
-        continue
-      const checkout = await gitInSnapshot(store, ['checkout', beforeCommit, '--', ...safeChunk])
-      if (checkout.ok) {
-        report.restored.push(...safeChunk)
-        continue
-      }
-      // 整块失败时退化为逐路径重试，精确定位失败项。
-      for (const path of safeChunk) {
-        const single = await gitInSnapshot(store, ['checkout', beforeCommit, '--', path])
-        if (single.ok)
-          report.restored.push(path)
-        else
-          report.failed.push({ path, reason: single.error })
-      }
-    }
-    for (const change of changes) {
-      if (change.status !== 'A')
-        continue
-      const absolute = resolveInsideWorkspace(store.worktree, change.path)
-      if (absolute === null) {
-        report.failed.push({ path: change.path, reason: REASON_UNSAFE_PATH })
-        continue
-      }
-      const safe = assertSafeParents(store.worktree, absolute)
-      if (!safe.ok) {
-        report.failed.push({ path: change.path, reason: safe.reason })
-        continue
-      }
-      const removed = removeCreatedPath(absolute)
-      if (!removed.ok) {
-        report.failed.push({ path: change.path, reason: removed.reason })
-        continue
-      }
-      await pruneEmptyParents(store.worktree, absolute)
-      report.removed.push(change.path)
-    }
-    return report
-  },
 })
 
 // --- internal ---
@@ -433,13 +332,19 @@ interface TreeStats {
   bytes: number
   /** 超过单文件上限的条目（按大小降序），供「排除最大文件后重试」使用。 */
   oversized: Array<{ path: string, size: number }>
-  /** 树里的 gitlink（mode 160000 = 嵌套仓库/子模块）：内容不受撤销保护。 */
+  /** 树里的 gitlink（mode 160000 = 嵌套仓库/子模块）：内容不纳入快照。 */
   gitlinks: string[]
 }
 
 /** 快照仓根目录（固定落在 `DSH_HOME` 下）。 */
 function snapshotWorkspacesDir(): string {
   return join(DSH_HOME, SNAPSHOT_FEATURE_DIR, 'workspaces')
+}
+
+/** 会话独占 index 路径：同一工作区里的多个会话不得共用私有仓的 `index`。 */
+function sessionIndexFile(gitDir: string, sessionId: string): string {
+  const digest = createHash('sha256').update(sessionId).digest('hex').slice(0, 16)
+  return join(gitDir, `index.${digest}`)
 }
 
 /** 工作区标记文件（代数 + 重建时间的宿主侧真相）；读写两侧必须走同一个拼法。 */
@@ -504,7 +409,7 @@ async function ensureGeneration(store: SnapshotStore): Promise<string> {
  * `git add` 中途死了——不清掉的话之后每次快照都会因锁失败而永久不可用。
  */
 function sweepStaleIndexLock(store: SnapshotStore): boolean {
-  const lock = join(store.gitDir, 'index.lock')
+  const lock = store.indexFile === undefined ? join(store.gitDir, 'index.lock') : `${store.indexFile}.lock`
   try {
     const stats = lstatSync(lock)
     if (Date.now() - stats.mtimeMs <= GIT_TIMEOUT_MS)
@@ -545,7 +450,7 @@ async function ensureSnapshotRepo(store: SnapshotStore): Promise<{ ok: true } | 
   const configured = await gitInSnapshot(store, ['config', 'core.worktree', store.worktree])
   if (!configured.ok)
     return { ok: false, reason: REASON_SNAPSHOT_FAILED }
-  // 私有仓不做自动 gc（避免后台回收与撤销抢锁）：回收由 retention 的显式 prune 负责。
+  // 私有仓不做自动 gc（避免后台回收与快照抢锁）：回收由 retention 的显式 prune 负责。
   await gitInSnapshot(store, ['config', 'gc.auto', '0'])
   // 长路径支持：Windows 上超过 MAX_PATH 的路径会让 add/checkout 直接失败。
   await gitInSnapshot(store, ['config', 'core.longpaths', 'true'])
@@ -688,45 +593,4 @@ async function treePaths(store: SnapshotStore, commit: string): Promise<{ ok: tr
   if (!listed.ok)
     return { ok: false, reason: listed.error }
   return { ok: true, paths: new Set(splitNul(listed.out)) }
-}
-
-async function conflictPaths(store: SnapshotStore, afterCommit: string, changes: readonly TurnFileChange[]): Promise<{ ok: true, paths: string[] } | { ok: false, reason: string }> {
-  const conflicting = new Map<string, string>()
-  const tracked = changes.filter(change => change.status !== 'D').map(change => change.path)
-  if (tracked.length > 0) {
-    const diff = await gitInSnapshot(store, ['diff', '--name-only', '-z', '--no-renames', afterCommit, '--', ...tracked])
-    if (!diff.ok)
-      return { ok: false, reason: diff.error }
-    for (const path of splitNul(diff.out))
-      conflicting.set(path, '该文件在 turn 结束后又被修改过')
-  }
-  for (const change of changes) {
-    const absolute = resolveInsideWorkspace(store.worktree, change.path)
-    if (absolute === null) {
-      conflicting.set(change.path, REASON_UNSAFE_PATH)
-      continue
-    }
-    const safe = assertSafeParents(store.worktree, absolute)
-    if (!safe.ok)
-      conflicting.set(change.path, REASON_UNSAFE_PATH)
-    if (change.status !== 'D')
-      continue
-    if (existsSync(absolute))
-      conflicting.set(change.path, '该文件在 turn 结束后被重新创建')
-  }
-  return { ok: true, paths: [...conflicting.keys()] }
-}
-
-/** 从删除点向上清理空目录（止于工作区根；目录非空即停）。 */
-async function pruneEmptyParents(worktree: string, absolutePath: string): Promise<void> {
-  let current = dirname(absolutePath)
-  while (current.length > 0 && resolve(current) !== resolve(worktree)) {
-    try {
-      await rmdir(current)
-    }
-    catch {
-      return
-    }
-    current = dirname(current)
-  }
 }

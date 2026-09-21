@@ -8,7 +8,7 @@
 export type HostContext = any
 
 /**
- * 一次 git 子进程的结果；捕获/撤销路径从不抛异常，失败一律走该联合。
+ * 一次 git 子进程的结果；捕获路径从不抛异常，失败一律走该联合。
  *
  * 失败分支同样带 `out`：`git check-ignore` 这类命令**用退出码表达否定答案**
  * （exit 1 = 没有路径被忽略），stdout 才是真正的结果。
@@ -23,6 +23,13 @@ export interface SnapshotStore {
   worktree: string
   /** 私有快照仓目录（`$DSH_HOME/<feature>/workspaces/<hash>.git`）。 */
   gitDir: string
+  /**
+   * 会话独占的 Git index 路径（`GIT_INDEX_FILE`）。
+   *
+   * 缺省时 git 用私有仓自带的 `index`——同一工作区里的多个会话会共用它，一个会话的
+   * `add --all` 会把另一个会话的暂存状态一起写进树里。给出会话 id 时按会话隔离。
+   */
+  indexFile?: string
   /** 源仓库 common dir（资格探测时一并解析，供 info/exclude 同步复用）。 */
   commonDir?: string | null
   /** 快照仓代数：整仓重建或被删后轮换，账本记录据此判定「快照已过期」。 */
@@ -58,7 +65,7 @@ export type CaptureResult
     commit: string
     /** 因超过单文件上限而未纳入快照的路径（明确标注，绝不静默漏掉）。 */
     skippedOversized: string[]
-    /** 被跳过的嵌套 Git 仓库路径（内容不受撤销保护）。 */
+    /** 被跳过的嵌套 Git 仓库路径（内容未纳入快照）。 */
     skippedNestedRepos: string[]
     /** 本轮新学到的排除项，调用方持久化后后续 turn 不必再重捕。 */
     learnedExclusions: string[]
@@ -86,13 +93,6 @@ export interface TurnFileChange {
   binary: boolean
 }
 
-/** 一次恢复的执行结果。 */
-export interface RestoreReport {
-  restored: string[]
-  removed: string[]
-  failed: Array<{ path: string, reason: string }>
-}
-
 /** 一个 turn 的变更记录（账本行）。 */
 export interface TurnRecord {
   turn: number
@@ -102,18 +102,14 @@ export interface TurnRecord {
   insertions: number
   deletions: number
   createdAt: number
-  /** 已撤销时间戳；null/缺省表示未撤销。 */
-  undoneAt?: number | null
   /** 不可用原因（超限/失败/过期）；非空表示该 turn 无可用快照。 */
   unavailable?: string | null
   /** 捕获时的快照仓代数；缺失表示记录来自旧版本，只能按 refs 判定是否失效。 */
   generation?: string | null
   /** 因超过单文件上限而被排除的文件（明确标注，绝不静默漏掉）。 */
   skippedOversized?: string[]
-  /** 被跳过的嵌套 Git 仓库路径：gitlink 内容无法被撤销（明确标注）。 */
+  /** 被跳过的嵌套 Git 仓库路径：gitlink 内容未纳入快照（明确标注）。 */
   skippedNestedRepos?: string[]
-  /** 过期时间戳；非空表示该轮已不可撤销（审计行与计数保留）。 */
-  expiredAt?: number | null
 }
 
 /** 每会话账本文件的结构。 */
@@ -137,17 +133,6 @@ export interface LiveSnapshot {
   deletions: number
 }
 
-/** 撤销前的冲突明细。 */
-export interface UndoConflict {
-  path: string
-  reason: string
-}
-
-/** 撤销结果。 */
-export type UndoOutcome
-  = | { ok: true, restored: string[], removed: string[], failed: Array<{ path: string, reason: string }> }
-    | { ok: false, code: number, error: string, conflicts?: UndoConflict[] }
-
 /** 客户端 summary 路由的载荷（turns 为账本记录的摘要投影）。 */
 export interface SummaryPayload {
   sessionId: string
@@ -159,11 +144,10 @@ export interface SummaryPayload {
     fileCount: number
     insertions: number
     deletions: number
-    undoneAt: number | null
     unavailable: string | null
     /**
      * 该轮是否建立过 before/after 快照（refs 是否留下）。与 `unavailable` 配合区分两种失败：
-     * 连基线都没有 = 这一轮从没有过可撤销的东西；基线在而 after 结算失败 = 承诺过的撤销落空了。
+     * 连基线都没有 = 这一轮从没有过变更基线；基线在而 after 结算失败 = 承诺过的快照落空了。
      */
     hasBaseline: boolean
     truncated: boolean
@@ -171,14 +155,4 @@ export interface SummaryPayload {
     skippedOversized: string[]
     skippedNestedRepos: string[]
   }>
-}
-
-/** 撤销路由的响应体（客户端持有同形状的镜像，host 与 client 互不导入）。 */
-export interface UndoResponse {
-  ok?: boolean
-  restored?: string[]
-  removed?: string[]
-  failed?: Array<{ path: string, reason: string }>
-  error?: string
-  conflicts?: Array<{ path: string, reason: string }>
 }

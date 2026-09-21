@@ -23,7 +23,6 @@ export interface TurnSummary {
   fileCount: number
   insertions: number
   deletions: number
-  undoneAt: number | null
   unavailable: string | null
   /**
    * 该轮是否建立过快照基线（旧宿主不带该字段时视为 true，即保守地照常呈现）。
@@ -33,11 +32,11 @@ export interface TurnSummary {
   truncated: boolean
   files: TurnFileChange[]
   /**
-   * 因超过单文件上限而未纳入快照的路径（撤销不含它们）。
+   * 因超过单文件上限而未纳入快照的路径。
    * 宿主只回传前若干条（载荷有界），因此必须按「计数」而不是「长度」呈现。
    */
   skippedOversized: string[]
-  /** 被跳过的嵌套仓库目录（gitlink 内容不受撤销保护）。 */
+  /** 被跳过的嵌套仓库目录（gitlink 内容未纳入快照）。 */
   skippedNestedRepos: string[]
 }
 
@@ -50,16 +49,6 @@ export interface SessionSummary {
   turns: TurnSummary[]
 }
 
-/** 撤销请求的响应体（成功与失败共用，失败时 ok=false）。 */
-export interface UndoResponse {
-  ok?: boolean
-  restored?: string[]
-  removed?: string[]
-  failed?: Array<{ path: string, reason: string }>
-  error?: string
-  conflicts?: Array<{ path: string, reason: string }>
-}
-
 /** 运行中实时读数（宿主 live 路由的载荷）。 */
 export interface LiveSnapshot {
   /** 是否有正在进行的 turn。 */
@@ -70,17 +59,10 @@ export interface LiveSnapshot {
   deletions: number
 }
 
-/** 撤销失败的冲突明细。 */
-export interface UndoConflict {
-  path: string
-  reason: string
-}
-
 /** 卡片渲染用的判定结果（纯函数 `resolveCardState` 的输出）。 */
 export type TurnCardState
   = | { kind: 'hidden' }
     | { kind: 'ready', record: TurnSummary }
-    | { kind: 'undone', record: TurnSummary }
     | { kind: 'unavailable', reason: string | null }
     | { kind: 'failed', reason: string }
 
@@ -89,25 +71,20 @@ export type LocaleKey
   = | 'fileButton'
     | 'editedOne'
     | 'editedMany'
-    | 'undo'
-    | 'undoing'
     | 'review'
     | 'viewChanges'
     | 'moreFiles'
     | 'collapseFiles'
-    | 'undoneBadge'
     | 'runningChanged'
     | 'binary'
     | 'unavailableTitle'
     | 'unavailableReason'
-    | 'undoFailed'
-    | 'conflictTitle'
     | 'expiredReason'
     | 'gitUnavailableReason'
-    | 'turnActiveReason'
     | 'snapshotFailedReason'
     | 'unsafePathReason'
     | 'workspaceBusyReason'
+    | 'workspaceChangedReason'
     | 'skippedOversized'
     | 'skippedNestedRepos'
     | 'openFile'

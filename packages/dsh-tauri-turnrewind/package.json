@@ -2,7 +2,7 @@
   "name": "dsh-tauri-turnrewind",
   "type": "module",
   "version": "0.3.1",
-  "description": "Turn-level workspace undo for DeepSeek Harness: per-turn Git snapshots, a change card at each finished turn, one-click revert",
+  "description": "Turn-level change tracking for DeepSeek Harness: per-turn Git snapshots and a change card at each finished turn (changed files with +N -M). File restore is delegated to the recommended dsh-rewind plugin.",
   "author": "Hairyf <wwu710632@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins#readme",
@@ -17,7 +17,6 @@
     "dsh-plugin",
     "tauri",
     "deepseek-harness",
-    "undo",
     "rewind",
     "snapshot"
   ],

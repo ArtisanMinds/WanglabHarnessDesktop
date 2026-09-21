@@ -15,11 +15,10 @@ export type SummaryPayload = {
     fileCount: number;
     insertions: number;
     deletions: number;
-    undoneAt: number | null;
     unavailable: string | null;
     /**
      * 该轮是否建立过 before/after 快照（refs 是否留下）。与 `unavailable` 配合区分两种失败：
-     * 连基线都没有 = 这一轮从没有过可撤销的东西；基线在而 after 结算失败 = 承诺过的撤销落空了。
+     * 连基线都没有 = 这一轮从没有过变更基线；基线在而 after 结算失败 = 承诺过的快照落空了。
      */
     hasBaseline: boolean;
     truncated: boolean;
@@ -41,19 +40,6 @@ export type TurnFileChange = {
   binary: boolean;
 };
 export type TurnFileStatus = "A" | "M" | "D";
-export type UndoResponse = {
-  ok?: boolean;
-  restored?: string[];
-  removed?: string[];
-  failed?: Array<{ path: string; reason: string }>;
-  error?: string;
-  conflicts?: Array<{ path: string; reason: string }>;
-};
-
-export interface UndoBody {
-  sessionId?: string;
-  turn?: number;
-}
 export interface GetLiveQuery {
   sessionId?: string;
 }

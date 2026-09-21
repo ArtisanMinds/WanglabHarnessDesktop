@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { execFile } from 'node:child_process'
-import { existsSync, rmSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { rmSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { join } from 'pathe'
@@ -42,6 +42,19 @@ function cleanPluginData(): void {
 beforeEach(() => {
   resetTestDshHome()
   cleanPluginData()
+})
+
+describe('会话独占 index', () => {
+  it('给出会话 id 时 index 按会话隔离，且落在该工作区的私有仓里', () => {
+    const worktree = join(tmpdir(), 'dsh-turnrewind-index-domain')
+    const first = snapshot.resolve(worktree, null, 'session-a')
+    const second = snapshot.resolve(worktree, null, 'session-b')
+    expect(first.indexFile).toBeDefined()
+    expect(first.indexFile).not.toBe(second.indexFile)
+    expect(first.indexFile?.startsWith(first.gitDir)).toBe(true)
+    // 不给会话 id 的调用面（如按路径取代数）仍退回私有仓自带的 index。
+    expect(snapshot.resolve(worktree).indexFile).toBeUndefined()
+  })
 })
 
 async function gitStatus(worktree: string): Promise<string> {
@@ -119,100 +132,6 @@ describe('captureSnapshot + diffTurnChanges', () => {
     await snapshot.capture(store, snapshot.ref('s3', 1, 'after'), 'after')
     expect(await gitHead(worktree)).toBe(beforeState)
     expect(await gitStatus(worktree)).toBe(beforeStatus)
-  })
-})
-
-describe('conflictPaths', () => {
-  it('flags files changed after the turn and clears untouched ones', async () => {
-    const { worktree } = await fixture()
-    const store = snapshot.resolve(worktree)
-    const before = await snapshot.capture(store, snapshot.ref('s4', 1, 'before'), 'before')
-    await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
-    await writeFile(join(worktree, 'made.txt'), 'made\n', 'utf8')
-    const after = await snapshot.capture(store, snapshot.ref('s4', 1, 'after'), 'after')
-    expect(before.ok && after.ok).toBe(true)
-    if (!before.ok || !after.ok)
-      return
-    const diff = await snapshot.diff(store, before.commit, after.commit)
-    expect(diff.ok).toBe(true)
-    if (!diff.ok)
-      return
-
-    const clean = await snapshot.conflicts(store, after.commit, diff.changes)
-    expect(clean).toEqual({ ok: true, conflicts: [] })
-
-    await writeFile(join(worktree, 'a.txt'), 'user edited again\n', 'utf8')
-    const conflicted = await snapshot.conflicts(store, after.commit, diff.changes)
-    expect(conflicted.ok).toBe(true)
-    if (conflicted.ok)
-      expect(conflicted.conflicts.map(conflict => conflict.path)).toEqual(['a.txt'])
-  })
-
-  it('flags a recreated file the turn had deleted (git diff alone cannot see it)', async () => {
-    const { worktree } = await fixture()
-    const store = snapshot.resolve(worktree)
-    const before = await snapshot.capture(store, snapshot.ref('s5', 1, 'before'), 'before')
-    await rm(join(worktree, 'gone.txt'))
-    const after = await snapshot.capture(store, snapshot.ref('s5', 1, 'after'), 'after')
-    expect(before.ok && after.ok).toBe(true)
-    if (!before.ok || !after.ok)
-      return
-    const diff = await snapshot.diff(store, before.commit, after.commit)
-    expect(diff.ok).toBe(true)
-    if (!diff.ok)
-      return
-    await writeFile(join(worktree, 'gone.txt'), 'user recreated it\n', 'utf8')
-    const conflicted = await snapshot.conflicts(store, after.commit, diff.changes)
-    expect(conflicted.ok).toBe(true)
-    if (conflicted.ok)
-      expect(conflicted.conflicts.map(conflict => conflict.path)).toContain('gone.txt')
-  })
-})
-
-describe('restoreTurnChanges', () => {
-  it('restores modified and deleted files and removes files the turn created', async () => {
-    const { worktree } = await fixture()
-    const store = snapshot.resolve(worktree)
-    const before = await snapshot.capture(store, snapshot.ref('s6', 1, 'before'), 'before')
-    await writeFile(join(worktree, 'a.txt'), 'one\ntwo\nthree\n', 'utf8')
-    await rm(join(worktree, 'gone.txt'))
-    await mkdir(join(worktree, 'fresh', 'deep'), { recursive: true })
-    await writeFile(join(worktree, 'fresh', 'deep', 'new.txt'), 'new\n', 'utf8')
-    const after = await snapshot.capture(store, snapshot.ref('s6', 1, 'after'), 'after')
-    expect(before.ok && after.ok).toBe(true)
-    if (!before.ok || !after.ok)
-      return
-    const diff = await snapshot.diff(store, before.commit, after.commit)
-    expect(diff.ok).toBe(true)
-    if (!diff.ok)
-      return
-
-    const report = await snapshot.restore(store, before.commit, diff.changes)
-    expect(report.failed).toEqual([])
-    // 换行由 git 的 filter 决定（私有仓镜像源仓库/全局 core.autocrlf），
-    // 断言时先归一：真正要钉的是「内容回到 before」，不是某一种换行字节。
-    const restored = await readFile(join(worktree, 'a.txt'), 'utf8')
-    expect(restored.replace(/\r\n/g, '\n')).toBe('one\ntwo\n')
-    expect((await readFile(join(worktree, 'gone.txt'), 'utf8')).replace(/\r\n/g, '\n')).toBe('bye\n')
-    expect(existsSync(join(worktree, 'fresh', 'deep', 'new.txt'))).toBe(false)
-    // 只清理变空的父目录，工作区根本身保留。
-    expect(existsSync(join(worktree, 'fresh', 'deep'))).toBe(false)
-    expect(existsSync(worktree)).toBe(true)
-
-    // 恢复后的工作区必须与 before 快照**逐字节等价**（同一 git 树）：
-    // 这条同时钉住换行/属性的往返对称性——若私有仓的 core.autocrlf 与源仓库
-    // 不一致，恢复出来的树就会与 before 树不同，此断言立刻失败。
-    const recheck = await snapshot.capture(store, snapshot.ref('s6-recheck', 1, 'before'), 'recheck')
-    expect(recheck.ok).toBe(true)
-    if (recheck.ok && before.ok) {
-      const [beforeTree, recheckTree] = await Promise.all([
-        gitInSnapshot(store, ['rev-parse', `${before.commit}^{tree}`]),
-        gitInSnapshot(store, ['rev-parse', `${recheck.commit}^{tree}`]),
-      ])
-      expect(beforeTree.ok && recheckTree.ok).toBe(true)
-      if (beforeTree.ok && recheckTree.ok)
-        expect(recheckTree.out.trim()).toBe(beforeTree.out.trim())
-    }
   })
 })
 

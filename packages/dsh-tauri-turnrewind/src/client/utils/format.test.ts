@@ -4,9 +4,9 @@ import {
   TURNREWIND_REASON_EXPIRED,
   TURNREWIND_REASON_GIT_UNAVAILABLE,
   TURNREWIND_REASON_SNAPSHOT_FAILED,
-  TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
   TURNREWIND_REASON_WORKSPACE_BUSY,
+  TURNREWIND_REASON_WORKSPACE_CHANGED,
 } from '../../shared/constants'
 import { TURNREWIND_VISIBLE_FILE_ROWS } from '../constants'
 import {
@@ -27,7 +27,6 @@ function turnSummary(patch: Partial<TurnSummary> = {}): TurnSummary {
     fileCount: 1,
     insertions: 4,
     deletions: 3,
-    undoneAt: null,
     unavailable: null,
     truncated: false,
     files: [{ path: 'src/driver.ts', status: 'M', insertions: 4, deletions: 3, binary: false }],
@@ -87,9 +86,8 @@ describe('resolveCardState', () => {
       .toEqual({ kind: 'unavailable', reason: 'TURNREWIND_UNSAFE_WORKSPACE' })
   })
 
-  it('maps a recorded turn to ready / undone / failed / hidden', () => {
+  it('maps a recorded turn to ready / failed / hidden', () => {
     expect(resolveCardState(summary(), 1)).toEqual({ kind: 'ready', record: turnSummary() })
-    expect(resolveCardState(summary({ turns: [turnSummary({ undoneAt: 5 })] }), 1).kind).toBe('undone')
     expect(resolveCardState(summary({ turns: [turnSummary({ unavailable: 'TURNREWIND_TOO_MANY_FILES' })] }), 1))
       .toEqual({ kind: 'failed', reason: 'TURNREWIND_TOO_MANY_FILES' })
     // 记录存在但这一轮没有任何文件变化：不占位。
@@ -106,7 +104,7 @@ describe('resolveCardState', () => {
   })
 
   it('连基线都没建立的通用快照失败不占位（用户中断 / 捕获被回收时不该弹告警）', () => {
-    // 用户实际报告：什么都没改却看到「撤销不可用 TURNREWIND_SNAPSHOT_FAILED」。
+    // 用户实际报告：什么都没改却看到「变更不可用 TURNREWIND_SNAPSHOT_FAILED」。
     const noBaseline = turnSummary({
       unavailable: TURNREWIND_REASON_SNAPSHOT_FAILED,
       files: [],
@@ -115,7 +113,7 @@ describe('resolveCardState', () => {
     })
     expect(resolveCardState(summary({ turns: [noBaseline] }), 1)).toEqual({ kind: 'hidden' })
 
-    // 基线在、after 结算失败：承诺过的撤销落空了，必须如实告警。
+    // 基线在、after 结算失败：承诺过的快照落空了，必须如实告警。
     const withBaseline = turnSummary({
       unavailable: TURNREWIND_REASON_SNAPSHOT_FAILED,
       files: [],
@@ -130,7 +128,7 @@ describe('resolveCardState', () => {
     expect(resolveCardState(summary({ turns: [legacy] }), 1).kind).toBe('failed')
   })
 
-  it('超限类失败即使没有基线也照常呈现（说的是「超出撤销范围」，不是内部故障）', () => {
+  it('超限类失败即使没有基线也照常呈现（说的是「超出快照范围」，不是内部故障）', () => {
     const tooManyFiles = turnSummary({ unavailable: 'TURNREWIND_TOO_MANY_FILES', files: [], fileCount: 0, hasBaseline: false })
     expect(resolveCardState(summary({ turns: [tooManyFiles] }), 1))
       .toEqual({ kind: 'failed', reason: 'TURNREWIND_TOO_MANY_FILES' })
@@ -164,11 +162,12 @@ describe('reasonKey', () => {
   it('已知原因码映射到文案键', () => {
     expect(reasonKey(TURNREWIND_REASON_EXPIRED)).toBe('expiredReason')
     expect(reasonKey(TURNREWIND_REASON_GIT_UNAVAILABLE)).toBe('gitUnavailableReason')
-    expect(reasonKey(TURNREWIND_REASON_TURN_ACTIVE)).toBe('turnActiveReason')
     expect(reasonKey(TURNREWIND_REASON_SNAPSHOT_FAILED)).toBe('snapshotFailedReason')
     expect(reasonKey(TURNREWIND_REASON_UNSAFE_PATH)).toBe('unsafePathReason')
     // 工作区被另一个宿主进程占用是可重试的失败，不是终态原因。
     expect(reasonKey(TURNREWIND_REASON_WORKSPACE_BUSY)).toBe('workspaceBusyReason')
+    // 工作区被带外换了提交世代：改动无法归属，给出说明而不是报一串假变更。
+    expect(reasonKey(TURNREWIND_REASON_WORKSPACE_CHANGED)).toBe('workspaceChangedReason')
   })
 
   it('未知码/空值返回 null：调用方原样显示，绝不编文案', () => {

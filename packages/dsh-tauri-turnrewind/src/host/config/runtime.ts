@@ -14,8 +14,8 @@ import { createWorkspaceQueue } from '../utils/queue'
 export const { setCurrentHostInstance, getCurrentHostInstance } = defineHostRuntime<HostContext>()
 
 /**
- * 工作区级串行队列：私有仓 index/refs 是共享可变状态，捕获、结算、实时读数、容量治理
- * 与撤销全部串行。队列内再叠一层**跨进程内核锁**：同一个 `DSH_HOME` 下的第二个宿主进程
+ * 工作区级串行队列：私有仓 index/refs 是共享可变状态，捕获、结算、实时读数与容量治理
+ * 全部串行。队列内再叠一层**跨进程内核锁**：同一个 `DSH_HOME` 下的第二个宿主进程
  * 也走同一把锁，两个进程才真正不会同动一份私有仓（见 utils/lock.ts）。
  */
 export const workspaceQueue = createWorkspaceQueue({ lock: createWorkspaceLock({ dshHome: DSH_HOME }) })

@@ -11,9 +11,6 @@ export const EMPTY_SESSION_STATE: TurnrewindSessionState = {
   summary: null,
   error: null,
   awaitingTurn: null,
-  undoing: false,
-  undoError: null,
-  undoConflicts: [],
 }
 
 /** 取某会话的状态切片（无则空白态）。对状态容器结构开放，调用方无需断言。 */

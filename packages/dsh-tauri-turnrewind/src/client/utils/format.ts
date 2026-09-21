@@ -12,9 +12,9 @@ import {
   TURNREWIND_REASON_GIT_REQUIRED,
   TURNREWIND_REASON_GIT_UNAVAILABLE,
   TURNREWIND_REASON_SNAPSHOT_FAILED,
-  TURNREWIND_REASON_TURN_ACTIVE,
   TURNREWIND_REASON_UNSAFE_PATH,
   TURNREWIND_REASON_WORKSPACE_BUSY,
+  TURNREWIND_REASON_WORKSPACE_CHANGED,
 } from '../../shared/constants'
 
 /**
@@ -27,11 +27,12 @@ const REASON_KEYS: Record<string, LocaleKey> = {
   // `GIT_REQUIRED` 刻意**没有**文案映射：非 Git 工作区整张卡片都不渲染（见 resolveCardState）。
   [TURNREWIND_REASON_GIT_UNAVAILABLE]: 'gitUnavailableReason',
   [TURNREWIND_REASON_EXPIRED]: 'expiredReason',
-  [TURNREWIND_REASON_TURN_ACTIVE]: 'turnActiveReason',
   [TURNREWIND_REASON_SNAPSHOT_FAILED]: 'snapshotFailedReason',
   [TURNREWIND_REASON_UNSAFE_PATH]: 'unsafePathReason',
   // 工作区被另一个宿主进程占用：**可重试**，语义与上面几个终态原因不同（见字典文案）。
   [TURNREWIND_REASON_WORKSPACE_BUSY]: 'workspaceBusyReason',
+  // 工作区在本轮期间被带外换了提交世代：改动无法归属，如实说明而不是报一串假变更。
+  [TURNREWIND_REASON_WORKSPACE_CHANGED]: 'workspaceChangedReason',
 }
 
 /**
@@ -103,12 +104,12 @@ export function resolveCardState(summary: SessionSummary | null, turn: number | 
     return { kind: 'hidden' }
   if (!summary.isGit) {
     /*
-      非 Git 仓库：**整张卡片都不出现**（需求：这类工作区里撤销本就不适用，却会在每一轮
+      非 Git 仓库：**整张卡片都不出现**（需求：这类工作区里本就没有变更基线，却会在每一轮
       结尾弹一张「该工作区不是 Git 代码仓库」——用户什么都没改也会看到，纯属噪音）。
 
       例外是**可操作的诊断**：git 可执行文件缺失（`GIT_UNAVAILABLE`）、危险路径
       （家目录/盘根，`UNSAFE_WORKSPACE`）仍如实呈现——它们回答的是「为什么这个工作区
-      不能撤销」，而 `GIT_REQUIRED` 回答的是「这里本来就没有仓库」，后者没有任何可做的
+      没有变更记录」，而 `GIT_REQUIRED` 回答的是「这里本来就没有仓库」，后者没有任何可做的
       事情，因此保持沉默。
     */
     return summary.unavailableReason !== null && summary.unavailableReason !== TURNREWIND_REASON_GIT_REQUIRED
@@ -121,12 +122,12 @@ export function resolveCardState(summary: SessionSummary | null, turn: number | 
   if (record.unavailable !== null && record.unavailable !== undefined) {
     /*
       「快照过程失败」是**通用内部失败**：没有文件明细、没有可操作指引。若这一轮连
-      基线都没建立（hasBaseline === false），它从来没有过可撤销的承诺——用户中断、
-      捕获子进程被回收、工作区 git 暂时报错都会落在这里，此时弹「撤销不可用」纯属惊扰
+      基线都没建立（hasBaseline === false），它从来没有过变更记录——用户中断、
+      捕获子进程被回收、工作区 git 暂时报错都会落在这里，此时弹「变更不可用」纯属惊扰
       （用户反馈：明明什么都没改，却看到一张写着内部错误码的告警卡片）。
       宿主侧仍然写日志，账本行也保留，诊断信息不丢；这里只是不打扰用户。
 
-      其余原因一律照常呈现：超限类原因说明「这一轮超出撤销范围」，过期类说明
+      其余原因一律照常呈现：超限类原因说明「这一轮超出快照范围」，过期类说明
       「快照已被回收」——都是用户能理解、也可能需要采取行动的信息。
     */
     if (record.unavailable === TURNREWIND_REASON_SNAPSHOT_FAILED && record.hasBaseline === false)
@@ -135,8 +136,6 @@ export function resolveCardState(summary: SessionSummary | null, turn: number | 
   }
   if (record.files.length === 0)
     return { kind: 'hidden' }
-  if (record.undoneAt !== null && record.undoneAt !== undefined)
-    return { kind: 'undone', record }
   return { kind: 'ready', record }
 }
 

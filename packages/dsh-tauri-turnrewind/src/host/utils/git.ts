@@ -76,9 +76,18 @@ function execGit(cwd: string, args: string[], options: GitRunOptions): Promise<G
   })
 }
 
-/** 在私有快照仓中执行（git-dir = 私有仓，work-tree = 会话工作区，cwd = 工作区）。 */
+/**
+ * 在私有快照仓中执行（git-dir = 私有仓，work-tree = 会话工作区，cwd = 工作区）。
+ *
+ * `store.indexFile` 存在时用 `GIT_INDEX_FILE` 把 index 钉到**该会话独占**的文件上：
+ * 同一工作区里的多个会话否则会共用私有仓的 `index`，一个会话的 `add --all` 会把
+ * 另一个会话的暂存状态一起写进树里（见 utils/git.ts 头注释与 snapshot.resolve）。
+ */
 export function gitInSnapshot(store: SnapshotStore, args: string[], options: GitRunOptions = {}): Promise<GitResult> {
-  return execGit(store.worktree, ['--git-dir', store.gitDir, '--work-tree', store.worktree, ...args], options)
+  const scoped = store.indexFile === undefined
+    ? options
+    : { ...options, env: { GIT_INDEX_FILE: store.indexFile, ...options.env } }
+  return execGit(store.worktree, ['--git-dir', store.gitDir, '--work-tree', store.worktree, ...args], scoped)
 }
 
 /** 在用户仓库中执行只读探测（不覆盖 git-dir，由 git 自行发现仓库）。 */
@@ -103,7 +112,7 @@ export async function resolveSourceCommonDir(worktree: string): Promise<string |
  *
  * 来源：`git add --all` 每次都会把变化后的内容写成 blob，而运行中的实时读数每 1.5s
  * 就跑一次——中间版本的 blob 没有任何 ref 可达。我们又把 `gc.auto` 关成了 0
- * （避免后台回收与撤销抢锁），所以必须显式回收，否则私有仓只涨不降。
+ * （避免后台回收与快照抢锁），所以必须显式回收，否则私有仓只涨不降。
  * 只删不可达对象，`refs/turnrewind/*` 链上的对象不受影响。
  *
  * @param store - 私有快照仓。

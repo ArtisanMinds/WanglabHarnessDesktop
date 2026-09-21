@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
-import { PLUGIN_ID, TURNREWIND_REASON_SNAPSHOT_FAILED } from '../../shared/constants'
+import { PLUGIN_ID, TURNREWIND_REASON_SNAPSHOT_FAILED, TURNREWIND_REASON_WORKSPACE_CHANGED } from '../../shared/constants'
 import { LOCK_BARRIER_TIMEOUT_MS } from '../config/constants'
 import { clearHostRuntime, resetHostRuntime, setCurrentHostInstance, workspaceQueue } from '../config/runtime'
 import { turnrewindHooks } from '../events'
@@ -398,6 +398,80 @@ describe('运行中提示条的读数生命周期', () => {
       await new Promise(resolve => setTimeout(resolve, 50))
 
     expect(capture.live('s16')).toMatchObject({ active: true, turn: 1, fileCount: 1, insertions: 1, deletions: 0 })
+  })
+})
+
+describe('工作区被带外换提交世代（新建工作树 / checkout 到 origin/main）', () => {
+  it('工作区 HEAD 移动后运行中读数作废，结算如实记不可用，而不是把整段世代差算成这一轮', async () => {
+    // 回归背景：新建工作树时工作区先落在 refs/heads/main，随后被 checkout 到 origin/main。
+    // before 快照取自旧世代、磁盘已是新世代，读数于是把整段世代差（实测 92 个文件
+    // +8565 -8461）报成「这一轮改了什么」——用户什么都没改。这里钉的是基线绑定。
+    const { worktree } = await fixture()
+    const identity = ['-c', 'user.email=test@example.com', '-c', 'user.name=test']
+    const gitAt = async (...args: string[]): Promise<string> => {
+      const result = await run('git', ['-C', worktree, ...identity, ...args], { windowsHide: true })
+      return result.stdout.trim()
+    }
+    await gitAt('add', '--all')
+    await gitAt('commit', '--quiet', '-m', 'one')
+    await writeFile(join(worktree, 'b.txt'), 'other\n', 'utf8')
+    await gitAt('add', '--all')
+    await gitAt('commit', '--quiet', '-m', 'two')
+    const older = await gitAt('rev-parse', 'HEAD~1')
+
+    captureFor()
+    await capture.begin('s-head', 1)
+    expect(capture.live('s-head')).toMatchObject({ active: true, turn: 1 })
+
+    await gitAt('checkout', '--quiet', older)
+
+    const deadline = Date.now() + 15_000
+    while (capture.live('s-head').active && Date.now() < deadline)
+      await new Promise(resolve => setTimeout(resolve, 50))
+    expect(capture.live('s-head').active).toBe(false)
+
+    await capture.settle('s-head', 1)
+    const current = await ledger.load('s-head')
+    expect(current.turns[0]?.unavailable).toBe(TURNREWIND_REASON_WORKSPACE_CHANGED)
+    expect(current.turns[0]?.files).toEqual([])
+    expect(current.turns[0]?.insertions).toBe(0)
+    expect(current.turns[0]?.deletions).toBe(0)
+  })
+
+  it('before 快照期间工作区被换世代时，这一轮不建立基线', async () => {
+    // 快照本身横跨两代时，记下的树不属于任何一代：必须拒绝，而不是留一个假基线。
+    const { worktree } = await fixture()
+    const identity = ['-c', 'user.email=test@example.com', '-c', 'user.name=test']
+    const gitAt = async (...args: string[]): Promise<string> => {
+      const result = await run('git', ['-C', worktree, ...identity, ...args], { windowsHide: true })
+      return result.stdout.trim()
+    }
+    await gitAt('add', '--all')
+    await gitAt('commit', '--quiet', '-m', 'one')
+    await writeFile(join(worktree, 'b.txt'), 'other\n', 'utf8')
+    await gitAt('add', '--all')
+    await gitAt('commit', '--quiet', '-m', 'two')
+    const older = await gitAt('rev-parse', 'HEAD~1')
+
+    captureFor()
+    const real = snapshot.capture
+    const spy = vi.spyOn(snapshot, 'capture').mockImplementation(async (store, ref, message, options) => {
+      const result = await real(store, ref, message, options)
+      // 快照与 HEAD 采样之间被带外换世代。
+      await gitAt('checkout', '--quiet', older)
+      return result
+    })
+    try {
+      await capture.begin('s-race', 1)
+    }
+    finally {
+      spy.mockRestore()
+    }
+    await capture.settle('s-race', 1)
+
+    const current = await ledger.load('s-race')
+    expect(current.turns[0]?.unavailable).toBe(TURNREWIND_REASON_WORKSPACE_CHANGED)
+    expect(current.turns[0]?.files).toEqual([])
   })
 })
 

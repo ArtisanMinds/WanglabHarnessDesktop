@@ -8,7 +8,7 @@
  *
  * 因此注册对象带齐 select + id + 更低的 priority：官方 `ui-deliverables` 以默认 priority 0 占用该槽，
  * 这里以 -1 抢先——chain 型靠选举胜出，list 型靠复用官方 id 占住同一格，把它的 “Files changed” 行
- * 换成带撤销能力的卡片。select 在 list 型下不会被调用，id 在 chain 型下不会被读取，并存互不影响。
+ * 换成带逐文件变更明细的卡片。select 在 list 型下不会被调用，id 在 chain 型下不会被读取，并存互不影响。
  *
  * select 必须是**纯函数**（只读 owner props）：因此「本轮有没有记录」不能在那里判断，只能先
  * 无脑当选，再由组件按 store 状态决定渲染内容。list 型不派发 matched，组件只能读 owner props 本身。

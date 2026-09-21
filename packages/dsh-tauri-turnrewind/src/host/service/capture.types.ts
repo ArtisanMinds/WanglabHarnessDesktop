@@ -7,7 +7,14 @@ export interface ActiveTurn {
   workspaceRoot: string | null
   store: SnapshotStore | null
   beforeCommit: string | null
-  /** 本 turn 不可撤销的原因（资格拒绝/快照失败）。 */
+  /**
+   * before 快照对应的源仓库 HEAD。
+   *
+   * 工作区被带外操作（checkout / worktree 更新 / 合并）换了提交世代后，before 树与当前
+   * 磁盘之间横着整段世代差；据此判定「这一轮已经不能按内容归属」，宁可沉默也不误报。
+   */
+  baselineHead: string | null
+  /** 本 turn 没有变更明细的原因（资格拒绝/快照失败）。 */
   skippedReason: string | null
   /** 运行中实时读数（before 快照成功后开始轮询更新；`active` 由读取面补上）。 */
   live: Omit<LiveSnapshot, 'active'> | null
@@ -23,7 +30,7 @@ export interface ActiveTurn {
   exclusions: string[]
   /** 本 turn 实际被跳过的嵌套仓库。 */
   nestedDirs: string[]
-  /** before 快照时的快照仓代数（写进账本，供撤销判定过期）。 */
+  /** before 快照时的快照仓代数（写进账本）。 */
   generation: string | null
 }
 

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import type { TurnFileChange } from '../types'
 import type { TurnChangesCardProps } from './turn-changes-card.types'
-import { ArrowUturnCcwLeft, ChevronDown, ChevronUp, FilePlus, Icon, useMountStyle } from 'dsh-tauri-ui/client'
+import { ChevronDown, ChevronUp, FilePlus, Icon, useMountStyle } from 'dsh-tauri-ui/client'
 import { useStore } from 'dsh-tauri/client'
 /**
  * turn-changes-card.tsx — 一轮结束时渲染的变更卡片（视觉对齐官方 deliverables 行）。
@@ -9,7 +9,7 @@ import { useStore } from 'dsh-tauri/client'
  * 职责拆分：槽位注册在 register/turn-tail.ts，数据在 store/ 与 service/，样式在 .cssr.ts，
  * 纯函数判定与格式化在 utils/format.ts，点击决策在 ./turn-changes-card.utils.ts。
  *
- * 交互边界（需求明确）：「撤销」、「再显示 N 个文件 / 收起文件」、点击文件打开、
+ * 交互边界（需求明确）：「再显示 N 个文件 / 收起文件」、点击文件打开、
  * 「审核」（新核心打开侧边栏文件树）是真功能；`📝 文件` 图标块是占位。
  * 两处按内核能力分流（判据与理由见 service/capabilities.ts）。
  */
@@ -17,7 +17,6 @@ import { useEffect, useState } from 'react'
 import { TURNREWIND_CARD_STYLE_ID, TURNREWIND_COUNTS_STYLE_ID, TURNREWIND_SIDEBAR_FILES_KIND, TURNREWIND_VISIBLE_FILE_ROWS } from '../constants'
 import { locale } from '../locales'
 import { expectTurn } from '../service/summary'
-import { undoTurn } from '../service/undo'
 import { store } from '../store'
 import { sessionStateOf } from '../store/modules/session.utils'
 import countsStyle from '../styles/counts.cssr'
@@ -48,7 +47,7 @@ export function TurnChangesCard(props: TurnChangesCardProps): ReactElement | nul
   if (card.kind === 'hidden')
     return null
 
-  const record = card.kind === 'ready' || card.kind === 'undone' ? card.record : null
+  const record = card.kind === 'ready' ? card.record : null
   const files = record?.files ?? []
   // 单文件：标题即文件名、不渲染清单。
   const single = record !== null && files.length === 1
@@ -56,8 +55,6 @@ export function TurnChangesCard(props: TurnChangesCardProps): ReactElement | nul
   const window = files.length > 1
     ? fileListWindow(files, expanded, TURNREWIND_VISIBLE_FILE_ROWS)
     : { visible: [], hiddenCount: 0 }
-  const undone = card.kind === 'undone'
-  const blocked = card.kind === 'failed' || card.kind === 'unavailable'
 
   const title = record !== null
     ? cardTitle(record, name => locale.text('editedOne', { name }), count => locale.text('editedMany', { count }))
@@ -72,15 +69,9 @@ export function TurnChangesCard(props: TurnChangesCardProps): ReactElement | nul
     return key !== null ? locale.text(key) : (reason ?? '')
   }
   const unavailableReason = card.kind === 'failed' || card.kind === 'unavailable' ? card.reason : null
-  // 「不在撤销范围内」的路径：宿主回传的条数有上限，因此只报数量，路径放在 title 里备查。
+  // 「未纳入快照范围」的路径：宿主回传的条数有上限，因此只报数量，路径放在 title 里备查。
   const skippedOversized = record?.skippedOversized ?? []
   const skippedNestedRepos = record?.skippedNestedRepos ?? []
-
-  const onUndo = (): void => {
-    if (blocked || state.undoing || turn === undefined)
-      return
-    void undoTurn({ sessionId, turn })
-  }
 
   const onOpenFile = fileOpenHandler({ openFile: props.openFile, sidebarPreview: capabilities?.sidebarPreview ?? false })
   const singlePath = single ? files[0]?.path : undefined
@@ -180,34 +171,17 @@ export function TurnChangesCard(props: TurnChangesCardProps): ReactElement | nul
             </span>
           </div>
           <span className="dshp-turnrewind__spacer" />
-          {/* 已撤销：只留「已撤销」徽标，撤销与「审核」都不再出现（没有可撤 / 可审的变更）。 */}
-          {undone
-            ? <span className="dshp-turnrewind__badge">{locale.text('undoneBadge')}</span>
-            : (
-                <>
-                  <button
-                    type="button"
-                    className="dshp-turnrewind__undo"
-                    disabled={blocked || state.undoing}
-                    onClick={onUndo}
-                    title={locale.text('undo')}
-                  >
-                    {state.undoing ? locale.text('undoing') : locale.text('undo')}
-                    <Icon as={ArrowUturnCcwLeft} size={14} />
-                  </button>
-                  {/* 能力缺席（旧核心）时 `onReview` 为 undefined，整个按钮不渲染。 */}
-                  {onReview !== undefined && (
-                    <button
-                      type="button"
-                      className="dshp-turnrewind__review"
-                      onClick={onReview}
-                      title={locale.text('review')}
-                    >
-                      {locale.text('review')}
-                    </button>
-                  )}
-                </>
-              )}
+          {/* 能力缺席（旧核心）时 `onReview` 为 undefined，整个按钮不渲染。 */}
+          {onReview !== undefined && (
+            <button
+              type="button"
+              className="dshp-turnrewind__review"
+              onClick={onReview}
+              title={locale.text('review')}
+            >
+              {locale.text('review')}
+            </button>
+          )}
         </div>
 
         {window.visible.length > 0 && (
@@ -224,7 +198,7 @@ export function TurnChangesCard(props: TurnChangesCardProps): ReactElement | nul
           </button>
         )}
 
-        {/* 「不在撤销范围内」的路径必须如实标注：静默漏掉会让用户以为撤销是完整的。 */}
+        {/* 「未纳入快照范围」的路径必须如实标注：静默漏掉会让用户以为快照是完整的。 */}
         {(skippedOversized.length > 0 || skippedNestedRepos.length > 0) && (
           <div className="dshp-turnrewind__notice dshp-turnrewind__notice--skip">
             {skippedOversized.length > 0 && (
@@ -236,22 +210,6 @@ export function TurnChangesCard(props: TurnChangesCardProps): ReactElement | nul
               <div data-skipped="nested" title={skippedNestedRepos.join('\n')}>
                 {locale.text('skippedNestedRepos', { count: skippedNestedRepos.length })}
               </div>
-            )}
-          </div>
-        )}
-
-        {state.undoError !== null && (
-          <div className="dshp-turnrewind__notice dshp-turnrewind__notice--error">
-            <div>{locale.text('undoFailed', { reason: explain(state.undoError) })}</div>
-            {state.undoConflicts.length > 0 && (
-              <>
-                <div>{locale.text('conflictTitle')}</div>
-                <ul className="dshp-turnrewind__conflict-list">
-                  {state.undoConflicts.map(conflict => (
-                    <li key={conflict.path} className="dshp-turnrewind__conflict-item" title={conflict.path}>{conflict.path}</li>
-                  ))}
-                </ul>
-              </>
             )}
           </div>
         )}

@@ -6,7 +6,7 @@
  * 两个宿主 ctx 时注册表各自独立、卸载互不影响。
  *
  * 处理器不再接收 apply 期依赖（`dshRouteDepsOf` 已删除）：宿主能力一律经 `service/`
- * 访问，所以这里 mock 处理器直接读取的服务模块（ledger / workspace / capture / undo）。
+ * 访问，所以这里 mock 处理器直接读取的服务模块（ledger / workspace / capture）。
  *
  * 走真实 node:http 服务（h3 的 toNodeHandler 依赖真实 req/res 流），并在测试内复刻
  * 宿主 webserver 的 exact 匹配契约；连接鉴权 / 回环 / 跨源边界由 dsh-tauri 的
@@ -47,9 +47,6 @@ vi.mock('../service/ledger', () => ({
     }),
   },
 }))
-vi.mock('../service/undo', () => ({
-  undo: { turn: async () => ({ ok: true, restored: [], removed: [], failed: [] }) },
-}))
 vi.mock('../service/workspace', () => ({
   workspace: {
     peek: () => true,
@@ -63,13 +60,11 @@ const routeKey = (kind: string, path: string): string => `${kind}\u0000${path}`
 
 const SUMMARY_PATH = `${P}/summary`
 const LIVE_PATH = `${P}/live`
-const UNDO_PATH = `${P}/turns/undo`
 
-/** 迁移后的路由表：3 条 (方法, 路径) 声明，逐条与迁移前的契约一一对应。 */
+/** 路由表：2 条 (方法, 路径) 声明。 */
 const EXPECTED_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['GET', SUMMARY_PATH],
   ['GET', LIVE_PATH],
-  ['POST', UNDO_PATH],
 ]
 
 const EXPECTED_PATHS: readonly string[] = [...new Set(EXPECTED_ROUTES.map(([, path]) => path))]
@@ -78,7 +73,6 @@ const EXPECTED_PATHS: readonly string[] = [...new Set(EXPECTED_ROUTES.map(([, pa
 const ALLOW_BY_PATH: Readonly<Record<string, string>> = {
   [SUMMARY_PATH]: 'GET, HEAD, OPTIONS',
   [LIVE_PATH]: 'GET, HEAD, OPTIONS',
-  [UNDO_PATH]: 'POST, OPTIONS',
 }
 
 /** 所有路径都未声明 PUT，用于统一验证 405 + allow。 */
@@ -138,15 +132,6 @@ async function listen(registered: Map<string, HostRoute>): Promise<string> {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 }
 
-/** 发一个 JSON 请求（body 为原始字符串，便于构造非法体）。 */
-function postJson(base: string, path: string, body: string): Promise<Response> {
-  return fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body,
-  })
-}
-
 /** `routes(ctx)` 注册全部路由并返回本次注册的卸载函数；处理器直接读服务模块，无 deps。 */
 function mount(harness: Harness): () => void {
   return routes(harness.ctx)
@@ -166,14 +151,14 @@ afterEach(async () => {
 })
 
 describe('turnrewind 路由声明', () => {
-  it('声明 3 条 exact 路由，卸载后清空注册', () => {
+  it('声明 2 条 exact 路由，卸载后清空注册', () => {
     const harness = createHarness()
     const dispose = mount(harness)
 
     expect([...harness.registered.keys()].sort())
       .toEqual(EXPECTED_PATHS.map(path => routeKey('exact', path)).sort())
-    expect(EXPECTED_ROUTES).toHaveLength(3)
-    expect(harness.registered.size).toBe(3)
+    expect(EXPECTED_ROUTES).toHaveLength(2)
+    expect(harness.registered.size).toBe(2)
 
     dispose()
     expect(harness.registered.size).toBe(0)
@@ -202,14 +187,14 @@ describe('turnrewind 路由声明', () => {
     expect(summary.status).toBe(204)
     expect(summary.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
 
-    const undo = await fetch(`${base}${UNDO_PATH}`, { method: 'OPTIONS' })
-    expect(undo.status).toBe(204)
-    expect(undo.headers.get('allow')).toBe('POST, OPTIONS')
+    const live = await fetch(`${base}${LIVE_PATH}`, { method: 'OPTIONS' })
+    expect(live.status).toBe(204)
+    expect(live.headers.get('allow')).toBe('GET, HEAD, OPTIONS')
 
     dispose()
   })
 
-  it('缺 sessionId 的读路由与缺 body 的写路由返回 400（在任何落盘之前）', async () => {
+  it('缺 sessionId 的读路由返回 400（在任何落盘之前）', async () => {
     const harness = createHarness()
     const dispose = mount(harness)
     const base = await listen(harness.registered)
@@ -221,10 +206,6 @@ describe('turnrewind 路由声明', () => {
     const live = await fetch(`${base}${LIVE_PATH}`)
     expect(live.status).toBe(400)
     expect(await live.json()).toEqual({ error: '缺少 sessionId' })
-
-    const undo = await postJson(base, UNDO_PATH, '{}')
-    expect(undo.status).toBe(400)
-    expect(await undo.json()).toEqual({ error: '缺少 sessionId' })
 
     dispose()
   })
@@ -268,7 +249,7 @@ describe('turnrewind 路由声明', () => {
     // 卸载其中一次不影响另一次。
     disposeFirst()
     expect(first.registered.size).toBe(0)
-    expect(second.registered.size).toBe(3)
+    expect(second.registered.size).toBe(2)
     expect(await (await fetch(`${secondBase}${LIVE_PATH}?sessionId=abcd`)).json()).toMatchObject({ turn: 22 })
 
     disposeSecond()
