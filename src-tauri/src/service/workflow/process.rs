@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn harness_cmdline_matches_macos_app_data_path_with_spaces() {
-        let bin = "/Users/simon/Library/Application Support/io.github.hairyf.deepseek-harness-desktop/dependencies/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js";
+        let bin = "/Users/simon/Library/Application Support/dsh-tauri/dependencies/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js";
         let cmdline = format!("/opt/homebrew/bin/node {bin} --profile web --port 3084");
         assert!(is_harness_command_line(&cmdline, bin));
     }

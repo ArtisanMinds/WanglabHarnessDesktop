@@ -42,7 +42,7 @@ const READY_TIMEOUT_MS = 120_000
 /** 桌面端已装配的 dsh 入口（无 PATH 上的 dsh 时的兜底）。 */
 const ASSEMBLED_DSH = join(
   process.env.APPDATA ?? '',
-  'io.github.hairyf.deepseek-harness-desktop',
+  'dsh-tauri',
   'dependencies',
   'dsh',
   'node_modules',

@@ -60,6 +60,15 @@ pub const DSH_HOME_DIR_NAME: &str = ".dsh";
 /// 同时运行时互不干扰，也不会互相污染对方的会话数据。
 pub const DSH_HOME_DEV_DIR_NAME: &str = ".dsh.dev";
 
+/// 应用标识符：`app_data_dir()` / `app_local_data_dir()` 的目录名，必须与
+/// `tauri.conf.json` 的 `identifier` 逐字一致（日志目录同样由它派生）。
+pub const APP_IDENTIFIER: &str = "dsh-tauri";
+
+/// 历史应用标识符（`io.github.hairyf.deepseek-harness-desktop`）：标识符缩短为
+/// `dsh-tauri` 后旧用户的 app-data 目录名，仅用于迁移来源识别（见
+/// `service::migrate::migrate_app_data_dir`）。
+pub const LEGACY_APP_IDENTIFIER: &str = "io.github.hairyf.deepseek-harness-desktop";
+
 /// 开发构建在 AppData 下使用的独立子目录。Node、Harness、pnpm、Git 等可执行
 /// 核心不应与 release 共用，否则开发版更新/切换核心会替换正在运行的生产文件。
 pub const APP_DATA_DEV_DIR_NAME: &str = "dev";
