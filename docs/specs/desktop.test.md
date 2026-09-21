@@ -124,7 +124,7 @@ E2E **必须**使用 `data-testid` 定位，严禁依赖 CSS 类名、DOM 层级
 | dsh 数据目录 `~/.dsh.dev` | `get_dsh_data_path` 读 `USERPROFILE`/`HOME`（`src-tauri/src/config/runtime.rs:455`、`:457`） |
 | 应用数据目录（Store / 日志 / 依赖） | `app_data_dir()` = `dirs::data_dir()/<identifier>`；Windows 上由 home 派生 `<home>\AppData\Roaming` |
 
-实测确认：home 重定向后 Store 落在 `$E2E_HOME/home/AppData/Roaming/io.github.hairyf.deepseek-harness-desktop/`，用户真实的 `.store.dev.dat` / `.store.dat` / `~/.dsh.dev` 时间戳均不变。
+实测确认：home 重定向后 Store 落在 `$E2E_HOME/home/AppData/Roaming/dsh-tauri/`，用户真实的 `.store.dev.dat` / `.store.dat` / `~/.dsh.dev` 时间戳均不变。
 
 **启动前提**：`<home>/AppData/Local` 与 `<home>/AppData/Roaming` 必须**预先存在**。`tauri-plugin-http` 的 setup 调用 `app_cache_dir()`，解析不到即 `UnknownPath`，应用于 `lib.rs` 的 `expect` 处 panic（exit 101）。缺这两个目录时表现为「应用启动即崩溃」，容易被误判为二进制损坏。
 

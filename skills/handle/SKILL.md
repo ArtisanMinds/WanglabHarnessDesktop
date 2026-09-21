@@ -10,6 +10,6 @@ metadata:
 
 可能相关的上下文：
 
-- Window：%APPDATA%\io.github.hairyf.deepseek-harness-desktop\dependencies
-- macOS：~/Library/Application Support/io.github.hairyf.deepseek-harness-desktop/dependencies
-- Linux：~/.config/io.github.hairyf.deepseek-harness-desktop/dependencies
+- Window：%APPDATA%\dsh-tauri\dependencies
+- macOS：~/Library/Application Support/dsh-tauri/dependencies
+- Linux：~/.local/share/dsh-tauri/dependencies

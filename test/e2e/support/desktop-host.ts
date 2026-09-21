@@ -276,7 +276,7 @@ export function isPortBusy(port: number): Promise<boolean> {
 /** 应用真实 app-data 目录（`SHGetKnownFolderPath` 解析，环境变量改不动它）。 */
 function getAppDataDir(): string {
   const roaming = process.env.APPDATA ?? join(process.env.USERPROFILE ?? '', 'AppData', 'Roaming')
-  return join(roaming, 'io.github.hairyf.deepseek-harness-desktop')
+  return join(roaming, 'dsh-tauri')
 }
 
 /** 执行 PowerShell 命令的轻量辅助封装。 */
