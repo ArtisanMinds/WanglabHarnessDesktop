@@ -279,6 +279,107 @@ export function assertMountRegistered(profileDir: string, packages: readonly str
 }
 
 /* ==========================================
+ * 核心产物补丁与夹具 (Core patches & fixtures)
+ * ========================================== */
+
+/** 核心安装目录下的 renderer 客户端产物（`dsh-client-ui-renderer/client` → `lib/client.js`）。 */
+const RENDERER_CLIENT_REL = join('@deepseek-ai', 'dsh-client-ui-renderer', 'lib', 'client.js')
+
+/** renderer 产物末尾的导出锚点；前导缩进由上游打包器决定，必须按实际行读取。 */
+const RENDERER_EXPORT_ANCHOR = 'return module.exports;'
+
+/** 技能夹具目录名（kebab-case，符合插件的 `SKILL_NAME_RE`）。 */
+const FIXTURE_SKILL_NAME = 'e2e-fixture-skill'
+
+/**
+ * 给核心的 renderer 产物补上 `SlotOutlet` 导出（幂等，与
+ * `src-tauri/src/service/patch/renderer.rs` 同源同语义）。
+ *
+ * 官方 `@deepseek-ai/dsh-client-ui-renderer` 只导出 `{apply, inject}`：`SlotOutlet`
+ * 实现完整却未公开，桌面壳在启动前就地把活动核心补上这一行（`renderer.rs` 的
+ * `apply_at` 明写「E2E 编排复用，无需运行中的桌面端」）。插件车道跑的是裸
+ * `dsh web`，没有桌面壳，所以编排必须自己施加同一补丁——CI 的隔离核心是一次干净
+ * npm 安装，漏了补丁就会让 `dsh-tauri-ui` 按设计降级：只打一条 console.warn
+ * `<SlotOutlet> unavailable (renderer patch missing)`（**不是 error**，所以诊断里的
+ * appErrors 为空），随后所有 `dsh-tauri-*` 的座位注入静默 no-op，症状只剩
+ * `.dshp-settings-trigger` / `[data-dsh-tauri-pet-icon]` 就绪锚点超时。
+ *
+ * Windows 本地曾因此「假绿」：那里解析到的是桌面端已就地打过补丁的共享装配核心。
+ */
+function patchRendererSlotOutlet(dshBin: string): void {
+  const coreDir = dirname(dirname(dshBin))
+  const target = locateRendererClient(coreDir)
+
+  if (target === undefined) {
+    log(`⚠️ 未找到 renderer 客户端产物，跳过 SlotOutlet 补丁（core: ${coreDir}）`)
+    return
+  }
+
+  const source = readFileSync(target, 'utf8')
+  if (source.includes('exports.SlotOutlet'))
+    return
+
+  const anchor = source.indexOf(RENDERER_EXPORT_ANCHOR)
+  const lineStart = anchor < 0 ? -1 : source.lastIndexOf('\n', anchor) + 1
+  const indent = lineStart < 0 ? '' : source.slice(lineStart, anchor)
+
+  if (lineStart < 0 || !/^[\t ]*$/.test(indent)) {
+    log(`⚠️ renderer 产物缺少可用的导出锚点 "${RENDERER_EXPORT_ANCHOR}"，跳过 SlotOutlet 补丁：${target}`)
+    return
+  }
+
+  writeFileSync(
+    target,
+    `${source.slice(0, lineStart)}${indent}exports.SlotOutlet = SlotOutlet;\n${source.slice(lineStart)}`,
+  )
+  log(`🔧 已给核心 renderer 补上 SlotOutlet 导出：${target}`)
+}
+
+/** renderer 客户端产物定位：核心自带嵌套依赖 → 安装根提升产物 → Node 子路径解析。 */
+function locateRendererClient(coreDir: string): string | undefined {
+  const candidates = [
+    join(coreDir, 'node_modules', RENDERER_CLIENT_REL),
+    join(dirname(dirname(coreDir)), RENDERER_CLIENT_REL),
+  ]
+
+  const direct = candidates.find(candidate => existsSync(candidate))
+  if (direct !== undefined)
+    return direct
+
+  try {
+    return createRequire(join(coreDir, 'package.json')).resolve('@deepseek-ai/dsh-client-ui-renderer/client')
+  }
+  catch {
+    return undefined
+  }
+}
+
+/**
+ * 往 scratch `DSH_HOME` 写入一个确定性技能夹具。
+ *
+ * 核心的用户技能根是 `<DSH_HOME>/skills`（`dsh-skill-filesystem` 的 `user-dsh` 根），
+ * 也正是 `dsh-tauri-panel-extension` 自己保存技能的位置。不写它就等于把「技能目录非空」
+ * 外包给运行机的个人技能：开发机 `~/.agents/skills` 有上百个技能，干净 runner 一个都
+ * 没有，`/skills` 清单前置在 CI 上必然空。
+ */
+function seedSkillFixture(home: string): void {
+  const dir = join(home, 'skills', FIXTURE_SKILL_NAME)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'SKILL.md'), [
+    '---',
+    `name: ${FIXTURE_SKILL_NAME}`,
+    `description: ${JSON.stringify('dsh E2E 编排写入的确定性技能夹具，用于技能清单与详情前置。')}`,
+    '---',
+    '',
+    `# ${FIXTURE_SKILL_NAME}`,
+    '',
+    '本文件由 `test/e2e/support/dsh.ts` 的 scratch profile 夹具写入：',
+    '让插件车道的 `/skills` 与 `/skill?name=` 在任意运行机上都有确定的对象。',
+    '',
+  ].join('\n'))
+}
+
+/* ==========================================
  * 进程与 CLI 交互
  * ========================================== */
 
@@ -426,6 +527,7 @@ export async function scaffoldDshProfile(options: StartDshHostOptions): Promise<
 
   try {
     writeProfile(profileDir, bundles)
+    seedSkillFixture(home)
 
     if ((process.env.DSH_E2E_MOUNT ?? 'link') === 'cli') {
       await mountViaCli(profileDir, home, packages)
@@ -453,10 +555,13 @@ export async function scaffoldDshProfile(options: StartDshHostOptions): Promise<
  */
 export async function startDshHost(options: StartDshHostOptions): Promise<DshHost> {
   const { keepHome = false } = options
+
+  const [dshBin] = resolveDshCommand()
+  patchRendererSlotOutlet(dshBin)
+
   const { home, profileDir, packages } = await scaffoldDshProfile(options)
   const logPath = join(home, 'dsh-web.log')
 
-  const [dshBin] = resolveDshCommand()
   const args = [dshBin, 'web', '--host', '127.0.0.1', '--port', '0', '--no-open']
 
   const profile = basename(home)

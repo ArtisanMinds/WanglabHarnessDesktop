@@ -13,6 +13,17 @@ export const EMBEDDED_DOCUMENT_PATH = '/dsh-e2e-embed.html'
 export const APP_FRAME_VIEWPORT = { width: 1400, height: 900 } as const
 
 /**
+ * 钉死的浏览器语言（产品的主语言）。
+ *
+ * dsh 客户端的初始语言来自 `navigator.languages` → `navigator.language`
+ * （`dsh-client-locale` 的 `detectBrowserLocale`，都匹配不到才回落 `en`）。Playwright
+ * 不指定 `locale` 时把语境交给宿主机，于是本车道大量以中文文案为锚（`宠物` / `模型` /
+ * 页脚操作区文案…）的断言会变成「在中文开发机上恰好绿、在干净 runner 上找不到中文分区」。
+ * 这里显式钉死，让断言只取决于产品，而不取决于运行机的系统语言。
+ */
+export const APP_LOCALE = 'zh-CN'
+
+/**
  * 「没有 Tauri 宿主」这一环境事实导致的预期噪声。
  * Precise-match list to suppress false negatives.
  */
@@ -101,7 +112,7 @@ export function launchDshBrowser(): Promise<Browser> {
 }
 
 export function newDshContext(browser: Browser): Promise<BrowserContext> {
-  return browser.newContext({ viewport: APP_FRAME_VIEWPORT })
+  return browser.newContext({ viewport: APP_FRAME_VIEWPORT, locale: APP_LOCALE })
 }
 
 export async function addSessionCookie(context: BrowserContext): Promise<void> {
