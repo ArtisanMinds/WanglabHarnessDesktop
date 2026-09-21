@@ -4,8 +4,8 @@
  *
  * 为什么这一段的运行归属是 `desktop` 车道而不是 `plugin` 车道（子设计 §2 决策 1）：
  * 四条断言的对象都是 **Tauri 原生产物**——独立 OS 窗口句柄集合（`main` / `pet`）、
- * 窗口创建与销毁、窗口尺寸夹紧。这些在纯浏览器里不可能观测，而 `plugin` 车道的 CI
- * 作业跑在 ubuntu-latest、没有 Tauri；把用例留在插件文件里就等于「写了却永不执行」。
+ * 窗口创建与销毁、尺寸边界的命令级拒绝。这些在纯浏览器里不可能观测，而 `plugin`
+ * 车道的 CI 作业跑在 ubuntu-latest、没有 Tauri；把用例留在插件文件里就等于「写了却永不执行」。
  *
  * 前置：Windows + `pnpm build:debug`。运行：
  * `pnpm test:e2e:desktop -- --run test/e2e/desktop/02-pet-window.e2e.ts`
@@ -64,13 +64,13 @@ function elementAriaPressed(selector: string): string | null {
 }
 
 /** 壳层内调用 Tauri 命令（帧内 invoke 会被 driver 的 execute 拦截器拒绝）。 */
-function shellInvoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
+function shellInvoke(cmd: string, args?: unknown): Promise<unknown> {
   const internals = (window as unknown as {
     __TAURI_INTERNALS__: { invoke: (name: string, payload?: Record<string, unknown>) => Promise<unknown> }
   }).__TAURI_INTERNALS__
   if (internals === undefined)
     throw new Error('壳层缺少 __TAURI_INTERNALS__：当前上下文不是 Tauri WebView')
-  return internals.invoke(cmd, args)
+  return internals.invoke(cmd, args as Record<string, unknown> | undefined)
 }
 
 describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () => {
@@ -121,6 +121,46 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
     )
   }
 
+  /**
+   * 越界提交必须由命令层拒绝（`src-tauri/src/bridge/pet.rs:217-222` 返回
+   * `PET_SIZE_OUT_OF_RANGE: pet size percent must be within 50..=200`，**不夹紧**）。
+   *
+   * 断言形态与普通失败调用一致，但先把传输层重试降到 0：内嵌 driver 把脚本错误回成
+   * `500 javascript error`（`src-tauri/vendor/tauri-plugin-wdio-webdriver/src/server/response.rs:93-105`），
+   * 而 `webdriver@9.31.9` 把 500 列进 `RETRYABLE_STATUS_CODES`，`_request` 会按
+   * `min(10s, 250ms * 2^n)` 退避重试 10 次——单次拒绝就要 ~46s（实测 14:00:04.2 → 14:00:50.2），
+   * 4 个越界值必然撞上 180s 用例超时；页面内 `try/catch` 拦不住它（实测同样 500，
+   * 因为 invoke 的失败由 driver 在响应层判定，不在页面 promise 链上）。
+   * `connectionRetryCount` 是 WDIO 公开会话选项（`webdriver` 默认 3，服务侧写 10），
+   * 只在这一次拒绝期间置 0、`finally` 立即还原：其余用例的重试韧性不受影响。
+   */
+  async function expectSizeRejected(outOfRange: number): Promise<void> {
+    const browser = app!.browser
+    const retryCount = browser.options.connectionRetryCount
+    browser.options.connectionRetryCount = 0
+    try {
+      await expect(
+        browser.execute(shellInvoke, 'set_pet_size', { size: outOfRange }),
+      ).rejects.toThrow(/PET_SIZE_OUT_OF_RANGE/)
+    }
+    finally {
+      browser.options.connectionRetryCount = retryCount
+    }
+  }
+
+  /** 帧内读入口两态（`aria-pressed` 由 `syncIconState` 按 store 写入）。 */
+  async function iconAriaPressed(): Promise<string | null> {
+    const browser = app!.browser
+    const iframe = await browser.$(SHELL_IFRAME)
+    await browser.switchFrame(iframe)
+    try {
+      return await browser.execute(elementAriaPressed, PET_ICON)
+    }
+    finally {
+      await browser.switchFrame(null)
+    }
+  }
+
   /** 帧内点击侧栏桌宠入口（用户路径），返回点击前的 `aria-pressed`。 */
   async function clickSidebarIcon(): Promise<string | null> {
     const browser = app!.browser
@@ -141,19 +181,37 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
     }
   }
 
+  /**
+   * 点一次侧栏入口，并把「点击前两态」与「窗口句柄集合」一起对上。
+   *
+   * `expectBefore` 是必需的前置：入口两态只来自客户端 store，而 store 没有任何带外订阅
+   * ——`pet://status` 由 Rust 只 `emit_to(PET_WINDOW_LABEL)`（`src-tauri/src/bridge/pet.rs`），
+   * iframe 侧既不监听它、`loadPetStatus()` 也只在注册时拉一次（`sidebar-icon.ts:71-73`）。
+   * 于是壳层/其他窗口写 `set_pet_enabled` 之后入口会停在旧值，此时一次点击算出的目标是
+   * `enabled:!旧值`，可能只是一次幂等写（**用户点了没反应**）。这条断言把该前提显式化：
+   * 前置不一致就直接指出「入口 store 与后端失同步」，而不是伪装成窗口 bug。
+   */
+  async function clickIconToggling(expectBefore: string, expected: string[], message: string): Promise<void> {
+    expect(
+      await clickSidebarIcon(),
+      `点击前入口 aria-pressed 必须为 ${expectBefore}（不一致即入口 store 与后端失同步）`,
+    ).toBe(expectBefore)
+    await waitHandles(expected, message)
+  }
+
   it('TC-PET-L3-02-001 启用后出现独立的桌宠窗口', async () => {
-    const browser = app!.browser
     await waitHandles([MAIN_WEBVIEW], '复位后窗口句柄必须恰为主窗口')
 
-    expect(await clickSidebarIcon(), '点击前入口必须处于关闭态').toBe('false')
-    await waitHandles([MAIN_WEBVIEW, PET_WEBVIEW], '点击侧栏入口后必须出现独立的 pet 窗口句柄')
+    await clickIconToggling('false', [MAIN_WEBVIEW, PET_WEBVIEW], '点击侧栏入口后必须出现独立的 pet 窗口句柄')
 
     const state = await status()
     expect(state.enabled, '创建窗口后状态必须为 enabled:true').toBe(true)
     expect(state.visible, 'enabled 为真时 visible 必须同为真').toBe(true)
 
-    await setEnabled(false)
-    await waitHandles([MAIN_WEBVIEW], '关闭后窗口句柄必须回到只有 main')
+    // 清理必须走点击这条同源路径：壳层带外改写会把入口 store 留在 true，下一条点击驱动的
+    // 用例（003）首次点击就成了幂等写、窗口不会出现——上一轮 003 失败的实测原因。
+    await clickIconToggling('true', [MAIN_WEBVIEW], '再次点击入口后 pet 窗口必须销毁')
+    expect((await status()).enabled, '关闭后状态必须回到 enabled:false').toBe(false)
   })
 
   it('TC-PET-L3-02-002 [反向] 未启用桌宠时不存在桌宠窗口', async () => {
@@ -167,18 +225,14 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
   })
 
   it('TC-PET-L3-02-003 侧栏入口按钮切换后窗口随之创建与销毁', async () => {
-    const browser = app!.browser
     await setEnabled(false)
     await waitHandles([MAIN_WEBVIEW], '复位后窗口句柄必须恰为主窗口')
+    expect(await iconAriaPressed(), '复位后入口两态必须停在关闭态').toBe('false')
 
-    await clickSidebarIcon()
-
-    await waitHandles([MAIN_WEBVIEW, PET_WEBVIEW], '首次点击后必须出现 pet 窗口')
+    await clickIconToggling('false', [MAIN_WEBVIEW, PET_WEBVIEW], '首次点击后必须出现 pet 窗口')
     expect((await status()).enabled, '首次点击后状态必须为 enabled:true').toBe(true)
 
-    await clickSidebarIcon()
-
-    await waitHandles([MAIN_WEBVIEW], '二次点击后 pet 窗口必须销毁')
+    await clickIconToggling('true', [MAIN_WEBVIEW], '二次点击后 pet 窗口必须销毁')
     expect((await status()).enabled, '二次点击后状态必须回到 enabled:false').toBe(false)
   })
 
@@ -192,10 +246,7 @@ describe.skipIf(process.platform !== 'win32')('桌面端桌宠独立窗口', () 
 
     const settled = (await status()).pet_size
     for (const outOfRange of [0, PET_SIZE_MIN - 1, PET_SIZE_MAX + 1, 999]) {
-      await expect(
-        app!.browser.execute(shellInvoke, 'set_pet_size', { size: outOfRange }),
-        `越界提交 ${outOfRange} 必须被拒绝（PET_SIZE_OUT_OF_RANGE），不得静默改写`,
-      ).rejects.toThrow(/PET_SIZE_OUT_OF_RANGE/)
+      await expectSizeRejected(outOfRange)
       expect(
         (await status()).pet_size,
         `越界提交 ${outOfRange} 不得改动已落盘的尺寸`,
