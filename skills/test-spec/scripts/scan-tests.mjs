@@ -164,7 +164,7 @@ const RULES = [
     id: 'e2e-text-selector', severity: 'major', e2eOnly: true,
     test: (line) => /(getByText|getByRole\s*\([^)]*name\s*:|locator\s*\(\s*['"`]text=|\$\$?\(\s*['"`][^.'"`[\s])/.test(line),
     message: 'E2E 用文本/层级定位，文案一变就红',
-    hint: '改用 data-testid；内嵌上游页面可用稳定结构锚点并在用例文档登记缺口',
+    hint: '改用 data-testid；内嵌上游页面可用稳定结构锚点，并在协议文档登记为已知例外',
   },
   {
     id: 'e2e-no-testid', severity: 'major', e2eOnly: true, fileLevel: true,

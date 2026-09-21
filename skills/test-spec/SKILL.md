@@ -1,6 +1,6 @@
 ---
 name: test-spec
-description: 评审测试代码质量并输出可执行的修改清单——断言是否验到真实契约、用例是否真的会运行、异步与 mock/snapshot 卫生、隔离与确定性、边界与错误路径覆盖，以及本仓 E2E 规范（data-testid、TC 编号、文档↔it 1:1、环境隔离）。当用户提出「测试评审 / 测试代码评审 / 检查测试 / 测试质量 / 测试是否可靠 / 评审这个 PR 的测试 / 补充用例 / AI 写的测试能信吗」，或需要为新增、修复、AI 生成的测试把关时使用。Review Vitest test code (unit + E2E) for assertion quality, over-mocking, flakiness, isolation, and coverage gaps.
+description: 评审测试代码质量并输出可执行的修改清单——断言是否验到真实契约、用例是否真的会运行、异步与 mock/snapshot 卫生、隔离与确定性、边界与错误路径覆盖，以及本仓 E2E 规范（data-testid、分层归属、环境隔离）。当用户提出「测试评审 / 测试代码评审 / 检查测试 / 测试质量 / 测试是否可靠 / 评审这个 PR 的测试 / 补充用例 / AI 写的测试能信吗」，或需要为新增、修复、AI 生成的测试把关时使用。Review Vitest test code (unit + E2E) for assertion quality, over-mocking, flakiness, isolation, and coverage gaps.
 metadata:
   author: Hairyf
   version: "2026.05.20"
@@ -14,7 +14,7 @@ metadata:
 
 用：评审新增或修改的测试、评审 AI 生成的测试、判断一个 PR 的测试是否够格、修复 flaky、查「测试全绿但线上还是坏」的覆盖缺口。
 
-不用：只是让你**写**新测试（写测试时按 `docs/testing/README.md` 与 `docs/specs/*.test.md` 的推进流程走，本 skill 的清单可作为自检）；也不要用它评审被测源业务代码本身。
+不用：只是让你**写**新测试（写测试时按 `docs/specs/plugin.test.md` / `docs/specs/desktop.test.md` 的规范走，本 skill 的清单可作为自检）；也不要用它评审被测源业务代码本身。
 
 ## 铁律
 
@@ -35,7 +35,7 @@ metadata:
 - 读**被测源码**的完整签名与分支，而不是测试文件里对它的描述。
 - 读**同目录已有的兄弟测试**，确认命名、断言、夹具风格（本仓风格见 [references/repo-conventions.md](references/repo-conventions.md)）。
 - 读 `vitest*.config.ts`：有没有 `globals: true`、`restoreMocks`、`environment`、project 的 `include`。
-- 涉及 E2E 时读 `docs/specs/desktop.test.md` / `docs/specs/plugin.test.md` 与对应 `docs/testing/**` 用例文档。
+- 涉及 E2E 时读 `docs/specs/desktop.test.md` / `docs/specs/plugin.test.md`（唯一权威：分层与归属、运行命令、选择器口径、隔离红线、已知坑）。
 
 ### Step 2 机械扫描
 ```bash
@@ -93,7 +93,7 @@ node skills/test.spec/scripts/scan-tests.mjs <path...> --min=info  # 连命名�
 
 - 报告正文（模板见 references）。
 - 用户要求时：修改后的测试文件 + 复跑命令与实际结果。
-- 涉及行为改动的测试，提醒同步 `docs/testing/**` 用例文档（一条文档条目 ↔ 一个 `it()`）并登记 `docs/testing/progressive.md` §4 台账、`docs/testing/history.md` 变更历史。
+- 涉及行为改动的测试，提醒同步测试代码本身：本仓已废弃用例文档体系，测试不由「文档条目 ↔ `it()`」驱动，`it()` 标题即契约描述（`docs/specs/plugin.test.md` §10），无需登记任何台账。
 
 ## 参考文件
 

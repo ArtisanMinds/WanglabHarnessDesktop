@@ -58,12 +58,12 @@
   ②单文件过滤必须用**位置参数**：`vitest run --project unit format.test.ts`（实测 1 file / 18 tests）。`docs/` 里的 `vitest --project unit -- <file>` 写法带 `--`、**不过滤**，实测会跑完整个 project。
 - 实测基线：`vitest run --project unit` → 99 files / 884 tests passed，132.66s。
 
-## 用例编号
+## 用例标题与分层归属
 
-- 格式 `TC-<域>-L<层>-<文件序号>-<用例序号>`。桌面端 `TC-DSK-L3-01-001`；插件端前缀是插件短名，如 `TC-HOST-L2-01-001`、`TC-REW-L2-09-001`。
-- 文件序号取 `docs/testing/<层>/<序号>-*.md`；用例序号在**文件内从 `001` 起、不跨文件连续**。
-- 代码里几乎不带 id：仅 `test/e2e/desktop/boot.e2e.ts` 把 id 放进 `it()` 标题，`01-dsh-host-and-core-contract.e2e.ts` 在文件头注释里引用。其余 id 只活在用例文档的 `[Case ID]` 字段与 `[自动化] 是（文件:行）` 指针里。
-- 文档标题与 `it()` 标题**逐字一致**（1:1）；`[反向]` 用例在文档里也带该前缀。
+- 本仓**已废弃 `TC-*` 编号与用例文档**（`docs/testing/**` 已删除，见 `docs/specs/plugin.test.md` §10）：`it()` 标题即契约描述，没有文档编号可对应，也不存在「一条文档条目 ↔ 一个 `it()`」。
+- 标题必须写清「验证什么对象、在什么条件下、期望什么可观察结果」；本仓 E2E 标题用中文「验证…」句式。
+- 分层归属：断言 dsh iframe 内部 DOM → `plugin` project（L2 HTTP + C 浏览器层）；断言 Tauri 原生产物（独立 OS 窗口句柄、窗口几何、IPC 往返）→ `desktop` project；纯函数 → `unit`。判据见 `docs/specs/desktop.test.md` §1。
+- 历史遗留的 `TC-*` 前缀允许留在既有标题里，但不得新增，也不得当成编号约束使用。
 
 ## 已知技术债（评审时不要当成本 PR 的新问题，也别说"仓库里没这种问题"）
 

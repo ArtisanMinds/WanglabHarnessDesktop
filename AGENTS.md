@@ -11,11 +11,10 @@
 
 ## 测试（修复 / 新功能必须同步）
 
-- **唯一入口**：`docs/testing/README.md`。修 bug、加功能、改行为之前先读它，按其中「分层模型 / 目录与归属 / 用例文档目录」定位或新增对应用例与测试代码。
-- **桌面端**：用例文档 `docs/testing/desktop/`（总览 + 用例）；代码 `test/e2e/desktop/*.e2e.ts`（`desktop` project，真实 Tauri 窗口）。
-- **内置插件**：用例文档 `docs/testing/plugins/`；代码 `test/e2e/plugins/*.e2e.ts`（`plugin` project）与 `packages/*/src/**/*.test.ts`（`unit` project）。
-- **同步义务**：行为改动必须同时更新用例文档与测试代码（一条文档条目 ↔ 一个 `it()`）；进度登记到 `docs/testing/progressive.md` §4 台账，变更历史记入 `docs/testing/history.md`。
-- **规范**：`docs/specs/desktop.test.md`（桌面端 E2E）、`docs/specs/plugin.test.md`（插件 E2E）。
+- **唯一规范**：插件侧 `docs/specs/plugin.test.md`，桌面端 `docs/specs/desktop.test.md`。修 bug、加功能、改行为之前先读对应的那份，按其中「分层与归属 / 目录 / 运行命令 / 隔离红线」定位或新增测试。
+- **桌面端**：`test/e2e/desktop/*.e2e.ts`（`desktop` project，真实 Tauri 窗口）。准入原则见 `docs/specs/desktop.test.md` §1——只有断言对象是 Tauri 原生产物（独立 OS 窗口句柄、窗口几何、Tauri IPC 往返）才允许 L3，业务面板/侧栏/对话框一律走 C 浏览器层。
+- **内置插件**：`test/e2e/plugins/*.e2e.ts`（`plugin` project：真实 `dsh web` 进程 + 真实 Chromium）与 `packages/*/src/**/*.test.ts`（`unit` project）。
+- **同步义务**：行为改动必须同步更新测试代码；不再维护用例文档——测试不由「文档条目 ↔ `it()`」驱动，`it()` 标题即契约描述（`docs/specs/plugin.test.md` §10）。
 
 ## 最高优先级
 
