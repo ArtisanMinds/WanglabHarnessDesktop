@@ -180,6 +180,7 @@
 | G9 | 缺口 | 会话类用例（`04`/`05`/`06`/`07`/`08`/`09` 的面板与图标段）需要**真实会话**，scratch 宿主当前无造会话手段 | 这些浏览器用例保持「待补」并逐条登记在各文件 §6；是本套文档最大的功能盲区，详见 G11 |
 | G10 | 事实 | 路由层的跨源 403（`routes/index.ts:287`，`cross-origin-request`）在真实宿主里被上游 Host/Origin 围栏遮蔽，L2 不可达 | 该类断言只能落在 L1（`packages/dsh-tauri/src/host/routes/index.test.ts:240`）；L2 按可观察事实断言 `forbidden` |
 | G11 | 缺口（本轮实测） | `globalSetup` 只拉起一个 scratch `dsh web`，**不播种会话**，也没有造会话的 helper；而 dsh 的会话/工作区创建走壳层桥与 Typert 通道，`/api/**` 下没有任何可用的「创建会话」路由（本轮探测 15 个候选路径全 404） | 依赖会话的浏览器用例（`04`/`05`/`07`/`08` 的面板段、`09` 的卡片段、`06` 的续跑正向段）**无法真跑**。按子设计 §6「不写假绿用例」的要求，这些条目保持**待补**并逐条登记；补齐方向是在 `dsh-host.ts` 上加「经 Typert/桥接口建一条 scratch 会话」的 helper（属 `test/e2e/support/**`，超出本批写入范围的排他边界，需后续批次处理） |
+| G12 | 事实 | 内置插件安装参数的构造在 Rust 侧（`service::plugin::install::spec`：按活动核心版本决定是否给含空格的 `link:` spec 预加引号，issue #647） | 该路径不经插件 JS 面，L2/L3 不可达；由 Rust 单测覆盖——`spec::tests`（`shell_join_gate_boundary_versions`、`spec_argument_*`）与 `workflow::win_spawn::tests::spaced_argument_round_trips_to_child_argv`（含空格 spec 原样抵达 node argv） |
 
 ---
 

@@ -14,7 +14,7 @@ export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | 
   const state = useWorktreeSession(sessionId)
   const [logOpen, setLogOpen] = useState(false)
 
-  if (state.phase === 'idle' || state.mode === 'local')
+  if (state.phase === 'idle' || (state.mode === 'local' && state.phase !== 'error'))
     return null
 
   const creating = state.phase === 'creating'
@@ -55,6 +55,11 @@ export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | 
                 {locale.text('surfaceAbandon')}
               </button>
             </>
+          )}
+          {failed && !bound && (
+            <button type="button" className="dshp-worktree__action" onClick={() => store.worktree.patch(sessionId, { phase: 'idle', error: '' })}>
+              {locale.text('surfaceDismiss')}
+            </button>
           )}
         </div>
         <Logs log={state.log} open={logOpen} />

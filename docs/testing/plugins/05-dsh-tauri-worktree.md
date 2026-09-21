@@ -1,7 +1,7 @@
 # dsh-tauri-worktree：工作树路由、面板与模式选择
 
 > 层级：L2 插件宿主 E2E → L3 桌面端宿主 E2E
-> 自动化：`test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts`（7 条 L2 已落地并全绿）；客户端与 L3 见各用例标注
+> 自动化：L1 `packages/dsh-tauri-worktree/src/**/*.test.ts`（`unit` project，已接线）；L2 `test/e2e/plugins/05-dsh-tauri-worktree.e2e.ts`（7 条已落地并全绿）；客户端与 L3 见各用例标注
 > 前置：`pnpm build:plugins`；涉及真实 git 的用例另需临时仓库
 > 运行：L2 `pnpm test:e2e:plugin`；L3 见 `00-overview.md` §5.2
 
@@ -123,9 +123,67 @@
 
 ---
 
-## 3. L2：客户端（真实浏览器页面，未接线）
+## 3. 客户端
 
-### [P2] 验证输入区出现工作树模式锚点
+### 3.1 L1：纯函数（`unit` project，已接线）
+
+> 回归背景（`#648`）：非 git 工作区里 `isGit` 的「未知」被当成 `true`，切换框无端出现在输入区；一旦会话进入 `pending` 且工作树创建失败（非 git 仓库必然失败），捕获阶段的发送拦截器会吞掉所有发送事件，会话彻底不可用。
+
+#### [P1] [回归] 未校准或非 git 的会话不渲染工作树模式选择框
+
+[Case ID] TC-WT-U-05-001
+[层级] L1（`unit` project 纯函数）
+[类型] 异常
+[追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.ts:8`、`packages/dsh-tauri-worktree/src/client/store/modules/worktree.utils.ts:5`、`packages/dsh-tauri-worktree/src/client/store/modules/worktree.types.ts:5`
+[自动化] 是（`packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts`）
+[前置条件] 无（纯函数）
+[测试数据] `isGit` 取 `null`（未知）/ `false`；`mode` 取 `local` / `pending`
+[测试步骤] 1. 读 `EMPTY_SESSION_STATE.isGit`。2. 对未知与非 git 状态调用 `showsModeSelect`。
+[预期结果] 1. 默认值为 `null`，不再预置 `true`。2. 两种状态一律返回 `false`，处于 `pending` 时同样返回 `false`。
+[清理] 无
+
+#### [P1] [回归] 仅确认为 git 且未处于工作树模式的会话渲染控件
+
+[Case ID] TC-WT-U-05-002
+[层级] L1（`unit` project 纯函数）
+[类型] 正向
+[追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.ts:8`
+[自动化] 是（`packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts`）
+[前置条件] 无（纯函数）
+[测试数据] `isGit: true`；`mode` 取 `local` / `pending` / `worktree`
+[测试步骤] 1. 对三种 `mode` 调用 `showsModeSelect`。
+[预期结果] 1. `local` / `pending` 返回 `true`。2. `worktree` 返回 `false`。
+[清理] 无
+
+#### [P1] [回归] 控件隐藏时绝不拦截发送事件
+
+[Case ID] TC-WT-U-05-003
+[层级] L1（`unit` project 纯函数）
+[类型] 异常
+[追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.ts:13`、`packages/dsh-tauri-worktree/src/client/components/mode-select.tsx:89`
+[自动化] 是（`packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts`）
+[前置条件] 无（纯函数）
+[测试数据] `mode: 'pending'`；`isGit` 取 `null` / `false`
+[测试步骤] 1. 对每个 `isGit` 同时调用 `showsModeSelect` 与 `interceptsSubmit`。
+[预期结果] 1. 两者同为 `false`：渲染条件与拦截条件绑定，控件消失后不残留吞事件的拦截器。
+[清理] 无
+
+#### [P1] [回归] 仅已校准的 git 会话处于待建工作树时拦截发送
+
+[Case ID] TC-WT-U-05-004
+[层级] L1（`unit` project 纯函数）
+[类型] 正向
+[追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.utils.ts:13`
+[自动化] 是（`packages/dsh-tauri-worktree/src/client/components/mode-select.utils.test.ts`）
+[前置条件] 无（纯函数）
+[测试数据] `isGit: true`；`mode` 取 `pending` / `local` / `worktree`
+[测试步骤] 1. 对三种 `mode` 调用 `interceptsSubmit`。
+[预期结果] 1. 仅 `pending` 返回 `true`；`local` / `worktree` 不拦截。
+[清理] 无
+
+### 3.2 L2：真实浏览器页面（未接线）
+
+#### [P2] 验证输入区出现工作树模式锚点
 
 [Case ID] TC-WT-C-05-001
 [层级] L2（真实浏览器页面，未接线）
@@ -138,7 +196,7 @@
 [预期结果] 1. 锚点存在且其值等于当前 sessionId。2. 锚点父级位于 `conversation.input.dock` 内。3. `pageerror` 为空。
 [清理] 关闭页面
 
-### [P2] 验证会话行出现工作树图标且不重复插入
+#### [P2] 验证会话行出现工作树图标且不重复插入
 
 [Case ID] TC-WT-C-05-002
 [层级] L2（真实浏览器页面，未接线）
@@ -151,7 +209,7 @@
 [预期结果] 1. 图标存在。2. 单个会话行内图标数量恒为 1（重渲染后不叠加）。
 [清理] 关闭页面
 
-### [P2] 验证工作树对话框在触发后挂载到壳层 overlay
+#### [P2] 验证工作树对话框在触发后挂载到壳层 overlay
 
 [Case ID] TC-WT-C-05-003
 [层级] L2（真实浏览器页面，未接线）
@@ -162,6 +220,19 @@
 [测试数据] 无
 [测试步骤] 1. 触发对话框。2. 查询 `[data-dsh-worktree-dialog="1"]`。3. 关闭对话框后再查询。
 [预期结果] 1. 打开后标记存在且唯一。2. 关闭后标记消失。
+[清理] 关闭页面
+
+#### [P1] [回归] 工作树创建失败后会话回落到本地模式且仍能看到错误
+
+[Case ID] TC-WT-C-05-004
+[层级] L2（真实浏览器页面，未接线）
+[类型] 异常
+[追踪] `packages/dsh-tauri-worktree/src/client/components/mode-select.tsx:173`、`packages/dsh-tauri-worktree/src/client/components/surface.tsx:17`、`packages/dsh-tauri-worktree/src/client/components/surface.tsx:59`
+[自动化] 未接线（`00-overview.md` G2）
+[前置条件] 已校准为 git 的会话（`isGit === true`，切换框可见）；宿主 `POST /worktrees` 构造成失败（例如同名工作树已存在）
+[测试数据] 在模式菜单中选择「工作树」，随后输入文本并触发发送
+[测试步骤] 1. 选择「工作树」，确认 `mode` 变为 `pending`。2. 等待创建失败。3. 读该会话的 `mode` 与错误条。4. 再次输入并发送。5. 点击错误条上的「关闭」。
+[预期结果] 1. `mode` 回落到 `local`，不停留在 `pending`。2. 错误条仍然渲染（`phase === 'error'` 时不再被 `mode === 'local'` 屏蔽），并带可点的「关闭」按钮（`packages/dsh-tauri-worktree/src/client/locales/index.ts:14`）。3. 第 4 步的消息能正常发出，未被拦截器吞掉。4. 第 5 步后错误条消失（`phase` 回到 `idle`）——控件不可见时也不会留下关不掉的错误条。
 [清理] 关闭页面
 
 ---
