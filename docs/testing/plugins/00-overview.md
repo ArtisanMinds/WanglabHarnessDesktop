@@ -171,6 +171,7 @@
 | G8 | 缺口 | `test/e2e/.artifacts/` 仅有文档约定与 `.gitignore`，无实现 | 失败产物（截图 / stdout）需在接线时补齐，否则失败定位只能依赖日志 |
 | G9 | 缺口 | 会话类用例（`09` turnrewind、`06` ui 的部分分支）需要真实会话，scratch 宿主当前无造会话手段 | 相关用例标记「待补」，是本套文档最大的功能盲区 |
 | G10 | 事实 | 路由层的跨源 403（`routes/index.ts:287`，`cross-origin-request`）在真实宿主里被上游 Host/Origin 围栏遮蔽，L2 不可达 | 该类断言只能落在 L1（`packages/dsh-tauri/src/host/routes/index.test.ts:240`）；L2 按可观察事实断言 `forbidden` |
+| G11 | 事实 | 内置插件安装参数的构造在 Rust 侧（`service::plugin::install::spec`：按活动核心版本决定是否给含空格的 `link:` spec 预加引号，issue #647） | 该路径不经插件 JS 面，L2/L3 不可达；由 Rust 单测覆盖——`spec::tests`（`shell_join_gate_boundary_versions`、`spec_argument_*`）与 `workflow::win_spawn::tests::spaced_argument_round_trips_to_child_argv`（含空格 spec 原样抵达 node argv） |
 
 ---
 
