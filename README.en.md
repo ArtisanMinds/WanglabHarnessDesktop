@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/github/stars/dsh-tauri/deepseek-harness-desktop?style=flat-square&label=stars&color=4D6BFE" alt="Stars" />
   <img src="https://img.shields.io/github/license/dsh-tauri/deepseek-harness-desktop?style=flat-square&label=license&color=4D6BFE" alt="MIT License" />
   <img src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-black?style=flat-square" alt="Windows | macOS | Linux" />
-  <img src="https://img.shields.io/badge/dsh-0.1.5--rc.2-4D6BFE?style=flat-square" alt="dsh 0.1.5-rc.2" />
+  <img src="https://img.shields.io/badge/dsh-0.1.7--alpha.1-4D6BFE?style=flat-square" alt="dsh 0.1.7-alpha.1" />
 </p>
 
 <p align="center">
@@ -89,7 +89,7 @@ brew install dsh-tauri/desktop/deepseek-harness
 
 The first run downloads the Node runtime and Harness core (if `dsh` is already installed, the installed version is used), then takes you straight into the harness at `http://127.0.0.1:3080`; after that everything runs locally — no network required.
 
-**System requirements:** Windows 10+ · macOS 10.15+ · Linux (AppImage / .deb) · network on first launch · Harness core **0.1.5-rc.2** or later
+**System requirements:** Windows 10+ · macOS 10.15+ · Linux (AppImage / .deb) · network on first launch · Harness core **0.1.5-rc.1** or later
 
 > **Linux Wayland note (PikaOS / GNOME Wayland / Ubuntu 22.04+):** AppImage may crash or render black on Wayland due to WebKitGTK; the app auto-fixes the common case. <details><summary>If it still crashes / renders black:</summary><br>**Prefer `.deb`** (verified on PikaOS 4 Wayland), or manually run `WEBKIT_DISABLE_COMPOSITING_MODE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1 GDK_BACKEND=x11 ./AppImage`. If icons do not appear, copy the app's `hicolor` icons to `~/.local/share/icons` and run `update-desktop-database`.<br></details>
 >

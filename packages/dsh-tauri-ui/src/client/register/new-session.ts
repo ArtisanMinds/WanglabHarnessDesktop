@@ -31,6 +31,6 @@ export const sidebarNewSessionFeature = defineRegister<ClientContext>((controlle
     }
     event.preventDefault()
     event.stopImmediatePropagation()
-    startUngroupedSession(ctx)
+    startUngroupedSession(ctx, adapter)
   }, { capture: true })
 })

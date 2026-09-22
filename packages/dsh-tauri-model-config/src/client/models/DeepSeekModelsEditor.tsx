@@ -1,11 +1,6 @@
 import type { ReactNode } from 'react'
 import type { en } from './locales.ts'
-import {
-  IconChevronDownOutline14,
-  IconChevronRightOutline14,
-  IconPlusOutline16,
-  IconTrashOutline16,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { ChevronDown, ChevronRight, Plus, TrashBin } from 'dsh-tauri-ui/client'
 import { useState } from 'react'
 import { modelStyles as styles } from './styles.ts'
 
@@ -285,7 +280,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
                       title={props.t('modelAdvanced')}
                       onClick={() => { toggle(index) }}
                     >
-                      {expanded.has(index) ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+                      {expanded.has(index) ? <ChevronDown width={14} height={14} /> : <ChevronRight width={14} height={14} />}
                     </button>
                     <button
                       type="button"
@@ -295,7 +290,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
                       disabled={props.disabled}
                       onClick={() => { remove(index) }}
                     >
-                      <IconTrashOutline16 size={14} />
+                      <TrashBin width={14} height={14} />
                     </button>
                   </div>
                   {expanded.has(index)
@@ -316,7 +311,7 @@ export function DeepSeekModelsEditor(props: DeepSeekModelsEditorProps): ReactNod
         disabled={props.disabled}
         onClick={() => { props.onChange([...props.models.map(model => ({ ...model })), { id: '' }]) }}
       >
-        <IconPlusOutline16 size={14} />
+        <Plus width={14} height={14} />
         {props.t('addModel')}
       </button>
     </section>

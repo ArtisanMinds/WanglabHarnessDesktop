@@ -1,12 +1,13 @@
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ReactElement } from 'react'
 import type { MenuSelectProps } from './menu-select.types'
-import { IconChevronDownOutline14 as ChevronDown, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import { compact } from 'dsh-tauri/client'
 import { useState } from 'react'
 import { MENU_SELECT_STYLE_ID } from '../constants'
 import { useMountStyle } from '../hooks/use-mount-style'
 import { Icon } from './icon'
+import { ChevronDown } from './icons'
 import menuSelectStyle from './menu-select.cssr'
 
 export function MenuSelect({

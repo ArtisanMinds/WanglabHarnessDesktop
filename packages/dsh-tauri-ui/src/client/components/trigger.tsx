@@ -1,3 +1,4 @@
+import type { SessionId } from 'dsh-tauri/client'
 import type { ReactElement } from 'react'
 import type { SettingsTriggerProps } from './trigger.types'
 import { SlotOutlet } from '@deepseek-ai/dsh-client-ui-renderer'

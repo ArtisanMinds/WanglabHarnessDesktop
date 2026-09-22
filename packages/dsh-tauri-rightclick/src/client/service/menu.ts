@@ -81,7 +81,7 @@ export async function forkSession(input: {
 }): Promise<ActionOutcome> {
   try {
     const childId = await input.sessions.fork({ sessionId: input.sessionId, increaseTitle: true })
-    input.sessions.open(childId)
+    input.sessions.open?.(childId)
     return { ok: true }
   }
   catch (error) {

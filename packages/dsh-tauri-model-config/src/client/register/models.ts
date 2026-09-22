@@ -8,14 +8,14 @@ import type { ModelsSectionInjected } from '../models/ModelsSection.tsx'
 import type { WelcomeNoticeInjected } from '../models/WelcomeNotice.tsx'
 import type { ClientRemote } from '../types/remotes.ts'
 import { defineRegister } from 'dsh-tauri/client'
-import { WELCOME_NOTICE_SETTINGS_NAMESPACE } from '../../shared/onboarding-copy.ts'
 import { locale } from '../locales'
 import { DeepSeekOnboardingDialog } from '../models/DeepSeekOnboardingDialog.tsx'
 import { ModelsSection } from '../models/ModelsSection.tsx'
 import { createModelsOperations } from '../models/operations.ts'
 import { createSettingsSchemaOperations } from '../models/schema-operations.ts'
+import { resolveModelsForms } from '../models/settings-forms.ts'
 import { ModelsSettingsStore } from '../models/store.ts'
-import { decodeWelcomeSection, WelcomeNoticeStore } from '../models/welcome-store.ts'
+import { WelcomeNoticeStore } from '../models/welcome-store.ts'
 import { WelcomeNotice } from '../models/WelcomeNotice.tsx'
 import { openConfigFile } from '../service/model-config.ts'
 
@@ -34,7 +34,10 @@ export const registerModelsPage = defineRegister<ClientContext>((controller, ctx
   const remote = remoteOf(ctx)
   const schema = createSettingsSchemaOperations(ctx.settingsSchema)
   const operations = createModelsOperations(remote as ClientRemote)
-  const page = new ModelsSettingsStore(remote as ClientRemote, schema, ctx.settingsScope.describe())
+  const forms = resolveModelsForms(ctx)
+  if (forms === undefined)
+    return
+  const page = new ModelsSettingsStore(remote as ClientRemote, schema, forms.describe)
   const t = locale.text as ModelsSectionInjected['t']
   const injected = (): ModelsSectionInjected => ({
     controller: page,
@@ -51,10 +54,7 @@ export const registerModelsPage = defineRegister<ClientContext>((controller, ctx
     schema,
     t,
   })
-  const welcome = new WelcomeNoticeStore(ctx.settingsScope.bind({
-    namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE,
-    decode: decodeWelcomeSection,
-  }))
+  const welcome = new WelcomeNoticeStore(forms.welcome)
   const welcomeInjected = (): WelcomeNoticeInjected => ({
     controller: welcome,
     hooks: { welcome: welcome.store },
@@ -85,7 +85,7 @@ export const registerModelsPage = defineRegister<ClientContext>((controller, ctx
     inject: deepSeekOnboardingInjected,
   }, DeepSeekOnboardingDialog)))
 
-  controller.add(welcome.dispose)
+  controller.add(() => welcome.dispose())
   if (remote !== undefined) {
     controller.add(remote.$on('settings/document-updated', () => {
       refreshIfLoaded(page)

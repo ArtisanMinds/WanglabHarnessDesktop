@@ -29,10 +29,15 @@ pub(super) fn loopback_http_client(timeout: Duration) -> Result<reqwest::Client,
 /// SPA `/` 在 webServer 绑定后立刻 200，此时连接桥与 Loader 图往往还没就绪；
 /// WebView 若在这个窗口加载，会永久停在官方 boot 页 “Loading plugins…”。
 /// 旧版没有可读取的启动图时，保留这两个稳定入口作为兼容兜底。
+///
+/// 兜底地址只在**解析不出启动图**时生效，因此必须挑在全部受支持核心上都存在的
+/// 模块：`dsh-client-runtime` 是 0.1.2 时代的旧包名，0.1.6 起上游已不再发布，
+/// 用它会让新核心必然 N/N 不齐；`dsh-client-modules` 从 0.1.5 起一直存在，且每个
+/// boot 页面都会预加载它，是更可靠的第二个探针。
 pub(super) fn health_probe_plugin_urls(port: u16) -> Vec<String> {
     vec![
         format!("http://127.0.0.1:{port}/plugins/@deepseek-ai/dsh-client-ui-layout/client.js"),
-        format!("http://127.0.0.1:{port}/plugins/@deepseek-ai/dsh-client-runtime/client.js"),
+        format!("http://127.0.0.1:{port}/plugins/@deepseek-ai/dsh-client-modules/client.js"),
     ]
 }
 
@@ -82,7 +87,7 @@ pub(super) fn client_urls_from_boot_html(port: u16, html: &str) -> Option<Vec<St
     Some(
         paths
             .into_iter()
-            .map(|path| format!("http://127.0.0.1:{port}{path}"))
+            .map(|path| format!("http://127.0.0.1:{port}/{}", path.trim_start_matches('/')))
             .collect(),
     )
 }
@@ -104,7 +109,13 @@ fn is_client_bundle_path(path: &str) -> bool {
     // alpha combo 路由合法地使用 `/plugins/??<package>/client.js&rev=...`：
     // 第一个 `?` 是路由约定，第二个是 combo payload 的起始标记，不能把它拼成
     // `/plugins/??` 再交给 URL 解析器时丢掉一个问号。
-    path.starts_with("/plugins/") && path.contains("client.js") && !path.starts_with("//")
+    //
+    // 0.1.7 起 boot 首页改为 `<base href="./">`，同一批地址在 HTML 里是**相对**
+    // 形式（`plugins/...`，无前导 `/`），JSON 里也照抄。只认绝对形式会让解析直接
+    // 落空、退回硬编码兜底，而兜底地址在新核心上必然 404（核心不再提供该模块），
+    // 于是健康检查永远卡在 0/N。这里两种形式都接受，拼接时统一补前导 `/`。
+    let path = path.trim_start_matches("./");
+    (path.starts_with("plugins/") || path.starts_with("/plugins/")) && path.contains("client.js")
 }
 
 /// 判断健康检查响应是不是可用的插件 bundle。
@@ -439,6 +450,23 @@ mod tests {
         assert_eq!(urls, vec!["http://127.0.0.1:3081/plugins/??@deepseek-ai/dsh-client-modules/client.js&rev=cddf5581d5d5"]);
     }
 
+    /// 回归（0.1.7）：boot 首页改用 `<base href="./">`，同一批插件地址在 HTML 与
+    /// `__DSH_BOOT__` 里都是相对形式（`plugins/...`，无前导 `/`）。若只认绝对形式，
+    /// 解析会整体落空并退回硬编码兜底，而兜底地址在新核心上 404，健康检查就永久
+    /// 停在 0/N（表现为「一直没能心跳检测成功」）。
+    #[test]
+    fn boot_html_accepts_relative_bundle_paths() {
+        let html = r#"<script src="plugins/??@deepseek-ai/dsh-client-modules/client.js&amp;rev=f584d378985b"></script><script>globalThis["__DSH_BOOT__"] = {"rev":"g","entries":[{"id":"@deepseek-ai/dsh-client-ui-layout","url":"plugins/??@deepseek-ai/dsh-client-ui-layout/client.js&rev=f26b875a92b6","rev":"f26b875a92b6"}]}</script>"#;
+        let urls = client_urls_from_boot_html(3081, html).expect("boot graph");
+        assert_eq!(urls.len(), 2);
+        assert!(urls.iter().all(|url| url
+            .starts_with("http://127.0.0.1:3081/plugins/")));
+        assert!(urls.iter().any(|url| url
+            .contains("dsh-client-modules/client.js&rev=f584d378985b")));
+        assert!(urls.iter().any(|url| url
+            .contains("dsh-client-ui-layout/client.js&rev=f26b875a92b6")));
+    }
+
     #[test]
     fn health_probe_plugin_urls_target_client_bundles_not_spa_root() {
         let urls = health_probe_plugin_urls(3080);
@@ -449,6 +477,11 @@ mod tests {
         assert!(urls
             .iter()
             .any(|u| u.contains("dsh-client-ui-layout/client.js")));
+        // `dsh-client-runtime` 在 0.1.6 起已不存在，兜底不能继续引用它。
+        assert!(urls.iter().all(|u| !u.contains("dsh-client-runtime")));
+        assert!(urls
+            .iter()
+            .any(|u| u.contains("dsh-client-modules/client.js")));
     }
 
     #[test]

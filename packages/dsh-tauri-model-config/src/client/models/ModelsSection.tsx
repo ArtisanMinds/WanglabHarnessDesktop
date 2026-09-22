@@ -8,7 +8,8 @@ import type { ProviderEditorProps } from './ProviderEditor.tsx'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import type {} from './slot-contract.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
-import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Plus } from 'dsh-tauri-ui/client'
 import { useEffect, useState } from 'react'
 import { ConfigEditor } from '../components/config-editor'
 import { withDetail, withPath } from '../service/model-config.utils.ts'
@@ -497,7 +498,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace, renderS
                         setEditing(targetOf(first))
                       }}
                     >
-                      <IconPlusOutline16 size={14} />
+                      <Plus width={14} height={14} />
                       {t('add')}
                     </button>
                   )}
@@ -513,7 +514,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace, renderS
                         setDeclaring(true)
                       }}
                     >
-                      <IconPlusOutline16 size={14} />
+                      <Plus width={14} height={14} />
                       {t('customAdd')}
                     </button>
                   )}

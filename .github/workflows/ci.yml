@@ -111,7 +111,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/dsh-cli"
           cd "$RUNNER_TEMP/dsh-cli"
           npm init -y >/dev/null
-          npm install --no-audit --no-fund @deepseek-ai/dsh@0.1.5-rc.2
+          npm install --no-audit --no-fund @deepseek-ai/dsh@0.1.7-alpha.1
 
       - name: Plugin L2 test
         env:
