@@ -9,6 +9,8 @@ export default antfu({
     'AGENTS.*',
     'docs',
     'archive',
+    // 已归档的历史实现：保留供对照，不参与 lint 与类型检查
+    'archiving',
     // 技能目录：脚本与参考文档由技能作者维护（部分经 skills-lock.json 锁定上游哈希），
     // 改动会偏离上游并破坏哈希校验，不参与本仓 lint 规约
     'skills',

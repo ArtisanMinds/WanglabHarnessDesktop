@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareVersions, isCoreBelowBaseline } from '@/utils/core-version'
+import { compareVersions, isCoreBelowBaseline, isCoreUnsupported, MIN_SUPPORTED_CORE_VERSION } from '@/utils/core-version'
 
 /**
  * issue #596：随包内置插件按推荐核心版本（`version-recommend.json`）编译，本地核心
@@ -30,5 +30,34 @@ describe('isCoreBelowBaseline', () => {
     // compareVersions 对不可解析值返回 0 → 视为达标，避免把可用核心判死
     expect(compareVersions('not-a-version', '0.1.5-rc.2')).toBe(0)
     expect(isCoreBelowBaseline('not-a-version', '0.1.5-rc.2')).toBe(false)
+  })
+})
+
+/**
+ * 核心列表「不兼容版本」分组的分组判据：低于最低支持基线（0.1.5-rc.1）的旧版本默认折叠，
+ * 可展开显示；基线与更新版本、以及不可解析的版本都留在可用列表里。
+ */
+describe('isCoreUnsupported', () => {
+  it('把低于 0.1.5-rc.1 的旧版本判为不兼容', () => {
+    expect(isCoreUnsupported('0.1.0-rc.7')).toBe(true)
+    expect(isCoreUnsupported('0.1.2-rc.1')).toBe(true)
+    expect(isCoreUnsupported('0.1.5-alpha.2')).toBe(true)
+  })
+
+  it('基线本身与更新的版本都算兼容', () => {
+    expect(isCoreUnsupported(MIN_SUPPORTED_CORE_VERSION)).toBe(false)
+    expect(isCoreUnsupported('0.1.5-rc.2')).toBe(false)
+    expect(isCoreUnsupported('0.1.6-alpha.2')).toBe(false)
+    expect(isCoreUnsupported('0.1.7-alpha.1')).toBe(false)
+  })
+
+  it('版本缺失或不可解析时不误判为不兼容', () => {
+    expect(isCoreUnsupported('')).toBe(false)
+    expect(isCoreUnsupported('not-a-version')).toBe(false)
+  })
+
+  it('带 dsh-/src- 前缀的 release tag 按同一基线判定', () => {
+    expect(isCoreUnsupported('dsh-0.1.2-rc.1')).toBe(true)
+    expect(isCoreUnsupported('src-0.1.5-rc.1')).toBe(false)
   })
 })

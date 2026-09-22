@@ -40,3 +40,19 @@ export function isCoreBreakingVersion(version: string): boolean {
 export function isCoreBelowBaseline(version: string, baseline: string | null | undefined): boolean {
   return !!version && !!baseline && compareVersions(version, baseline) < 0
 }
+
+/**
+ * 最低支持的核心版本（与 Rust `MIN_SUPPORTED_CORE_VERSION` 对齐）。低于它的核心缺少
+ * 内置插件依赖的平台种子词，随包插件必然加载失败并把应用卡在启动阶段（issue #596）。
+ */
+export const MIN_SUPPORTED_CORE_VERSION = '0.1.5-rc.1'
+
+/**
+ * 核心版本是否低于最低支持基线（按版本判定，与来源无关）。
+ *
+ * 版本缺失或不可解析时返回 false（`compareVersions` 对不可解析值返回 0）——漏放行只是
+ * 回到修复前的行为，误判会把可用的核心归进「不兼容」分组。
+ */
+export function isCoreUnsupported(version: string): boolean {
+  return compareVersions(version, MIN_SUPPORTED_CORE_VERSION) < 0
+}

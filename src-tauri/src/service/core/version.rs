@@ -567,6 +567,11 @@ pub async fn download_version(app_handle: &AppHandle, tag: &str) -> Result<Harne
 }
 
 /// 卸载已下载的历史版本（激活中的版本不可卸载）。
+///
+/// 删除**不会**先停服务：绝大多数卸载针对的是没在跑的已下载版本，其目录没有被任何
+/// 进程持有；无条件停服会连带中断用户当前正在使用的核心会话（用户视角就是「点一下
+/// 卸载，正在跑的核心全挂了」）。只有直接删除因句柄锁定失败时（例如删到上一份激活
+/// 副本、残留进程仍加载着它），才走「停服务 → 重试」的慢路径。
 pub async fn remove_version(app_handle: &AppHandle, id: &str) -> Result<(), String> {
     let Some(tag) = id.strip_prefix("app-") else {
         return Err(format!("CORE_INVALID_ID: {id}"));
@@ -583,7 +588,20 @@ pub async fn remove_version(app_handle: &AppHandle, id: &str) -> Result<(), Stri
     let dir = existing_slot_dir(app_handle, tag)
         .ok_or_else(|| format!("CORE_VERSION_NOT_FOUND: {tag}"))?;
 
-    // 停止服务避免句柄锁定（被删目录可能是上一份激活副本，句柄未释放）
+    // 快速路径：目录未被任何进程持有，一次删掉，全程不碰运行中的服务。
+    match std::fs::remove_dir_all(&dir) {
+        Ok(()) => {
+            log::info!("Removed dsh core slot {tag} at {}", dir.display());
+            return Ok(());
+        }
+        Err(e) => {
+            log::warn!(
+                "dsh core slot {tag} is locked ({e}); stopping the service before retry"
+            );
+        }
+    }
+
+    // 慢路径：目录仍被句柄锁定（可能是上一份激活副本的残留进程加载着它）。
     if workflow::has_owned_process() {
         if let Err(e) = workflow::stop(app_handle.clone()).await {
             log::warn!("failed to stop harness before core removal: {e}");
@@ -595,6 +613,7 @@ pub async fn remove_version(app_handle: &AppHandle, id: &str) -> Result<(), Stri
             dir.display()
         ));
     }
+    log::info!("Removed dsh core slot {tag} after stopping the service");
     Ok(())
 }
 

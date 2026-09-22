@@ -39,7 +39,10 @@ describe('configPlugin preset chip', () => {
 
   it('guards the chip on recommended (preset, non-internal)', () => {
     const source = readFileSync(new URL('../src/ui/config/plugin.tsx', import.meta.url), 'utf8')
-    expect(source).toContain('!plugin.internal && plugin.recommended')
+    // 守卫拆成两处：内置插件在列表层就被过滤掉（不再进可管理清单），
+    // 预设 chip 本身只按 `recommended` 渲染。
+    expect(source, '内置插件不进可管理列表').toContain('!plugin.internal')
+    expect(source, '预设 chip 仅对 recommended 渲染').toContain('cond={plugin.recommended}')
   })
 })
 

@@ -72,7 +72,9 @@ export function ConfigPlugin() {
   useMount(refreshUpdates)
   useListen<DshPlugin[]>('dsh-plugins-updated', refreshUpdates)
 
-  const plugins = pluginList ?? []
+  // 内置插件由启动自愈自动安装与维护，不进入本面板：这里只列出用户可管理
+  // （升级/禁用/卸载）的插件，避免必装项混进可卸载清单。
+  const plugins = (pluginList ?? []).filter(plugin => !plugin.internal)
   const loading = isLoading
   const error = pluginError ? String(pluginError) : ''
 
@@ -425,7 +427,7 @@ export function ConfigPlugin() {
           )}
         >
           <div className="flex flex-col gap-4">
-            {plugins.sort(a => a.internal ? -1 : 1).map(plugin => (
+            {plugins.map(plugin => (
               <Item
                 key={plugin.id}
                 left={(
@@ -462,15 +464,10 @@ export function ConfigPlugin() {
                           {plugin.version}
                         </code>
                       </If>
-                      <If cond={!plugin.internal && plugin.recommended}>
+                      <If cond={plugin.recommended}>
                         <Chip size="sm" variant="soft" color="success" className="shrink-0 font-medium">
                           {t('plugins.preset')}
                         </Chip>
-                      </If>
-                      <If cond={plugin.internal}>
-                        <code className="shrink-0 rounded bg-default px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                          {t('plugins.builtin')}
-                        </code>
                       </If>
                       <If cond={plugin.disabled}>
                         <Chip size="sm" variant="soft" color="default">
@@ -517,7 +514,7 @@ export function ConfigPlugin() {
                     </If>
                     {/* 启用入口：配置覆盖禁用（含内置插件）或桌面禁用清单 → 可启用。
                         配置覆盖禁用时点击会先弹确认框，确认后后端才移除该覆盖 */}
-                    <If cond={plugin.patchDisabled || (!plugin.internal && plugin.disabled)}>
+                    <If cond={plugin.patchDisabled || plugin.disabled}>
                       <Chip
                         className={actionChip({ busy: !!busy })}
                         variant="primary"
@@ -531,7 +528,7 @@ export function ConfigPlugin() {
                         </span>
                       </Chip>
                     </If>
-                    <If cond={!plugin.internal && !plugin.patchDisabled && !plugin.disabled}>
+                    <If cond={!plugin.patchDisabled && !plugin.disabled}>
                       <Chip
                         className={actionChip({ busy: !!busy })}
                         size="sm"
@@ -543,58 +540,56 @@ export function ConfigPlugin() {
                         </span>
                       </Chip>
                     </If>
-                    <If cond={!plugin.internal}>
-                      {/* 单插件快照：快照始终可用（已存在时覆盖确认）；还原/删除快照仅在
-                          存在快照时显示。还原会停服务，还原后 toast 提示重启（issue #303） */}
+                    {/* 单插件快照：快照始终可用（已存在时覆盖确认）；还原/删除快照仅在
+                        存在快照时显示。还原会停服务，还原后 toast 提示重启（issue #303） */}
+                    <Chip
+                      className={actionChip({ busy: !!busy })}
+                      variant="primary"
+                      color="accent"
+                      size="sm"
+                      onClick={() => onSnapshot(plugin.id, plugin.name, plugin.hasSnapshot)}
+                    >
+                      <span className="flex items-center gap-1">
+                        <If cond={busy?.id === plugin.id && busy.action === 'snapshot'} then={<Spinner size="sm" color="current" />} />
+                        {t('plugins.snapshot')}
+                      </span>
+                    </Chip>
+                    <If cond={plugin.hasSnapshot}>
                       <Chip
                         className={actionChip({ busy: !!busy })}
                         variant="primary"
                         color="accent"
                         size="sm"
-                        onClick={() => onSnapshot(plugin.id, plugin.name, plugin.hasSnapshot)}
+                        onClick={() => onRestore(plugin.id, plugin.name)}
                       >
                         <span className="flex items-center gap-1">
-                          <If cond={busy?.id === plugin.id && busy.action === 'snapshot'} then={<Spinner size="sm" color="current" />} />
-                          {t('plugins.snapshot')}
+                          <If cond={busy?.id === plugin.id && busy.action === 'restore'} then={<Spinner size="sm" color="current" />} />
+                          {t('plugins.restore')}
                         </span>
                       </Chip>
-                      <If cond={plugin.hasSnapshot}>
-                        <Chip
-                          className={actionChip({ busy: !!busy })}
-                          variant="primary"
-                          color="accent"
-                          size="sm"
-                          onClick={() => onRestore(plugin.id, plugin.name)}
-                        >
-                          <span className="flex items-center gap-1">
-                            <If cond={busy?.id === plugin.id && busy.action === 'restore'} then={<Spinner size="sm" color="current" />} />
-                            {t('plugins.restore')}
-                          </span>
-                        </Chip>
-                        <Chip
-                          className={actionChip({ busy: !!busy })}
-                          size="sm"
-                          onClick={() => onDeleteSnapshot(plugin.id, plugin.name)}
-                        >
-                          <span className="flex items-center gap-1">
-                            <If cond={busy?.id === plugin.id && busy.action === 'delete-snapshot'} then={<Spinner size="sm" color="current" />} />
-                            {t('plugins.delete_snapshot')}
-                          </span>
-                        </Chip>
-                      </If>
                       <Chip
                         className={actionChip({ busy: !!busy })}
-                        variant="primary"
-                        color="danger"
                         size="sm"
-                        onClick={() => onRemove(plugin.id, plugin.name)}
+                        onClick={() => onDeleteSnapshot(plugin.id, plugin.name)}
                       >
                         <span className="flex items-center gap-1">
-                          <If cond={busy?.id === plugin.id && busy.action === 'remove'} then={<Spinner size="sm" color="current" />} />
-                          {t('plugins.uninstall')}
+                          <If cond={busy?.id === plugin.id && busy.action === 'delete-snapshot'} then={<Spinner size="sm" color="current" />} />
+                          {t('plugins.delete_snapshot')}
                         </span>
                       </Chip>
                     </If>
+                    <Chip
+                      className={actionChip({ busy: !!busy })}
+                      variant="primary"
+                      color="danger"
+                      size="sm"
+                      onClick={() => onRemove(plugin.id, plugin.name)}
+                    >
+                      <span className="flex items-center gap-1">
+                        <If cond={busy?.id === plugin.id && busy.action === 'remove'} then={<Spinner size="sm" color="current" />} />
+                        {t('plugins.uninstall')}
+                      </span>
+                    </Chip>
                   </>
                 )}
               />

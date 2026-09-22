@@ -8,12 +8,8 @@ import type {
 } from './hero-workspace.types'
 import {
   Button,
-  IconChevronDownOutline14 as ChevronDown,
-  IconFolderClose16 as FolderClose,
-  IconFolderOpen16 as FolderOpen,
   Menu,
   Modal,
-  IconPlusOutline16 as Plus,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SlotOutlet } from '@deepseek-ai/dsh-client-ui-renderer'
 import { useCallback, useRef, useState } from 'react'
@@ -25,6 +21,7 @@ import {
 import { useMountStyle } from '../hooks/use-mount-style'
 import { locale } from '../locales'
 import heroWorkspaceStyle from './hero-workspace.cssr'
+import { ChevronDown, Folder as FolderClose, FolderOpen, Plus } from './icons'
 
 /** 官方 `WorkspacePickFlow` 的「添加工作区」条目 id，逐字复用以免与官方菜单语义分叉。 */
 const ADD_WORKSPACE_ID = '::add-workspace'
@@ -96,16 +93,16 @@ export function HeroWorkspace(props: HeroWorkspaceProps): ReactElement {
     : selected?.title
 
   const addEntries: MenuEntry[] = flowAvailable && createWorkspace !== undefined
-    ? [{ id: ADD_WORKSPACE_ID, label: locale.text('addWorkspace'), icon: <Plus size={16} />, disabled: busy }]
+    ? [{ id: ADD_WORKSPACE_ID, label: locale.text('addWorkspace'), icon: <Plus width={16} height={16} />, disabled: busy }]
     : []
   // 官方语义：有工作区时「添加工作区」钉在菜单底部，一个工作区都没有时它自己就是一条普通条目。
   const pinned = workspaces.length > 0
   const items: MenuEntry[] = [
-    { id: UNGROUPED_ID, label: locale.text('ungrouped'), icon: <FolderClose size={16} />, disabled: busy },
+    { id: UNGROUPED_ID, label: locale.text('ungrouped'), icon: <FolderClose width={16} height={16} />, disabled: busy },
     ...workspaces.map(workspace => ({
       id: workspace.workspaceId,
       label: workspace.title,
-      icon: <FolderOpen size={16} />,
+      icon: <FolderOpen width={16} height={16} />,
       disabled: busy,
     })),
     ...pinned ? [] : addEntries,
@@ -144,12 +141,12 @@ export function HeroWorkspace(props: HeroWorkspaceProps): ReactElement {
         onClick={onChipClick}
       >
         {label === undefined
-          ? <FolderClose className={`${HERO_WORKSPACE_CHIP_CLASS}__folder`} size={16} />
-          : <FolderOpen className={`${HERO_WORKSPACE_CHIP_CLASS}__folder`} size={16} />}
+          ? <FolderClose className={`${HERO_WORKSPACE_CHIP_CLASS}__folder`} width={16} height={16} />
+          : <FolderOpen className={`${HERO_WORKSPACE_CHIP_CLASS}__folder`} width={16} height={16} />}
         <span className={`${HERO_WORKSPACE_CHIP_CLASS}__label`}>
           {label ?? locale.text('chooseWorkspace')}
         </span>
-        <ChevronDown className={`${HERO_WORKSPACE_CHIP_CLASS}__chevron`} size={12} />
+        <ChevronDown className={`${HERO_WORKSPACE_CHIP_CLASS}__chevron`} width={12} height={12} />
       </button>
       <Menu
         open={visible}

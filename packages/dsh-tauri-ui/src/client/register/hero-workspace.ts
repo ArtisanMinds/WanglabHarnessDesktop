@@ -37,7 +37,7 @@ export const heroWorkspaceFeature = defineRegister<ClientContext>((controller, c
         priority: HERO_WORKSPACE_PRIORITY,
         inject: () => ({
           createWorkspace: readCreateWorkspace(adapter),
-          startUngrouped: () => startUngroupedSession(ctx),
+          startUngrouped: () => startUngroupedSession(ctx, adapter),
           hooks: { directoryFlow },
         }),
       } as never,

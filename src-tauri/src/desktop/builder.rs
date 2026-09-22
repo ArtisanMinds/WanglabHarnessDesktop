@@ -583,6 +583,9 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
         .initialization_script_for_all_frames(crate::desktop::plugin_boot::PLUGIN_BOOT_RELOAD_JS);
 
     let webview_window = webview_builder.build()?;
+    // 首帧前把窗口底色设成主题画布色（见 `config::window_background`），否则
+    // 「窗口可见 → 前端取回偏好」之间会闪一次错色。
+    apply_window_background(app, &webview_window);
     let zoom_factor = crate::config::get_store_dat_setting(app).zoom_factor;
     if zoom_factor != crate::config::default_zoom_factor() {
         if let Err(error) = crate::desktop::zoom::apply_native_zoom(&webview_window, zoom_factor) {
@@ -615,6 +618,21 @@ pub fn build_main_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::We
     }
 
     Ok(webview_window)
+}
+
+/// 把窗口底色设成主题画布色；`system` 按窗口当前外观折算。
+///
+/// macOS 未实现窗口底色接口，`set_background_color` 会返回错误并被忽略——那里由
+/// `config::apply_window_theme` 同步原生外观。
+fn apply_window_background(app: &tauri::AppHandle<Wry>, window: &tauri::WebviewWindow<Wry>) {
+    let Some(color) =
+        crate::config::window_background(crate::config::get_dsh_theme(app), window.theme().ok())
+    else {
+        return;
+    };
+    if let Err(error) = window.as_ref().set_background_color(Some(color)) {
+        log::debug!("[theme] window background color not applied: {error}");
+    }
 }
 
 /// 「文件 → 新建窗口」：以同一 `index.html` 再开一个独立 webview 窗口。
@@ -694,6 +712,7 @@ pub fn build_extra_window(app: &tauri::AppHandle<Wry>) -> tauri::Result<tauri::W
     };
 
     let window = webview_builder.build()?;
+    apply_window_background(app, &window);
 
     // 启动/真值变化时由主窗口应用缩放；新窗口需要自己应用一次当前真值。
     let zoom_factor = crate::config::get_store_dat_setting(app).zoom_factor;

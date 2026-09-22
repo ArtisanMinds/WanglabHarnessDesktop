@@ -1,8 +1,8 @@
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { EditorPreference } from '../../shared/editor.types'
 import type { en } from '../models/locales'
-import { Button, IconChevronDownOutline14, Menu, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import { useMountStyle } from 'dsh-tauri-ui/client'
+import { Button, Menu, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ChevronDown, useMountStyle } from 'dsh-tauri-ui/client'
 import { useState } from 'react'
 import { If } from 'react-if-lite'
 import { modelStyles as styles } from '../models/styles'
@@ -104,7 +104,7 @@ export function ConfigEditor({ t }: { t: (key: keyof typeof en) => string }) {
             aria-busy={busy}
           >
             {t('textEditor')}
-            <IconChevronDownOutline14 aria-hidden="true" />
+            <ChevronDown aria-hidden="true" />
           </button>
         )}
       />

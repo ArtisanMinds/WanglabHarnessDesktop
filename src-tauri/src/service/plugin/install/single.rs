@@ -192,7 +192,8 @@ fn deprecated_residue_present(app_handle: &AppHandle, name: &str) -> bool {
             .is_ok()
 }
 
-/// 启动时自动卸载弃用清单（`resources/deprecated-plugins.json`）登记的插件。
+/// 启动时自动卸载弃用清单（`resources/deprecated-plugins.json`）登记的插件，
+/// 以及当前核心已高于其 `dshSupportedVersion` 的预设插件。
 ///
 /// 弃用是发布侧决策：某个插件下架/被替换后，把它的 id 追加进弃用清单，桌面端
 /// 每次启动核对「已安装 → 自动卸载」，无需用户手动处理，也避免残留插件继续在
@@ -205,8 +206,16 @@ fn deprecated_residue_present(app_handle: &AppHandle, name: &str) -> bool {
 /// 只记告警，不阻断启动（调用方仅打日志）。
 pub(crate) async fn uninstall_deprecated_plugins(app_handle: &AppHandle) -> Result<(), String> {
     let presets = load_presets(app_handle);
-    let deprecated_ids = load_deprecated_ids(app_handle);
-    let names = deprecated_installed_names(&presets, &deprecated_ids, |name| {
+    let core_version = core::active_version(app_handle);
+    // 弃用清单之外，当前核心已高于 `dshSupportedVersion` 的预设同样自动卸载：
+    // 这些插件只在旧核心上验证过，升级核心后留在 profile 里只会拖垮启动。
+    let mut auto_uninstall_ids = load_deprecated_ids(app_handle);
+    for preset in &presets {
+        if preset.unsupported_on(core_version.as_deref()) {
+            auto_uninstall_ids.insert(preset.id.clone());
+        }
+    }
+    let names = deprecated_installed_names(&presets, &auto_uninstall_ids, |name| {
         deprecated_residue_present(app_handle, name)
     });
     if names.is_empty() {
@@ -413,6 +422,7 @@ mod tests {
             fix: false,
             default_checked: false,
             default_unchecked: false,
+            dsh_supported_version: None,
             win_only: false,
             internal,
         }
