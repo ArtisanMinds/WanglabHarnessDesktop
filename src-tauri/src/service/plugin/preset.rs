@@ -630,38 +630,25 @@ mod tests {
         assert!(!preset.unsupported_on(Some("not-a-version")));
     }
 
-    /// 内置条目默认不声明上限、永远兼容；被核心吸收的条目（turnrewind 自 0.1.7-alpha.1
-    /// 起官方自带）显式声明上限后同样走 unsupported 判定。
+    /// 内置条目默认不声明上限、对任何核心版本都兼容；通用上限机制仍在生效——
+    /// 显式声明上限后依旧走 unsupported 判定，只是当前没有任何内置条目使用它。
     #[test]
     fn internal_manifest_defaults_to_compatible_and_honours_declared_ceiling() {
         let internal = load_manifest_for_test(INTERNAL_PLUGINS_FILE, true);
         assert!(!internal.is_empty());
 
-        let turnrewind = internal
-            .iter()
-            .find(|p| p.id == "dsh-tauri-turnrewind")
-            .expect("turnrewind is a built-in entry");
-        // 上限是「严格低于退役边界的最大版本」（判定为 core > limit 才退役），
-        // 因此它不是任何一个已发布的核心版本，勿改回 0.1.6-alpha.2。
-        assert_eq!(
-            turnrewind.dsh_supported_version.as_deref(),
-            Some("0.1.7-alpha.0")
-        );
-        assert!(!turnrewind.unsupported_on(Some("0.1.5-rc.1")));
-        assert!(!turnrewind.unsupported_on(Some("0.1.5-rc.2")));
-        assert!(!turnrewind.unsupported_on(Some("0.1.6-alpha.2")));
-        assert!(!turnrewind.unsupported_on(Some("0.1.6-alpha.3")));
-        assert!(!turnrewind.unsupported_on(Some("0.1.6")));
-        assert!(!turnrewind.unsupported_on(Some("0.1.7-alpha.0")));
-        assert!(turnrewind.unsupported_on(Some("0.1.7-alpha.1")));
-
         assert!(
             internal
                 .iter()
-                .filter(|p| p.id != "dsh-tauri-turnrewind")
                 .all(|p| p.dsh_supported_version.is_none() && !p.unsupported_on(Some("9.9.9"))),
-            "every other internal entry keeps defaulting to compatible"
+            "no internal entry declares a core ceiling, so every one stays compatible"
         );
+
+        let mut capped = internal[0].clone();
+        capped.dsh_supported_version = Some("0.1.7-alpha.0".into());
+        assert!(!capped.unsupported_on(Some("0.1.5-rc.1")));
+        assert!(!capped.unsupported_on(Some("0.1.7-alpha.0")));
+        assert!(capped.unsupported_on(Some("0.1.7-alpha.1")));
     }
 
     #[test]
@@ -1141,13 +1128,13 @@ mod tests {
     #[test]
     fn dev_merge_carries_static_supported_version_ceiling() {
         let root = temp_dev_root("merge-cap");
-        write_dev_manifest(&root.join("dsh-tauri-turnrewind"), "dsh-tauri-turnrewind");
+        write_dev_manifest(&root.join("dsh-tauri-running-changes"), "dsh-tauri-running-changes");
         let static_internal = vec![PreinstallPluginInfo {
-            id: "dsh-tauri-turnrewind".into(),
-            spec: "dsh-tauri-turnrewind".into(),
+            id: "dsh-tauri-running-changes".into(),
+            spec: "dsh-tauri-running-changes".into(),
             internal: true,
-            package: Some("dsh-tauri-turnrewind".into()),
-            name: "DSH Turn Rewind".into(),
+            package: Some("dsh-tauri-running-changes".into()),
+            name: "DSH Running Changes".into(),
             description: String::new(),
             repo_url: String::new(),
             recommended: false,
@@ -1159,18 +1146,18 @@ mod tests {
         }];
 
         let merged = merge_dev_internal_plugins_at(&root, static_internal);
-        let turnrewind = merged
+        let renamed = merged
             .iter()
-            .find(|p| p.id == "dsh-tauri-turnrewind")
+            .find(|p| p.id == "dsh-tauri-running-changes")
             .expect("merged entry must exist");
         assert_eq!(
-            turnrewind.dsh_supported_version.as_deref(),
+            renamed.dsh_supported_version.as_deref(),
             Some("0.1.7-alpha.0")
         );
-        assert!(turnrewind.unsupported_on(Some("0.1.7-alpha.1")));
-        assert!(!turnrewind.unsupported_on(Some("0.1.6-alpha.2")));
+        assert!(renamed.unsupported_on(Some("0.1.7-alpha.1")));
+        assert!(!renamed.unsupported_on(Some("0.1.6-alpha.2")));
         // dev 覆盖语义不变：条目仍来自仓库源码
-        assert!(turnrewind.internal);
+        assert!(renamed.internal);
         std::fs::remove_dir_all(&root).ok();
     }
 }

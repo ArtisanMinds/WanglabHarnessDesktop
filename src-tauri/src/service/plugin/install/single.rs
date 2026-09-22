@@ -205,7 +205,7 @@ fn deprecated_residue_present(app_handle: &AppHandle, name: &str) -> bool {
 
 /// 启动时自动卸载弃用清单（`resources/deprecated-plugins.json`）登记的插件，
 /// 以及当前核心已高于其 `dshSupportedVersion` 的插件（预设与内置同等对待：内置
-/// 插件同样可能被核心吸收，例如 turnrewind 自 0.1.7-alpha.1 起由官方自带）。
+/// 插件同样可能被核心吸收，从而在某个核心版本之后由官方自带）。
 ///
 /// 弃用是发布侧决策：某个插件下架/被替换后，把它的 id 追加进弃用清单，桌面端
 /// 每次启动核对「已安装 → 自动卸载」，无需用户手动处理，也避免残留插件继续在
@@ -221,8 +221,7 @@ pub(crate) async fn uninstall_deprecated_plugins(app_handle: &AppHandle) -> Resu
     let core_version = core::active_version(app_handle);
     // 弃用清单之外，当前核心已高于 `dshSupportedVersion` 的插件同样自动卸载：
     // 这些插件只在旧核心上验证过，升级核心后留在 profile 里只会拖垮启动。内置条目
-    // 也走这条判定——被核心吸收的插件（turnrewind 自 0.1.7-alpha.1 起官方自带）
-    // 属于确定性退役，自愈同样不再装回。
+    // 也走这条判定——被核心吸收的插件属于确定性退役，自愈同样不再装回。
     let deprecated_ids = load_deprecated_ids(app_handle);
     let mut unsupported_ids: HashSet<String> = HashSet::new();
     for preset in &presets {
