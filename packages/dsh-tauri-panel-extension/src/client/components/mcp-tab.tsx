@@ -347,6 +347,7 @@ export function McpTab({ t }: McpTabProps): ReactElement {
               variant="selector"
               aria-label={t('scope')}
               aria-haspopup="menu"
+              open={scopeOpen}
               aria-expanded={scopeOpen}
               chevron={<Icon as={ChevronDown} />}
               onClick={() => setScopeOpen(value => !value)}

@@ -124,7 +124,11 @@ export default c([
         display: 'inline-flex',
         flex: '0 0 auto',
         color: 'var(--dsw-alias-label-caption)',
-      }),
+        transition: 'transform 120ms ease',
+      }, [
+        // 官方 .selector 是设置行、不旋转；本仓把它当下拉触发器用，故与 composerTrigger 一样带展开态。
+        c('&[data-open=\'true\']', { transform: 'rotate(180deg)' }),
+      ]),
     ]),
   ]),
   c('', { raw: COMPOSER_TRIGGER_COLLAPSE }),

@@ -116,6 +116,7 @@ function Select({ label, value, options, onChange }: {
       anchor={(
         <Chip
           variant="selector"
+          open={open}
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}

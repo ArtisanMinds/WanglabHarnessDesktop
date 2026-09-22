@@ -87,6 +87,12 @@ export const UI_COMPONENT_REGISTRY: readonly UiComponentEntry[] = [
   primitives('FISH_LOGO_PATH', 'FishLogo'),
   primitives('FISH_LOGO_VIEWBOX', 'FishLogo'),
 
+  reforkVariant('Checkbox', 'default', {
+    package: PRIMITIVES,
+    availableAt: AVAILABLE_LATEST,
+    upstreamPath: 'packages/client/ui-primitives/src/Checkbox.tsx',
+    mappedClass: 'checkbox',
+  }),
   reforkVariant('Button', 'elevated', {
     package: '@deepseek-ai/dsh-client-ui-sidebar',
     availableAt: AVAILABLE_BOTH,

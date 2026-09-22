@@ -1,4 +1,4 @@
-// 引用源 @deepseek-ai/dsh-client-ui-primitives · packages/client/ui-primitives/src/Tag.tsx ; @deepseek-ai/dsh-client-ui-plugin-manager · packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css · 版本 0.1.7-alpha.1（≥0.1.5-rc.1）· hash 官方原样（无 refork 类） version=versionTag status=statusTag
+// 引用源 @deepseek-ai/dsh-client-ui-primitives · packages/client/ui-primitives/src/Tag.tsx ; @deepseek-ai/dsh-client-ui-plugin-manager · packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css · 版本 0.1.7-alpha.1（≥0.1.5-rc.1）· hash version=X_2TxG_versionTag status=X_2TxG_statusTag
 import type { HTMLAttributes, ReactElement, ReactNode } from 'react'
 import { Tag as PrimitiveTag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { compact } from 'dsh-tauri/client'
@@ -32,6 +32,6 @@ function LocalTag({ variant, tone = 'outline', className, children, ...rest }: T
 
 export function Tag({ variant = 'default', tone = 'outline', className, children, ...rest }: TagProps): ReactElement {
   if (variant === 'default')
-    return <PrimitiveTag tone={tone} className={className}>{children}</PrimitiveTag>
+    return <PrimitiveTag tone={tone} className={className} {...rest}>{children}</PrimitiveTag>
   return <LocalTag variant={variant} tone={tone} className={className} {...rest}>{children}</LocalTag>
 }

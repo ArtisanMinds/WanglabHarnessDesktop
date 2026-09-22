@@ -86,6 +86,7 @@ export function McpEditorForm(props: McpEditorFormProps): ReactElement {
                       disabled={editor.id !== ''}
                       aria-label={t('transport')}
                       aria-haspopup="menu"
+                      open={transportOpen}
                       aria-expanded={transportOpen}
                       chevron={<Icon as={ChevronDown} />}
                       onClick={() => setTransportOpen(value => !value)}

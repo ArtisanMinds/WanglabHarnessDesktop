@@ -123,6 +123,7 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
               className="dshp-session__menu-select"
               aria-label={locale.text('sortLabel')}
               aria-haspopup="menu"
+              open={openSort}
               aria-expanded={openSort}
               onClick={() => setOpenSort(openState => !openState)}
               chevron={<Icon as={ChevronDown} />}
@@ -150,6 +151,7 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
               className="dshp-session__menu-select"
               aria-label={locale.text('allProjects')}
               aria-haspopup="menu"
+              open={openProjectFilter}
               aria-expanded={openProjectFilter}
               onClick={() => setOpenProjectFilter(openState => !openState)}
               chevron={<Icon as={ChevronDown} />}
