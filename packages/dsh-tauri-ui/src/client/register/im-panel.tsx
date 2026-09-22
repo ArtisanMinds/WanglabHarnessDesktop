@@ -2,7 +2,7 @@ import type { ClientContext } from 'dsh-tauri/client'
 import { definePanel, defineRegister } from 'dsh-tauri/client'
 import { Icon } from '../components/icon'
 import { Comments } from '../components/icons'
-import { ImPanel } from '../components/im-panel'
+import { PanelPage } from '../components/panel-page'
 import { DSH_IM_CLIENT_SERVICE } from '../constants'
 import { locale } from '../locales'
 import { readDshImClient } from '../service/dsh-im'
@@ -30,7 +30,7 @@ export const registerImPanel = defineRegister<ClientContext>((_controller, ctx) 
       order: IM_PANEL_ORDER,
       label: () => locale.text('im'),
       icon: props => <Icon as={Comments} size={props.size} />,
-      render: () => <ImPanel render={() => im.render()} />,
+      render: () => <PanelPage>{im.render()}</PanelPage>,
     })
     // 撤下重复入口前记住原状态：退出时恢复到「我们发现它时」的样子。
     const restoreSettings = im.settingsVisible()

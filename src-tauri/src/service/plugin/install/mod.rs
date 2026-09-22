@@ -385,13 +385,6 @@ async fn install_with_cancel(
         ));
     }
 
-    // Windows 极简模式专项修复
-    if ids.iter().any(|id| id == "dsh-win-terminal-inspector") {
-        if let Err(e) = workflow::win_inspector::apply(app_handle) {
-            log::warn!("win inspector apply failed after install: {e}");
-        }
-    }
-
     // 告知用户安装阶段结束；随后的服务重启由前端 continueAfterPreinstall 负责
     let _ = window.emit(
         PREINSTALL_LOG_EVENT,

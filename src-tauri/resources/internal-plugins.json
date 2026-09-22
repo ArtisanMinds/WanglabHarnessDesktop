@@ -14,13 +14,6 @@
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-connection"
   },
   {
-    "id": "dsh-tauri-model-config",
-    "spec": "dsh-tauri-model-config",
-    "name": "DSH Model Config",
-    "description": "Model configuration for the DeepSeek Harness desktop shell: set the model to use, and other model-specific settings.",
-    "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-model-config"
-  },
-  {
     "id": "dsh-tauri-turnrewind",
     "spec": "dsh-tauri-turnrewind",
     "name": "DSH Turn Rewind",
@@ -75,5 +68,12 @@
     "name": "DSH Tauri Rightclick Menu",
     "description": "Native-style right-click context menu for the desktop shell: quick actions for sessions, workspaces, conversation text, links, and inputs — in-house successor to the deprecated dsh-session-context-menu.",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-rightclick"
+  },
+  {
+    "id": "dsh-tauri-model-config",
+    "spec": "dsh-tauri-model-config",
+    "name": "DSH Tauri Model Config",
+    "description": "Model selection and parameter configuration for the DeepSeek Harness desktop shell",
+    "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-model-config"
   }
 ]

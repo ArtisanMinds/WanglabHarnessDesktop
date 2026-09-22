@@ -1,15 +1,12 @@
+import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ClientContext } from 'dsh-tauri/client'
+import type { ReactNode } from 'react'
 import type { ActionOutcome, SessionsRuntimeLike, WorkspacesRuntimeLike } from '../types'
 import type { MenuComposer, OfficialSelectOptions } from './context-menu.types'
+import { Menu, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { defineRegister } from 'dsh-tauri/client'
-import {
-  CONTEXT_MENU_EVENT,
-  LINK_SELECTOR,
-  MENU_ITEM_SELECTOR,
-  MENU_SEPARATOR_CLASS,
-  TOAST_CLASS,
-  TOAST_DURATION_MS,
-} from '../constants'
+import { createRoot } from 'react-dom/client'
+import { CONTEXT_MENU_EVENT, LINK_SELECTOR, TOAST_DURATION_MS } from '../constants'
 import { locale } from '../locales'
 import { loadRegistry } from '../service/registry'
 import { writeClipboard } from '../utils/clipboard'
@@ -31,31 +28,66 @@ import {
   workspaceForSession,
   workspaceFrom,
 } from './locate'
-import { createMenuItem, createMenuRoot, createSeparator, positionMenu } from './menu-dom'
+
+/** 带快捷键提示的官方菜单项文案：官方 `Menu` 只吃 ReactNode，提示与标签同行两端对齐。 */
+function menuLabel(label: string, shortcut: string): ReactNode {
+  if (shortcut === '')
+    return label
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%' }}>
+      <span>{label}</span>
+      <span style={{ color: 'var(--dsw-alias-label-tertiary)', fontSize: 11 }}>{shortcut}</span>
+    </span>
+  )
+}
 
 /**
  * 右键菜单特性：解析右键目标 → 组装菜单 → 动作经 `service/` 收口。
- * 官方会话/工作区操作全部转交官方组件，插件只补充宿主能力与扩展项。
+ * 弹层（菜单与 toast）一律走官方 primitives，插件只补充宿主能力与扩展项。
  */
 export const contextMenuFeature = defineRegister<ClientContext>((controller, _ctx, adapter) => {
   const sessions = adapter.sessions as unknown as SessionsRuntimeLike
   const workspaces = adapter.workspaces as unknown as WorkspacesRuntimeLike
   const registry = loadRegistry()
 
-  let menu: HTMLElement | null = null
+  let host: HTMLDivElement | null = null
+  let root: ReturnType<typeof createRoot> | null = null
+  let toastHost: HTMLDivElement | null = null
+  let toastRoot: ReturnType<typeof createRoot> | null = null
+  let toastSeq = 0
+  let cursor = { x: 0, y: 0 }
 
   const close = (): void => {
-    menu?.remove()
-    menu = null
+    if (root === null)
+      return
+    const current = root
+    const currentHost = host
+    root = null
+    host = null
+    current.unmount()
+    currentHost?.remove()
   }
 
   const toast = (message: string): void => {
-    document.querySelector(`.${TOAST_CLASS}`)?.remove()
-    const node = document.createElement('div')
-    node.className = TOAST_CLASS
-    node.textContent = message
-    document.body.appendChild(node)
-    controller.timeout(() => node.remove(), TOAST_DURATION_MS)
+    if (typeof document === 'undefined')
+      return
+    if (toastRoot === null) {
+      toastHost = document.createElement('div')
+      document.body.appendChild(toastHost)
+      toastRoot = createRoot(toastHost)
+    }
+    const seq = ++toastSeq
+    toastRoot.render(
+      <Toast
+        key={seq}
+        text={message}
+        holdMs={TOAST_DURATION_MS}
+        onDone={() => {
+          if (seq === toastSeq)
+            toastRoot?.render(null)
+        }}
+      />,
+    )
   }
 
   const copyText = async (value: string, message: string): Promise<void> => {
@@ -64,38 +96,30 @@ export const contextMenuFeature = defineRegister<ClientContext>((controller, _ct
     toast(message)
   }
 
-  const createComposer = (root: HTMLElement): MenuComposer => {
+  const createComposer = (): { composer: MenuComposer, actions: Map<string, () => Promise<ActionOutcome | void> | void>, entries: MenuEntry[] } => {
+    const actions = new Map<string, () => Promise<ActionOutcome | void> | void>()
+    const entries: MenuEntry[] = []
+    let seq = 0
+
     const add = (
       label: string,
       action: () => Promise<ActionOutcome | void> | void,
       shortcut = '',
       danger = false,
     ): void => {
-      root.appendChild(createMenuItem({
-        label,
-        shortcut,
-        danger,
-        onClick: async () => {
-          close()
-          try {
-            const outcome = await action()
-            if (outcome && !outcome.ok)
-              toast(outcome.error || locale.text('unknownError'))
-          }
-          catch (error) {
-            toast(error instanceof Error ? error.message : String(error))
-          }
-        },
-      }))
+      const id = `item:${seq++}`
+      actions.set(id, action)
+      entries.push({ id, label: menuLabel(label, shortcut), danger })
     }
 
     const split = (): void => {
-      if (!root.childElementCount || root.lastElementChild?.classList.contains(MENU_SEPARATOR_CLASS))
+      const last = entries.at(-1)
+      if (last === undefined || ('type' in last && last.type === 'separator'))
         return
-      root.appendChild(createSeparator())
+      entries.push({ type: 'separator', id: `separator:${seq++}` })
     }
 
-    return {
+    const composer: MenuComposer = {
       sessions,
       workspaces,
       add,
@@ -108,6 +132,22 @@ export const contextMenuFeature = defineRegister<ClientContext>((controller, _ct
         schedule: (fn, ms) => controller.timeout(fn, ms),
         onFailure: toast,
       }),
+    }
+    return { composer, actions, entries }
+  }
+
+  const runAction = async (actions: Map<string, () => Promise<ActionOutcome | void> | void>, id: string): Promise<void> => {
+    const action = actions.get(id)
+    close()
+    if (action === undefined)
+      return
+    try {
+      const outcome = await action()
+      if (outcome && !outcome.ok)
+        toast(outcome.error || locale.text('unknownError'))
+    }
+    catch (error) {
+      toast(error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -134,9 +174,6 @@ export const contextMenuFeature = defineRegister<ClientContext>((controller, _ct
     event.preventDefault()
     event.stopPropagation()
     close()
-    const root = createMenuRoot()
-    document.body.appendChild(root)
-    menu = root
 
     const extensions = registry.list()
     globalThis.dispatchEvent(new CustomEvent(CONTEXT_MENU_EVENT, {
@@ -152,7 +189,7 @@ export const contextMenuFeature = defineRegister<ClientContext>((controller, _ct
       },
     }))
 
-    const composer = createComposer(root)
+    const { composer, actions, entries } = createComposer()
     if (row)
       buildSessionMenu(composer, row, session, sessionWorkspace, extensions)
     else if (ungroupedRow)
@@ -163,42 +200,36 @@ export const contextMenuFeature = defineRegister<ClientContext>((controller, _ct
       buildEditableMenu(composer, editable, selection)
     else
       buildSelectionMenu(composer, selection, link, surface)
-
-    positionMenu(root, event.clientX, event.clientY)
-  }
-
-  const onPointerDown = (event: PointerEvent): void => {
-    if (menu && !menu.contains(event.target as Node))
-      close()
-  }
-
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (!menu)
+    if (entries.length === 0)
       return
-    if (event.key === 'Escape') {
-      close()
-      return
-    }
-    const items = [...menu.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR)]
-    const current = items.indexOf(document.activeElement as HTMLElement)
-    let next: Element | null = null
-    if (event.key === 'ArrowDown')
-      next = items[(current + 1 + items.length) % items.length]
-    else if (event.key === 'ArrowUp')
-      next = items[(current - 1 + items.length) % items.length]
-    else if (event.key === 'Home')
-      next = items[0]
-    else if (event.key === 'End')
-      next = items.at(-1) ?? null
-    if (next) {
-      event.preventDefault()
-      ;(next as HTMLElement).focus()
-    }
+
+    cursor = { x: event.clientX, y: event.clientY }
+    host = document.createElement('div')
+    document.body.appendChild(host)
+    const current = createRoot(host)
+    root = current
+    current.render(
+      <Menu
+        open
+        autoFocus
+        portal
+        align="start"
+        items={entries}
+        anchor={<span />}
+        getAnchorRect={() => new DOMRect(cursor.x, cursor.y, 0, 0)}
+        onSelect={id => void runAction(actions, id)}
+        onClose={close}
+      />,
+    )
   }
 
   controller.add(registry.hold())
   controller.add(close)
+  controller.add(() => {
+    toastRoot?.unmount()
+    toastHost?.remove()
+    toastRoot = null
+    toastHost = null
+  })
   controller.listen('contextmenu', onContextMenu, { capture: true })
-  controller.listen('pointerdown', onPointerDown, { capture: true })
-  controller.listen('keydown', onKeyDown, { capture: true })
 })

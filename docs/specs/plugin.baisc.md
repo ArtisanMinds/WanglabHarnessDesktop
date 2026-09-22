@@ -16,3 +16,20 @@
 ```
 
 > **例外说明**：路由 `path` 不放入常量模块，一律在 `routes/index.ts` 中直接书写字面量。所有常量命名须保证全仓语义唯一。
+
+## 退级策略
+
+需求超出 dsh 原生能力时，按**四级阶梯**降级。客户端统一通过 `defineAdapter(ctx)` 探测（如 `adapter.has('workspaces.create')`），**禁止猜版本或硬编码槽名**。
+
+1. **官方公开 API**
+  * 宿主：`tools` / `on` / `systemPrompt` / `effect` / `sessions` / ...
+  * 客户端：`slots` / `sessions` / `workspaces`
+  * 严格按数据源 `.d.ts` 校验，绝不臆断。
+2. **桌面壳补丁**
+  * 启动前对核心目录执行幂等补丁（`src-tauri/src/service/patch/*.rs`）。
+  * 纯函数 + 锚点校验，失败仅告警，仅补充窄面能力（如 `SlotOutlet`）。
+3. **DOM 补丁**
+  * UI 改写须经 `controller.observe()` / `listen()` 托管生命周期。
+  * 仅用稳定 `aria-label` / `role` / 前缀 class，禁用动态 CSS 哈希。
+4. **功能禁用**
+  * 均不满足时禁用并日志告警，严禁静默半工作。

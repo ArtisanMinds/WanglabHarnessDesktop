@@ -60,6 +60,15 @@ export type * from '../types/adapter'
 /** 官方「添加工作区」按钮：工作区创建能力缺席时的 DOM 退级目标（只有本文件消费）。 */
 const ADD_WORKSPACE_SELECTOR = 'button[aria-label="添加工作区"],button[aria-label="Add workspace"]'
 
+/**
+ * 桌面壳 composer 补丁的能力标记（与 `src-tauri/src/service/patch/composer.rs` 逐字一致）。
+ *
+ * 官方 `ConversationRoot` 对「不属于任何工作区的空白会话」把 composer 换成「选择工作区」
+ * 触发器；桌面壳补丁放宽该判定并在 `<html>` 上写下这个标记。消费方据此决定「未分组」
+ * 入口是否可用——不猜核心版本，也不看补丁文件。
+ */
+const COMPOSER_CWD_ATTRIBUTE = 'data-dsh-composer-cwd'
+
 /** 适配层告警出口（默认 console.warn；宿主可注入以上报到插件面板）。 */
 type AdapterWarn = (message: string, error?: unknown) => void
 
@@ -786,6 +795,9 @@ export function defineAdapter(ctx: unknown, options: DefineAdapterOptions = {}):
     'navigation.startSession': () => surface.startSession !== undefined,
     'navigation.openSession': () => hasOpenCapability(surface),
     'navigation.addWorkspace': () => surface.addWorkspace !== undefined,
+    'composer.workspace-less': () =>
+      typeof document !== 'undefined'
+      && document.documentElement.getAttribute(COMPOSER_CWD_ATTRIBUTE) === '1',
     'dom.newSession': () => typeof document !== 'undefined' && document.querySelector(NEW_SESSION_SELECTOR) !== null,
     'dom.addWorkspace': () => typeof document !== 'undefined' && document.querySelector(ADD_WORKSPACE_SELECTOR) !== null,
   }

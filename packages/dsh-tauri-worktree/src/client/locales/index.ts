@@ -2,6 +2,7 @@ import { defineLocale } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../constants'
 
 const zh = {
+  close: '关闭',
   modeLabel: '工作模式',
   modeLocal: '本地',
   modeWorktree: '工作树',
@@ -35,6 +36,7 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
+  close: 'Close',
   modeLabel: 'Mode',
   modeLocal: 'Local',
   modeWorktree: 'Worktree',

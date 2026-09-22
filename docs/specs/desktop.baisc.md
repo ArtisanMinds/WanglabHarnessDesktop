@@ -33,8 +33,9 @@ cargo check && cargo test   # Rust 检查与单元测试 (src-tauri 目录下)
 * 必须通过宿主上下文 `loader.import()` 解析模块，并按需使用 `loader.unwrapExports()`。
 
 * **Windows 极简模式**：
-* 修复项 `dsh-win-terminal-inspector` 确认后从 GitHub 动态安装（桌面端不内置源码）。
-* 自动挂载 `cordis.patch.yml` 并生成 `$DSH_HOME/.agent-presets/minimal-win/` 预设。
+* DSH 0.1.0-rc.8 起官方运行时内置 Windows process inspector，桌面端不再安装或挂载社区注入插件。
+* 启动时幂等剥离历史遗留的 `dsh-win-terminal-inspector` 注入行（`cordis.patch.yml`）。
+* Git Bash 的 bin 目录（`<git>\bin` 与 `<git>\usr\bin`）注入服务 PATH。
 
 * **桌宠模块 (`src/pet` + `dsh-tauri-pet`)**：
 * 预设宠物**不下载不安装**，由 `preset-pets.json` 登记远端 URL 并直连播放，落 IndexedDB 缓存。

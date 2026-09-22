@@ -21,22 +21,17 @@ fn dependencies_dir(app_handle: &AppHandle) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// 历史版本槽位（新命名）：`dependencies/<tag>`。release tag 本身以 `dsh-` 开头
+/// 历史版本槽位：`dependencies/<tag>`。release tag 本身以 `dsh-` 开头
 /// （如 `dsh-0.1.0-rc.8-32331963388`），因此槽位目录名即 tag，不再叠加前缀。
 fn slot_dir(app_handle: &AppHandle, tag: &str) -> PathBuf {
     dependencies_dir(app_handle).join(tag)
 }
 
-/// 定位已下载的槽位：优先新命名 `dependencies/<tag>`，兼容旧版遗留的双前缀
-/// `dependencies/dsh-<tag>`（tag 以 `dsh-` 开头时旧命名会产生 `dsh-dsh-...`）。
+/// 定位已下载的槽位：`dependencies/<tag>` 存在时返回该目录。
 fn existing_slot_dir(app_handle: &AppHandle, tag: &str) -> Option<PathBuf> {
     let deps = dependencies_dir(app_handle);
-    let new = safe_slot_path(&deps, tag).ok()?;
-    if new.is_dir() {
-        return Some(new);
-    }
-    let legacy = safe_slot_path(&deps, &format!("dsh-{tag}")).ok()?;
-    legacy.is_dir().then_some(legacy)
+    let slot = safe_slot_path(&deps, tag).ok()?;
+    slot.is_dir().then_some(slot)
 }
 
 /// 构造槽位路径，并拒绝越出 dependencies 根目录的既有路径或符号链接。
@@ -259,11 +254,8 @@ pub async fn list(app_handle: &AppHandle) -> Vec<HarnessCore> {
     if let Ok(entries) = std::fs::read_dir(dependencies_dir(app_handle)) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            // 新命名槽位目录名即 tag（`dsh-0.1.0-rc.8-...`）；旧版双前缀
-            // `dsh-dsh-...` 剥一层 `dsh-` 还原 tag。`dsh` 为激活目录，跳过。
-            let tag = if let Some(rest) = name.strip_prefix("dsh-dsh-") {
-                Some(format!("dsh-{rest}"))
-            } else if name.starts_with("dsh-") || name.starts_with("src-") {
+            // 槽位目录名即 tag（`dsh-0.1.0-rc.8-...`）。`dsh` 为激活目录，跳过。
+            let tag = if name.starts_with("dsh-") || name.starts_with("src-") {
                 Some(name.clone())
             } else {
                 None
@@ -353,13 +345,12 @@ pub async fn set_active(app_handle: &AppHandle, id: &str) -> Result<HarnessCore,
         let Some(core) = local_core(app_handle) else {
             return Err("CORE_LOCAL_NOT_FOUND: no local core detected".to_string());
         };
-        // 低于内置插件基线的本地核心无法加载随包插件（issue #596）：显式切换同样
+        // 低于最低支持版本的本地核心无法加载随包插件（issue #596）：显式切换同样
         // 拒绝并给出可操作提示，而不是让用户切过去再撞一次启动失败。
-        if !core_supports_bundled_plugins(app_handle, &core.version) {
+        if !core_supports_bundled_plugins(&core.version) {
             return Err(format!(
-                "CORE_LOCAL_UNSUPPORTED: local dsh {} is below the bundled-plugin baseline {}; update it (`npm install -g @deepseek-ai/dsh@latest`) or keep a bundled version",
+                "CORE_LOCAL_UNSUPPORTED: local dsh {} is below the minimum supported core; update it (`npm install -g @deepseek-ai/dsh@latest`) or keep a bundled version",
                 core.version,
-                config::recommended_dsh_version(app_handle).unwrap_or_default(),
             ));
         }
         stop_harness_for_core_switch(app_handle).await?;
