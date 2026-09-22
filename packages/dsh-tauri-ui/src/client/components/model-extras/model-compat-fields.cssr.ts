@@ -33,7 +33,6 @@ export default c([
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-    marginTop: '8px',
   }),
   c('.dshp-model-compat__chips', {
     display: 'flex',
