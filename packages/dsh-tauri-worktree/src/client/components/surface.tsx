@@ -1,15 +1,12 @@
 import type { ReactElement } from 'react'
 import type { SurfaceBarProps } from './surface.types'
-import { CircleTree, Icon, useMountStyle } from 'dsh-tauri-ui/client'
+import { CircleTree, GoalBar, GoalBarAction, Icon } from 'dsh-tauri-ui/client'
 import { useState } from 'react'
-import { SURFACE_STYLE_ID } from '../constants'
 import { useWorktreeSession } from '../hooks/use-worktree-session'
 import { locale } from '../locales'
 import { store } from '../store'
-import surfaceStyle from './surface.cssr'
 
 export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | null {
-  useMountStyle(surfaceStyle, SURFACE_STYLE_ID)
   locale.useLocale()
   const state = useWorktreeSession(sessionId)
   const [logOpen, setLogOpen] = useState(false)
@@ -26,58 +23,46 @@ export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | 
     : deleting
       ? locale.text('progressDeleting')
       : failed
-        ? `${locale.text('progressError')}${state.error ? `: ${state.error}` : ''}`
+        ? locale.text('progressError')
         : locale.text('surfaceWorktree')
 
   return (
     <div className="dshp-worktree">
       <div className="dshp-worktree__surface">
-        <div className="dshp-worktree__surface-bar" data-dsh-worktree-surface={sessionId}>
-          <Icon as={CircleTree} size={14} />
-          <div className="dshp-worktree__surface-content">
-            <span className="dshp-worktree__surface-label">
-              {label}
-              {creating && `...`}
-            </span>
-            {bound && state.log.length > 0 && (
-              <button type="button" className={`${'dshp-worktree__action'} ${'dshp-worktree__action--log'}`} onClick={() => setLogOpen(value => !value)}>
-                {locale.text('progressViewLogs')}
-              </button>
-            )}
-          </div>
-          <span className="dshp-worktree__spacer" />
-          {bound && !deleting && (
+        <GoalBar
+          actions={(
             <>
-              <button type="button" className="dshp-worktree__action" onClick={() => store.worktree.patch(sessionId, { checkoutOpen: true, error: '' })}>
-                {locale.text('surfaceCheckout')}
-              </button>
-              <button type="button" className={`${'dshp-worktree__action'} ${'dshp-worktree__action--danger'}`} onClick={() => store.worktree.patch(sessionId, { abandonOpen: true })}>
-                {locale.text('surfaceAbandon')}
-              </button>
+              {bound && !deleting && (
+                <>
+                  <GoalBarAction onClick={() => store.worktree.patch(sessionId, { checkoutOpen: true, error: '' })}>
+                    {locale.text('surfaceCheckout')}
+                  </GoalBarAction>
+                  <GoalBarAction variant="danger" onClick={() => store.worktree.patch(sessionId, { abandonOpen: true })}>
+                    {locale.text('surfaceAbandon')}
+                  </GoalBarAction>
+                </>
+              )}
+              {failed && !bound && (
+                <GoalBarAction onClick={() => store.worktree.patch(sessionId, { phase: 'idle', error: '' })}>
+                  {locale.text('surfaceDismiss')}
+                </GoalBarAction>
+              )}
             </>
           )}
-          {failed && !bound && (
-            <button type="button" className="dshp-worktree__action" onClick={() => store.worktree.patch(sessionId, { phase: 'idle', error: '' })}>
-              {locale.text('surfaceDismiss')}
-            </button>
+          data-dsh-worktree-surface={sessionId}
+          error={failed ? state.error : undefined}
+          glyph={<Icon as={CircleTree} size={14} />}
+          label={`${label}${creating ? '...' : ''}`}
+        >
+          {bound && state.log.length > 0 && (
+            <div className="dshp-worktree__surface-content">
+              <GoalBarAction onClick={() => setLogOpen(value => !value)}>
+                {locale.text('progressViewLogs')}
+              </GoalBarAction>
+            </div>
           )}
-        </div>
+        </GoalBar>
         <Logs log={state.log} open={logOpen} />
-      </div>
-    </div>
-  )
-}
-
-export function Logs({ log, open }: { log: readonly string[], open: boolean }): ReactElement {
-  return (
-    <div
-      aria-hidden={!open}
-      className={`${'dshp-worktree__logs'} ${open ? 'dshp-worktree__logs--open' : ''}`}
-    >
-      <div className="dshp-worktree__logs-inner">
-        <div className="dshp-worktree__logs-panel">
-          {log.map((line, index) => <div key={`${index}:${line}`} className="dshp-worktree__log-line">{line}</div>)}
-        </div>
       </div>
     </div>
   )

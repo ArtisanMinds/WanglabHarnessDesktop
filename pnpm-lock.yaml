@@ -716,9 +716,6 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -753,6 +750,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       marked:
         specifier: catalog:ui
         version: 18.0.11
@@ -820,9 +820,6 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: catalog:dsh
@@ -842,6 +839,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       react:
         specifier: catalog:runtime
         version: 19.2.8
@@ -854,9 +854,6 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
       lodash-es:
         specifier: catalog:utils
         version: 4.18.1
@@ -867,6 +864,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
@@ -876,9 +876,6 @@ importers:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -895,6 +892,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
@@ -961,14 +961,35 @@ importers:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
 
+  packages/dsh-tauri-ui-playground:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: catalog:dsh
+        version: 4.0.2(@deepseek-ai/cordis-plugin-include@1.0.7)(@deepseek-ai/cordis-plugin-loader@1.0.3)
+      '@deepseek-ai/dsh-client-ui-layout':
+        specifier: catalog:dsh
+        version: 0.1.7-alpha.1(@deepseek-ai/cordis@4.0.2)
+      dsh-tauri:
+        specifier: workspace:*
+        version: link:../dsh-tauri
+      dsh-tauri-tsdown:
+        specifier: workspace:*
+        version: link:../dsh-tauri-tsdown
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
+      react:
+        specifier: catalog:runtime
+        version: 19.2.8
+      tsdown:
+        specifier: catalog:cli
+        version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
+
   packages/dsh-tauri-worktree:
     dependencies:
       dsh-tauri:
         specifier: workspace:*
         version: link:../dsh-tauri
-      dsh-tauri-ui:
-        specifier: workspace:*
-        version: link:../dsh-tauri-ui
       hookable:
         specifier: catalog:utils
         version: 6.1.1
@@ -991,6 +1012,9 @@ importers:
       dsh-tauri-tsdown:
         specifier: workspace:*
         version: link:../dsh-tauri-tsdown
+      dsh-tauri-ui:
+        specifier: workspace:*
+        version: link:../dsh-tauri-ui
       tsdown:
         specifier: catalog:cli
         version: 0.17.4(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3)(oxc-resolver@11.24.2)(publint@0.3.24)(synckit@0.11.13)(typescript@5.8.3)
