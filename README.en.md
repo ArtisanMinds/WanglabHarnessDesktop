@@ -65,8 +65,7 @@ Plugins offered in the first-run wizard; select what you need and install on dem
 
 First-party plugins bundled with the installer:
 
-- [DSH Tauri](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri) — provides a communication channel with the Tauri 2 shell
-- [DSH Tauri Connection](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-connection) — lets the cross-origin sandboxed WebView reach the loopback Host by overriding the desktop carrier's two authentication gates on the `connection` service
+- [DSH Tauri](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri) — provides a communication channel with the Tauri 2 shell, and lets the cross-origin sandboxed WebView reach the loopback Host by overriding the desktop carrier's two authentication gates on the `connection` service
 - [DSH Tauri UI](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-ui) — provides a custom settings sidebar for the Tauri 2 shell
 - [DSH Tauri Worktree](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-worktree) — creates an isolated Git worktree per session, with checkout to a local branch or archive-and-abandon flows
 - [DSH Tauri Panel Extension](https://github.com/dsh-tauri/deepseek-harness-desktop/tree/main/packages/dsh-tauri-panel-extension) — Skills and MCP management with skill repository import, plus an embedded plugin market panel

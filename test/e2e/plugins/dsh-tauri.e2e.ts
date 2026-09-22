@@ -1,7 +1,7 @@
 /**
- * 批次 11 · `dsh-tauri-connection` 的桌面载体鉴权适配（契约见 `docs/specs/plugin.test.md`）。
+ * 批次 11 · `dsh-tauri` 的桌面载体鉴权适配（契约见 `docs/specs/plugin.test.md`）。
  *
- * 本插件是全仓唯一的网络安全边界型插件：当且仅当子进程带 `DSH_TAURI_EMBEDDED=1` 时，它在
+ * 该适配是全仓唯一的网络安全边界：当且仅当子进程带 `DSH_TAURI_EMBEDDED=1` 时，它在
  * `connection` 服务上把 401 降级为放行、把索引放行；其余取值下 `attach()` 返回 noop，鉴权完全不变。
  *
  * 三条用例都必须控制该环境变量，因此各自自带 scratch 宿主。这里不用 `support/dsh.ts` 的
@@ -94,8 +94,8 @@ async function waitForReady(child: ChildProcess, logPath: string): Promise<strin
 
 async function startGateHost(): Promise<GateHost> {
   const profile = await scaffoldDshProfile({
-    plugin: 'dsh-tauri-connection',
-    also: ['dsh-tauri', 'dsh-tauri-pet'],
+    plugin: 'dsh-tauri',
+    also: ['dsh-tauri-pet'],
   })
   const logPath = join(profile.home, 'dsh-web.log')
   const logStream: WriteStream = createWriteStream(logPath, { flags: 'a' })

@@ -1,8 +1,8 @@
 import type { IncomingMessage } from 'node:http'
 import process from 'node:process'
-import { defineService } from 'dsh-tauri'
 import { PLUGIN_ID } from '../../shared/constants'
 import { getCurrentHostInstance } from '../config/runtime'
+import { defineService } from './index'
 
 /**
  * 桌面壳在 spawn 时注入的载体标记；与 `src-tauri/src/service/workflow/launch.rs` 的
