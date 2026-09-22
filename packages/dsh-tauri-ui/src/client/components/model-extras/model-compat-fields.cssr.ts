@@ -7,25 +7,29 @@ const { secondary, tertiary, borderL3, brand, focusRing } = sharedStyles
 export default c([
   c('.dshp-model-compat', {
     order: '1',
+    display: 'flex',
+    gap: '16px',
     minWidth: '0',
     margin: '0',
     padding: '0',
     border: 'none',
   }),
+  c('.dshp-model-compat__field', {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    minWidth: '0',
+  }),
   c('.dshp-model-compat__label', {
-    display: 'block',
-    marginBottom: '4px',
     padding: '0',
     color: tertiary,
     fontSize: '12px',
     lineHeight: '18px',
   }),
-  c('.dshp-model-compat__choices', {
+  c('.dshp-model-compat__switch', {
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: '16px',
-    minHeight: '32px',
     alignItems: 'center',
+    height: '32px',
   }),
   c('.dshp-model-compat__levels', {
     order: '3',

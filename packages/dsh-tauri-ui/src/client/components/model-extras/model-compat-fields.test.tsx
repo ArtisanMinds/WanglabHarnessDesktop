@@ -15,9 +15,17 @@ vi.mock('dsh-tauri/client', () => ({
   }),
 }))
 
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Switch: ({ checked, disabled, label, title }: {
+    checked: boolean
+    disabled?: boolean
+    label: string
+    title?: string
+  }) => <button type="button" role="switch" aria-checked={checked} aria-label={label} title={title} disabled={disabled} />,
+}))
+
 const t: Translate = (key, params) => {
   const dict: Record<string, string> = {
-    modelConfig: 'Model config',
     thinkingMode: 'Thinking mode',
     thinkingLevels: 'Thinking levels',
     thinkingModeHint: 'Declare whether this model thinks',
@@ -43,26 +51,27 @@ function markup(model: Record<string, unknown>, templateCompat: boolean, disable
   )
 }
 
-interface Choice {
+interface SwitchState {
   checked: boolean
   disabled: boolean
   label: string
-  ariaLabel: string
   title: string
 }
 
-function choices(html: string): Choice[] {
-  const pattern = /<label class="dshp-checkbox"([^>]*)><input class="dshp-checkbox__input" type="checkbox"([^>]*)><span class="dshp-checkbox__label">([^<]*)<\/span><\/label>/g
-  return [...html.matchAll(pattern)].map((match) => {
-    const input = match[2] ?? ''
+function switches(html: string): SwitchState[] {
+  return [...html.matchAll(/<button type="button" role="switch"([^>]*)>/g)].map((match) => {
+    const attrs = match[1] ?? ''
     return {
-      title: /title="([^"]*)"/.exec(match[1] ?? '')?.[1] ?? '',
-      checked: input.includes('checked=""'),
-      disabled: input.includes('disabled=""'),
-      ariaLabel: /aria-label="([^"]*)"/.exec(input)?.[1] ?? '',
-      label: match[3] ?? '',
+      checked: attrs.includes('aria-checked="true"'),
+      disabled: attrs.includes('disabled=""'),
+      label: /aria-label="([^"]*)"/.exec(attrs)?.[1] ?? '',
+      title: /title="([^"]*)"/.exec(attrs)?.[1] ?? '',
     }
   })
+}
+
+function fieldLabels(html: string): string[] {
+  return [...html.matchAll(/<span class="dshp-model-compat__label"([^>]*)>([^<]*)<\/span>/g)].map(match => match[2] ?? '')
 }
 
 function chips(html: string): { checked: boolean, disabled: boolean, level: string }[] {
@@ -75,15 +84,12 @@ function chips(html: string): { checked: boolean, disabled: boolean, level: stri
 }
 
 describe('modelCompatFields', () => {
-  it('labels the row and offers an ungraded thinking choice while thinking stays off', () => {
+  it('labels the thinking switch while thinking stays off', () => {
     const html = markup({}, false)
-    expect(html).toContain('<fieldset class="dshp-model-compat" aria-label="Model config 1">')
-    expect(html).toContain('<legend class="dshp-model-compat__label">Model config</legend>')
-    expect(html).toContain('<div class="dshp-model-compat__choices">')
-    expect(choices(html)).toHaveLength(1)
-    expect(choices(html)[0]).toMatchObject({
-      label: 'Thinking mode',
-      ariaLabel: 'Thinking mode 1',
+    expect(fieldLabels(html)).toEqual(['Thinking mode'])
+    expect(switches(html)).toHaveLength(1)
+    expect(switches(html)[0]).toMatchObject({
+      label: 'Thinking mode 1',
       title: 'Declare whether this model thinks',
       checked: false,
     })
@@ -92,17 +98,17 @@ describe('modelCompatFields', () => {
 
   it('renders the seven level chips once a graded level is declared', () => {
     const html = markup({ reasoningEfforts: { off: null, low: 'low' } }, false)
-    expect(choices(html)[0]?.checked).toBe(true)
+    expect(switches(html)[0]?.checked).toBe(true)
+    expect(fieldLabels(html)).toEqual(['Thinking mode', 'Thinking levels'])
     expect(chips(html).map(chip => chip.level)).toEqual(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
     expect(chips(html).filter(chip => chip.checked).map(chip => chip.level)).toEqual(['off', 'low'])
     expect(html).toContain('aria-label="Thinking levels 1"')
   })
 
-  it('gates the developer-role choice on the caller protocol decision', () => {
+  it('gates the developer-role switch on the caller protocol decision', () => {
     const model = { compat: { thinkingFormat: 'chat-template', supportsDeveloperRole: false } }
-    expect(choices(markup(model, true)).map(choice => choice.label)).toEqual(['Thinking mode', 'Disable developer role'])
-    expect(choices(markup(model, true))[1]).toMatchObject({
-      ariaLabel: 'Disable developer role 1',
+    expect(switches(markup(model, true)).map(item => item.label)).toEqual(['Thinking mode 1', 'Disable developer role 1'])
+    expect(switches(markup(model, true))[1]).toMatchObject({
       title: 'Turn this on for an endpoint that rejects the developer role',
       checked: true,
     })
@@ -111,7 +117,7 @@ describe('modelCompatFields', () => {
 
   it('disables every control while the editor is read-only', () => {
     const html = markup({ reasoningEfforts: { low: 'low' } }, true, true)
-    expect(choices(html).every(choice => choice.disabled)).toBe(true)
+    expect(switches(html).every(item => item.disabled)).toBe(true)
     expect(chips(html).every(chip => chip.disabled)).toBe(true)
   })
 })
