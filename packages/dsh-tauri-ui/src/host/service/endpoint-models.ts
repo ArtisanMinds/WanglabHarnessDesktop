@@ -49,10 +49,23 @@ async function resolveApiKey(ref: string | undefined, typed: string | undefined)
   }
 }
 
+/**
+ * 读取设置命名空间。两代内核的 `settings.get` 严格程度不同：0.1.7 对未知命名空间会抛，
+ * 而本路由的契约是「没有 endpoint 就 502」，所以这里必须把查找失败归一成 `undefined`。
+ */
+function readSection(ns: string): unknown {
+  try {
+    const settings = getCurrentHostInstance().get('settings') as SettingsService | undefined
+    return settings?.get(ns)
+  }
+  catch {
+    return undefined
+  }
+}
+
 export const endpointModels = defineService({
   async list(input: EndpointModelsInput): Promise<EndpointModelsResult> {
-    const settings = getCurrentHostInstance().get('settings') as SettingsService | undefined
-    const section = settings?.get(input.ns)
+    const section = readSection(input.ns)
     const path = parseProfilePath(input.profilePath)
     const profile = path.length === 0 ? section : getPath(section, path)
     const baseURL = endpointOf(profile, input.baseURL)
