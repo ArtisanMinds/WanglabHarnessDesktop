@@ -128,5 +128,11 @@ describe('handoff.complete', () => {
       },
     })
     expect(followup).toHaveBeenCalledTimes(1)
+    const followupMessage = followup.mock.calls[0][0]
+    const text = followupMessage.content.map((block: any) => block.text).join('')
+    expect(text).toContain('is_worktree: true')
+    expect(text).toContain('Worktree path: C:/worktrees/w1')
+    expect(text).toContain('Project path: C:/project')
+    expect(text).toContain('The task has moved to this isolated worktree session.')
   })
 })
