@@ -84,6 +84,12 @@ export const UI_COMPONENT_REGISTRY: readonly UiComponentEntry[] = [
     upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
     mappedClass: 'addButton',
   }),
+  reforkVariant('Button', 'addGhost', {
+    package: '@deepseek-ai/dsh-client-ui-plugin-manager',
+    availableAt: AVAILABLE_LATEST,
+    upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
+    mappedClass: 'addButton',
+  }),
   reforkVariant('Button', 'danger', {
     package: '@deepseek-ai/dsh-client-ui-plugin-manager',
     availableAt: AVAILABLE_LATEST,
@@ -149,6 +155,18 @@ export const UI_COMPONENT_REGISTRY: readonly UiComponentEntry[] = [
     availableAt: AVAILABLE_BOTH,
     upstreamPath: 'packages/client/ui-permission-presets/src/client/PermissionRow.module.css',
     mappedClass: 'selector',
+  }),
+  reforkVariant('GoalBar', 'bar', {
+    package: '@deepseek-ai/dsh-client-ui-goal',
+    availableAt: AVAILABLE_BOTH,
+    upstreamPath: 'packages/client/ui-goal/src/client/GoalBar.module.css',
+    mappedClass: 'bar',
+  }),
+  reforkVariant('GoalBar', 'action', {
+    package: '@deepseek-ai/dsh-client-ui-goal',
+    availableAt: AVAILABLE_BOTH,
+    upstreamPath: 'packages/client/ui-goal/src/client/GoalBar.module.css',
+    mappedClass: 'iconBtn',
   }),
   reforkVariant('Tag', 'version', {
     package: '@deepseek-ai/dsh-client-ui-plugin-manager',

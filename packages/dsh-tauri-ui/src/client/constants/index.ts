@@ -13,15 +13,6 @@ export const SETTINGS_ONBOARDING_SLOT = 'settings.onboarding'
 
 export const SETTINGS_SIDEBAR_ID = 'dsh-tauri-ui-settings'
 export const SETTINGS_SIDEBAR_CLASS = 'dshp-settings-sidebar'
-/**
- * 仅 dev 构建挂载的「UI 组件」调试面板。
- *
- * 面板入口排在 IM（40）之后；是否挂载由宿主命令 `is_dev_build` 决定——插件侧没有
- * 可用的构建期开关（`dsh-tauri-tsdown` 无条件把 `process.env.NODE_ENV` 定成
- * `'production'`，也不替换 `import.meta.env`）。
- */
-export const UI_COMPONENTS_PANEL_ID = 'dsh-tauri-ui-components'
-export const UI_COMPONENTS_PANEL_ORDER = 50
 
 /** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `ui/hero-workspace.cssr.ts`）。 */
 export const HERO_WORKSPACE_CHIP_CLASS = 'dshp-hero-workspace'
@@ -61,7 +52,6 @@ export const SECTIONS_EFFECT = `${PLUGIN_ID}: settings sections projection`
 export const SETTINGS_EFFECT = `${PLUGIN_ID}: settings panel`
 export const OBSTRUCTIONS_EFFECT = `${PLUGIN_ID}: settings obstructions`
 export const IM_PANEL_EFFECT = `${PLUGIN_ID}: im panel`
-export const UI_COMPONENTS_EFFECT = `${PLUGIN_ID}: ui components panel`
 export const HERO_WORKSPACE_EFFECT = `${PLUGIN_ID}: hero workspace picker`
 export const NEW_SESSION_EFFECT = `${PLUGIN_ID}: sidebar new session`
 export const UNGROUPED_NEW_SESSION_EFFECT = `${PLUGIN_ID}: sidebar ungrouped new session`

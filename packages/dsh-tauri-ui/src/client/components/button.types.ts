@@ -7,6 +7,7 @@ export type ButtonVariant
     | 'toolbar'
     | 'elevated'
     | 'add'
+    | 'addGhost'
     | 'danger'
 
 export type ButtonSize = 'sm' | 'md'

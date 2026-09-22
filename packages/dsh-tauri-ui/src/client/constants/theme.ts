@@ -13,6 +13,7 @@ export const styles = {
   modulePlatform: 'var(--dsw-alias-bg-module-platform)',
   font: 'var(--dsw-font-family)',
   hover: 'var(--dsw-alias-interactive-bg-hover)',
+  active: 'var(--dsw-alias-interactive-bg-active)',
   hoverSolid: 'var(--dsw-alias-interactive-bg-hover-solid)',
   hoverDanger: 'var(--dsw-alias-interactive-bg-hover-danger)',
   error: 'var(--dsw-alias-state-error-primary)',

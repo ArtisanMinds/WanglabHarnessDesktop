@@ -1,9 +1,8 @@
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ClientContext } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../shared/constants'
-import { HERO_WORKSPACE_EFFECT, IM_PANEL_EFFECT, LOCALE_EFFECT, NEW_SESSION_EFFECT, OBSTRUCTIONS_EFFECT, SEAT_EFFECT, SECTIONS_EFFECT, SETTINGS_EFFECT, STYLES_EFFECT, UI_COMPONENTS_EFFECT, UNGROUPED_NEW_SESSION_EFFECT } from './constants'
+import { HERO_WORKSPACE_EFFECT, IM_PANEL_EFFECT, LOCALE_EFFECT, NEW_SESSION_EFFECT, OBSTRUCTIONS_EFFECT, SEAT_EFFECT, SECTIONS_EFFECT, SETTINGS_EFFECT, STYLES_EFFECT, UNGROUPED_NEW_SESSION_EFFECT } from './constants'
 import { locale } from './locales'
-import { registerUiComponentsPanel } from './register/components-playground'
 import { composerResumeFeature } from './register/composer-resume'
 import { heroWorkspaceFeature } from './register/hero-workspace'
 import { registerImPanel } from './register/im-panel'
@@ -55,5 +54,4 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(ungroupedNewSessionFeature, UNGROUPED_NEW_SESSION_EFFECT)
   ctx.effect(composerResumeFeature, COMPOSER_RESUME_EFFECT)
   ctx.effect(registerImPanel, IM_PANEL_EFFECT)
-  ctx.effect(registerUiComponentsPanel, UI_COMPONENTS_EFFECT)
 }

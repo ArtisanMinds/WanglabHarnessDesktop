@@ -2,7 +2,22 @@ import { styles as sharedStyles } from '../constants/theme'
 import { cssr } from '../utils/cssr'
 
 const { c, bem: { b, m } } = cssr
-const { borderL3, error, primary, primaryFill, primaryFg, primaryHover } = sharedStyles
+const { borderL3, error, primary, primaryFill, primaryFg, primaryHover, hover, active } = sharedStyles
+
+const addCapsule = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '4px',
+  boxSizing: 'border-box',
+  height: '32px',
+  padding: '0 12px',
+  border: 'none',
+  borderRadius: '16px',
+  fontSize: '13px',
+  lineHeight: '20px',
+  cursor: 'pointer',
+} as const
 
 export default b('button', {}, [
   m('elevated', {
@@ -32,23 +47,16 @@ export default b('button', {}, [
       opacity: '0.5',
     }),
   ]),
-  m('add', {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '4px',
-    boxSizing: 'border-box',
-    height: '32px',
-    padding: '0 12px',
-    border: 'none',
-    borderRadius: '16px',
-    background: primaryFill,
-    color: primaryFg,
-    fontSize: '13px',
-    lineHeight: '20px',
-    cursor: 'pointer',
-  }, [
+  m('add', { ...addCapsule, background: primaryFill, color: primaryFg }, [
     c('&:hover:not(:disabled)', { background: primaryHover }),
+    c('&:disabled', {
+      cursor: 'not-allowed',
+      opacity: '0.4',
+    }),
+  ]),
+  m('addGhost', { ...addCapsule, background: 'transparent', color: primary }, [
+    c('&:hover:not(:disabled)', { background: hover }),
+    c('&:active:not(:disabled)', { background: active }),
     c('&:disabled', {
       cursor: 'not-allowed',
       opacity: '0.4',

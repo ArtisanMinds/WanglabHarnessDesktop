@@ -7,11 +7,11 @@ import buttonStyle from './button.cssr'
 
 const BUTTON_STYLE_ID = 'dsh-tauri-ui-button-styles'
 
-function isLocalVariant(variant: ButtonProps['variant']): variant is 'elevated' | 'add' | 'danger' {
-  return variant === 'elevated' || variant === 'add' || variant === 'danger'
+function isLocalVariant(variant: ButtonProps['variant']): variant is 'elevated' | 'add' | 'addGhost' | 'danger' {
+  return variant === 'elevated' || variant === 'add' || variant === 'addGhost' || variant === 'danger'
 }
 
-// elevated / add 是上游固定几何，size 对其无效；danger 沿用官方 outline 的 md / sm 两档。
+// elevated / add / addGhost 是上游固定几何，size 对其无效；danger 沿用官方 outline 的 md / sm 两档。
 function LocalButton({
   variant,
   size,
@@ -19,7 +19,7 @@ function LocalButton({
   className,
   children,
   ...rest
-}: ButtonProps & { variant: 'elevated' | 'add' | 'danger', size: ButtonSize }): ReactElement {
+}: ButtonProps & { variant: 'elevated' | 'add' | 'addGhost' | 'danger', size: ButtonSize }): ReactElement {
   useMountStyle(buttonStyle, BUTTON_STYLE_ID)
   return (
     <button

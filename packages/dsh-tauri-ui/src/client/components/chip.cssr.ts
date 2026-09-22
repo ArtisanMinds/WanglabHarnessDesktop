@@ -35,7 +35,7 @@ export default b('chip', {}, [
     }),
   ]),
   m('composerTrigger', {
-    display: 'flex',
+    display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
     minWidth: '0',
