@@ -78,8 +78,6 @@ export default c([
   c('.dshp-scheduler__selector:hover', { background: hover }),
   c('.dshp-scheduler__selector-chevron', { flex: 'none' }),
   c('.dshp-scheduler__selector-effort', { color: tertiary, fontSize: '12px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis' }),
-  c('.dshp-scheduler__flyout-root', { position: 'absolute', inset: '0', zIndex: '1200', overflow: 'visible', pointerEvents: 'none' }),
-  c('.dshp-scheduler__flyout-root .dshp-scheduler__menu-select-menu, .dshp-scheduler__flyout-root .dshp-scheduler__model-select-menu', { pointerEvents: 'auto' }),
   // —— 侧边栏会话行时钟图标补丁（配合 register/session-icons.ts 的 DOM 观察器）——
   c(`[${SESSION_ICON_ATTRIBUTE}]`, {
     width: '16px',

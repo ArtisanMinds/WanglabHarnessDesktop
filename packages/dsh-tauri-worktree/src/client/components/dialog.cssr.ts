@@ -1,30 +1,13 @@
 import { cssr } from 'dsh-tauri-ui/client'
 
-const { bem: { b, e, m } } = cssr
+const { bem: { b, e } } = cssr
 
+/**
+ * 工作树对话框只用官方 primitives `Modal` 之外的字段与路径行样式：
+ * 遮罩、卡片、标题、页脚与关闭行为由 `Modal` 承担。
+ */
 export default b('worktree', [
-  e('modal', {
-    position: 'absolute',
-    inset: 0,
-    zIndex: 1000,
-    display: 'grid',
-    placeItems: 'center',
-    background: 'rgba(0,0,0,0.4)',
-  }),
-  e('dialog-card', {
-    boxSizing: 'border-box',
-    width: 'min(460px, calc(100vw - 48px))',
-    padding: '20px 22px',
-    borderRadius: '16px',
-    background: 'var(--dsw-alias-bg-base)',
-    color: 'var(--dsw-alias-label-primary)',
-    boxShadow: '0 24px 64px rgba(0,0,0,0.28)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '14px',
-  }),
-  e('dialog-title', { fontSize: '16px', fontWeight: 600, lineHeight: '24px', margin: 0 }),
-  e('dialog-body', { fontSize: '13px', lineHeight: '20px', color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))', margin: 0 }),
+  e('dialog-form', { display: 'flex', flexDirection: 'column', gap: '14px' }),
   e('dialog-field', { display: 'flex', flexDirection: 'column', gap: '6px' }),
   e('dialog-field-label', { fontSize: '12px', lineHeight: '18px', color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))' }),
   e('dialog-input-wrap', {
@@ -52,21 +35,4 @@ export default b('worktree', [
   e('dialog-path-key', { flex: 'none', color: 'var(--dsw-alias-label-secondary, var(--dsw-alias-label-primary))' }),
   e('dialog-path-value', { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }),
   e('dialog-error', { fontSize: '12px', lineHeight: '18px', color: '#c0392b' }),
-  e('dialog-footer', { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '4px' }),
-  e('dialog-button', {
-    boxSizing: 'border-box',
-    height: '36px',
-    padding: '0 16px',
-    border: 'none',
-    borderRadius: '10px',
-    fontFamily: 'inherit',
-    fontSize: '13px',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  }, [
-    m('ghost', { color: 'var(--dsw-alias-label-primary)', background: 'var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.08))' }),
-    m('primary', { color: '#fff', background: 'var(--dsw-alias-bg-accent, #2f6feb)' }),
-    m('danger', { color: '#fff', background: '#c0392b' }),
-    m('disabled', { opacity: 0.5, cursor: 'not-allowed' }),
-  ]),
 ])
