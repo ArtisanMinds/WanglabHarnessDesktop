@@ -6,9 +6,9 @@
 //! 统一处理，避免每个补丁重复这份样板。
 //!
 //! 命名约定：子模块名不带 `_patch` 后缀（`renderer` / `session` / `workspace` /
-//! `client_hmr`），挂点统一为 `service::workflow::launch`，均为最佳努力、失败仅告警。
+//! `workspace_view` 等），挂点统一为 `service::workflow::launch`，均为最佳努力、
+//! 失败仅告警。
 
-pub(crate) mod client_hmr;
 pub(crate) mod composer;
 pub(crate) mod llm_session;
 pub(crate) mod model_selection;
@@ -28,7 +28,7 @@ use std::path::Path;
 /// 单个补丁失败不阻断其余：与启动路径一样是「最佳努力」，但这里把错误汇总返回，
 /// 让编排层能看见哪一条出了问题。
 pub(crate) fn apply_all_at(core_dir: &Path) -> Result<(), String> {
-    let patches: [(&str, fn(&Path) -> Result<(), String>); 8] = [
+    let patches: [(&str, fn(&Path) -> Result<(), String>); 7] = [
         ("renderer", renderer::apply_at),
         ("composer", composer::apply_at),
         ("session", session::apply_at),
@@ -36,7 +36,6 @@ pub(crate) fn apply_all_at(core_dir: &Path) -> Result<(), String> {
         ("model_selection", model_selection::apply_at),
         ("workspace", workspace::apply_at),
         ("workspace_view", workspace_view::apply_at),
-        ("client_hmr", client_hmr::apply_at),
     ];
     let mut failures = Vec::new();
     for (name, apply) in patches {
