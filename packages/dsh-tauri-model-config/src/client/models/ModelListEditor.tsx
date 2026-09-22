@@ -4,7 +4,7 @@ import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import type { en } from './locales.ts'
 import type { ModelsOperations } from './operations.ts'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import { AutoConfigAllButton, modelExtrasTranslate, ModelFetchConfigButton, Plus } from 'dsh-tauri-ui/client'
+import { AutoConfigAllButton, ModelCompatFields, modelExtrasTranslate, ModelFetchConfigButton, Plus, TEMPLATE_COMPAT_PROTOCOL } from 'dsh-tauri-ui/client'
 import { useEffect, useMemo, useState } from 'react'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import { ModelRow } from './ModelRow.tsx'
@@ -130,7 +130,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const patch = (index: number, next: Record<string, string | number | undefined>): void => {
+  const patch = (index: number, next: Record<string, unknown>): void => {
     onChange(models.map((model, at) => {
       if (at !== index)
         return model
@@ -279,6 +279,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           t={modelExtrasTranslate}
           models={models}
           probe={target}
+          operations={operations}
           disabled={disabled}
           onApply={(next) => { onChange([...next]) }}
         />
@@ -315,8 +316,19 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                 modelId={typeof model.id === 'string' ? model.id : ''}
                 models={models}
                 probe={target}
+                operations={operations}
                 disabled={disabled}
                 onApply={(next) => { onChange([...next]) }}
+              />
+            )}
+            advanced={(
+              <ModelCompatFields
+                t={modelExtrasTranslate}
+                model={model}
+                index={index}
+                disabled={disabled}
+                templateCompat={probe.api === TEMPLATE_COMPAT_PROTOCOL}
+                onPatch={(next) => { patch(index, next) }}
               />
             )}
             onRemove={() => {

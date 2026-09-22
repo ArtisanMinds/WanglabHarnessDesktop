@@ -11,17 +11,18 @@ export function ModelFetchConfigButton({
   modelId,
   models,
   probe,
+  operations,
   disabled,
   onApply,
 }: ModelFetchConfigButtonProps): ReactElement | null {
   useMountStyle(modelExtrasStyle, MODEL_EXTRAS_STYLE_ID)
-  const { busy, failure, run } = useModelConfigFetch({ t, models, probe, onApply })
+  const { busy, failure, run } = useModelConfigFetch({ t, models, probe, operations, onApply })
   const row = models.find(model => model.id === modelId)
   if (row !== undefined && hasModelConfig(row))
     return null
 
   return (
-    <>
+    <div className="dshp-model-extras__row">
       <button
         type="button"
         className="dshp-model-extras__link"
@@ -33,6 +34,6 @@ export function ModelFetchConfigButton({
         {busy ? t('fetchingConfig') : t('fetchModelConfig')}
       </button>
       {failure === undefined ? null : <p className="dshp-model-extras__notice dshp-model-extras__notice--failed" role="alert">{failure}</p>}
-    </>
+    </div>
   )
 }

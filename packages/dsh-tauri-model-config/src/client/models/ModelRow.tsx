@@ -29,6 +29,7 @@ interface ModelRowProps {
   onToggle: () => void
   onRemove: () => void
   trailing?: ReactNode
+  advanced?: ReactNode
 }
 
 export function ModelRow(props: ModelRowProps): ReactNode {
@@ -102,6 +103,7 @@ export function ModelRow(props: ModelRowProps): ReactNode {
                 t={t}
                 onChange={props.onChange}
               />
+              {props.advanced}
             </div>
           )
         : null}

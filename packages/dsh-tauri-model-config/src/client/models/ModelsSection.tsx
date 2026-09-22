@@ -297,16 +297,18 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace, renderS
 
   return (
     <div className={styles.section}>
-      <h2 className={styles.title}>{t('title')}</h2>
-      <ModelConfigToolbar
-        t={modelExtrasTranslate}
-        editor={editor}
-        onEditorChange={(next) => {
-          setEditor(next)
-          void saveEditor(next)
-        }}
-        onOpenConfig={() => { void openConfigFile() }}
-      />
+      <div className="dshp-models-title-row">
+        <h2 className={styles.title}>{t('title')}</h2>
+        <ModelConfigToolbar
+          t={modelExtrasTranslate}
+          editor={editor}
+          onEditorChange={(next) => {
+            setEditor(next)
+            void saveEditor(next)
+          }}
+          onOpenConfig={() => { void openConfigFile() }}
+        />
+      </div>
       <p className={styles.intro}>{t('intro')}</p>
       {!state.writable && state.status === 'ready' ? <p className={styles.notice}>{t('readOnly')}</p> : null}
       {savedIdentity === undefined

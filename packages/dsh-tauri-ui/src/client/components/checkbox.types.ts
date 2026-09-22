@@ -6,4 +6,5 @@ export interface CheckboxProps {
   'onChange': (next: boolean) => void
   'children'?: ReactNode
   'aria-label'?: string
+  'title'?: string
 }

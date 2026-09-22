@@ -28,6 +28,12 @@ export const MODEL_EXTRAS_KEYS = [
   'configNoneApplied',
   'configApplied',
   'configUndisclosed',
+  'modelConfig',
+  'thinkingMode',
+  'thinkingLevels',
+  'thinkingModeHint',
+  'developerRole',
+  'developerRoleHint',
 ] as const
 
 export const modelExtrasTranslate: Translate = (key, params) => (locale.text as Translate)(key, params)

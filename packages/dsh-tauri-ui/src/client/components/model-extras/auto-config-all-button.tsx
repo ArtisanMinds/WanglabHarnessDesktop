@@ -5,9 +5,9 @@ import { useMountStyle } from '../../hooks/use-mount-style'
 import modelExtrasStyle from './model-extras.cssr'
 import { useModelConfigFetch } from './use-model-config-fetch'
 
-export function AutoConfigAllButton({ t, models, probe, disabled, onApply }: AutoConfigAllButtonProps): ReactElement {
+export function AutoConfigAllButton({ t, models, probe, operations, disabled, onApply }: AutoConfigAllButtonProps): ReactElement {
   useMountStyle(modelExtrasStyle, MODEL_EXTRAS_STYLE_ID)
-  const { busy, failure, notice, run } = useModelConfigFetch({ t, models, probe, onApply })
+  const { busy, failure, notice, run } = useModelConfigFetch({ t, models, probe, operations, onApply })
 
   return (
     <>

@@ -1,5 +1,7 @@
 export { AutoConfigAllButton } from './auto-config-all-button'
 export type { AutoConfigAllButtonProps } from './auto-config-all-button.types'
+export { ModelCompatFields } from './model-compat-fields'
+export type { ModelCompatFieldsProps } from './model-compat-fields.types'
 export { ModelConfigToolbar } from './model-config-toolbar'
 export type { ModelConfigToolbarProps, ModelDraft, ModelProbeTarget } from './model-config-toolbar.types'
 export { ModelFetchConfigButton } from './model-fetch-config-button'

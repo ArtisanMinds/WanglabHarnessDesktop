@@ -24,6 +24,7 @@ export const SEGMENTED_CONTROL_STYLE_ID = 'dsh-tauri-ui-segmented-control-styles
 export const CHECKBOX_STYLE_ID = 'dsh-tauri-ui-checkbox-styles'
 export const MODEL_EXTRAS_STYLE_ID = 'dsh-tauri-ui-model-extras-styles'
 export const MODEL_CONFIG_TOOLBAR_STYLE_ID = 'dsh-tauri-ui-model-config-toolbar-styles'
+export const MODEL_COMPAT_FIELDS_STYLE_ID = 'dsh-tauri-ui-model-compat-fields-styles'
 
 /** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `components/hero-workspace.cssr.ts`）。 */
 export const HERO_WORKSPACE_CHIP_CLASS = 'dshp-hero-workspace'

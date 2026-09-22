@@ -1,60 +1,70 @@
 import { styles as sharedStyles } from '../../constants/theme'
 import { cssr } from '../../utils/cssr'
 
-const { c, bem: { b, e, m } } = cssr
+const { c } = cssr
 const { primary, secondary, tertiary, error, success, hover, borderL4, layer1, modulePlatform, focusRing } = sharedStyles
 
-export default b('model-extras', [
-  e('row', {
+export default c([
+  c('.dshp-model-extras__row', {
     display: 'flex',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: '8px',
+    minWidth: '0',
   }),
-  e('link', {
+  c('.dshp-model-extras__link', {
+    boxSizing: 'border-box',
     display: 'inline-flex',
     alignItems: 'center',
     gap: '5px',
-    padding: '0',
+    height: '28px',
+    padding: '0 10px',
     border: 'none',
-    background: 'none',
-    color: secondary,
+    borderRadius: '14px',
+    background: 'transparent',
+    color: tertiary,
     cursor: 'pointer',
     font: 'inherit',
-    fontSize: '13px',
-    lineHeight: '20px',
+    fontSize: '12px',
+    lineHeight: '18px',
     whiteSpace: 'nowrap',
   }, [
-    c('&:hover:not(:disabled)', { color: primary }),
+    c('&:hover:not(:disabled)', {
+      background: hover,
+      color: secondary,
+    }),
     c('&:focus-visible', focusRing),
     c('&:disabled', {
       cursor: 'not-allowed',
       opacity: '0.5',
     }),
-    m('open', {
+    c('&.dshp-model-extras__link--open', {
       color: secondary,
     }),
   ]),
-  e('notice', {
+  c('.dshp-model-extras__notice', {
+    flex: '1 1 100%',
+    minWidth: '0',
     margin: '0',
     fontSize: '12px',
     lineHeight: '18px',
     color: tertiary,
+    overflowWrap: 'anywhere',
   }, [
-    m('failed', { color: error }),
-    m('done', { color: success }),
+    c('&.dshp-model-extras__notice--failed', { color: error }),
+    c('&.dshp-model-extras__notice--done', { color: success }),
   ]),
-  e('dialog-field', {
+  c('.dshp-model-extras__dialog-field', {
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
   }),
-  e('dialog-label', {
+  c('.dshp-model-extras__dialog-label', {
     fontSize: '12px',
     lineHeight: '18px',
     color: secondary,
   }),
-  e('input', {
+  c('.dshp-model-extras__input', {
     boxSizing: 'border-box',
     width: '100%',
     height: '32px',
@@ -74,21 +84,19 @@ export default b('model-extras', [
       opacity: '0.5',
     }),
   ]),
-  e('dialog-hint', {
+  c('.dshp-model-extras__dialog-hint', {
     fontSize: '12px',
     lineHeight: '18px',
     color: tertiary,
   }),
-  e('dialog-error', {
+  c('.dshp-model-extras__dialog-error', {
     margin: '0',
     fontSize: '13px',
     lineHeight: '20px',
     color: error,
   }),
-  e('busy', {
+  c('.dshp-model-extras__busy', {
     background: modulePlatform,
     color: tertiary,
   }),
-  c('&:hover .dshp-model-extras__link:not(:disabled)', { color: primary }),
-  c('.dshp-model-extras__link:hover', { background: hover }),
 ])
