@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react'
-import type { IconComponent } from '../components/icon.types'
+import type { IconComponent } from '../components/icon'
 import { get } from 'dsh-tauri/client'
 import { Icon } from '../components/icon'
 import { Database, Gear, Person, Puzzle } from '../components/icons'
-const SETTINGS_NAV_ICON_STYLE_ID = 'dsh-tauri-ui-settings-nav-icon-styles'
 import { useMountStyle } from '../hooks/use-mount-style'
 import settingsNavIconStyle from './nav-icon.cssr'
+
+const SETTINGS_NAV_ICON_STYLE_ID = 'dsh-tauri-ui-settings-nav-icon-styles'
 
 const NAV_ICONS: Record<string, IconComponent> = {
   'models': Database,

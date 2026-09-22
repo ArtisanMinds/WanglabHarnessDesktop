@@ -1,8 +1,19 @@
-import type { ReactElement } from 'react'
-import type { ChipProps } from './chip.types'
+// 引用源 @deepseek-ai/dsh-client-ui-agent-preset · packages/client/ui-agent-preset/src/client/AgentPresetSeat.module.css ; @deepseek-ai/dsh-client-ui-permission-presets · packages/client/ui-permission-presets/src/client/PermissionSelect.module.css ; @deepseek-ai/dsh-client-ui-permission-presets · packages/client/ui-permission-presets/src/client/PermissionRow.module.css · 版本 0.1.7-alpha.1（≥0.1.5-rc.1）· hash seat=seat composerTrigger=trigger selector=selector
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 import { compact } from 'dsh-tauri/client'
 import { useMountStyle } from '../hooks/use-mount-style'
 import chipStyle from './chip.cssr'
+
+export type ChipVariant = 'seat' | 'composerTrigger' | 'selector'
+
+export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  variant: ChipVariant
+  icon?: ReactNode
+  badge?: ReactNode
+  chevron?: ReactNode
+  open?: boolean
+  children?: ReactNode
+}
 
 const CHIP_STYLE_ID = 'dsh-tauri-ui-chip-styles'
 

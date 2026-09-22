@@ -1,9 +1,19 @@
-import type { ReactElement } from 'react'
-import type { TagProps } from './tag.types'
+// 引用源 @deepseek-ai/dsh-client-ui-primitives · packages/client/ui-primitives/src/Tag.tsx ; @deepseek-ai/dsh-client-ui-plugin-manager · packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css · 版本 0.1.7-alpha.1（≥0.1.5-rc.1）· hash 官方原样（无 refork 类） version=versionTag status=statusTag
+import type { HTMLAttributes, ReactElement, ReactNode } from 'react'
 import { Tag as PrimitiveTag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { compact } from 'dsh-tauri/client'
 import { useMountStyle } from '../hooks/use-mount-style'
 import tagStyle from './tag.cssr'
+
+export type TagVariant = 'default' | 'version' | 'status'
+
+export type TagTone = 'outline' | 'solid' | 'neutral' | 'quiet' | 'success' | 'info' | 'warning' | 'danger'
+
+export interface TagProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+  variant?: TagVariant
+  tone?: TagTone
+  children?: ReactNode
+}
 
 const TAG_STYLE_ID = 'dsh-tauri-ui-tag-styles'
 

@@ -1,8 +1,22 @@
-import type { ReactElement } from 'react'
-import type { GoalBarActionProps, GoalBarProps } from './goal-bar.types'
+// 引用源 @deepseek-ai/dsh-client-ui-goal · packages/client/ui-goal/src/client/GoalBar.module.css · 版本 0.1.7-alpha.1（≥0.1.5-rc.1）· hash bar=bar action=iconBtn
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactElement, ReactNode } from 'react'
 import { compact } from 'dsh-tauri/client'
 import { useMountStyle } from '../hooks/use-mount-style'
 import goalBarStyle from './goal-bar.cssr'
+
+export interface GoalBarProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
+  glyph?: ReactNode
+  label?: ReactNode
+  objective?: ReactNode
+  error?: ReactNode
+  actions?: ReactNode
+  children?: ReactNode
+}
+
+export interface GoalBarActionProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  iconOnly?: boolean
+  children?: ReactNode
+}
 
 const GOAL_BAR_STYLE_ID = 'dsh-tauri-ui-goal-bar-styles'
 

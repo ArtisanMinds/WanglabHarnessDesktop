@@ -1,3 +1,4 @@
+// 引用源 @gravity-ui/icons · 逐名转发 @gravity-ui/icons/<Name> · 版本 未记录（registry.ts 无该条目）· hash 未记录（registry.ts 无该条目）
 export { default as Alarm } from '@gravity-ui/icons/Alarm'
 export { default as ArrowLeft } from '@gravity-ui/icons/ArrowLeft'
 export { default as ArrowRight } from '@gravity-ui/icons/ArrowRight'
