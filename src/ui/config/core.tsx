@@ -324,6 +324,10 @@ export function ConfigCore() {
       {/* 加载 / 失败 / 列表 */}
       <Panel.Loadable loading={loading} error={error}>
         <div className="flex flex-col gap-4">
+          {/* 本地核心提示：未检测到时说明如何安装。放在列表首位，先解释「为什么没有本地行」 */}
+          <If cond={!localCore?.present}>
+            <Empty>{t('core.local_missing_hint')}</Empty>
+          </If>
           {displayRows.map(core => (
             <Fragment key={core.id}>
               {/* 「不兼容版本」分组头：默认折叠，点标题展开/收起 */}
@@ -467,10 +471,6 @@ export function ConfigCore() {
               />
             </Fragment>
           ))}
-          {/* 本地核心提示：未检测到时说明如何安装 */}
-          <If cond={!localCore?.present}>
-            <Empty>{t('core.local_missing_hint')}</Empty>
-          </If>
         </div>
       </Panel.Loadable>
 
