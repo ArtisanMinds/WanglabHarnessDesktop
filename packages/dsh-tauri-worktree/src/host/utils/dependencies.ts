@@ -3,6 +3,7 @@ import { lstat, rm, symlink } from 'node:fs/promises'
 import process from 'node:process'
 import { filter, find, get, isEmpty, isString, map, trimEnd, uniqBy } from 'lodash-es'
 import { resolve } from 'pathe'
+import { listDirectoryNames } from './filesystem'
 
 const DEFAULT_LINK_DIRECTORIES: readonly string[] = ['node_modules']
 
@@ -107,7 +108,38 @@ export async function unlinkWorktreeDependencies(
   return unlinked
 }
 
+/**
+ * 把源目录里缺失的子项逐条链接进目标目录。用于目标目录已存在（源仓库把 `.agents` 的一部分
+ * 提交进了索引）而技能等子目录被 gitignore、`git worktree add` 搬不过来的情况。
+ */
+export async function linkMissingChildren(sourceDirectory: string, targetDirectory: string): Promise<string[]> {
+  if (!existsSync(sourceDirectory) || !existsSync(targetDirectory) || await isSymbolicLink(targetDirectory))
+    return []
+  const linked: string[] = []
+  for (const name of listDirectoryNames(sourceDirectory)) {
+    const source = resolve(sourceDirectory, name)
+    const target = resolve(targetDirectory, name)
+    if (!existsSync(source) || await pathExists(target))
+      continue
+    try {
+      await symlink(source, target, process.platform === 'win32' ? 'junction' : 'dir')
+      linked.push(name)
+    }
+    catch {}
+  }
+  return linked
+}
+
 // --- internal ---
+
+async function isSymbolicLink(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isSymbolicLink()
+  }
+  catch {
+    return false
+  }
+}
 
 async function pathExists(path: string): Promise<boolean> {
   try {

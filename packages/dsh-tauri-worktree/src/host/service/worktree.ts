@@ -15,6 +15,7 @@ import { TRASH_DIR, WORKTREES_DIR } from '../config/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import {
   isDependencyInstallCommand,
+  linkMissingChildren,
   linkWorktreeDependencies,
   normalizeLinkDirectories,
   shellCommandFrom,
@@ -44,6 +45,10 @@ import { workspace } from './workspace'
 
 const WORKTREE_BRANCH_NAME_PATTERN = /^[\w./-]+$/
 
+// 技能目录不进 git 索引（.agents/skills 被 gitignore），`git worktree add` 永远搬不过来；
+// 不链接它，继承会话就读不到初始会话的项目级技能，因此这条链接与依赖开关无关。
+const AGENT_SKILLS_DIRECTORY = '.agents'
+
 const LINK_DEPENDENCIES = true
 
 const SWEEP_MIN_AGE_MS = 60_000
@@ -72,8 +77,16 @@ export const worktree = defineService({
       const registration = await isRegisteredWorktree(root, path, options.signal)
       if (!registration.ok)
         return { ok: false, error: `检查工作树残留状态失败：${registration.error}` }
-      if (registration.registered)
-        return { ok: true, binding: existing, existed: true, log: [] }
+      if (registration.registered) {
+        // 旧版本创建的工作树没有这条链接，重复创建时补齐，让继承会话能读到项目级技能
+        const repairedLog: string[] = []
+        await linkAgentSkills(root, path, repairedLog)
+        if (repairedLog.length === 0)
+          return { ok: true, binding: existing, existed: true, log: [] }
+        const repaired: Binding = { ...existing, log: [...existing.log, ...repairedLog] }
+        await ledger.save(sessionId, repaired)
+        return { ok: true, binding: repaired, existed: true, log: [] }
+      }
     }
 
     const mainSource = 'refs/heads/main'
@@ -141,6 +154,8 @@ export const worktree = defineService({
       : `Preparing worktree (detached HEAD ${await shortHead(path)})`)
     log.push(`HEAD is now at ${await shortHead(path)} ${await headSubject(path)}`)
     log.push(`Worktree created at ${path}`)
+
+    await linkAgentSkills(root, path, log)
 
     const linkedDependencies: string[] = []
     if (linkDependencies) {
@@ -466,6 +481,35 @@ async function pruneWorktreeAdmin(root: string, signal?: AbortSignal): Promise<O
   return pruned.ok ? { ok: true } : { ok: false, error: pruned.error }
 }
 
+/**
+ * 把源仓库的 `.agents` 链接进工作树：技能目录被 gitignore，`git worktree add` 不会带过来，
+ * 不补这条链接，继承会话就读不到初始会话的项目级技能。源仓库没有 `.agents` 时静默返回。
+ */
+async function linkAgentSkills(root: string, path: string, log: string[]): Promise<void> {
+  const source = join(root, AGENT_SKILLS_DIRECTORY)
+  if (!existsSync(source))
+    return
+  try {
+    const linked = await linkWorktreeDependencies(root, path, [AGENT_SKILLS_DIRECTORY])
+    if (linked.linked.length > 0) {
+      log.push(`Linked the agent skills directory from the source repository (${AGENT_SKILLS_DIRECTORY})`)
+      return
+    }
+    if (linked.skipped.includes(AGENT_SKILLS_DIRECTORY)) {
+      // `.agents` 已在工作树里（部分内容被提交进索引）时无法整体链接，
+      // 改为补齐被 gitignore 掉、worktree add 搬不过来的子目录（如 skills）。
+      const children = await linkMissingChildren(source, join(path, AGENT_SKILLS_DIRECTORY))
+      if (children.length > 0)
+        log.push(`Linked the missing agent directories from the source repository (${children.join(', ')})`)
+      return
+    }
+    log.push('Agent skills directory link skipped')
+  }
+  catch (error) {
+    log.push(`Agent skills directory link skipped: ${get(error, 'message', String(error))}`)
+  }
+}
+
 function samePath(a: string, b: string): boolean {
   const left = resolve(a)
   const right = resolve(b)
@@ -534,8 +578,8 @@ async function removeWorktreeOnDisk(
 function removalLinkDirectories(binding: Binding | null, configured?: readonly string[]): string[] {
   const configuredDirectories = normalizeLinkDirectories(configured)
   if (!binding || isEmpty(binding.linkedDependencies))
-    return configuredDirectories
-  return normalizeLinkDirectories([...binding.linkedDependencies ?? [], ...configuredDirectories])
+    return normalizeLinkDirectories([AGENT_SKILLS_DIRECTORY, ...configuredDirectories])
+  return normalizeLinkDirectories([AGENT_SKILLS_DIRECTORY, ...binding.linkedDependencies ?? [], ...configuredDirectories])
 }
 
 async function deleteOwnedBranch(root: string, branch: string, signal?: AbortSignal): Promise<OperationResult> {

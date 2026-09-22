@@ -26,6 +26,15 @@ async function createFixture(): Promise<{ project: string, worktree: string, mar
   return { project, worktree, marker }
 }
 
+async function createSkillsFixture(): Promise<{ project: string, worktree: string, skill: string }> {
+  const project = await temporaryRoot('dsh-deps-project-')
+  const worktree = await temporaryRoot('dsh-deps-worktree-')
+  const skill = join(project, '.agents', 'skills', 'handle', 'SKILL.md')
+  await mkdir(join(project, '.agents', 'skills', 'handle'), { recursive: true })
+  await writeFile(skill, '# handle\n')
+  return { project, worktree, skill }
+}
+
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map(path => rm(path, { recursive: true, force: true })))
 })
@@ -111,6 +120,16 @@ describe('unlinkWorktreeDependencies', () => {
     await expect(unlinkWorktreeDependencies(worktree, ['node_modules'])).resolves.toEqual(['node_modules'])
     await expect(lstat(join(worktree, 'node_modules'))).rejects.toMatchObject({ code: 'ENOENT' })
     expect(await readFile(marker, 'utf8')).toBe('shared-dependency\n')
+  })
+
+  it('unlinks the agent skills link without touching the source skills tree', async () => {
+    const { project, worktree, skill } = await createSkillsFixture()
+    await expect(linkWorktreeDependencies(project, worktree, ['.agents'])).resolves.toEqual({ linked: ['.agents'], skipped: [] })
+    expect(await readFile(join(worktree, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+
+    await expect(unlinkWorktreeDependencies(worktree, ['.agents'])).resolves.toEqual(['.agents'])
+    await expect(lstat(join(worktree, '.agents'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readFile(skill, 'utf8')).toBe('# handle\n')
   })
 
   it('leaves a real (independently installed) directory untouched', async () => {

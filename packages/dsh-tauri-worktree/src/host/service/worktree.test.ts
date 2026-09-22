@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -397,5 +397,84 @@ describe('依赖链接', () => {
 
     expect(existsSync(join(created.binding.worktreePath, 'node_modules'))).toBe(false)
     expect(created.binding.linkedDependencies).toBeUndefined()
+  })
+
+  it('无条件链接 .agents，即使关闭依赖链接', async () => {
+    const repository = createRepository()
+    mkdirSync(join(repository, '.agents', 'skills', 'handle'), { recursive: true })
+    writeFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), '# handle\n')
+    const sessionId = 'skills-session'
+
+    const created = await worktree.create(repository, sessionId, { linkDependencies: false })
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    const link = join(created.binding.worktreePath, '.agents')
+    expect(lstatSync(link).isSymbolicLink()).toBe(true)
+    expect(readFileSync(join(link, 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+    expect(existsSync(join(created.binding.worktreePath, 'node_modules'))).toBe(false)
+
+    const removed = await worktree.remove(sessionId)
+    expect(removed.ok).toBe(true)
+    expect(existsSync(link)).toBe(false)
+    expect(readFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+  })
+
+  it('源仓库没有 .agents 时创建工作树照常成功', async () => {
+    const repository = createRepository()
+    const sessionId = 'no-skills-session'
+
+    const created = await worktree.create(repository, sessionId)
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    expect(existsSync(join(created.binding.worktreePath, '.agents'))).toBe(false)
+  })
+
+  it('源仓库忽略 .agents 时，链接不弄脏工作树状态', async () => {
+    const repository = createRepository()
+    mkdirSync(join(repository, '.agents', 'skills', 'handle'), { recursive: true })
+    writeFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), '# handle\n')
+    writeFileSync(join(repository, '.gitignore'), '.agents/skills/\n')
+    git(repository, 'add', '.gitignore')
+    git(repository, 'commit', '-m', 'ignore skills')
+    const sessionId = 'ignored-skills-session'
+
+    const created = await worktree.create(repository, sessionId)
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    expect(git(created.binding.worktreePath, 'status', '--porcelain=v1')).toBe('')
+    expect(lstatSync(join(created.binding.worktreePath, '.agents')).isSymbolicLink()).toBe(true)
+  })
+
+  it('部分内容已跟踪时，补齐被忽略的 .agents/skills 子目录', async () => {
+    const repository = createRepository()
+    mkdirSync(join(repository, '.agents', 'skills', 'handle'), { recursive: true })
+    writeFileSync(join(repository, '.agents', 'config.json'), '{}\n')
+    writeFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), '# handle\n')
+    writeFileSync(join(repository, '.gitignore'), '.agents/skills/\n')
+    git(repository, 'add', '.gitignore', '.agents/config.json')
+    git(repository, 'commit', '-m', 'track agents config')
+    const sessionId = 'partial-skills-session'
+
+    const created = await worktree.create(repository, sessionId)
+    expect(created.ok).toBe(true)
+    if (!created.ok)
+      return
+
+    const skills = join(created.binding.worktreePath, '.agents', 'skills')
+    expect(lstatSync(skills).isSymbolicLink()).toBe(true)
+    expect(readFileSync(join(skills, 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+    // `.agents` 本身必须是工作树里的真实目录，链接子项不能破坏被跟踪的 config.json
+    expect(lstatSync(join(created.binding.worktreePath, '.agents')).isSymbolicLink()).toBe(false)
+    expect(readFileSync(join(created.binding.worktreePath, '.agents', 'config.json'), 'utf8').trim()).toBe('{}')
+
+    const removed = await worktree.remove(sessionId)
+    expect(removed.ok).toBe(true)
+    expect(readFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
   })
 })
