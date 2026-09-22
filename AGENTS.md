@@ -10,7 +10,7 @@
 | **测试标准** | 通用 Unit Test、E2E 集成测试断言与结构 | `docs/specs/testing.md` |
 | **桌面端 - 基础架构** | 桌面端主进程、Shell 基础、GUI 渲染核心 | `docs/specs/desktop.baisc.md` |
 | **桌面端 - 测试验证** | 桌面端 E2E 测试、UI 单元测试、桌面功能测试 | `docs/specs/desktop.test.md` |
-| **插件 - 基础架构** | 插件常量归属与跨侧共享约定 | `docs/specs/plugin.baisc.md` |
+| **插件 - 基础架构** | 插件常量归属、跨侧共享约定与退级策略 | `docs/specs/plugin.baisc.md` |
 | **插件 - 客户端核心** | 插件 Client 通信、状态管理与客户端逻辑 | `docs/specs/plugin.client.md` |
 | **插件 - 客户端面板** | 插件 Panel 视图组件、交互面板 UI | `docs/specs/plugin.client.panel.md` |
 | **插件 - 宿主核心** | 宿主进程管理、插件加载器、沙箱隔离 | `docs/specs/plugin.host.md` |
