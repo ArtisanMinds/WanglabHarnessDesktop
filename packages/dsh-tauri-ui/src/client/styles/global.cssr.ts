@@ -52,12 +52,19 @@ export default c([
   }),
   c('[class$="logoRow"]', {
     color: 'var(--dsw-alias-label-primary) !important',
+    justifyContent: 'center !important',
   }, [
-    c('[class$="toggle"]', {
+    c('[class$="toggle"], [class*="toggle "]', {
       justifyContent: 'center !important',
     }),
-    c('[class$="brand"]', {
+    // 官方品牌按钮的类名是 `clsx(brand, wide)`，类属性以 `_wide` 结尾，
+    // 仅靠 `[class$="brand"]` 匹配不到；两种形态都列上才能各代都隐藏。
+    c('[class$="brand"], [class*="brand "]', {
       display: 'none !important',
     }),
   ]),
+  // 折叠轨道回到官方左对齐：上一条 `!important` 会盖掉官方 `.collapsed .logoRow`。
+  c('[class*="collapsed"] [class$="logoRow"]', {
+    justifyContent: 'flex-start !important',
+  }),
 ])
