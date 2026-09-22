@@ -47,7 +47,7 @@ export default c([
     flex: '1 1 220px',
     minWidth: 0,
   }),
-  // 官方风格下拉触发器（MenuSelect）：对齐官方「通用设置」Select 的 pill 规格
+  // 官方风格下拉触发器（Chip variant="selector"）：对齐官方「通用设置」Select 规格
   // （36px 高、全圆角、无边框、bg-module-platform 底、hover 换 interactive 底）。
   c(`.dshp-session__menu-select`, {
     display: 'inline-flex',

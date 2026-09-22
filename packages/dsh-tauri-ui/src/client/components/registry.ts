@@ -1,18 +1,4 @@
-export interface UiComponentSource {
-  kind: 'reexport' | 'refork'
-  component: string
-  package: string
-  version: string
-  availableAt: readonly string[]
-  upstreamPath: string
-  mappedClass?: string
-}
-
-export interface UiComponentEntry {
-  id: string
-  title: string
-  source: UiComponentSource
-}
+import type { UiComponentEntry, UiComponentSource } from './registry.types'
 
 const PRIMITIVES = '@deepseek-ai/dsh-client-ui-primitives'
 const VERSION = '0.1.7-alpha.1'
@@ -38,13 +24,18 @@ function primitives(component: string, file: string): UiComponentEntry {
   }
 }
 
-function refork(component: string, source: Omit<UiComponentSource, 'kind' | 'component' | 'version'>): UiComponentEntry {
+function reforkVariant(
+  component: string,
+  variant: string,
+  source: Omit<UiComponentSource, 'kind' | 'component' | 'variant' | 'version'>,
+): UiComponentEntry {
   return {
-    id: slug(component),
-    title: component,
+    id: `${slug(component)}-${slug(variant)}`,
+    title: `${component} · ${variant}`,
     source: {
       kind: 'refork',
       component,
+      variant,
       version: VERSION,
       ...source,
     },
@@ -81,79 +72,91 @@ export const UI_COMPONENT_REGISTRY: readonly UiComponentEntry[] = [
   primitives('FISH_LOGO_PATH', 'FishLogo'),
   primitives('FISH_LOGO_VIEWBOX', 'FishLogo'),
 
-  refork('NewSessionButton', {
+  reforkVariant('Button', 'elevated', {
     package: '@deepseek-ai/dsh-client-ui-sidebar',
     availableAt: AVAILABLE_BOTH,
     upstreamPath: 'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
     mappedClass: 'newSession',
   }),
-  refork('SearchIconButton', {
-    package: '@deepseek-ai/dsh-client-ui-workspace',
-    availableAt: AVAILABLE_BOTH,
-    upstreamPath: 'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.module.css',
-    mappedClass: 'searchButton',
-  }),
-  refork('ToolbarIconButton', {
-    package: '@deepseek-ai/dsh-client-ui-plugin-manager',
-    availableAt: AVAILABLE_LATEST,
-    upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
-    mappedClass: 'iconButton',
-  }),
-  refork('AddButton', {
+  reforkVariant('Button', 'add', {
     package: '@deepseek-ai/dsh-client-ui-plugin-manager',
     availableAt: AVAILABLE_LATEST,
     upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
     mappedClass: 'addButton',
   }),
-  refork('DangerOutlineButton', {
+  reforkVariant('Button', 'danger', {
     package: '@deepseek-ai/dsh-client-ui-plugin-manager',
     availableAt: AVAILABLE_LATEST,
     upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
     mappedClass: 'danger',
   }),
-  refork('RowIconButton', {
+  reforkVariant('IconButton', 'search', {
+    package: '@deepseek-ai/dsh-client-ui-workspace',
+    availableAt: AVAILABLE_BOTH,
+    upstreamPath: 'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.module.css',
+    mappedClass: 'searchButton',
+  }),
+  reforkVariant('IconButton', 'toolbar', {
+    package: '@deepseek-ai/dsh-client-ui-plugin-manager',
+    availableAt: AVAILABLE_LATEST,
+    upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
+    mappedClass: 'iconButton',
+  }),
+  reforkVariant('IconButton', 'model', {
+    package: '@deepseek-ai/dsh-client-ui-settings-models',
+    availableAt: AVAILABLE_BOTH,
+    upstreamPath: 'packages/client/ui-settings-models/src/client/ModelsSection.module.css',
+    mappedClass: 'iconButton',
+  }),
+  reforkVariant('IconButton', 'round', {
+    package: '@deepseek-ai/dsh-client-ui-sidebar',
+    availableAt: AVAILABLE_BOTH,
+    upstreamPath: 'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
+    mappedClass: 'iconButton',
+  }),
+  reforkVariant('IconButton', 'row', {
     package: '@deepseek-ai/dsh-client-ui-workspace',
     availableAt: AVAILABLE_BOTH,
     upstreamPath: 'packages/client/ui-workspace/src/client/rows/Rows.module.css',
     mappedClass: 'iconButton',
   }),
-  refork('HelpIconButton', {
+  reforkVariant('IconButton', 'help', {
     package: PRIMITIVES,
     availableAt: AVAILABLE_LATEST,
     upstreamPath: 'packages/client/ui-primitives/src/settings-form/fields.module.css',
     mappedClass: 'helpButton',
   }),
-  refork('SeatChip', {
-    package: '@deepseek-ai/dsh-client-ui-agent-preset',
-    availableAt: AVAILABLE_BOTH,
-    upstreamPath: 'packages/client/ui-agent-preset/src/client/AgentPresetSeat.module.css',
-    mappedClass: 'seat',
-  }),
-  refork('ComposerTriggerChip', {
-    package: '@deepseek-ai/dsh-client-ui-permission-presets',
-    availableAt: AVAILABLE_LATEST,
-    upstreamPath: 'packages/client/ui-permission-presets/src/client/PermissionSelect.module.css',
-    mappedClass: 'trigger',
-  }),
-  refork('MessageIconAction', {
+  reforkVariant('IconButton', 'action', {
     package: '@deepseek-ai/dsh-client-ui-chat',
     availableAt: AVAILABLE_BOTH,
     upstreamPath: 'packages/client/ui-chat/src/client/chat/MessageIconActions.module.css',
     mappedClass: 'action',
   }),
-  refork('SettingsSelector', {
+  reforkVariant('Chip', 'seat', {
+    package: '@deepseek-ai/dsh-client-ui-agent-preset',
+    availableAt: AVAILABLE_BOTH,
+    upstreamPath: 'packages/client/ui-agent-preset/src/client/AgentPresetSeat.module.css',
+    mappedClass: 'seat',
+  }),
+  reforkVariant('Chip', 'composerTrigger', {
+    package: '@deepseek-ai/dsh-client-ui-permission-presets',
+    availableAt: AVAILABLE_LATEST,
+    upstreamPath: 'packages/client/ui-permission-presets/src/client/PermissionSelect.module.css',
+    mappedClass: 'trigger',
+  }),
+  reforkVariant('Chip', 'selector', {
     package: '@deepseek-ai/dsh-client-ui-permission-presets',
     availableAt: AVAILABLE_BOTH,
     upstreamPath: 'packages/client/ui-permission-presets/src/client/PermissionRow.module.css',
     mappedClass: 'selector',
   }),
-  refork('VersionTag', {
+  reforkVariant('Tag', 'version', {
     package: '@deepseek-ai/dsh-client-ui-plugin-manager',
     availableAt: AVAILABLE_LATEST,
     upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',
     mappedClass: 'versionTag',
   }),
-  refork('StatusTag', {
+  reforkVariant('Tag', 'status', {
     package: '@deepseek-ai/dsh-client-ui-plugin-manager',
     availableAt: AVAILABLE_LATEST,
     upstreamPath: 'packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css',

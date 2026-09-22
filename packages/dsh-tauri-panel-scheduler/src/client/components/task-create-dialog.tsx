@@ -4,8 +4,7 @@
  * 外壳用官方 primitives `Modal`（居中弹层 + 标题/描述/关闭按钮/页脚），
  * 字段控件复刻官方样式：名称 = input 类；计划下拉 = input + selectInput 类；
  * 任务指令 = textarea 类；底部 composer 的 workspace / permission / 模型 三个
- * 选择器 = pill 触发按钮 + primitives `Menu`（官方 selector 模式，
- * 见 components/menu-select.tsx）。
+ * 选择器 = selector 触发按钮 + 官方 `Menu`。
  * 计划动态参数保持 #307 语义：每天/工作日=时间段；间隔=时长；每周=星期+时间段。
  */
 
@@ -13,7 +12,7 @@ import type { ReactElement } from 'react'
 import type { LocaleKey, Translate } from '../locales/index.types'
 import type { ScheduleForm, ScheduleKind, SchedulerOptions, TaskFormState, TaskInput, Weekday } from '../types'
 import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import { MenuSelect, useMountStyle } from 'dsh-tauri-ui/client'
+import { ChevronDown, Chip, Icon, Menu, useMountStyle } from 'dsh-tauri-ui/client'
 import { isEmpty, map, omitBy, pick, range } from 'dsh-tauri/client'
 import { useRef, useState } from 'react'
 import { SCHEDULE_KINDS } from '../../shared/constants'
@@ -110,6 +109,8 @@ export function TaskCreateDialog({ t, options, onClose, taskId, initial }: TaskC
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [openWorkspace, setOpenWorkspace] = useState(false)
+  const [openPermission, setOpenPermission] = useState(false)
   // 保存中禁止关闭（Esc / 遮罩 / 关闭按钮）：用 ref 供稳定闭包读取最新值。
   const savingRef = useRef(false)
   savingRef.current = saving
@@ -287,19 +288,53 @@ export function TaskCreateDialog({ t, options, onClose, taskId, initial }: TaskC
               onChange={event => setForm(state => ({ ...state, prompt: event.target.value }))}
             />
             <div className="dshp-scheduler__composer">
-              <MenuSelect
-                variant="pill"
-                label={t('workspace')}
-                value={form.workspaceId}
-                options={workspaceOptions}
-                onSelect={id => setForm(state => ({ ...state, workspaceId: id }))}
+              <Menu
+                open={openWorkspace}
+                onClose={() => setOpenWorkspace(false)}
+                onSelect={(id) => {
+                  setOpenWorkspace(false)
+                  setForm(state => ({ ...state, workspaceId: id }))
+                }}
+                items={workspaceOptions}
+                selectedId={form.workspaceId}
+                portal
+                align="end"
+                anchor={(
+                  <Chip
+                    variant="selector"
+                    aria-label={t('workspace')}
+                    aria-haspopup="menu"
+                    aria-expanded={openWorkspace}
+                    onClick={() => setOpenWorkspace(openState => !openState)}
+                    chevron={<Icon as={ChevronDown} />}
+                  >
+                    <span>{workspaceOptions.find(option => option.id === form.workspaceId)?.label ?? form.workspaceId}</span>
+                  </Chip>
+                )}
               />
-              <MenuSelect
-                variant="pill"
-                label={t('permission')}
-                value={form.permission}
-                options={permissionOptions}
-                onSelect={id => setForm(state => ({ ...state, permission: id }))}
+              <Menu
+                open={openPermission}
+                onClose={() => setOpenPermission(false)}
+                onSelect={(id) => {
+                  setOpenPermission(false)
+                  setForm(state => ({ ...state, permission: id }))
+                }}
+                items={permissionOptions}
+                selectedId={form.permission}
+                portal
+                align="end"
+                anchor={(
+                  <Chip
+                    variant="selector"
+                    aria-label={t('permission')}
+                    aria-haspopup="menu"
+                    aria-expanded={openPermission}
+                    onClick={() => setOpenPermission(openState => !openState)}
+                    chevron={<Icon as={ChevronDown} />}
+                  >
+                    <span>{permissionOptions.find(option => option.id === form.permission)?.label ?? form.permission}</span>
+                  </Chip>
+                )}
               />
               <div style={{ flex: 1 }} />
               <ModelPicker

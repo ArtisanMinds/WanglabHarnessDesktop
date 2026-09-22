@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../service/ungrouped-session', () => ({ startUngroupedSession: mocks.startUngroupedSession }))
 
 // 组件树会拉起官方 primitives（含 `.module.css`，node 环境下不可加载）：这里只验注册契约，替身即可。
-vi.mock('../components/hero-workspace', () => ({ HeroWorkspace: () => null }))
+vi.mock('../ui/hero-workspace', () => ({ HeroWorkspace: () => null }))
 
 vi.mock('dsh-tauri/client', () => ({
   defineRegister: (ctxOrSetup: unknown, maybeSetup?: unknown) => {

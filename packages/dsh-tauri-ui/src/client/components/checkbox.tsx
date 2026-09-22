@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import type { CheckboxProps } from './checkbox.types'
-import { CHECKBOX_STYLE_ID } from '../constants'
+export const CHECKBOX_STYLE_ID = 'dsh-tauri-ui-checkbox-styles'
 import { useMountStyle } from '../hooks/use-mount-style'
 import checkboxStyle from './checkbox.cssr'
 

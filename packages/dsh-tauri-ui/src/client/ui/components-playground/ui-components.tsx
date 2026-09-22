@@ -1,29 +1,18 @@
 import type { ReactElement } from 'react'
-import type { UiComponentEntry } from '../../components/registry'
+import type { UiComponentEntry } from '../../components/registry.types'
 import { useState } from 'react'
-import { AddButton } from '../../components/add-button'
-import { ComposerTriggerChip } from '../../components/composer-trigger-chip'
-import { DangerOutlineButton } from '../../components/danger-outline-button'
-import { HelpIconButton } from '../../components/help-icon-button'
+import { Button } from '../../components/button'
+import { Chip } from '../../components/chip'
 import { Icon } from '../../components/icon'
+import { IconButton } from '../../components/icon-button'
 import { ChevronDown, Comments, Gear, Magnifier, Person, Plus, Puzzle, TrashBin } from '../../components/icons'
-import { MessageIconAction } from '../../components/message-icon-action'
-import { ModelIconButton } from '../../components/model-icon-button'
-import { NewSessionButton } from '../../components/new-session-button'
-import { Button, Input, Pill, Switch, Tag } from '../../components/official'
+import { Input, Pill, Switch } from '../../components/official'
 import { UI_COMPONENT_REGISTRY } from '../../components/registry'
-import { RoundIconButton } from '../../components/round-icon-button'
-import { RowIconButton } from '../../components/row-icon-button'
-import { SearchIconButton } from '../../components/search-icon-button'
-import { SeatChip } from '../../components/seat-chip'
-import { SettingsSelector } from '../../components/settings-selector'
-import { StatusTag } from '../../components/status-tag'
-import { ToolbarIconButton } from '../../components/toolbar-icon-button'
-import { VersionTag } from '../../components/version-tag'
-import { UI_COMPONENTS_STYLE_ID } from '../../constants'
+import { Tag } from '../../components/tag'
 import { useMountStyle } from '../../hooks/use-mount-style'
 import uiComponentsStyle from './ui-components.cssr'
 
+const UI_COMPONENTS_STYLE_ID = 'dsh-tauri-ui-components-styles'
 const BUTTON_VARIANTS = ['primary', 'outline', 'ghost', 'toolbar'] as const
 const BUTTON_SIZES = ['md', 'sm'] as const
 const TAG_TONES = ['outline', 'solid', 'neutral', 'quiet', 'success', 'info', 'warning', 'danger'] as const
@@ -37,7 +26,11 @@ function SourceCard({ entry }: { entry: UiComponentEntry }): ReactElement {
         <span className="dshp-ui-components__badge">{source.kind}</span>
       </div>
       <div className="dshp-ui-components__meta">
-        <span>{`映射组件：${source.component}`}</span>
+        <span>
+          {source.variant === undefined
+            ? `映射组件：${source.component}`
+            : `映射组件：${source.component} · ${source.variant}`}
+        </span>
         <span className="dshp-ui-components__code">{source.package}</span>
         <span>{`版本：${source.availableAt.join(' / ')}`}</span>
         {source.mappedClass === undefined
@@ -92,39 +85,45 @@ export function UiComponentsPanel(): ReactElement {
         </span>
         <div className="dshp-ui-components__sample">
           <div className="dshp-ui-components__stack">
-            <NewSessionButton icon={<Plus width={16} height={16} />}>新建会话</NewSessionButton>
-            <AddButton icon={<Plus width={16} height={16} />}>添加模型</AddButton>
-            <DangerOutlineButton icon={<TrashBin width={16} height={16} />}>删除</DangerOutlineButton>
-            <NewSessionButton disabled icon={<Plus width={16} height={16} />}>禁用态</NewSessionButton>
+            <Button icon={<Plus width={16} height={16} />} variant="elevated">新建会话</Button>
+            <Button disabled icon={<Plus width={16} height={16} />} variant="elevated">禁用态</Button>
+            <Button icon={<Plus width={16} height={16} />} variant="add">添加模型</Button>
+            <Button icon={<TrashBin width={16} height={16} />} variant="danger">删除</Button>
+            <Button icon={<TrashBin width={16} height={16} />} size="sm" variant="danger">删除 / sm</Button>
           </div>
-          <SearchIconButton aria-label="搜索" icon={<Magnifier width={16} height={16} />} />
-          <ToolbarIconButton aria-label="工具栏" icon={<Gear width={16} height={16} />} />
-          <ModelIconButton aria-label="模型" icon={<Puzzle width={16} height={16} />} />
-          <RoundIconButton aria-label="圆形" icon={<Plus width={16} height={16} />} />
-          <RowIconButton aria-label="行内" icon={<TrashBin width={16} height={16} />} />
-          <HelpIconButton aria-label="帮助" icon={<Person width={16} height={16} />} />
-          <MessageIconAction aria-label="消息动作" icon={<Comments width={16} height={16} />} />
+          <IconButton aria-label="搜索" icon={<Magnifier width={16} height={16} />} variant="search" />
+          <IconButton aria-label="工具栏" icon={<Gear width={16} height={16} />} variant="toolbar" />
+          <IconButton aria-label="模型" icon={<Puzzle width={16} height={16} />} variant="model" />
+          <IconButton aria-label="圆形" icon={<Plus width={16} height={16} />} variant="round" />
+          <IconButton aria-label="行内" icon={<TrashBin width={16} height={16} />} variant="row" />
+          <IconButton aria-expanded aria-label="帮助" icon={<Person width={16} height={16} />} variant="help" />
+          <IconButton aria-label="消息动作" icon={<Comments width={16} height={16} />} variant="action" />
         </div>
         <div className="dshp-ui-components__sample">
-          <SeatChip chevron={<ChevronDown width={12} height={12} />} icon={<Person width={14} height={14} />}>
+          <Chip chevron={<ChevronDown width={12} height={12} />} icon={<Person width={14} height={14} />} variant="seat">
             默认
-          </SeatChip>
-          <ComposerTriggerChip
+          </Chip>
+          <Chip
             chevron={<ChevronDown width={12} height={12} />}
             icon={<Gear width={14} height={14} />}
             open
+            variant="composerTrigger"
           >
             默认权限
-          </ComposerTriggerChip>
-          <ComposerTriggerChip chevron={<ChevronDown width={12} height={12} />} icon={<Gear width={14} height={14} />}>
+          </Chip>
+          <Chip
+            chevron={<ChevronDown width={12} height={12} />}
+            icon={<Gear width={14} height={14} />}
+            variant="composerTrigger"
+          >
             收起态
-          </ComposerTriggerChip>
-          <SettingsSelector chevron={<ChevronDown width={12} height={12} />}>跟随系统</SettingsSelector>
-          <VersionTag>1.0.0</VersionTag>
-          <VersionTag tone="neutral">1.0.0</VersionTag>
-          <StatusTag tone="outline">outline</StatusTag>
-          <StatusTag tone="info">info</StatusTag>
-          <StatusTag tone="danger">danger</StatusTag>
+          </Chip>
+          <Chip chevron={<ChevronDown width={12} height={12} />} variant="selector">跟随系统</Chip>
+          <Tag variant="version">1.0.0</Tag>
+          <Tag tone="neutral" variant="version">1.0.0</Tag>
+          <Tag tone="outline" variant="status">outline</Tag>
+          <Tag tone="info" variant="status">info</Tag>
+          <Tag tone="danger" variant="status">danger</Tag>
         </div>
       </section>
 

@@ -1,5 +1,7 @@
 import { cssr } from '../utils/cssr'
 
+export const GLOBAL_STYLE_ID = 'dsh-tauri-ui-global-styles'
+
 const { c } = cssr
 
 export default c([

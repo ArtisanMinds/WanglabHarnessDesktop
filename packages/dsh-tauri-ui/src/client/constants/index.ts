@@ -13,34 +13,6 @@ export const SETTINGS_ONBOARDING_SLOT = 'settings.onboarding'
 
 export const SETTINGS_SIDEBAR_ID = 'dsh-tauri-ui-settings'
 export const SETTINGS_SIDEBAR_CLASS = 'dshp-settings-sidebar'
-export const SETTINGS_STYLE_ID = 'dsh-tauri-ui-settings-sidebar-styles'
-export const SETTINGS_TRIGGER_STYLE_ID = 'dsh-tauri-ui-settings-trigger-styles'
-export const SETTINGS_NAV_ICON_STYLE_ID = 'dsh-tauri-ui-settings-nav-icon-styles'
-export const MENU_SELECT_STYLE_ID = 'dsh-tauri-ui-menu-select-styles'
-export const HERO_WORKSPACE_STYLE_ID = 'dsh-tauri-ui-hero-workspace-styles'
-export const TURN_NAVIGATION_STYLE_ID = 'dsh-tauri-ui-turn-navigation-styles'
-export const GLOBAL_STYLE_ID = 'dsh-tauri-ui-global-styles'
-export const SEGMENTED_CONTROL_STYLE_ID = 'dsh-tauri-ui-segmented-control-styles'
-export const CHECKBOX_STYLE_ID = 'dsh-tauri-ui-checkbox-styles'
-export const MODEL_EXTRAS_STYLE_ID = 'dsh-tauri-ui-model-extras-styles'
-export const MODEL_CONFIG_TOOLBAR_STYLE_ID = 'dsh-tauri-ui-model-config-toolbar-styles'
-export const MODEL_COMPAT_FIELDS_STYLE_ID = 'dsh-tauri-ui-model-compat-fields-styles'
-export const NEW_SESSION_BUTTON_STYLE_ID = 'dsh-tauri-ui-new-session-button-styles'
-export const SEARCH_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-search-icon-button-styles'
-export const TOOLBAR_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-toolbar-icon-button-styles'
-export const ADD_BUTTON_STYLE_ID = 'dsh-tauri-ui-add-button-styles'
-export const DANGER_OUTLINE_BUTTON_STYLE_ID = 'dsh-tauri-ui-danger-outline-button-styles'
-export const ROW_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-row-icon-button-styles'
-export const HELP_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-help-icon-button-styles'
-export const SEAT_CHIP_STYLE_ID = 'dsh-tauri-ui-seat-chip-styles'
-export const COMPOSER_TRIGGER_CHIP_STYLE_ID = 'dsh-tauri-ui-composer-trigger-chip-styles'
-export const MESSAGE_ICON_ACTION_STYLE_ID = 'dsh-tauri-ui-message-icon-action-styles'
-export const SETTINGS_SELECTOR_STYLE_ID = 'dsh-tauri-ui-settings-selector-styles'
-export const VERSION_TAG_STYLE_ID = 'dsh-tauri-ui-version-tag-styles'
-export const STATUS_TAG_STYLE_ID = 'dsh-tauri-ui-status-tag-styles'
-export const MODEL_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-model-icon-button-styles'
-export const ROUND_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-round-icon-button-styles'
-
 /**
  * 仅 dev 构建挂载的「UI 组件」调试面板。
  *
@@ -50,9 +22,8 @@ export const ROUND_ICON_BUTTON_STYLE_ID = 'dsh-tauri-ui-round-icon-button-styles
  */
 export const UI_COMPONENTS_PANEL_ID = 'dsh-tauri-ui-components'
 export const UI_COMPONENTS_PANEL_ORDER = 50
-export const UI_COMPONENTS_STYLE_ID = 'dsh-tauri-ui-components-styles'
 
-/** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `components/hero-workspace.cssr.ts`）。 */
+/** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `ui/hero-workspace.cssr.ts`）。 */
 export const HERO_WORKSPACE_CHIP_CLASS = 'dshp-hero-workspace'
 
 /**

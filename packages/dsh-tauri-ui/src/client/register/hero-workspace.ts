@@ -1,13 +1,13 @@
 import type { AdapterWorkspaces, ClientAdapter, ClientContext } from 'dsh-tauri/client'
 import { defineRegister } from 'dsh-tauri/client'
 import { PLUGIN_ID } from '../../shared/constants'
-import { HeroWorkspace } from '../components/hero-workspace'
 import {
   HERO_WORKSPACE_FLOW_SLOT,
   HERO_WORKSPACE_PRIORITY,
   HERO_WORKSPACE_SLOT,
 } from '../constants'
 import { startUngroupedSession } from '../service/ungrouped-session'
+import { HeroWorkspace } from '../ui/hero-workspace'
 
 /**
  * 接管官方 `conversation.hero.workspace`（single/root）：按更低 priority 顶掉官方 `WorkspacePicker`，

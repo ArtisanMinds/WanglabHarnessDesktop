@@ -7,6 +7,9 @@
  * 仅 0.1.7 才有的组件必须在本目录 refork（`checkbox`、`segmented-control` 就是先例），
  * 否则在 0.1.5 内核上取到 `undefined` 并触发 React #130（`Element type is invalid …`）。
  *
+ * `Button` / `Tag` 已由本目录的 `button.tsx` / `tag.tsx` 接管（单组件内分发：官方 variant
+ * 继续走官方实现，本地 variant 走 refork 样式），故不在此转发。
+ *
  * 不在此转发官方 icons 桶：两代导出名不同（`IconXxx16` → `IconXxxRegular`），图标
  * 统一走 `@gravity-ui/icons`（见 `icons.tsx`）。也不转发 `ReferenceIcon` / `LinkIcon`：
  * 0.1.7 已删除这两个名字，改为 `ReferenceIcon{Regular,Medium}` / `LinkIcon{Regular,Medium}`。
@@ -14,7 +17,6 @@
 
 export {
   BrandWordmark,
-  Button,
   classifyFileType,
   classifyLinkPath,
   CodeBlock,
@@ -50,7 +52,6 @@ export {
   SearchBlock,
   StateDot,
   Switch,
-  Tag,
   TerminalBlock,
   Toast,
   Tooltip,
@@ -61,7 +62,6 @@ export {
 export type {
   AnchoredPositionOptions,
   BrandWordmarkProps,
-  ButtonVariant,
   CodeBlockProps,
   ConnectionIndicatorState,
   DiffBlockLabels,
@@ -101,7 +101,6 @@ export type {
   SearchMatchesBlockProps,
   SearchPathsBlockProps,
   StateDotState,
-  TagTone,
   TerminalBlockLabels,
   TerminalBlockProps,
   TooltipSide,
