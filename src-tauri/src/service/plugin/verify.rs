@@ -336,6 +336,7 @@ mod tests {
             recommended: false,
             fix: false,
             default_checked: false,
+            default_unchecked: false,
             win_only: false,
             internal: false,
         }

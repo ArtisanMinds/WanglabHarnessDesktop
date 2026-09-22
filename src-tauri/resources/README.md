@@ -74,6 +74,7 @@ that adds one entry to the JSON array:
 | `repoUrl`     | yes      | Repository page, opened via the "open repo" button                      |
 | `recommended` | no       | Green "recommended" chip, checked by default (defaults to `false`)      |
 | `fix`         | no       | Yellow "fix" chip, checked by default — reserved for Windows minimal-mode fixes (defaults to `false`) |
+| `defaultUnchecked` | no  | Listed with the "recommended" chip but **not** pre-checked in the wizard (defaults to `false`) |
 | `winOnly`     | no       | Only listed on Windows (defaults to `false`)                            |
 
 `id` must be unique across the file. The plugin itself is **not** vendored into
