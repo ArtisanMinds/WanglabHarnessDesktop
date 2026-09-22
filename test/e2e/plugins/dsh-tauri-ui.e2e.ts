@@ -43,7 +43,8 @@ const OFFICIAL_HERO_WORKSPACE_CHIP = '[class$="heroWorkspaceRow"] button[aria-la
 /**
  * 官方侧边栏「新建会话」按钮（官方 sidebar 词典 `session.new.label`）。
  *
- * 品牌按钮与工具栏按钮共用这条文案，品牌按钮被 `dsh-tauri-ui` 的全局样式隐藏，故按可见性取工具栏那枚。
+ * 品牌按钮与工具栏按钮共用这条文案，两者都是「新建会话」入口；按可见性取第一枚即可——
+ * 用例先断言它们全都在侧边栏内，确保点到的不是别的控件。
  */
 const SIDEBAR_NEW_SESSION = 'button[aria-label="新建会话"]:visible'
 
@@ -283,13 +284,20 @@ describe('L2 客户端', () => {
       }))
       expect(before.inert, '夹具前置：没有会话时 composer 是官方的「选择工作区」触发器').toBe(true)
 
-      // 品牌按钮与工具栏按钮共用 aria-label（官方 sidebar 词典 `session.new.label`），
-      // 品牌按钮被全局样式隐藏：先断言可见的只剩工具栏那一枚，再点它，避免点到别的按钮。
-      const visibleNewSession = await app.frame.evaluate(() =>
-        Array.from(document.querySelectorAll('button[aria-label="新建会话"]'))
+      // 品牌按钮与工具栏按钮共用 aria-label（官方 sidebar 词典 `session.new.label`），两者都是
+      // 「新建会话」入口、都该走未分组；工作区分组行的「+」是另一条带工作区名字的文案，
+      // 必须不在其中——否则本用例点到的就不是「侧边栏新建会话」。
+      const newSessionButtons = await app.frame.evaluate(() => {
+        const sidebar = document.querySelector('[data-slot="sidebar"]')
+        const visible = Array.from(document.querySelectorAll('button[aria-label="新建会话"]'))
           .filter(button => button.getClientRects().length > 0)
-          .map(button => button.getAttribute('aria-label')))
-      expect(visibleNewSession, '可见的「新建会话」按钮必须唯一（品牌按钮已隐藏）').toHaveLength(1)
+        return {
+          count: visible.length,
+          allInSidebar: visible.every(button => sidebar?.contains(button) === true),
+        }
+      })
+      expect(newSessionButtons.count, '夹具前置：侧边栏必须有可见的「新建会话」入口').toBeGreaterThan(0)
+      expect(newSessionButtons.allInSidebar, '该 aria-label 的按钮必须都在侧边栏内（分组行「+」用的是另一条文案）').toBe(true)
 
       await app.frame.locator(SIDEBAR_NEW_SESSION).first().click()
 
