@@ -264,7 +264,9 @@ describe('createWorkspaceQueue — 跨进程锁与等待截止', () => {
     // 任务在预算内开始：一旦开始就必须完整等待——绝不半途放弃 git，也绝不让屏障
     // 在 before 快照执行中放行（否则模型改动会混进基线）。
     await expect(slow).resolves.toBe('done')
-    expect(Date.now() - started).toBeGreaterThanOrEqual(60)
+    // `tick(60)` 的实测耗时在 60ms 边界上抖动（CI 上出现过 59），断言落在
+    // 「明显超过 20ms 的等待预算、即任务被完整执行」而不是卡死 60 这个数字。
+    expect(Date.now() - started).toBeGreaterThanOrEqual(50)
     expect(events).toEqual(['acquire', 'task:start', 'task:end', 'release'])
     await tick(5)
     expect(queue.size()).toBe(0)
