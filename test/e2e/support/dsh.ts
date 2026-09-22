@@ -603,7 +603,9 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
     const baseUrl = new URL(url).origin
     const cookie = await exchangeLaunchToken(url)
 
-    log(`✅ 就绪 [${baseUrl}] → ${packages.join(', ')}${keepHome ? ' [keepHome]' : ''}`)
+    const mounted = packages.every(pkg => pkg.startsWith('dsh-tauri')) ? 'dsh-tauri*' : packages.join(', ')
+
+    log(`✅ 就绪 [${baseUrl}] → ${mounted}${keepHome ? ' [keepHome]' : ''}`)
 
     return { url, baseUrl, cookie, home, logPath, mounted: packages, stop }
   }

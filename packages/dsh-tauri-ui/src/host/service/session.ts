@@ -1,10 +1,11 @@
 import type { PlatformModuleLoader, SessionResumeOutcome } from '../types'
 import type { CreateUserMessage } from './session.types'
 import { defineService } from 'dsh-tauri'
-import { PLUGIN_ID } from '../../shared/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 
 const CONTINUE_INSTRUCTION = 'Continue the interrupted task from where it stopped. Do not repeat work that is already complete.'
+
+const CONTINUE_SOURCE = { kind: 'plugin', plugin: 'continue' } as const
 
 const SETTLED_TURN_END_KINDS = ['completed', 'blocked', 'max-tokens']
 
@@ -38,7 +39,7 @@ async function resumeStoppedTurn(sessionId: string): Promise<SessionResumeOutcom
   const createUserMessage = await loadCreateUserMessage(ctx.loader)
   agent.followup(createUserMessage({
     content: [{ type: 'text', text: CONTINUE_INSTRUCTION }],
-    source: { kind: 'plugin', plugin: PLUGIN_ID },
+    source: CONTINUE_SOURCE,
   }))
   return { ok: true }
 }
