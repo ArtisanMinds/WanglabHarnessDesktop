@@ -1,4 +1,5 @@
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import type { ChipVariant } from '../../components/chip.types'
 import type { UiComponentEntry } from '../../components/registry.types'
 import { useState } from 'react'
 import { Button } from '../../components/button'
@@ -6,7 +7,7 @@ import { Chip } from '../../components/chip'
 import { Icon } from '../../components/icon'
 import { IconButton } from '../../components/icon-button'
 import { ChevronDown, Comments, Gear, Magnifier, Person, Plus, Puzzle, TrashBin } from '../../components/icons'
-import { Input, Pill, Switch } from '../../components/official'
+import { Input, Menu, Pill, Switch } from '../../components/official'
 import { UI_COMPONENT_REGISTRY } from '../../components/registry'
 import { Tag } from '../../components/tag'
 import { useMountStyle } from '../../hooks/use-mount-style'
@@ -16,6 +17,65 @@ const UI_COMPONENTS_STYLE_ID = 'dsh-tauri-ui-components-styles'
 const BUTTON_VARIANTS = ['primary', 'outline', 'ghost', 'toolbar'] as const
 const BUTTON_SIZES = ['md', 'sm'] as const
 const TAG_TONES = ['outline', 'solid', 'neutral', 'quiet', 'success', 'info', 'warning', 'danger'] as const
+
+interface SampleOption { id: string, label: string }
+
+const SEAT_OPTIONS: readonly SampleOption[] = [
+  { id: 'default', label: '默认' },
+  { id: 'plan', label: '计划模式' },
+  { id: 'review', label: '评审模式' },
+]
+const PERMISSION_OPTIONS: readonly SampleOption[] = [
+  { id: 'default', label: '默认权限' },
+  { id: 'acceptEdits', label: '接受编辑' },
+  { id: 'bypass', label: '跳过确认' },
+]
+const THEME_OPTIONS: readonly SampleOption[] = [
+  { id: 'system', label: '跟随系统' },
+  { id: 'light', label: '浅色' },
+  { id: 'dark', label: '深色' },
+]
+
+/**
+ * `seat` / `composerTrigger` / `selector` 三个 chip 在应用里本身就是 select 的触发
+ * 按钮：单独渲染只是个死的按钮，面板要调试它们的选中态、chevron 旋转与弹层位置，
+ * 就必须接上官方 `Menu`。
+ */
+function SelectSample({ variant, icon, options }: {
+  variant: ChipVariant
+  icon?: ReactNode
+  options: readonly SampleOption[]
+}): ReactElement {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState(options[0]?.id ?? '')
+  return (
+    <Menu
+      open={open}
+      onClose={() => setOpen(false)}
+      onSelect={(id) => {
+        setOpen(false)
+        setValue(id)
+      }}
+      items={options.map(option => ({ id: option.id, label: option.label }))}
+      selectedId={value}
+      portal
+      align="end"
+      anchor={(
+        <Chip
+          aria-expanded={open}
+          aria-haspopup="menu"
+          chevron={<Icon as={ChevronDown} size={12} />}
+          icon={icon}
+          open={open}
+          variant={variant}
+          onClick={() => setOpen(openState => !openState)}
+        >
+          {options.find(option => option.id === value)?.label ?? value}
+        </Chip>
+      )}
+    />
+  )
+}
 
 function SourceCard({ entry }: { entry: UiComponentEntry }): ReactElement {
   const { source } = entry
@@ -100,25 +160,9 @@ export function UiComponentsPanel(): ReactElement {
           <IconButton aria-label="消息动作" icon={<Comments width={16} height={16} />} variant="action" />
         </div>
         <div className="dshp-ui-components__sample">
-          <Chip chevron={<ChevronDown width={12} height={12} />} icon={<Person width={14} height={14} />} variant="seat">
-            默认
-          </Chip>
-          <Chip
-            chevron={<ChevronDown width={12} height={12} />}
-            icon={<Gear width={14} height={14} />}
-            open
-            variant="composerTrigger"
-          >
-            默认权限
-          </Chip>
-          <Chip
-            chevron={<ChevronDown width={12} height={12} />}
-            icon={<Gear width={14} height={14} />}
-            variant="composerTrigger"
-          >
-            收起态
-          </Chip>
-          <Chip chevron={<ChevronDown width={12} height={12} />} variant="selector">跟随系统</Chip>
+          <SelectSample icon={<Icon as={Person} size={14} />} options={SEAT_OPTIONS} variant="seat" />
+          <SelectSample icon={<Icon as={Gear} size={14} />} options={PERMISSION_OPTIONS} variant="composerTrigger" />
+          <SelectSample options={THEME_OPTIONS} variant="selector" />
           <Tag variant="version">1.0.0</Tag>
           <Tag tone="neutral" variant="version">1.0.0</Tag>
           <Tag tone="outline" variant="status">outline</Tag>
