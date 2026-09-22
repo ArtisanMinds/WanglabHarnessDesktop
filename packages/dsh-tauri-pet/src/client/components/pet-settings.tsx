@@ -1,6 +1,6 @@
 import type { ChangeEvent, ReactElement } from 'react'
 import type { PetSettingsProps } from './pet-settings.types'
-import { ArrowDownToLine, Button, Icon, Plus, SegmentedControl } from 'dsh-tauri-ui/client'
+import { ArrowRightFromSquare, Button, Icon, Plus, SegmentedControl } from 'dsh-tauri-ui/client'
 import { useStore, useWatchImmediate } from 'dsh-tauri/client'
 import { useEffect, useId, useRef, useState } from 'react'
 import { PET_DEFAULT_SIZE, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
@@ -254,7 +254,7 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
                     type="button"
                     variant="outline"
                     size="sm"
-                    icon={<Icon as={ArrowDownToLine} />}
+                    icon={<Icon as={ArrowRightFromSquare} />}
                     disabled={busy}
                     onClick={() => fileRef.current?.click()}
                   >

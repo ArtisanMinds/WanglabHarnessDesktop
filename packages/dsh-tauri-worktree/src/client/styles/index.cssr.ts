@@ -15,6 +15,7 @@ export default c([
     color: 'var(--dsw-alias-label-secondary)',
   }),
   c('[role="treeitem"]', { position: 'relative' }),
+  c(`[role="treeitem"]:hover [${SESSION_ICON_ATTRIBUTE}]`, { visibility: 'hidden' }),
 
   c('.dshp-mode-select__host', { display: 'inline-flex', alignItems: 'center', flex: 'none' }),
   c('.dshp-mode-select__anchor', { display: 'none' }),
@@ -28,7 +29,6 @@ export default c([
     margin: '0 auto',
     alignSelf: 'center',
   }),
-  c('.dshp-worktree__surface-content', { display: 'flex', alignItems: 'center', gap: '5px' }),
   c('.dshp-worktree__logs', {
     display: 'grid',
     gridTemplateRows: '0fr',

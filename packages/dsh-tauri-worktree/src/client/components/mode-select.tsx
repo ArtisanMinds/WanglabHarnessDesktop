@@ -229,7 +229,7 @@ function WorktreeModeControl({ sessionId, useInput, inputActions, sessionsRuntim
       aria-expanded={open}
       open={open}
       icon={<Icon as={CircleTree} size={14} />}
-      chevron={<Icon as={ChevronDown} size={14} />}
+      chevron={<Icon as={ChevronDown} />}
       onClick={() => setOpen(value => !value)}
     >
       <span className="dshp-mode-select__label">{activeLabel}</span>

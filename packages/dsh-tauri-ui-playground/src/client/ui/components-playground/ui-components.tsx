@@ -1,6 +1,7 @@
 import type { ChipVariant, UiComponentEntry } from 'dsh-tauri-ui/client'
 import type { ReactElement, ReactNode } from 'react'
 import {
+  ArrowRightFromSquare,
   Button,
   ChevronDown,
   Chip,
@@ -20,9 +21,11 @@ import {
   Puzzle,
   Switch,
   Tag,
+  TerminalLine,
   TrashBin,
   UI_COMPONENT_REGISTRY,
   useMountStyle,
+  Xmark,
 } from 'dsh-tauri-ui/client'
 import { useState } from 'react'
 import { UI_COMPONENTS_STYLE_ID } from '../../constants'
@@ -74,7 +77,7 @@ function SelectSample({ variant, icon, options }: {
         <Chip
           aria-expanded={open}
           aria-haspopup="menu"
-          chevron={<Icon as={ChevronDown} size={12} />}
+          chevron={<Icon as={ChevronDown} size={14} />}
           icon={icon}
           open={open}
           variant={variant}
@@ -175,17 +178,47 @@ export function UiComponentsPanel(): ReactElement {
             <GoalBar
               actions={(
                 <>
-                  <GoalBarAction>日志</GoalBarAction>
-                  <GoalBarAction>检出本地</GoalBarAction>
-                  <GoalBarAction variant="danger">放弃</GoalBarAction>
+                  <GoalBarAction
+                    aria-label="检出本地"
+                    iconOnly
+                    title="检出本地"
+                  >
+                    <Icon as={ArrowRightFromSquare} size={14} />
+                  </GoalBarAction>
+                  <GoalBarAction
+                    aria-label="放弃"
+                    iconOnly
+                    title="放弃"
+                  >
+                    <Icon as={TrashBin} size={14} />
+                  </GoalBarAction>
                 </>
               )}
               glyph={<Icon as={CircleTree} size={14} />}
               label="工作树"
               objective="deepseek-harness-desktop · worktree 5a25420f"
-            />
+            >
+              <GoalBarAction
+                aria-label="日志"
+                iconOnly
+                title="日志"
+              >
+                <Icon as={TerminalLine} size={14} />
+              </GoalBarAction>
+            </GoalBar>
             <GoalBar
-              actions={<GoalBarAction>关闭</GoalBarAction>}
+              actions={(
+                <>
+                  <GoalBarAction
+                    aria-label="关闭"
+                    iconOnly
+                    title="关闭"
+                  >
+                    <Icon as={Xmark} size={14} />
+                  </GoalBarAction>
+                  <GoalBarAction>文本动作</GoalBarAction>
+                </>
+              )}
               error="worktree create failed: exit 128"
               glyph={<Icon as={CircleTree} size={14} />}
               label="错误"
@@ -193,7 +226,7 @@ export function UiComponentsPanel(): ReactElement {
           </div>
         </div>
         <div className="dshp-ui-components__sample">
-          <SelectSample icon={<Icon as={Person} size={14} />} options={SEAT_OPTIONS} variant="seat" />
+          <SelectSample icon={<Icon as={Person} size={16} />} options={SEAT_OPTIONS} variant="seat" />
           <SelectSample icon={<Icon as={Gear} size={14} />} options={PERMISSION_OPTIONS} variant="composerTrigger" />
           <SelectSample options={THEME_OPTIONS} variant="selector" />
           <Tag variant="version">1.0.0</Tag>

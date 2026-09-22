@@ -182,10 +182,12 @@ export function ModelPicker({
             setPane('root')
             setOpen(true)
           }}
-          chevron={<Icon as={ChevronDown} size={14} />}
+          badge={effortLabel === undefined
+            ? undefined
+            : <span className="dshp-scheduler__model-trigger-effort">{effortLabel}</span>}
+          chevron={<Icon as={ChevronDown} />}
         >
           <span className="dshp-scheduler__model-trigger-label">{trigger}</span>
-          {effortLabel !== undefined && <span className="dshp-scheduler__model-trigger-effort">{effortLabel}</span>}
         </Chip>
       )}
     />
