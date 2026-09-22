@@ -13,7 +13,6 @@ export interface WelcomeNoticeState {
 
 export type WelcomeSection = Record<string, unknown>
 
-/** `SettingsScope`（≤0.1.6）与 `ConfigForm`（≥0.1.7）共有的读/写面。 */
 export interface WelcomeSettingsForm {
   getSnapshot: () => {
     status: 'loading' | 'ready' | 'unavailable'

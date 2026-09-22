@@ -5,6 +5,12 @@ import { locale } from './locales'
 import { registerModelsPage } from './register/models'
 import { registerStyles } from './register/styles'
 
+export type { ModelsKey } from './models/locales.ts'
+export type { ModelsSectionInjected, ModelsSectionProps } from './models/ModelsSection.tsx'
+export type { ModelDiscoveryOutcome, ModelsOperations, SettingsWriteOutcome } from './models/operations.ts'
+export type { ModelsFooterOwnerProps, ProviderCardExtrasOwnerProps } from './models/slot-contract.ts'
+export type { ModelsSettingsState, ProviderDirectoryEntry, ProviderRow } from './models/store.ts'
+
 export const name = PLUGIN_ID
 
 export const inject = [
@@ -17,11 +23,6 @@ export const inject = [
   'settingsSchema',
 ]
 
-/**
- * 设置命名空间服务跨内核代更名：≤0.1.6 是 `settingsScope`，≥0.1.7 是 `configForms`。
- * 两者都不能写进 `inject`——缺席的服务会让 fiber 永久 pending，直接导致另一代内核
- * 加载失败。因此各自独立等待，任意一代就绪即启动，且只启动一次。
- */
 export function apply(ctx: ClientContext): void {
   ctx.effect(locale.registerLocale, LOCALE_EFFECT)
   ctx.effect(registerStyles, STYLES_EFFECT)
