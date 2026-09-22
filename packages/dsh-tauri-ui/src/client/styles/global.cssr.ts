@@ -54,13 +54,17 @@ export default c([
     color: 'var(--dsw-alias-label-primary) !important',
     justifyContent: 'center !important',
   }, [
+    // 「右侧按钮」= 官方侧边栏自带的折叠 toggle。桌面壳 navbar 已有自己的
+    // `dsh-navbar-sidebar-toggle`（`dsh://sidebar:toggle` → `ctx.layout.toggleSidebar`），
+    // 官方这枚是重复入口；隐藏后 logo 独占整行。
     c('[class$="toggle"], [class*="toggle "]', {
-      justifyContent: 'center !important',
+      display: 'none !important',
     }),
     // 官方品牌按钮的类名是 `clsx(brand, wide)`，类属性以 `_wide` 结尾，
-    // 仅靠 `[class$="brand"]` 匹配不到；两种形态都列上才能各代都隐藏。
+    // 仅靠 `[class$="brand"]` 匹配不到；两种形态都列上。
+    // 品牌按钮带 `flex: 1` 铺满整行，所以「logo 居中」要落在它自己身上，而不是行容器。
     c('[class$="brand"], [class*="brand "]', {
-      display: 'none !important',
+      justifyContent: 'center !important',
     }),
   ]),
   // 折叠轨道回到官方左对齐：上一条 `!important` 会盖掉官方 `.collapsed .logoRow`。

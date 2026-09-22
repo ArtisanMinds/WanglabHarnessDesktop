@@ -1,4 +1,3 @@
-import type { SessionId } from 'dsh-tauri/client'
 import type { ReactElement } from 'react'
 import type { SettingsTriggerProps } from './trigger.types'
 import { SlotOutlet } from '@deepseek-ai/dsh-client-ui-renderer'
@@ -13,17 +12,29 @@ import { useMountStyle } from '../hooks/use-mount-style'
 import { store } from '../store'
 import settingsTriggerStyle from './trigger.cssr'
 
+interface RetainedSessionLike {
+  retainedBy?: Readonly<Record<string, number | undefined>>
+}
+
+// 0.1.7 起列表快照不再带 current，「当前会话」改由主视图持有的 reference 表达。
+function isMainViewRetained(session: RetainedSessionLike): boolean {
+  return (session.retainedBy?.mainView ?? 0) > 0
+}
+
 export function SettingsTrigger({ wide, useSessions }: SettingsTriggerProps): ReactElement {
   const { open } = useStore(store.settings)
   const { onboarding } = useStore(store.sections)
   useMountStyle(settingsTriggerStyle, SETTINGS_TRIGGER_STYLE_ID)
   const [completed, setCompleted] = useState<string[]>([])
 
-  const onboardingActive = useSessions(
-    state =>
-      state.phase === 'ready'
-      && (state.current === undefined || state.byId[state.current]?.blank === true),
-  )
+  const onboardingActive = useSessions((state) => {
+    if (state.phase !== 'ready')
+      return false
+    if (state.current !== undefined)
+      return state.byId[state.current]?.blank === true
+    const main = Object.values(state.byId).find(session => isMainViewRetained(session))
+    return main === undefined || main.blank === true
+  })
 
   useEffect(() => {
     if (!onboardingActive)
