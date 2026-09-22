@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'pathe'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  copyMissingChildren,
   isDependencyInstallCommand,
   linkWorktreeDependencies,
   normalizeLinkDirectories,
@@ -122,16 +123,6 @@ describe('unlinkWorktreeDependencies', () => {
     expect(await readFile(marker, 'utf8')).toBe('shared-dependency\n')
   })
 
-  it('unlinks the agent skills link without touching the source skills tree', async () => {
-    const { project, worktree, skill } = await createSkillsFixture()
-    await expect(linkWorktreeDependencies(project, worktree, ['.agents'])).resolves.toEqual({ linked: ['.agents'], skipped: [] })
-    expect(await readFile(join(worktree, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
-
-    await expect(unlinkWorktreeDependencies(worktree, ['.agents'])).resolves.toEqual(['.agents'])
-    await expect(lstat(join(worktree, '.agents'))).rejects.toMatchObject({ code: 'ENOENT' })
-    expect(await readFile(skill, 'utf8')).toBe('# handle\n')
-  })
-
   it('leaves a real (independently installed) directory untouched', async () => {
     const worktree = await temporaryRoot('dsh-deps-worktree-')
     const installed = join(worktree, 'node_modules', 'pkg')
@@ -145,5 +136,33 @@ describe('unlinkWorktreeDependencies', () => {
   it('is idempotent when the directory is absent', async () => {
     const worktree = await temporaryRoot('dsh-deps-worktree-')
     await expect(unlinkWorktreeDependencies(worktree, ['node_modules'])).resolves.toEqual([])
+  })
+})
+
+describe('copyMissingChildren', () => {
+  it('copies a missing source directory into the target as a real directory', async () => {
+    const { project, skill } = await createSkillsFixture()
+    const worktree = await temporaryRoot('dsh-deps-worktree-')
+
+    await expect(copyMissingChildren(join(project, '.agents'), join(worktree, '.agents'))).resolves.toEqual(['skills'])
+    const copied = join(worktree, '.agents', 'skills')
+    expect((await lstat(copied)).isSymbolicLink()).toBe(false)
+    expect(await readFile(join(copied, 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+    expect(await readFile(skill, 'utf8')).toBe('# handle\n')
+  })
+
+  it('skips entries already present in the target and keeps their content', async () => {
+    const { project } = await createSkillsFixture()
+    const worktree = await temporaryRoot('dsh-deps-worktree-')
+    await mkdir(join(worktree, '.agents', 'skills'), { recursive: true })
+    await writeFile(join(worktree, '.agents', 'skills', 'local.md'), 'local\n')
+
+    await expect(copyMissingChildren(join(project, '.agents'), join(worktree, '.agents'))).resolves.toEqual([])
+    expect(await readFile(join(worktree, '.agents', 'skills', 'local.md'), 'utf8')).toBe('local\n')
+  })
+
+  it('returns no copies when the source is absent', async () => {
+    const worktree = await temporaryRoot('dsh-deps-worktree-')
+    await expect(copyMissingChildren(join(worktree, 'missing'), join(worktree, 'target'))).resolves.toEqual([])
   })
 })

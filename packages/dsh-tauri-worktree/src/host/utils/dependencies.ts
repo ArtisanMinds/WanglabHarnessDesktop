@@ -1,9 +1,8 @@
-import { existsSync } from 'node:fs'
-import { lstat, rm, symlink } from 'node:fs/promises'
+import { existsSync, readdirSync } from 'node:fs'
+import { cp, lstat, mkdir, rm, symlink } from 'node:fs/promises'
 import process from 'node:process'
 import { filter, find, get, isEmpty, isString, map, trimEnd, uniqBy } from 'lodash-es'
 import { resolve } from 'pathe'
-import { listDirectoryNames } from './filesystem'
 
 const DEFAULT_LINK_DIRECTORIES: readonly string[] = ['node_modules']
 
@@ -109,25 +108,32 @@ export async function unlinkWorktreeDependencies(
 }
 
 /**
- * 把源目录里缺失的子项逐条链接进目标目录。用于目标目录已存在（源仓库把 `.agents` 的一部分
- * 提交进了索引）而技能等子目录被 gitignore、`git worktree add` 搬不过来的情况。
+ * 把源目录里缺失的条目复制进目标目录，供 `.agents` 这类被 gitignore、`git worktree add`
+ * 搬不过来的内容使用。目标目录不存在时即整树复制，已存在时只补缺失子项（源仓库把
+ * `.agents` 的一部分提交进了索引时就是后者）。
+ *
+ * 这里刻意用复制而不是符号链接：POSIX 上符号链接对 git 而言是「文件」，`.agents/skills/`
+ * 这种带尾斜杠的忽略规则匹配不到它，工作树会多出一条未跟踪记录 `?? .agents`，
+ * 既污染状态，又会在检出时被判为「存在未跟踪改动」而卡死。复制出的真实目录与源仓库
+ * 忽略语义完全一致，平台无关。
  */
-export async function linkMissingChildren(sourceDirectory: string, targetDirectory: string): Promise<string[]> {
-  if (!existsSync(sourceDirectory) || !existsSync(targetDirectory) || await isSymbolicLink(targetDirectory))
+export async function copyMissingChildren(sourceDirectory: string, targetDirectory: string): Promise<string[]> {
+  if (!existsSync(sourceDirectory) || await isSymbolicLink(targetDirectory))
     return []
-  const linked: string[] = []
-  for (const name of listDirectoryNames(sourceDirectory)) {
+  await mkdir(targetDirectory, { recursive: true })
+  const copied: string[] = []
+  for (const name of readdirSync(sourceDirectory)) {
     const source = resolve(sourceDirectory, name)
     const target = resolve(targetDirectory, name)
-    if (!existsSync(source) || await pathExists(target))
+    if (await pathExists(target))
       continue
     try {
-      await symlink(source, target, process.platform === 'win32' ? 'junction' : 'dir')
-      linked.push(name)
+      await cp(source, target, { recursive: true })
+      copied.push(name)
     }
     catch {}
   }
-  return linked
+  return copied
 }
 
 // --- internal ---

@@ -14,8 +14,8 @@ import { join, resolve } from 'pathe'
 import { TRASH_DIR, WORKTREES_DIR } from '../config/constants'
 import { getCurrentHostInstance } from '../config/runtime'
 import {
+  copyMissingChildren,
   isDependencyInstallCommand,
-  linkMissingChildren,
   linkWorktreeDependencies,
   normalizeLinkDirectories,
   shellCommandFrom,
@@ -78,9 +78,9 @@ export const worktree = defineService({
       if (!registration.ok)
         return { ok: false, error: `检查工作树残留状态失败：${registration.error}` }
       if (registration.registered) {
-        // 旧版本创建的工作树没有这条链接，重复创建时补齐，让继承会话能读到项目级技能
+        // 旧版本创建的工作树没有这份拷贝，重复创建时补齐，让继承会话能读到项目级技能
         const repairedLog: string[] = []
-        await linkAgentSkills(root, path, repairedLog)
+        await inheritAgentSkills(root, path, repairedLog)
         if (repairedLog.length === 0)
           return { ok: true, binding: existing, existed: true, log: [] }
         const repaired: Binding = { ...existing, log: [...existing.log, ...repairedLog] }
@@ -155,7 +155,7 @@ export const worktree = defineService({
     log.push(`HEAD is now at ${await shortHead(path)} ${await headSubject(path)}`)
     log.push(`Worktree created at ${path}`)
 
-    await linkAgentSkills(root, path, log)
+    await inheritAgentSkills(root, path, log)
 
     const linkedDependencies: string[] = []
     if (linkDependencies) {
@@ -482,31 +482,24 @@ async function pruneWorktreeAdmin(root: string, signal?: AbortSignal): Promise<O
 }
 
 /**
- * 把源仓库的 `.agents` 链接进工作树：技能目录被 gitignore，`git worktree add` 不会带过来，
- * 不补这条链接，继承会话就读不到初始会话的项目级技能。源仓库没有 `.agents` 时静默返回。
+ * 把源仓库的 `.agents` 复制进工作树。技能目录被 gitignore，`git worktree add` 不会带过来，
+ * 不补这一步，继承会话就读不到初始会话的项目级技能。
+ *
+ * 用复制而不是符号链接：POSIX 上符号链接对 git 是「文件」，`.agents/skills/` 这类带尾斜杠的
+ * 忽略规则匹配不到它，工作树会多出未跟踪记录 `?? .agents`，既污染状态又会在检出时被判为
+ * 「存在未跟踪改动」。源仓库没有 `.agents` 时静默返回。
  */
-async function linkAgentSkills(root: string, path: string, log: string[]): Promise<void> {
+async function inheritAgentSkills(root: string, path: string, log: string[]): Promise<void> {
   const source = join(root, AGENT_SKILLS_DIRECTORY)
   if (!existsSync(source))
     return
   try {
-    const linked = await linkWorktreeDependencies(root, path, [AGENT_SKILLS_DIRECTORY])
-    if (linked.linked.length > 0) {
-      log.push(`Linked the agent skills directory from the source repository (${AGENT_SKILLS_DIRECTORY})`)
-      return
-    }
-    if (linked.skipped.includes(AGENT_SKILLS_DIRECTORY)) {
-      // `.agents` 已在工作树里（部分内容被提交进索引）时无法整体链接，
-      // 改为补齐被 gitignore 掉、worktree add 搬不过来的子目录（如 skills）。
-      const children = await linkMissingChildren(source, join(path, AGENT_SKILLS_DIRECTORY))
-      if (children.length > 0)
-        log.push(`Linked the missing agent directories from the source repository (${children.join(', ')})`)
-      return
-    }
-    log.push('Agent skills directory link skipped')
+    const copied = await copyMissingChildren(source, join(path, AGENT_SKILLS_DIRECTORY))
+    if (copied.length > 0)
+      log.push(`Copied the agent skills directory from the source repository (${copied.join(', ')})`)
   }
   catch (error) {
-    log.push(`Agent skills directory link skipped: ${get(error, 'message', String(error))}`)
+    log.push(`Agent skills directory copy skipped: ${get(error, 'message', String(error))}`)
   }
 }
 
@@ -578,8 +571,8 @@ async function removeWorktreeOnDisk(
 function removalLinkDirectories(binding: Binding | null, configured?: readonly string[]): string[] {
   const configuredDirectories = normalizeLinkDirectories(configured)
   if (!binding || isEmpty(binding.linkedDependencies))
-    return normalizeLinkDirectories([AGENT_SKILLS_DIRECTORY, ...configuredDirectories])
-  return normalizeLinkDirectories([AGENT_SKILLS_DIRECTORY, ...binding.linkedDependencies ?? [], ...configuredDirectories])
+    return configuredDirectories
+  return normalizeLinkDirectories([...binding.linkedDependencies ?? [], ...configuredDirectories])
 }
 
 async function deleteOwnedBranch(root: string, branch: string, signal?: AbortSignal): Promise<OperationResult> {

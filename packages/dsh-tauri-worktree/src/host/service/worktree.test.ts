@@ -399,7 +399,7 @@ describe('依赖链接', () => {
     expect(created.binding.linkedDependencies).toBeUndefined()
   })
 
-  it('无条件链接 .agents，即使关闭依赖链接', async () => {
+  it('无条件继承 .agents（复制而非链接），即使关闭依赖链接', async () => {
     const repository = createRepository()
     mkdirSync(join(repository, '.agents', 'skills', 'handle'), { recursive: true })
     writeFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), '# handle\n')
@@ -410,14 +410,14 @@ describe('依赖链接', () => {
     if (!created.ok)
       return
 
-    const link = join(created.binding.worktreePath, '.agents')
-    expect(lstatSync(link).isSymbolicLink()).toBe(true)
-    expect(readFileSync(join(link, 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+    const agents = join(created.binding.worktreePath, '.agents')
+    expect(lstatSync(agents).isSymbolicLink()).toBe(false)
+    expect(readFileSync(join(agents, 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
     expect(existsSync(join(created.binding.worktreePath, 'node_modules'))).toBe(false)
 
     const removed = await worktree.remove(sessionId)
     expect(removed.ok).toBe(true)
-    expect(existsSync(link)).toBe(false)
+    expect(existsSync(agents)).toBe(false)
     expect(readFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
   })
 
@@ -433,7 +433,7 @@ describe('依赖链接', () => {
     expect(existsSync(join(created.binding.worktreePath, '.agents'))).toBe(false)
   })
 
-  it('源仓库忽略 .agents 时，链接不弄脏工作树状态', async () => {
+  it('源仓库忽略 .agents 时，继承不弄脏工作树状态（POSIX 不可用符号链接）', async () => {
     const repository = createRepository()
     mkdirSync(join(repository, '.agents', 'skills', 'handle'), { recursive: true })
     writeFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), '# handle\n')
@@ -447,8 +447,10 @@ describe('依赖链接', () => {
     if (!created.ok)
       return
 
+    // POSIX 上符号链接对 git 是「文件」，`.agents/skills/` 忽略规则匹配不到它，
+    // 会留下 `?? .agents`；复制成真实目录后状态干净。
     expect(git(created.binding.worktreePath, 'status', '--porcelain=v1')).toBe('')
-    expect(lstatSync(join(created.binding.worktreePath, '.agents')).isSymbolicLink()).toBe(true)
+    expect(lstatSync(join(created.binding.worktreePath, '.agents')).isSymbolicLink()).toBe(false)
   })
 
   it('部分内容已跟踪时，补齐被忽略的 .agents/skills 子目录', async () => {
@@ -467,11 +469,10 @@ describe('依赖链接', () => {
       return
 
     const skills = join(created.binding.worktreePath, '.agents', 'skills')
-    expect(lstatSync(skills).isSymbolicLink()).toBe(true)
     expect(readFileSync(join(skills, 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
-    // `.agents` 本身必须是工作树里的真实目录，链接子项不能破坏被跟踪的 config.json
     expect(lstatSync(join(created.binding.worktreePath, '.agents')).isSymbolicLink()).toBe(false)
     expect(readFileSync(join(created.binding.worktreePath, '.agents', 'config.json'), 'utf8').trim()).toBe('{}')
+    expect(git(created.binding.worktreePath, 'status', '--porcelain=v1')).toBe('')
 
     const removed = await worktree.remove(sessionId)
     expect(removed.ok).toBe(true)
