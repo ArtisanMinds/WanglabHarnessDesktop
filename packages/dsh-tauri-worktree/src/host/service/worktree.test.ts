@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import process from 'node:process'
 import { basename, join } from 'pathe'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetTestDshHome, testDshHome } from '../../../../.test/test-utils'
@@ -171,6 +172,36 @@ describe('worktree.create', () => {
       return
     expect(second.existed).toBe(true)
     expect(second.binding.worktreePath).toBe(expectedPath(repository, sessionId))
+  })
+
+  it('重复创建时把旧实现遗留的 .agents 符号链接迁移成真实拷贝', async () => {
+    const repository = createRepository()
+    mkdirSync(join(repository, '.agents', 'skills', 'handle'), { recursive: true })
+    writeFileSync(join(repository, '.agents', 'skills', 'handle', 'SKILL.md'), '# handle\n')
+    writeFileSync(join(repository, '.gitignore'), '.agents/skills/\n')
+    git(repository, 'add', '.gitignore')
+    git(repository, 'commit', '-m', 'ignore skills')
+    const sessionId = 'legacy-link-session'
+
+    const first = await worktree.create(repository, sessionId)
+    expect(first.ok).toBe(true)
+    if (!first.ok)
+      return
+
+    // 模拟旧实现留下的符号链接
+    const agents = join(first.binding.worktreePath, '.agents')
+    rmSync(agents, { recursive: true, force: true })
+    symlinkSync(join(repository, '.agents'), agents, process.platform === 'win32' ? 'junction' : 'dir')
+    expect(lstatSync(agents).isSymbolicLink()).toBe(true)
+
+    const second = await worktree.create(repository, sessionId)
+    expect(second.ok).toBe(true)
+    if (!second.ok)
+      return
+    expect(second.log.join('\n')).toContain('Copied the agent skills directory')
+    expect(lstatSync(agents).isSymbolicLink()).toBe(false)
+    expect(readFileSync(join(agents, 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+    expect(git(first.binding.worktreePath, 'status', '--porcelain=v1')).toBe('')
   })
 })
 

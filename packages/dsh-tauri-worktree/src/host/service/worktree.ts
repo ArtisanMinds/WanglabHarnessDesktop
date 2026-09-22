@@ -85,7 +85,7 @@ export const worktree = defineService({
           return { ok: true, binding: existing, existed: true, log: [] }
         const repaired: Binding = { ...existing, log: [...existing.log, ...repairedLog] }
         await ledger.save(sessionId, repaired)
-        return { ok: true, binding: repaired, existed: true, log: [] }
+        return { ok: true, binding: repaired, existed: true, log: repairedLog }
       }
     }
 

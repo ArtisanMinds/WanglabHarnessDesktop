@@ -1,5 +1,6 @@
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import process from 'node:process'
 import { join } from 'pathe'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -151,14 +152,26 @@ describe('copyMissingChildren', () => {
     expect(await readFile(skill, 'utf8')).toBe('# handle\n')
   })
 
-  it('skips entries already present in the target and keeps their content', async () => {
+  it('merges missing descendants into an existing target directory and keeps its files', async () => {
     const { project } = await createSkillsFixture()
     const worktree = await temporaryRoot('dsh-deps-worktree-')
     await mkdir(join(worktree, '.agents', 'skills'), { recursive: true })
     await writeFile(join(worktree, '.agents', 'skills', 'local.md'), 'local\n')
 
-    await expect(copyMissingChildren(join(project, '.agents'), join(worktree, '.agents'))).resolves.toEqual([])
+    await expect(copyMissingChildren(join(project, '.agents'), join(worktree, '.agents'))).resolves.toEqual(['skills/handle'])
     expect(await readFile(join(worktree, '.agents', 'skills', 'local.md'), 'utf8')).toBe('local\n')
+    expect(await readFile(join(worktree, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+  })
+
+  it('replaces a legacy symbolic link with a real copied directory', async () => {
+    const { project, skill } = await createSkillsFixture()
+    const worktree = await temporaryRoot('dsh-deps-worktree-')
+    await symlink(join(project, '.agents'), join(worktree, '.agents'), process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(copyMissingChildren(join(project, '.agents'), join(worktree, '.agents'))).resolves.toEqual(['skills'])
+    expect((await lstat(join(worktree, '.agents'))).isSymbolicLink()).toBe(false)
+    expect(await readFile(join(worktree, '.agents', 'skills', 'handle', 'SKILL.md'), 'utf8')).toBe('# handle\n')
+    expect(await readFile(skill, 'utf8')).toBe('# handle\n')
   })
 
   it('returns no copies when the source is absent', async () => {
