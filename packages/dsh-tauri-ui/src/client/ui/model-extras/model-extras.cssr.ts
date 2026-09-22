@@ -4,7 +4,7 @@ import { cssr } from '../../utils/cssr'
 export const MODEL_EXTRAS_STYLE_ID = 'dsh-tauri-ui-model-extras-styles'
 
 const { c } = cssr
-const { primary, secondary, tertiary, error, success, hover, borderL4, layer1, modulePlatform, focusRing } = sharedStyles
+const { primary, secondary, tertiary, error, success, hover, borderL4, layer1, focusRing } = sharedStyles
 
 export default c([
   c('.dshp-model-extras__row', {
@@ -40,7 +40,7 @@ export default c([
       cursor: 'not-allowed',
       opacity: '0.5',
     }),
-    c('&.dshp-model-extras__link--open', {
+    c('&[aria-expanded=\'true\']', {
       color: secondary,
     }),
   ]),
@@ -96,9 +96,5 @@ export default c([
     fontSize: '13px',
     lineHeight: '20px',
     color: error,
-  }),
-  c('.dshp-model-extras__busy', {
-    background: modulePlatform,
-    color: tertiary,
   }),
 ])

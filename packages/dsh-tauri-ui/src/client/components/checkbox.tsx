@@ -1,8 +1,9 @@
 import type { ReactElement } from 'react'
 import type { CheckboxProps } from './checkbox.types'
-export const CHECKBOX_STYLE_ID = 'dsh-tauri-ui-checkbox-styles'
 import { useMountStyle } from '../hooks/use-mount-style'
 import checkboxStyle from './checkbox.cssr'
+
+export const CHECKBOX_STYLE_ID = 'dsh-tauri-ui-checkbox-styles'
 
 export function Checkbox({ checked, disabled, onChange, children, 'aria-label': ariaLabel, title }: CheckboxProps): ReactElement {
   useMountStyle(checkboxStyle, CHECKBOX_STYLE_ID)

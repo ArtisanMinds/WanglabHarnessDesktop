@@ -5,6 +5,7 @@ export type ChipVariant = 'seat' | 'composerTrigger' | 'selector'
 export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   variant: ChipVariant
   icon?: ReactNode
+  badge?: ReactNode
   chevron?: ReactNode
   open?: boolean
   children?: ReactNode

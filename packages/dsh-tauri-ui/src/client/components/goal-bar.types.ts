@@ -1,7 +1,5 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
 
-export type GoalBarActionVariant = 'default' | 'danger'
-
 export interface GoalBarProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   glyph?: ReactNode
   label?: ReactNode
@@ -12,6 +10,6 @@ export interface GoalBarProps extends Omit<HTMLAttributes<HTMLDivElement>, 'chil
 }
 
 export interface GoalBarActionProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
-  variant?: GoalBarActionVariant
+  iconOnly?: boolean
   children?: ReactNode
 }

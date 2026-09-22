@@ -3,7 +3,6 @@ import { cssr } from '../utils/cssr'
 
 const { c, bem: { b, e, m } } = cssr
 const { dimmed, error, focusRing, hover, primary, secondary, tertiary } = sharedStyles
-
 export default b('goal-bar', {
   'position': 'relative',
   'isolation': 'isolate',
@@ -49,7 +48,7 @@ export default b('goal-bar', {
     overflow: 'hidden',
     fontSize: '13px',
     lineHeight: '20px',
-    color: dimmed,
+    color: 'var(--dsw-alias-label-primary-dimmed, var(--dsw-alias-label-dimmed))',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   }),
@@ -68,6 +67,7 @@ export default b('goal-bar', {
     alignItems: 'center',
     gap: '10px',
     flex: 'none',
+    marginLeft: 'auto',
   }),
   e('action', {
     display: 'inline-flex',
@@ -77,22 +77,47 @@ export default b('goal-bar', {
     padding: '0',
     border: '0',
     background: 'transparent',
-    color: tertiary,
+    color: primary,
     font: 'inherit',
     fontSize: '13px',
     lineHeight: '20px',
     borderRadius: '6px',
+    textDecoration: 'underline',
+    textDecorationColor: 'transparent',
+    textUnderlineOffset: '2px',
+    transition: 'text-decoration-color 120ms ease',
     cursor: 'pointer',
   }, [
-    c('&:hover:not(:disabled)', { color: secondary, background: hover }),
+    c('&:hover:not(:disabled)', {
+      textDecorationColor: 'currentcolor',
+    }),
     c('&:focus-visible', { ...focusRing }),
     c('&:disabled', {
       color: dimmed,
       cursor: 'default',
       opacity: '0.4',
     }),
-  ]),
-  m('danger', { color: error }, [
-    c('&:hover:not(:disabled)', { color: `color-mix(in srgb, ${error} 78%, ${primary})` }),
+    m('icon', {
+      width: '28px',
+      height: '28px',
+      padding: '0',
+      border: 'none',
+      borderRadius: '999px',
+      cornerShape: 'round',
+      background: 'transparent',
+      color: tertiary,
+      textDecoration: 'none',
+      cursor: 'pointer',
+    }, [
+      c('&:hover:not(:disabled)', {
+        background: hover,
+        color: secondary,
+      }),
+      c('&:disabled', {
+        color: tertiary,
+        cursor: 'default',
+        opacity: '0.4',
+      }),
+    ]),
   ]),
 ])

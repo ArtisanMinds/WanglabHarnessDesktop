@@ -1,5 +1,4 @@
-import type { ReactElement } from 'react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react'
 
 import { compact } from 'dsh-tauri/client'
 import { useMountStyle } from '../hooks/use-mount-style'

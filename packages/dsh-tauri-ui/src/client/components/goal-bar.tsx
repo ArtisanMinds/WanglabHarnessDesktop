@@ -30,7 +30,7 @@ export function GoalBar({
 }
 
 export function GoalBarAction({
-  variant = 'default',
+  iconOnly = false,
   className,
   children,
   ...rest
@@ -39,7 +39,7 @@ export function GoalBarAction({
   return (
     <button
       type="button"
-      className={compact(['dshp-goal-bar__action', variant === 'default' ? undefined : `dshp-goal-bar--${variant}`, className]).join(' ')}
+      className={compact(['dshp-goal-bar__action', iconOnly ? 'dshp-goal-bar__action--icon' : undefined, className]).join(' ')}
       {...rest}
     >
       {children}
