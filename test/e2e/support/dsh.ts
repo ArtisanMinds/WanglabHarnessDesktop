@@ -282,11 +282,21 @@ export function assertMountRegistered(profileDir: string, packages: readonly str
  * 核心产物补丁与夹具 (Core patches & fixtures)
  * ========================================== */
 
-/** 核心安装目录下的 renderer 客户端产物（`dsh-client-ui-renderer/client` → `lib/client.js`）。 */
-const RENDERER_CLIENT_REL = join('@deepseek-ai', 'dsh-client-ui-renderer', 'lib', 'client.js')
+/** 核心安装目录下的 renderer 客户端产物包名（`dsh-client-ui-renderer/client` → `lib/client.js`）。 */
+const RENDERER_PACKAGE = 'dsh-client-ui-renderer'
 
-/** renderer 产物末尾的导出锚点；前导缩进由上游打包器决定，必须按实际行读取。 */
+/** 核心安装目录下的 conversation 客户端产物包名（composer 补丁的目标）。 */
+const CONVERSATION_PACKAGE = 'dsh-client-ui-conversation'
+
+/** 客户端产物末尾的导出锚点；前导缩进由上游打包器决定，必须按实际行读取。 */
 const RENDERER_EXPORT_ANCHOR = 'return module.exports;'
+
+/** composer 补丁的语句锚点与标记（与 `src-tauri/src/service/patch/composer.rs` 同源同语义）。 */
+const COMPOSER_INERT_ORIGINAL = 'const inert = sessionId === void 0 || hero && chipTitle === void 0;'
+const COMPOSER_INERT_PATCHED = 'const inert = sessionId === void 0 || hero && chipTitle === void 0 && cwd === void 0;'
+const COMPOSER_PATCH_MARKER = 'dsh-tauri: composer stays usable for a session outside every workspace'
+/** 客户端插件探测本能力用的 DOM 标记（与 `dsh-tauri` 适配层的判据逐字一致）。 */
+const COMPOSER_CWD_ATTRIBUTE = 'data-dsh-composer-cwd'
 
 /** 技能夹具目录名（kebab-case，符合插件的 `SKILL_NAME_RE`）。 */
 const FIXTURE_SKILL_NAME = 'e2e-fixture-skill'
@@ -308,7 +318,7 @@ const FIXTURE_SKILL_NAME = 'e2e-fixture-skill'
  */
 function patchRendererSlotOutlet(dshBin: string): void {
   const coreDir = dirname(dirname(dshBin))
-  const target = locateRendererClient(coreDir)
+  const target = locateCoreClient(coreDir, RENDERER_PACKAGE)
 
   if (target === undefined) {
     log(`⚠️ 未找到 renderer 客户端产物，跳过 SlotOutlet 补丁（core: ${coreDir}）`)
@@ -335,23 +345,67 @@ function patchRendererSlotOutlet(dshBin: string): void {
   log(`🔧 已给核心 renderer 补上 SlotOutlet 导出：${target}`)
 }
 
-/** renderer 客户端产物定位：核心自带嵌套依赖 → 安装根提升产物 → Node 子路径解析。 */
-function locateRendererClient(coreDir: string): string | undefined {
-  const candidates = [
-    join(coreDir, 'node_modules', RENDERER_CLIENT_REL),
-    join(dirname(dirname(coreDir)), RENDERER_CLIENT_REL),
-  ]
+/** 核心客户端产物定位：核心自带嵌套依赖 → 安装根提升产物 → Node 子路径解析。 */
+function locateCoreClient(coreDir: string, pkg: string): string | undefined {
+  const relPath = join('@deepseek-ai', pkg, 'lib', 'client.js')
+  const candidates = [join(coreDir, 'node_modules', relPath), join(dirname(dirname(coreDir)), relPath)]
 
   const direct = candidates.find(candidate => existsSync(candidate))
   if (direct !== undefined)
     return direct
 
   try {
-    return createRequire(join(coreDir, 'package.json')).resolve('@deepseek-ai/dsh-client-ui-renderer/client')
+    return createRequire(join(coreDir, 'package.json')).resolve(`@deepseek-ai/${pkg}/client`)
   }
   catch {
     return undefined
   }
+}
+
+/**
+ * 放宽官方 composer 的 inert 判定并写下能力标记（幂等，与
+ * `src-tauri/src/service/patch/composer.rs` 同源同语义）。
+ *
+ * 官方 `ConversationRoot` 对「不属于任何工作区的空白会话」把 composer 换成「选择工作区」
+ * 触发器（`inert` 只看 `chipTitle`，而 `chipTitle` 只来自工作区），`dsh-tauri-ui` 的
+ * 「未分组」新会话因此无法输入。插件车道跑的是裸 `dsh web`，没有桌面壳，所以编排必须
+ * 自己施加同一补丁——漏了它 `dsh-tauri-ui` 会按退级策略禁用「未分组」入口（console.warn，
+ * 不是 error），`data-dsh-composer-cwd` 就绪锚点与未分组用例都会失败。
+ */
+function patchComposerCwd(dshBin: string): void {
+  const coreDir = dirname(dirname(dshBin))
+  const target = locateCoreClient(coreDir, CONVERSATION_PACKAGE)
+
+  if (target === undefined) {
+    log(`⚠️ 未找到 conversation 客户端产物，跳过 composer 补丁（core: ${coreDir}）`)
+    return
+  }
+
+  const source = readFileSync(target, 'utf8')
+  if (source.includes(COMPOSER_PATCH_MARKER))
+    return
+
+  // 优先看原始语句：只要它还在场就放宽它；只有它缺席、放宽形态在场时才算「上游已自修」。
+  // 反过来的优先级会让注释里的同形文本把补丁误判成已修，声明了能力却漏放宽。
+  const needsRelax = source.includes(COMPOSER_INERT_ORIGINAL)
+  const upstreamFixed = !needsRelax && source.includes(COMPOSER_INERT_PATCHED)
+  if (!needsRelax && !upstreamFixed) {
+    log(`⚠️ conversation 产物缺少 composer 语句锚点，跳过 composer 补丁：${target}`)
+    return
+  }
+
+  const anchor = source.indexOf(RENDERER_EXPORT_ANCHOR)
+  const lineStart = anchor < 0 ? -1 : source.lastIndexOf('\n', anchor) + 1
+  const indent = lineStart < 0 ? '' : source.slice(lineStart, anchor)
+  if (lineStart < 0 || !/^[\t ]*$/.test(indent)) {
+    log(`⚠️ conversation 产物缺少可用的导出锚点 "${RENDERER_EXPORT_ANCHOR}"，跳过 composer 补丁：${target}`)
+    return
+  }
+
+  const marker = `${indent}if (typeof document !== "undefined") document.documentElement.setAttribute("${COMPOSER_CWD_ATTRIBUTE}", "1"); /* ${COMPOSER_PATCH_MARKER} */\n`
+  const withMarker = `${source.slice(0, lineStart)}${marker}${source.slice(lineStart)}`
+  writeFileSync(target, needsRelax ? withMarker.replace(COMPOSER_INERT_ORIGINAL, COMPOSER_INERT_PATCHED) : withMarker)
+  log(`🔧 已施加 composer 补丁：${target}`)
 }
 
 /**
@@ -558,6 +612,7 @@ export async function startDshHost(options: StartDshHostOptions): Promise<DshHos
 
   const [dshBin] = resolveDshCommand()
   patchRendererSlotOutlet(dshBin)
+  patchComposerCwd(dshBin)
 
   const { home, profileDir, packages } = await scaffoldDshProfile(options)
   const logPath = join(home, 'dsh-web.log')

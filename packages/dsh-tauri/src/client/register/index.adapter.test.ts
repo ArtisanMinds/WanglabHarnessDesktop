@@ -280,6 +280,14 @@ describe('defineAdapter — 退级阶梯（官方服务 → DOM → 明确不可
     expect(warn.mock.calls[0][0]).toContain('startSession unavailable')
   })
 
+  it('composer.workspace-less：只认桌面壳补丁写在 <html> 上的能力标记', () => {
+    vi.stubGlobal('document', { documentElement: { getAttribute: () => '1' } })
+    expect(defineAdapter(undefined, { onWarn: makeWarn() }).has('composer.workspace-less')).toBe(true)
+
+    vi.stubGlobal('document', { documentElement: { getAttribute: () => null } })
+    expect(defineAdapter(undefined, { onWarn: makeWarn() }).has('composer.workspace-less')).toBe(false)
+  })
+
   it('addWorkspace：官方三段能力全流程', async () => {
     const pickDirectory = vi.fn().mockResolvedValue('D:/work/demo')
     const create = vi.fn().mockResolvedValue({ workspaceId: 'w1' })

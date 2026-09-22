@@ -102,6 +102,7 @@ $$\text{client/index.ts} \longrightarrow \begin{bmatrix} \text{register/} \\ \te
 * 一个 feature 一个文件，导出 `export const <feature> = defineRegister(...)`。
 * 资源必须通过 `controller.add()` / `observe()` / `interval()` / `timeout()` / `listen()` 托管，彻底避免手动清理[cite: 1]。
 * 长流程必须显式检查 `controller.isDisposed()`。代码超过 150 行时，必须将纯状态机逻辑下沉至 `service/`。
+* **内核能力差异一律经适配层**：`defineRegister` 第三个参数 `adapter`（由 `defineAdapter(ctx)` 创建）只读能力探测面（`adapter.has('sessions.list')`、`adapter.sessions`、`adapter.workspaces`），按 [plugin.baisc.md](./plugin.baisc.md) 的退级阶梯择路，**不猜核心版本号、不写死槽名**。
 * **DOM 补丁**归属于 `register/`（不设 `dom/` 目录），观察器与事件必须经由 controller 托管，选择器仅允许使用稳定属性（`aria-label`、`role`、插件前缀 class）。
 
 ### 5. API 层 (`apis/`)

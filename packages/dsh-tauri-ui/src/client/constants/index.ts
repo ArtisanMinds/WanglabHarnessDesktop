@@ -5,6 +5,8 @@ export const SETTINGS_SHELL_SEAT_ID = PLUGIN_ID
 
 export const SETTINGS_SHELL_OVERLAY_SLOT = 'shell.overlay'
 export const SETTINGS_SIDEBAR_SLOT = 'sidebar.settings'
+export const HERO_WORKSPACE_SLOT = 'conversation.hero.workspace'
+export const HERO_WORKSPACE_FLOW_SLOT = 'conversation.hero.workspace.directoryFlow'
 export const SETTINGS_SECTION_SLOT = 'settings.section'
 export const SETTINGS_TRIGGER_SLOT = 'settings.trigger'
 export const SETTINGS_ONBOARDING_SLOT = 'settings.onboarding'
@@ -15,8 +17,26 @@ export const SETTINGS_STYLE_ID = 'dsh-tauri-ui-settings-sidebar-styles'
 export const SETTINGS_TRIGGER_STYLE_ID = 'dsh-tauri-ui-settings-trigger-styles'
 export const SETTINGS_NAV_ICON_STYLE_ID = 'dsh-tauri-ui-settings-nav-icon-styles'
 export const MENU_SELECT_STYLE_ID = 'dsh-tauri-ui-menu-select-styles'
+export const HERO_WORKSPACE_STYLE_ID = 'dsh-tauri-ui-hero-workspace-styles'
 export const TURN_NAVIGATION_STYLE_ID = 'dsh-tauri-ui-turn-navigation-styles'
 export const GLOBAL_STYLE_ID = 'dsh-tauri-ui-global-styles'
+
+/** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `components/hero-workspace.cssr.ts`）。 */
+export const HERO_WORKSPACE_CHIP_CLASS = 'dshp-hero-workspace'
+
+/**
+ * `conversation.hero.workspace` 是 single 槽：官方 `WorkspacePicker` 用默认 0 占位，同一 priority
+ * 上再注册会直接抛错，按「最低者渲染」的排序用 -1 顶掉官方条目并接管该格。
+ */
+export const HERO_WORKSPACE_PRIORITY = -1
+
+/**
+ * 官方侧边栏「新建会话」按钮的 aria-label（中英双语，逐字取自官方 sidebar 词典）。
+ *
+ * 品牌按钮与工具栏按钮共用这一条文案；官方工作区分组行的「+」用的是带工作区名字的另一条
+ * （`在“{name}”中新建会话` / `New session in {name}`），因此分组行的行为不受拦截影响。
+ */
+export const NEW_SESSION_LABELS = ['新建会话', 'New session'] as const
 
 /** dsh-im 客户端插件经 `ctx.provide` 发布的反射服务名（4.22.0 起）。 */
 export const DSH_IM_CLIENT_SERVICE = 'dshImClient'
@@ -28,6 +48,8 @@ export const SECTIONS_EFFECT = `${PLUGIN_ID}: settings sections projection`
 export const SETTINGS_EFFECT = `${PLUGIN_ID}: settings panel`
 export const OBSTRUCTIONS_EFFECT = `${PLUGIN_ID}: settings obstructions`
 export const IM_PANEL_EFFECT = `${PLUGIN_ID}: im panel`
+export const HERO_WORKSPACE_EFFECT = `${PLUGIN_ID}: hero workspace picker`
+export const NEW_SESSION_EFFECT = `${PLUGIN_ID}: sidebar new session`
 
 export const TURN_NAVIGATION_LABEL_ZH = '轮次导航'
 export const TURN_NAVIGATION_LABEL_EN = 'Turn navigation'

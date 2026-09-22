@@ -31,6 +31,23 @@ function headers(): Record<string, string> {
   return { 'cookie': inject('dshCookie'), 'content-type': 'application/json' }
 }
 
+/** 插件接管后的英雄区工作区 chip（`components/hero-workspace.tsx` 渲染）。 */
+const HERO_WORKSPACE_CHIP = '.dshp-hero-workspace'
+
+/**
+ * 官方英雄区工作区 chip：与插件 chip 共用 aria-label（官方 conversation 词典 `hero.chooseWorkspace`），
+ * 用 `:not(.dshp-hero-workspace)` 把两者分开。官方行类名取自官方 ConversationRoot 模块。
+ */
+const OFFICIAL_HERO_WORKSPACE_CHIP = '[class$="heroWorkspaceRow"] button[aria-label="选择工作区"]:not(.dshp-hero-workspace)'
+
+/**
+ * 官方侧边栏「新建会话」按钮（官方 sidebar 词典 `session.new.label`）。
+ *
+ * 品牌按钮与工具栏按钮共用这条文案，两者都是「新建会话」入口；按可见性取第一枚即可——
+ * 用例先断言它们全都在侧边栏内，确保点到的不是别的控件。
+ */
+const SIDEBAR_NEW_SESSION = 'button[aria-label="新建会话"]:visible'
+
 function url(): string {
   return `${inject('dshBaseUrl')}${RESUME_PATH}`
 }
@@ -195,6 +212,107 @@ describe('L2 客户端', () => {
       expect(state.disabled, '空草稿的主按钮必须保持不可点击').toBe(true)
       expect(state.label, '空草稿的按钮文案必须是官方文案').not.toBe('继续任务')
       expect(app.errors, '空草稿不得触发补丁异常').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证英雄区工作区选择被插件接管，官方 chip 让位且菜单首位是「未分组」', async () => {
+    const app = await newDshPage(browser, { ready: HERO_WORKSPACE_CHIP })
+    try {
+      // 官方 chip 与插件 chip 共用 aria-label（官方 conversation 词典 `hero.chooseWorkspace`），
+      // 用类名把两者分开：官方那枚必须仍在 DOM 里（接管失败时可原样回来）但被样式隐藏。
+      const chips = await app.frame.evaluate((officialSelector) => {
+        const row = document.querySelector('[class$="heroWorkspaceRow"]')
+        const official = row?.querySelector(officialSelector) ?? null
+        return {
+          rowExists: row !== null,
+          officialInRow: official !== null,
+          officialDisplay: official === null ? null : getComputedStyle(official).display,
+          oursInRow: row?.querySelector('.dshp-hero-workspace') !== null,
+          oursCount: document.querySelectorAll('.dshp-hero-workspace').length,
+        }
+      }, OFFICIAL_HERO_WORKSPACE_CHIP)
+
+      expect(chips.rowExists, '英雄区工作区行必须存在（否则这条断言没有目标）').toBe(true)
+      expect(chips.officialInRow, '官方 chip 必须仍在 DOM 中：接管条目退位时要能原样回来').toBe(true)
+      expect(chips.officialDisplay, '官方 chip 必须被隐藏，否则会出现两枚选择控件').toBe('none')
+      expect(chips.oursInRow, '接管后的 chip 必须渲染在官方同一行内').toBe(true)
+      expect(chips.oursCount, '接管后的 chip 必须唯一').toBe(1)
+
+      const capability = await app.frame.evaluate(() => document.documentElement.getAttribute('data-dsh-composer-cwd'))
+      expect(capability, '桌面壳 composer 补丁的能力标记必须到位（「未分组」入口的前置，缺失即退级禁用）').toBe('1')
+
+      await app.frame.locator(HERO_WORKSPACE_CHIP).click()
+
+      // 只认当前**可见**的菜单：文档里可能同时挂着别的已挂载菜单（portal 到 body），
+      // 不限定范围会把别的菜单条目当成这条选择器的结果。
+      const menu = await app.frame.evaluate(() => {
+        const chip = document.querySelector('.dshp-hero-workspace')
+        const menus = Array.from(document.querySelectorAll('[role="menu"]'))
+          .filter(menu => menu.getClientRects().length > 0)
+        const items = Array.from(menus[0]?.querySelectorAll('button[role="menuitem"]') ?? []) as HTMLButtonElement[]
+        return {
+          expanded: chip?.getAttribute('aria-expanded') ?? null,
+          visibleMenus: menus.length,
+          count: items.length,
+          labels: items.map(item => item.textContent?.trim() ?? ''),
+          firstDisabled: items[0]?.disabled ?? null,
+        }
+      })
+
+      expect(menu.expanded, '菜单打开时 chip 必须回报 aria-expanded').toBe('true')
+      expect(menu.visibleMenus, '打开后必须只有本选择器这一个可见菜单（否则断言对象不确定）').toBe(1)
+      expect(menu.count, '打开后必须渲染菜单条目').toBeGreaterThan(0)
+      expect(menu.labels[0], '「未分组」必须是第一个选项').toBe('未分组')
+      expect(menu.labels.filter(label => label === '未分组'), '「未分组」只能出现一次').toHaveLength(1)
+      expect(menu.firstDisabled, '目录流程空闲时「未分组」必须可选').toBe(false)
+      expectNoSyntheticFallbacks(app)
+      expect(app.errors, '接管英雄区选择控件不得抛出应用级错误').toEqual([])
+    }
+    finally {
+      await app.close()
+    }
+  })
+
+  it('验证侧边栏「新建会话」默认落到未分组，不再强制先选工作区', async () => {
+    const app = await newDshPage(browser, { ready: HERO_WORKSPACE_CHIP })
+    try {
+      const before = await app.frame.evaluate(() => ({
+        inert: document.querySelector('[data-composer-card] [aria-label="选择工作区"]') !== null,
+      }))
+      expect(before.inert, '夹具前置：没有会话时 composer 是官方的「选择工作区」触发器').toBe(true)
+
+      // 品牌按钮与工具栏按钮共用 aria-label（官方 sidebar 词典 `session.new.label`），两者都是
+      // 「新建会话」入口、都该走未分组；工作区分组行的「+」是另一条带工作区名字的文案，
+      // 必须不在其中——否则本用例点到的就不是「侧边栏新建会话」。
+      const newSessionButtons = await app.frame.evaluate(() => {
+        const sidebar = document.querySelector('[data-slot="sidebar"]')
+        const visible = Array.from(document.querySelectorAll('button[aria-label="新建会话"]'))
+          .filter(button => button.getClientRects().length > 0)
+        return {
+          count: visible.length,
+          allInSidebar: visible.every(button => sidebar?.contains(button) === true),
+        }
+      })
+      expect(newSessionButtons.count, '夹具前置：侧边栏必须有可见的「新建会话」入口').toBeGreaterThan(0)
+      expect(newSessionButtons.allInSidebar, '该 aria-label 的按钮必须都在侧边栏内（分组行「+」用的是另一条文案）').toBe(true)
+
+      await app.frame.locator(SIDEBAR_NEW_SESSION).first().click()
+
+      await expect.poll(
+        async () => await app.frame.evaluate(() => document.querySelector('.dshp-hero-workspace')?.textContent?.trim() ?? null),
+        { timeout: 20_000, message: '新建会话后 chip 必须显示「未分组」' },
+      ).toBe('未分组')
+
+      // composer 是否仍停在官方的「选择工作区」不可用态：宿主回填 cwd 后必然解除。
+      await expect.poll(
+        async () => await app.frame.evaluate(() => document.querySelector('[data-composer-card] [aria-label="选择工作区"]') !== null),
+        { timeout: 20_000, message: '会话已就位，composer 不得再停在「必须先选工作区」的不可用态' },
+      ).toBe(false)
+      expectNoSyntheticFallbacks(app)
+      expect(app.errors, '未分组新建会话不得抛出应用级错误').toEqual([])
     }
     finally {
       await app.close()

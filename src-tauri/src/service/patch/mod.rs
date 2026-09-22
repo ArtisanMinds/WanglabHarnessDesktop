@@ -9,6 +9,7 @@
 //! `client_hmr`），挂点统一为 `service::workflow::launch`，均为最佳努力、失败仅告警。
 
 pub(crate) mod client_hmr;
+pub(crate) mod composer;
 pub(crate) mod llm_session;
 pub(crate) mod model_selection;
 pub(crate) mod renderer;
@@ -27,8 +28,9 @@ use std::path::Path;
 /// 单个补丁失败不阻断其余：与启动路径一样是「最佳努力」，但这里把错误汇总返回，
 /// 让编排层能看见哪一条出了问题。
 pub(crate) fn apply_all_at(core_dir: &Path) -> Result<(), String> {
-    let patches: [(&str, fn(&Path) -> Result<(), String>); 7] = [
+    let patches: [(&str, fn(&Path) -> Result<(), String>); 8] = [
         ("renderer", renderer::apply_at),
+        ("composer", composer::apply_at),
         ("session", session::apply_at),
         ("llm_session", llm_session::apply_at),
         ("model_selection", model_selection::apply_at),
