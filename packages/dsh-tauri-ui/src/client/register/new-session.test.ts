@@ -12,6 +12,7 @@ import { sidebarNewSessionFeature } from './new-session'
 const mocks = vi.hoisted(() => ({
   startUngroupedSession: vi.fn(),
   controller: undefined as unknown,
+  composerWorkspaceLess: true,
 }))
 
 vi.mock('../service/ungrouped-session', () => ({ startUngroupedSession: mocks.startUngroupedSession }))
@@ -49,7 +50,7 @@ vi.mock('dsh-tauri/client', () => {
       return function registerEffect(this: unknown) {
         const controller = createLifecycleController()
         mocks.controller = controller
-        setup(controller, this, {})
+        setup(controller, this, { has: () => mocks.composerWorkspaceLess })
         return () => controller.dispose()
       }
     },
@@ -107,6 +108,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  mocks.composerWorkspaceLess = true
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -177,5 +180,22 @@ describe('sidebarNewSessionFeature', () => {
     controller.click(clickEvent(buttonTarget('新建会话')))
 
     expect(mocks.startUngroupedSession).not.toHaveBeenCalled()
+  })
+
+  it('缺 composer 补丁时放行官方分支，只告警一次', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.composerWorkspaceLess = false
+    const dispose = sidebarNewSessionFeature.call(ctx)
+    const controller = mocks.controller as ControllerStub
+
+    const first = clickEvent(buttonTarget('新建会话'))
+    controller.click(first)
+    controller.click(clickEvent(buttonTarget('新建会话')))
+
+    expect(first.preventDefault, '退级第 4 级：能力缺席时不得拦官方点击').not.toHaveBeenCalled()
+    expect(mocks.startUngroupedSession).not.toHaveBeenCalled()
+    expect(warn, '告警只打一次，不刷屏').toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('composer.workspace-less'))
+    dispose()
   })
 })

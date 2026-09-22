@@ -416,6 +416,14 @@ pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
     if let Err(e) = crate::service::patch::renderer::apply(&app_handle) {
         log::warn!("renderer SlotOutlet patch failed: {e}");
     }
+    // composer 可用性：官方 ConversationRoot 对「不属于任何工作区的空白会话」把
+    // composer 换成「选择工作区」触发器（`inert` 只看 chipTitle，而 chipTitle 只来自
+    // 工作区），于是 dsh-tauri-ui 的「未分组」新会话无法输入。补丁放宽该判定（会话已有
+    // cwd 即不算 inert）并写入 `data-dsh-composer-cwd` 能力标记；标记缺失时插件侧按
+    // 退级策略禁用「未分组」入口并告警。最佳努力且幂等：锚点缺失安全跳过。
+    if let Err(e) = crate::service::patch::composer::apply(&app_handle) {
+        log::warn!("composer workspace-less patch failed: {e}");
+    }
     // Expose an id-based SessionStore.remove facade so plugins can perform a
     // real in-memory teardown instead of leaving deleted sessions ungrouped.
     if let Err(e) = crate::service::patch::session::apply(&app_handle) {

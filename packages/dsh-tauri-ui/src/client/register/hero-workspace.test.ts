@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   createWorkspace: vi.fn(),
   startUngroupedSession: vi.fn(),
   registrations: [] as Array<{ key: string, options: Record<string, unknown>, component: unknown }>,
+  composerWorkspaceLess: true,
 }))
 
 vi.mock('../service/ungrouped-session', () => ({ startUngroupedSession: mocks.startUngroupedSession }))
@@ -43,7 +44,10 @@ vi.mock('dsh-tauri/client', () => ({
           disposers.length = 0
         },
       }
-      setup(controller, this, { service: (name: string) => name === 'workspaces' ? { create: mocks.createWorkspace } : undefined })
+      setup(controller, this, {
+        service: (name: string) => name === 'workspaces' ? { create: mocks.createWorkspace } : undefined,
+        has: () => mocks.composerWorkspaceLess,
+      })
       return () => controller.dispose()
     }
   },
@@ -72,6 +76,8 @@ function createCtx(options: { flowOccupied?: boolean } = {}) {
 
 afterEach(() => {
   mocks.registrations.length = 0
+  mocks.composerWorkspaceLess = true
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -113,6 +119,18 @@ describe('heroWorkspaceFeature', () => {
     const listener = vi.fn()
     injected.hooks.directoryFlow.subscribe(listener)
     expect(subscribe).toHaveBeenCalledWith(HERO_WORKSPACE_FLOW_SLOT, listener)
+    dispose()
+  })
+
+  it('缺 composer 补丁时不接管：保留官方工作区选择器并告警', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.composerWorkspaceLess = false
+    const { ctx, register } = createCtx()
+
+    const dispose = heroWorkspaceFeature.call(ctx)
+
+    expect(register, '退级第 4 级：能力缺席时不得顶掉官方条目').not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('composer.workspace-less'))
     dispose()
   })
 })

@@ -240,6 +240,9 @@ describe('L2 客户端', () => {
       expect(chips.oursInRow, '接管后的 chip 必须渲染在官方同一行内').toBe(true)
       expect(chips.oursCount, '接管后的 chip 必须唯一').toBe(1)
 
+      const capability = await app.frame.evaluate(() => document.documentElement.getAttribute('data-dsh-composer-cwd'))
+      expect(capability, '桌面壳 composer 补丁的能力标记必须到位（「未分组」入口的前置，缺失即退级禁用）').toBe('1')
+
       await app.frame.locator(HERO_WORKSPACE_CHIP).click()
 
       const menu = await app.frame.evaluate(() => {
