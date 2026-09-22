@@ -1,6 +1,7 @@
 import type { DshPlugin } from '@/types'
 import type { ConfigTab } from '@/ui/dialog/config'
 import {
+  Copy,
   LayoutSideContent,
   LayoutSideContentLeft,
   Minus,
@@ -56,7 +57,8 @@ import { toast } from '@/utils/toast'
  *   由 Rust 测试 `shell_nav_height_matches_navbar_height_class` 守住——改这个
  *   class 就必须同步那个常量，否则 CI 失败（issue #524）。
  * - Windows/Linux：右侧窗口按钮直接调用 Tauri API；
- *   后台化 = 隐藏到托盘（服务保持运行）。
+ *   最大化的字形随窗口状态在「最大化 / 还原」间切换（`useMaximized` 订阅 `onResized`，
+ *   因此按钮、拖拽区双击、Win+↑ 等任何原生路径都同步），后台化 = 隐藏到托盘（服务保持运行）。
  *
  * 未传入 onToggleSidebar（安装/错误/预装引导页，无 iframe 可操控）时
  * 只渲染窗口控制与不依赖 iframe 的菜单项。
@@ -142,6 +144,53 @@ function useMacOSFullscreen() {
   return isFullscreen
 }
 
+/** 最大化状态：Windows/Linux 自绘的最大化按钮据此在「最大化 / 还原」字形间切换（issue #673）。 */
+function useMaximized() {
+  const [isMaximized, setIsMaximized] = useState(false)
+
+  // keep:effect 显式注册/注销原生窗口 onResized 订阅（@reause/core 不覆盖窗口事件）
+  useEffect(() => {
+    const appWindow = getCurrentWindow()
+    let mounted = true
+    let unlisten: (() => void) | undefined
+
+    async function syncMaximized() {
+      try {
+        const maximized = await appWindow.isMaximized()
+        if (mounted)
+          setIsMaximized(maximized)
+      }
+      catch (error) {
+        console.error('[Navbar] failed to sync maximized state:', error)
+      }
+    }
+
+    async function setupListener() {
+      try {
+        await syncMaximized()
+        const stopListening = await appWindow.onResized(() => {
+          void syncMaximized()
+        })
+        if (mounted)
+          unlisten = stopListening
+        else
+          stopListening()
+      }
+      catch (error) {
+        console.error('[Navbar] failed to listen for maximized state:', error)
+      }
+    }
+
+    void setupListener()
+    return () => {
+      mounted = false
+      unlisten?.()
+    }
+  }, [])
+
+  return isMaximized
+}
+
 export interface NavbarProps {
   /** iframe 回报的 dsh 侧边栏折叠状态（导航桥逻辑在 `iframe.tsx`） */
   sidebarCollapsed?: boolean
@@ -156,6 +205,7 @@ export interface NavbarProps {
 export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, onOpenFolder }: NavbarProps) {
   const { t } = useTranslation()
   const isFullscreen = useMacOSFullscreen()
+  const isMaximized = useMaximized()
   // 只读取「dsh-tauri 插件是否已安装」；查询键与「插件」面板共用（同一份缓存），
   // 挂载时自动拉取，服务重启 / 插件操作后的失效由 store 与该缓存同步共同保证。
   const { data: plugins = [] } = useQuery({
@@ -571,10 +621,14 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={t('nav.maximize')}
+          aria-label={t(isMaximized ? 'nav.restore' : 'nav.maximize')}
           onPress={() => { handleWindowAction('maximize') }}
         >
-          <Square style={{ width: 14, height: 14 }} />
+          <If
+            cond={isMaximized}
+            then={<Copy style={{ width: 14, height: 14 }} />}
+            else={<Square style={{ width: 14, height: 14 }} />}
+          />
         </Button>
 
         <Button
