@@ -30,6 +30,7 @@
   "preinstall.fix": "修复",
   "preinstall.installed": "已安装",
   "preinstall.to_uninstall": "待卸载",
+  "preinstall.unsupported_core": "不支持当前核心",
   "preinstall.confirm": "确定",
   "preinstall.skip": "跳过",
   "preinstall.installing": "正在安装插件...",

@@ -12,6 +12,8 @@ export interface PreinstallPlugin {
   /** 显式声明首次引导不默认勾选（仍可标「推荐」chip，但不预选） */
   defaultUnchecked: boolean
   installed: boolean
+  /** 当前核心已高于该预设声明的 `dshSupportedVersion`：置灰不可选，且随启动自动卸载 */
+  unsupported: boolean
 }
 
 /** Rust 侧 preinstall-log 事件载荷（dsh plugin 进程输出行） */

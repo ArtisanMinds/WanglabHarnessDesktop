@@ -30,6 +30,9 @@ import { writeClipboardText } from '@/utils/clipboard'
  */
 function initialCheckedSet(plugins: readonly PreinstallPlugin[], isFirstTime: boolean): Set<string> {
   return new Set(plugins.filter((p) => {
+    // 超出支持上限的插件不可选：既不预选，也不参与安装 diff
+    if (p.unsupported)
+      return false
     if (p.installed)
       return true
     // 非首次场景：不推荐未安装的插件，避免已卸载的推荐项仍默认勾着
@@ -55,7 +58,7 @@ function PluginCard({ plugin, checked, toUninstall, disabled, onToggle, onOpenRe
 
   return (
     <Card
-      className="h-[124px] gap-1 rounded-lg border border-line bg-panel2 p-3 shadow-none transition-colors hover:border-line-strong"
+      className={`h-[124px] gap-1 rounded-lg border border-line bg-panel2 p-3 shadow-none transition-colors ${plugin.unsupported ? 'opacity-60' : 'hover:border-line-strong'}`}
     >
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent/10 text-accent">
@@ -64,14 +67,19 @@ function PluginCard({ plugin, checked, toUninstall, disabled, onToggle, onOpenRe
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
           {plugin.name}
         </span>
-        <If cond={plugin.recommended && !plugin.installed && !toUninstall}>
+        <If cond={plugin.recommended && !plugin.installed && !toUninstall && !plugin.unsupported}>
           <Chip size="sm" variant="soft" color="success" className="shrink-0 font-medium">
             {t('preinstall.recommend')}
           </Chip>
         </If>
-        <If cond={plugin.fix && !plugin.installed && !toUninstall}>
+        <If cond={plugin.fix && !plugin.installed && !toUninstall && !plugin.unsupported}>
           <Chip size="sm" variant="soft" color="warning" className="shrink-0 font-medium">
             {t('preinstall.fix')}
+          </Chip>
+        </If>
+        <If cond={plugin.unsupported}>
+          <Chip size="sm" variant="soft" color="danger" className="shrink-0 font-medium">
+            {t('preinstall.unsupported_core')}
           </Chip>
         </If>
         <If cond={plugin.installed && !toUninstall}>
@@ -106,7 +114,7 @@ function PluginCard({ plugin, checked, toUninstall, disabled, onToggle, onOpenRe
         <Switch
           size="sm"
           isSelected={checked}
-          isDisabled={disabled}
+          isDisabled={disabled || plugin.unsupported}
           onChange={isSelected => onToggle(plugin.id, isSelected)}
           aria-label={plugin.name}
         >
@@ -206,7 +214,7 @@ export function PreinstallSetup() {
       .filter(p => effectiveSelected.has(p.id) && !p.installed)
       .map(p => p.id)
     const toUninstall = preinstall.plugins
-      .filter(p => p.installed && !effectiveSelected.has(p.id))
+      .filter(p => p.installed && !effectiveSelected.has(p.id) && !p.unsupported)
       .map(p => p.id)
     void store.preinstall.confirm({ installIds: toInstall, uninstallIds: toUninstall })
   }
@@ -217,7 +225,7 @@ export function PreinstallSetup() {
 
   // 是否有变更：存在需安装或需卸载的插件时启用"确定"
   const toInstallCount = preinstall.plugins.filter(p => effectiveSelected.has(p.id) && !p.installed).length
-  const toUninstallCount = preinstall.plugins.filter(p => p.installed && !effectiveSelected.has(p.id)).length
+  const toUninstallCount = preinstall.plugins.filter(p => p.installed && !effectiveSelected.has(p.id) && !p.unsupported).length
   const hasChanges = toInstallCount > 0 || toUninstallCount > 0
   const installing = preinstall.installing
 
@@ -269,8 +277,8 @@ export function PreinstallSetup() {
                         >
                           {preinstall.plugins.map((plugin) => {
                             const checked = effectiveSelected.has(plugin.id)
-                            // 已安装但用户取消勾选 → 待卸载
-                            const toUninstall = plugin.installed && !checked
+                            // 已安装但用户取消勾选 → 待卸载（超出支持上限的项不参与）
+                            const toUninstall = plugin.installed && !checked && !plugin.unsupported
                             return (
                               <PluginCard
                                 key={plugin.id}

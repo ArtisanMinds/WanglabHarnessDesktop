@@ -51,9 +51,30 @@ pub struct PreinstallPluginInfo {
     /// 显式声明首次引导不默认勾选：仍可标「推荐」chip，但不预选（如 dsh-im）
     #[serde(default)]
     pub default_unchecked: bool,
+    /// 该预设声明支持的最高核心版本；当前核心高于它时视为不再兼容：
+    /// 界面置灰不可选，并随启动自动卸载。
+    #[serde(default)]
+    pub dsh_supported_version: Option<String>,
     /// 仅 Windows 平台列出
     #[serde(default)]
     pub win_only: bool,
+}
+
+impl PreinstallPluginInfo {
+    /// 当前核心是否已高于该预设声明的支持上限。
+    ///
+    /// 任一侧版本缺失或无法解析时按兼容处理：清单字段是发布侧提示，解析失败
+    /// 不应把插件在界面上误标为「不支持当前核心」。
+    pub(crate) fn unsupported_on(&self, core_version: Option<&str>) -> bool {
+        let (Some(core), Some(limit)) = (core_version, self.dsh_supported_version.as_deref())
+        else {
+            return false;
+        };
+        match (semver::Version::parse(core), semver::Version::parse(limit)) {
+            (Ok(core), Ok(limit)) => core > limit,
+            _ => false,
+        }
+    }
 }
 
 /// debug workspace 插件 package.json 中用于生成内置元数据的字段。
@@ -187,6 +208,7 @@ fn discover_dev_internal_plugins_at(root: &Path) -> Vec<DevPluginCandidate> {
                 fix: false,
                 default_checked: false,
                 default_unchecked: false,
+                dsh_supported_version: None,
                 win_only: false,
             };
             Some(DevPluginCandidate { info, directory })
@@ -582,6 +604,39 @@ mod tests {
             Some("https://github.com/dsh-market/dsh-market")
         );
         assert!(!presets.iter().any(|p| p.id == "unknown-package"));
+    }
+
+    /// 预设声明的支持上限：当前核心高于它时不再兼容，等于或低于时仍可用。
+    #[test]
+    fn preset_supported_version_marks_newer_cores_unsupported() {
+        let presets = load_presets_for_test();
+        assert!(!presets.is_empty());
+        assert!(
+            presets
+                .iter()
+                .all(|p| p.dsh_supported_version.as_deref() == Some("0.1.5-rc.2")),
+            "every preset entry declares the supported core ceiling"
+        );
+        let preset = &presets[0];
+        assert!(!preset.unsupported_on(Some("0.1.5-rc.1")));
+        assert!(!preset.unsupported_on(Some("0.1.5-rc.2")));
+        assert!(preset.unsupported_on(Some("0.1.6-alpha.2")));
+        assert!(preset.unsupported_on(Some("0.1.7-alpha.1")));
+        // 任一侧缺失或不可解析时按兼容处理，避免把插件误标为不支持
+        assert!(!preset.unsupported_on(None));
+        assert!(!preset.unsupported_on(Some("not-a-version")));
+    }
+
+    /// 未声明 `dshSupportedVersion` 的条目（内置插件）永远视为兼容。
+    #[test]
+    fn manifest_without_supported_version_is_always_compatible() {
+        let internal = load_manifest_for_test(INTERNAL_PLUGINS_FILE, true);
+        assert!(!internal.is_empty());
+        assert!(
+            internal
+                .iter()
+                .all(|p| p.dsh_supported_version.is_none() && !p.unsupported_on(Some("9.9.9")))
+        );
     }
 
     #[test]
@@ -1025,6 +1080,7 @@ mod tests {
                 fix: false,
                 default_checked: false,
                 default_unchecked: false,
+                dsh_supported_version: None,
                 win_only: false,
             },
             PreinstallPluginInfo {
@@ -1039,6 +1095,7 @@ mod tests {
                 fix: false,
                 default_checked: false,
                 default_unchecked: false,
+                dsh_supported_version: None,
                 win_only: false,
             },
         ];

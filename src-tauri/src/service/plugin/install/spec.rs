@@ -159,6 +159,7 @@ mod tests {
             fix: false,
             default_checked: false,
             default_unchecked: false,
+            dsh_supported_version: None,
             win_only: false,
             internal,
         }

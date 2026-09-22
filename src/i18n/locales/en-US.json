@@ -30,6 +30,7 @@
   "preinstall.fix": "Fix",
   "preinstall.installed": "Installed",
   "preinstall.to_uninstall": "To be uninstalled",
+  "preinstall.unsupported_core": "Unsupported by current core",
   "preinstall.confirm": "Install",
   "preinstall.skip": "Skip",
   "preinstall.installing": "Installing plugins...",
