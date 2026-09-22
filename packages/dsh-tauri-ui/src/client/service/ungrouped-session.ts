@@ -33,8 +33,13 @@ interface WorkspacesRuntime {
   list: { getSnapshot: () => { items: readonly { sessionIds: readonly SessionId[] }[] } }
 }
 
-/** 走 `ctx.get`：本插件只声明了 `sessions`，读未注入的服务名会被 inject-only 守卫抛错。 */
+/** 走 `ctx.get` 并吞掉 inject-only 守卫的抛错：读不到时按「无法判断」处理，绝不阻断开会话。 */
 function readWorkspaces(ctx: ClientContext): readonly { sessionIds: readonly SessionId[] }[] | undefined {
-  const workspaces = ctx.get('workspaces') as WorkspacesRuntime | undefined
-  return workspaces?.list.getSnapshot().items
+  try {
+    const workspaces = ctx.get('workspaces') as WorkspacesRuntime | undefined
+    return workspaces?.list.getSnapshot().items
+  }
+  catch {
+    return undefined
+  }
 }

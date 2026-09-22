@@ -245,11 +245,16 @@ describe('L2 客户端', () => {
 
       await app.frame.locator(HERO_WORKSPACE_CHIP).click()
 
+      // 只认当前**可见**的菜单：文档里可能同时挂着别的已挂载菜单（portal 到 body），
+      // 不限定范围会把别的菜单条目当成这条选择器的结果。
       const menu = await app.frame.evaluate(() => {
         const chip = document.querySelector('.dshp-hero-workspace')
-        const items = Array.from(document.querySelectorAll('button[role="menuitem"]')) as HTMLButtonElement[]
+        const menus = Array.from(document.querySelectorAll('[role="menu"]'))
+          .filter(menu => menu.getClientRects().length > 0)
+        const items = Array.from(menus[0]?.querySelectorAll('button[role="menuitem"]') ?? []) as HTMLButtonElement[]
         return {
           expanded: chip?.getAttribute('aria-expanded') ?? null,
+          visibleMenus: menus.length,
           count: items.length,
           labels: items.map(item => item.textContent?.trim() ?? ''),
           firstDisabled: items[0]?.disabled ?? null,
@@ -257,6 +262,7 @@ describe('L2 客户端', () => {
       })
 
       expect(menu.expanded, '菜单打开时 chip 必须回报 aria-expanded').toBe('true')
+      expect(menu.visibleMenus, '打开后必须只有本选择器这一个可见菜单（否则断言对象不确定）').toBe(1)
       expect(menu.count, '打开后必须渲染菜单条目').toBeGreaterThan(0)
       expect(menu.labels[0], '「未分组」必须是第一个选项').toBe('未分组')
       expect(menu.labels.filter(label => label === '未分组'), '「未分组」只能出现一次').toHaveLength(1)
@@ -278,7 +284,13 @@ describe('L2 客户端', () => {
       expect(before.inert, '夹具前置：没有会话时 composer 是官方的「选择工作区」触发器').toBe(true)
 
       // 品牌按钮与工具栏按钮共用 aria-label（官方 sidebar 词典 `session.new.label`），
-      // 品牌按钮被全局样式隐藏，这里点的是可见的工具栏按钮。
+      // 品牌按钮被全局样式隐藏：先断言可见的只剩工具栏那一枚，再点它，避免点到别的按钮。
+      const visibleNewSession = await app.frame.evaluate(() =>
+        Array.from(document.querySelectorAll('button[aria-label="新建会话"]'))
+          .filter(button => button.getClientRects().length > 0)
+          .map(button => button.getAttribute('aria-label')))
+      expect(visibleNewSession, '可见的「新建会话」按钮必须唯一（品牌按钮已隐藏）').toHaveLength(1)
+
       await app.frame.locator(SIDEBAR_NEW_SESSION).first().click()
 
       await expect.poll(

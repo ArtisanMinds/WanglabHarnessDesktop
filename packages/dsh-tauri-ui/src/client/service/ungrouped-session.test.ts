@@ -17,6 +17,7 @@ interface CtxOptions {
   blank?: boolean
   sessionIds?: readonly SessionId[]
   workspacesAvailable?: boolean
+  workspacesThrows?: boolean
   create?: () => Promise<SessionId>
 }
 
@@ -39,9 +40,14 @@ function createCtx(options: CtxOptions = {}) {
       open,
     },
     layout: { selectPanel },
-    get: (name: string) => name === 'workspaces' && options.workspacesAvailable !== false
-      ? { list: { getSnapshot: () => ({ items }) } }
-      : undefined,
+    get: (name: string) => {
+      if (name !== 'workspaces' || options.workspacesAvailable === false)
+        return undefined
+      // inject-only 守卫的真实形态：未注入的服务名读属性即抛错。
+      if (options.workspacesThrows === true)
+        throw new Error('service "workspaces" is not injected')
+      return { list: { getSnapshot: () => ({ items }) } }
+    },
   } as unknown as ClientContext
   return { ctx, create, open, selectPanel }
 }
@@ -89,6 +95,15 @@ describe('startUngroupedSession', () => {
 
   it('工作区服务读不到时按「无法判断」处理：复用当前空白会话', async () => {
     const { ctx, create, open } = createCtx({ current: UNGROUPED, blank: true, workspacesAvailable: false })
+
+    startUngroupedSession(ctx)
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith(UNGROUPED))
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('工作区服务读取抛错（inject-only 守卫）时同样按「无法判断」处理，不阻断开会话', async () => {
+    const { ctx, create, open } = createCtx({ current: UNGROUPED, blank: true, workspacesThrows: true })
 
     startUngroupedSession(ctx)
 
