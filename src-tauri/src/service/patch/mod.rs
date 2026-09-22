@@ -6,7 +6,8 @@
 //! 统一处理，避免每个补丁重复这份样板。
 //!
 //! 命名约定：子模块名不带 `_patch` 后缀（`renderer` / `session` / `workspace` /
-//! `workspace_view`），挂点统一为 `service::workflow::launch`，均为最佳努力、失败仅告警。
+//! `workspace_view` 等），挂点统一为 `service::workflow::launch`，均为最佳努力、
+//! 失败仅告警。
 
 pub(crate) mod composer;
 pub(crate) mod llm_session;
