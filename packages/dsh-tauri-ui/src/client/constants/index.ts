@@ -13,20 +13,8 @@ export const SETTINGS_ONBOARDING_SLOT = 'settings.onboarding'
 
 export const SETTINGS_SIDEBAR_ID = 'dsh-tauri-ui-settings'
 export const SETTINGS_SIDEBAR_CLASS = 'dshp-settings-sidebar'
-export const SETTINGS_STYLE_ID = 'dsh-tauri-ui-settings-sidebar-styles'
-export const SETTINGS_TRIGGER_STYLE_ID = 'dsh-tauri-ui-settings-trigger-styles'
-export const SETTINGS_NAV_ICON_STYLE_ID = 'dsh-tauri-ui-settings-nav-icon-styles'
-export const MENU_SELECT_STYLE_ID = 'dsh-tauri-ui-menu-select-styles'
-export const HERO_WORKSPACE_STYLE_ID = 'dsh-tauri-ui-hero-workspace-styles'
-export const TURN_NAVIGATION_STYLE_ID = 'dsh-tauri-ui-turn-navigation-styles'
-export const GLOBAL_STYLE_ID = 'dsh-tauri-ui-global-styles'
-export const SEGMENTED_CONTROL_STYLE_ID = 'dsh-tauri-ui-segmented-control-styles'
-export const CHECKBOX_STYLE_ID = 'dsh-tauri-ui-checkbox-styles'
-export const MODEL_EXTRAS_STYLE_ID = 'dsh-tauri-ui-model-extras-styles'
-export const MODEL_CONFIG_TOOLBAR_STYLE_ID = 'dsh-tauri-ui-model-config-toolbar-styles'
-export const MODEL_COMPAT_FIELDS_STYLE_ID = 'dsh-tauri-ui-model-compat-fields-styles'
 
-/** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `components/hero-workspace.cssr.ts`）。 */
+/** 接管后的英雄区工作区选择控件（官方 chip 由样式隐藏，见 `ui/hero-workspace.cssr.ts`）。 */
 export const HERO_WORKSPACE_CHIP_CLASS = 'dshp-hero-workspace'
 
 /**

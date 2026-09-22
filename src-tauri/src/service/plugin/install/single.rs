@@ -161,11 +161,22 @@ pub async fn remove(app_handle: &AppHandle, id: &str) -> Result<(), String> {
 fn deprecated_installed_names(
     presets: &[PreinstallPluginInfo],
     deprecated_ids: &HashSet<String>,
+    unsupported_ids: &HashSet<String>,
     installed: impl Fn(&str) -> bool,
 ) -> Vec<String> {
     let mut names: Vec<String> = presets
         .iter()
-        .filter(|p| deprecated_ids.contains(&p.id) && !p.internal && installed(installed_name(p)))
+        .filter(|p| {
+            // 内置插件由启动自愈强制安装：只有「核心已超越其 dshSupportedVersion」这种
+            // 确定性退役才卸载；仅凭弃用清单卸载会与自愈互相拉扯。
+            let targeted = if p.internal {
+                unsupported_ids.contains(&p.id)
+            }
+            else {
+                deprecated_ids.contains(&p.id) || unsupported_ids.contains(&p.id)
+            };
+            targeted && installed(installed_name(p))
+        })
         .map(|p| installed_name(p).to_string())
         .collect();
     for id in deprecated_ids {
@@ -193,7 +204,8 @@ fn deprecated_residue_present(app_handle: &AppHandle, name: &str) -> bool {
 }
 
 /// 启动时自动卸载弃用清单（`resources/deprecated-plugins.json`）登记的插件，
-/// 以及当前核心已高于其 `dshSupportedVersion` 的预设插件。
+/// 以及当前核心已高于其 `dshSupportedVersion` 的插件（预设与内置同等对待：内置
+/// 插件同样可能被核心吸收，从而在某个核心版本之后由官方自带）。
 ///
 /// 弃用是发布侧决策：某个插件下架/被替换后，把它的 id 追加进弃用清单，桌面端
 /// 每次启动核对「已安装 → 自动卸载」，无需用户手动处理，也避免残留插件继续在
@@ -207,15 +219,17 @@ fn deprecated_residue_present(app_handle: &AppHandle, name: &str) -> bool {
 pub(crate) async fn uninstall_deprecated_plugins(app_handle: &AppHandle) -> Result<(), String> {
     let presets = load_presets(app_handle);
     let core_version = core::active_version(app_handle);
-    // 弃用清单之外，当前核心已高于 `dshSupportedVersion` 的预设同样自动卸载：
-    // 这些插件只在旧核心上验证过，升级核心后留在 profile 里只会拖垮启动。
-    let mut auto_uninstall_ids = load_deprecated_ids(app_handle);
+    // 弃用清单之外，当前核心已高于 `dshSupportedVersion` 的插件同样自动卸载：
+    // 这些插件只在旧核心上验证过，升级核心后留在 profile 里只会拖垮启动。内置条目
+    // 也走这条判定——被核心吸收的插件属于确定性退役，自愈同样不再装回。
+    let deprecated_ids = load_deprecated_ids(app_handle);
+    let mut unsupported_ids: HashSet<String> = HashSet::new();
     for preset in &presets {
         if preset.unsupported_on(core_version.as_deref()) {
-            auto_uninstall_ids.insert(preset.id.clone());
+            unsupported_ids.insert(preset.id.clone());
         }
     }
-    let names = deprecated_installed_names(&presets, &auto_uninstall_ids, |name| {
+    let names = deprecated_installed_names(&presets, &deprecated_ids, &unsupported_ids, |name| {
         deprecated_residue_present(app_handle, name)
     });
     if names.is_empty() {
@@ -409,6 +423,26 @@ async fn run_single_plugin_command(
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// 测试入口：只关心弃用清单时补一个空的 unsupported 集合。
+    fn deprecated_names(
+        presets: &[PreinstallPluginInfo],
+        ids: &HashSet<String>,
+        installed: impl Fn(&str) -> bool,
+    ) -> Vec<String> {
+        deprecated_installed_names(presets, ids, &HashSet::new(), installed)
+    }
+
+    /// 内置插件被核心吸收后同样退役：只靠 `dshSupportedVersion` 判定，弃用清单不参与。
+    #[test]
+    fn unsupported_internal_entry_is_uninstalled() {
+        let internal = preset("dsh-internal", "dsh-tauri@0.2.0", true);
+        let unsupported: HashSet<String> = ["dsh-internal"].into_iter().map(String::from).collect();
+        assert_eq!(
+            deprecated_installed_names(&[internal], &HashSet::new(), &unsupported, |name| name
+                == "dsh-internal"),
+            vec!["dsh-internal".to_string()]
+        );
+    }
 
     fn preset(id: &str, spec: &str, internal: bool) -> PreinstallPluginInfo {
         PreinstallPluginInfo {
@@ -446,31 +480,31 @@ mod tests {
         // 命中：登记且已安装 → 返回实际安装包名（dsh-ok 未声明 package，回落 id）
         let only_ok = |name: &str| name == "dsh-ok";
         assert_eq!(
-            deprecated_installed_names(&declared, &deprecated, only_ok),
+            deprecated_names(&declared, &deprecated, only_ok),
             vec!["dsh-ok".to_string()]
         );
 
         // scoped 包：返回真实安装包名（与预设 id 不一致）
         let only_scoped = |name: &str| name == "@scope/deprecated";
         assert_eq!(
-            deprecated_installed_names(&declared, &deprecated, only_scoped),
+            deprecated_names(&declared, &deprecated, only_scoped),
             vec!["@scope/deprecated".to_string()]
         );
 
         // 登记了但未安装：不命中
-        assert!(deprecated_installed_names(&declared, &deprecated, |_| false).is_empty());
+        assert!(deprecated_names(&declared, &deprecated, |_| false).is_empty());
 
         // 未登记弃用：即使已安装也不命中
         let plain = preset("dsh-plain", "dsh-plain", false);
         assert!(
-            deprecated_installed_names(&[plain], &deprecated, |name| name == "dsh-plain")
+            deprecated_names(&[plain], &deprecated, |name| name == "dsh-plain")
                 .is_empty()
         );
 
         // 内部插件即使登记弃用也不命中（内部插件由启动自愈强制安装）
         let internal = preset("dsh-internal", "dsh-tauri@0.2.0", true);
         assert!(
-            deprecated_installed_names(&[internal], &deprecated, |name| matches!(
+            deprecated_names(&[internal], &deprecated, |name| matches!(
                 name,
                 "dsh-internal"
             ))
@@ -485,12 +519,12 @@ mod tests {
         let removed: HashSet<String> = ["dsh-tauri-panel"].into_iter().map(String::from).collect();
 
         assert_eq!(
-            deprecated_installed_names(&[], &removed, |name| name == "dsh-tauri-panel"),
+            deprecated_names(&[], &removed, |name| name == "dsh-tauri-panel"),
             vec!["dsh-tauri-panel".to_string()]
         );
 
         // 清单里根本没有弃用条目：即使同名包已安装也不命中
-        assert!(deprecated_installed_names(
+        assert!(deprecated_names(
             &[],
             &HashSet::new(),
             |name| name == "dsh-tauri-panel"
@@ -498,7 +532,7 @@ mod tests {
         .is_empty());
 
         // 仍被预设声明（内部插件由自愈强制安装）：不走兜底，避免与自愈互相拉扯
-        assert!(deprecated_installed_names(
+        assert!(deprecated_names(
             &[preset("dsh-tauri-panel", "dsh-tauri@0.2.0", true)],
             &removed,
             |name| name == "dsh-tauri-panel"

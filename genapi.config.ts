@@ -11,7 +11,7 @@ const plugins = [
   'dsh-tauri-panel-scheduler',
   'dsh-tauri-rightclick',
   'dsh-tauri-session',
-  'dsh-tauri-turnrewind',
+  'dsh-tauri-running-changes',
   'dsh-tauri-ui',
   'dsh-tauri-worktree',
 ]

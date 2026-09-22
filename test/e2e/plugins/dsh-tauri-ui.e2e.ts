@@ -31,7 +31,7 @@ function headers(): Record<string, string> {
   return { 'cookie': inject('dshCookie'), 'content-type': 'application/json' }
 }
 
-/** 插件接管后的英雄区工作区 chip（`components/hero-workspace.tsx` 渲染）。 */
+/** 插件接管后的英雄区工作区 chip（`ui/hero-workspace.tsx` 渲染）。 */
 const HERO_WORKSPACE_CHIP = '.dshp-hero-workspace'
 
 /**
