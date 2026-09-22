@@ -64,8 +64,8 @@
   },
   "devDependencies": {
     "@types/lodash-es": "catalog:types",
-    "dsh-tauri-ui": "workspace:*",
     "dsh-tauri-tsdown": "workspace:*",
+    "dsh-tauri-ui": "workspace:*",
     "tsdown": "catalog:cli"
   }
 }

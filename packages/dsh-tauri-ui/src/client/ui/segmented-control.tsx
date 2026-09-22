@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react'
 import type { SegmentedControlProps } from './segmented-control.types'
 import { useRef } from 'react'
-export const SEGMENTED_CONTROL_STYLE_ID = 'dsh-tauri-ui-segmented-control-styles'
 import { useMountStyle } from '../hooks/use-mount-style'
 import segmentedControlStyle from './segmented-control.cssr'
+
+export const SEGMENTED_CONTROL_STYLE_ID = 'dsh-tauri-ui-segmented-control-styles'
 
 const FORWARD_KEYS = ['ArrowRight', 'ArrowDown']
 const BACKWARD_KEYS = ['ArrowLeft', 'ArrowUp']

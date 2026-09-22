@@ -1,9 +1,9 @@
-import type { Root } from 'react-dom/client'
 import type { ClientContext } from 'dsh-tauri/client'
-import { createElement } from 'react'
-import { createRoot } from 'react-dom/client'
+import type { Root } from 'react-dom/client'
 import { CircleTree, Icon, mountStyle } from 'dsh-tauri-ui/client'
 import { defineRegister, findKey } from 'dsh-tauri/client'
+import { createElement } from 'react'
+import { createRoot } from 'react-dom/client'
 import {
   SESSION_ICON_ATTRIBUTE,
   SESSION_ICON_STYLE_ID,

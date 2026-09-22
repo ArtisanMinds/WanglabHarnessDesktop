@@ -40,12 +40,12 @@ export function ExtensionPanel({ createSkill, market }: ExtensionPanelProps): Re
       <div className="dshp-extension__section">
         <div>
           <SegmentedControl
-          id={tabsId}
-          label={t('extension')}
-          value={activeId}
-          options={rows.map(row => ({ value: row.id, label: row.label }))}
-          onChange={setActiveId}
-        />
+            id={tabsId}
+            label={t('extension')}
+            value={activeId}
+            options={rows.map(row => ({ value: row.id, label: row.label }))}
+            onChange={setActiveId}
+          />
         </div>
         {rows.filter(row => row.id === activeId || visited.has(row.id)).map((row) => {
           const selected = row.id === activeId
