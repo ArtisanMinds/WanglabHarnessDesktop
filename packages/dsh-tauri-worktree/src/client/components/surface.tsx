@@ -67,3 +67,18 @@ export function WorktreeSurface({ sessionId }: SurfaceBarProps): ReactElement | 
     </div>
   )
 }
+
+export function Logs({ log, open }: { log: readonly string[], open: boolean }): ReactElement {
+  return (
+    <div
+      aria-hidden={!open}
+      className={`${'dshp-worktree__logs'} ${open ? 'dshp-worktree__logs--open' : ''}`}
+    >
+      <div className="dshp-worktree__logs-inner">
+        <div className="dshp-worktree__logs-panel">
+          {log.map((line, index) => <div key={`${index}:${line}`} className="dshp-worktree__log-line">{line}</div>)}
+        </div>
+      </div>
+    </div>
+  )
+}
