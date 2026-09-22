@@ -48,6 +48,9 @@ pub struct PreinstallPluginInfo {
     /// 无 chip 但默认勾选（不标「推荐」，首次引导仍直接勾上）
     #[serde(default)]
     pub default_checked: bool,
+    /// 显式声明首次引导不默认勾选：仍可标「推荐」chip，但不预选（如 dsh-im）
+    #[serde(default)]
+    pub default_unchecked: bool,
     /// 仅 Windows 平台列出
     #[serde(default)]
     pub win_only: bool,
@@ -183,6 +186,7 @@ fn discover_dev_internal_plugins_at(root: &Path) -> Vec<DevPluginCandidate> {
                 recommended: false,
                 fix: false,
                 default_checked: false,
+                default_unchecked: false,
                 win_only: false,
             };
             Some(DevPluginCandidate { info, directory })
@@ -1007,6 +1011,7 @@ mod tests {
                 recommended: false,
                 fix: false,
                 default_checked: false,
+                default_unchecked: false,
                 win_only: false,
             },
             PreinstallPluginInfo {
@@ -1020,6 +1025,7 @@ mod tests {
                 recommended: false,
                 fix: false,
                 default_checked: false,
+                default_unchecked: false,
                 win_only: false,
             },
         ];

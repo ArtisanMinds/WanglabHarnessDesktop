@@ -87,6 +87,8 @@ pub struct PreinstallPlugin {
     pub fix: bool,
     /// 无 chip 但默认勾选（首次引导直接勾上，不标「推荐」）
     pub default_checked: bool,
+    /// 显式声明首次引导不默认勾选（仍可标「推荐」chip，但不预选）
+    pub default_unchecked: bool,
     pub installed: bool,
 }
 
@@ -124,6 +126,7 @@ pub fn list(app_handle: &AppHandle) -> Vec<PreinstallPlugin> {
                 recommended: p.recommended,
                 fix: p.fix,
                 default_checked: p.default_checked,
+                default_unchecked: p.default_unchecked,
                 installed: is_installed,
             }
         })
@@ -270,6 +273,7 @@ mod tests {
             recommended: false,
             fix: false,
             default_checked: true,
+            default_unchecked: false,
             win_only: false,
             internal: false,
         };
