@@ -9,6 +9,7 @@
   {
     "id": "dsh-tauri-turnrewind",
     "spec": "dsh-tauri-turnrewind",
+    "dshSupportedVersion": "0.1.7-alpha.0",
     "name": "DSH Turn Rewind",
     "description": "Turn-level change tracking for the desktop shell: a private Git snapshot per agent turn and a change card at each finished turn (changed files with +N -M). Restoring files is handled by the recommended dsh-rewind plugin.",
     "repoUrl": "https://github.com/dsh-tauri-desk/deepseek-harness-desktop/tree/main/packages/dsh-tauri-turnrewind"

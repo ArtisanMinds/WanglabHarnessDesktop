@@ -171,9 +171,10 @@ fn ensure_lock() -> &'static tokio::sync::Mutex<EnsureCoordinator> {
 /// `node_modules` 无法消除重复 loader entry。只清理桌面端明确拥有的内置 id，
 /// 绝不触碰用户插件。
 pub(crate) fn repair_loader_state(app_handle: &AppHandle) -> Result<(), String> {
+    let core_version = crate::service::core::active_version(app_handle);
     let internal: Vec<_> = load_presets(app_handle)
         .into_iter()
-        .filter(|preset| preset.internal)
+        .filter(|preset| preset.internal && !preset.unsupported_on(core_version.as_deref()))
         .collect();
     let bundle_ids: HashSet<&str> = internal.iter().map(|preset| preset.id.as_str()).collect();
     let profile = profile_dir(app_handle);
@@ -240,7 +241,13 @@ pub(crate) fn repair_loader_state(app_handle: &AppHandle) -> Result<(), String> 
 
 pub(crate) async fn ensure(app_handle: &AppHandle) -> Result<(), String> {
     let presets = load_presets(app_handle);
-    let internal: Vec<_> = presets.into_iter().filter(|p| p.internal).collect();
+    // 被核心吸收的内置插件（声明了 dshSupportedVersion 且当前核心已超越）自愈不再装回，
+    // 与 `uninstall_deprecated_plugins` 的退役判定同源，避免两边互相拉扯。
+    let core_version = crate::service::core::active_version(app_handle);
+    let internal: Vec<_> = presets
+        .into_iter()
+        .filter(|p| p.internal && !p.unsupported_on(core_version.as_deref()))
+        .collect();
     prune_dangling_link_deps(app_handle, &internal);
     if internal.is_empty() {
         return Ok(());

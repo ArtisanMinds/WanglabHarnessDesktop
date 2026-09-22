@@ -256,7 +256,10 @@ fn merge_dev_internal_plugins_at(
             .collect();
     for plugin in internal.iter_mut() {
         if let Some(candidate) = by_id.remove(&plugin.id) {
+            // 上限是发布侧对核心的计划（清单声明），dev 候选不带该字段，覆盖时沿用静态条目。
+            let supported = plugin.dsh_supported_version.take();
             *plugin = candidate.info;
+            plugin.dsh_supported_version = supported;
         }
     }
     internal.extend(by_id.into_values().map(|candidate| candidate.info));
@@ -627,15 +630,37 @@ mod tests {
         assert!(!preset.unsupported_on(Some("not-a-version")));
     }
 
-    /// 未声明 `dshSupportedVersion` 的条目（内置插件）永远视为兼容。
+    /// 内置条目默认不声明上限、永远兼容；被核心吸收的条目（turnrewind 自 0.1.7-alpha.1
+    /// 起官方自带）显式声明上限后同样走 unsupported 判定。
     #[test]
-    fn manifest_without_supported_version_is_always_compatible() {
+    fn internal_manifest_defaults_to_compatible_and_honours_declared_ceiling() {
         let internal = load_manifest_for_test(INTERNAL_PLUGINS_FILE, true);
         assert!(!internal.is_empty());
+
+        let turnrewind = internal
+            .iter()
+            .find(|p| p.id == "dsh-tauri-turnrewind")
+            .expect("turnrewind is a built-in entry");
+        // 上限是「严格低于退役边界的最大版本」（判定为 core > limit 才退役），
+        // 因此它不是任何一个已发布的核心版本，勿改回 0.1.6-alpha.2。
+        assert_eq!(
+            turnrewind.dsh_supported_version.as_deref(),
+            Some("0.1.7-alpha.0")
+        );
+        assert!(!turnrewind.unsupported_on(Some("0.1.5-rc.1")));
+        assert!(!turnrewind.unsupported_on(Some("0.1.5-rc.2")));
+        assert!(!turnrewind.unsupported_on(Some("0.1.6-alpha.2")));
+        assert!(!turnrewind.unsupported_on(Some("0.1.6-alpha.3")));
+        assert!(!turnrewind.unsupported_on(Some("0.1.6")));
+        assert!(!turnrewind.unsupported_on(Some("0.1.7-alpha.0")));
+        assert!(turnrewind.unsupported_on(Some("0.1.7-alpha.1")));
+
         assert!(
             internal
                 .iter()
-                .all(|p| p.dsh_supported_version.is_none() && !p.unsupported_on(Some("9.9.9")))
+                .filter(|p| p.id != "dsh-tauri-turnrewind")
+                .all(|p| p.dsh_supported_version.is_none() && !p.unsupported_on(Some("9.9.9"))),
+            "every other internal entry keeps defaulting to compatible"
         );
     }
 
@@ -1107,6 +1132,45 @@ mod tests {
         assert_eq!(dsh.description, "desc"); // dev 覆盖静态
         assert!(merged.iter().any(|p| p.id == "brand-new")); // 追加上去
         assert!(merged.iter().any(|p| p.id == "keep-static")); // 静态未覆盖项保留
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// dev 候选覆盖静态条目时必须沿用清单声明的支持上限：退役判定读的是发布侧的
+    /// 核心计划，与当前 checkout 是否存在该包源码无关。
+    #[cfg(debug_assertions)]
+    #[test]
+    fn dev_merge_carries_static_supported_version_ceiling() {
+        let root = temp_dev_root("merge-cap");
+        write_dev_manifest(&root.join("dsh-tauri-turnrewind"), "dsh-tauri-turnrewind");
+        let static_internal = vec![PreinstallPluginInfo {
+            id: "dsh-tauri-turnrewind".into(),
+            spec: "dsh-tauri-turnrewind".into(),
+            internal: true,
+            package: Some("dsh-tauri-turnrewind".into()),
+            name: "DSH Turn Rewind".into(),
+            description: String::new(),
+            repo_url: String::new(),
+            recommended: false,
+            fix: false,
+            default_checked: false,
+            default_unchecked: false,
+            dsh_supported_version: Some("0.1.7-alpha.0".into()),
+            win_only: false,
+        }];
+
+        let merged = merge_dev_internal_plugins_at(&root, static_internal);
+        let turnrewind = merged
+            .iter()
+            .find(|p| p.id == "dsh-tauri-turnrewind")
+            .expect("merged entry must exist");
+        assert_eq!(
+            turnrewind.dsh_supported_version.as_deref(),
+            Some("0.1.7-alpha.0")
+        );
+        assert!(turnrewind.unsupported_on(Some("0.1.7-alpha.1")));
+        assert!(!turnrewind.unsupported_on(Some("0.1.6-alpha.2")));
+        // dev 覆盖语义不变：条目仍来自仓库源码
+        assert!(turnrewind.internal);
         std::fs::remove_dir_all(&root).ok();
     }
 }
