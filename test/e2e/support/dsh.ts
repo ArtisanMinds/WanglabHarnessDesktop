@@ -291,10 +291,9 @@ const CONVERSATION_PACKAGE = 'dsh-client-ui-conversation'
 /** 客户端产物末尾的导出锚点；前导缩进由上游打包器决定，必须按实际行读取。 */
 const RENDERER_EXPORT_ANCHOR = 'return module.exports;'
 
-/** composer 补丁的锚点与标记（与 `src-tauri/src/service/patch/composer.rs` 同源同语义）。 */
-const COMPOSER_INERT_ANCHOR = 'const inert = sessionId === void 0 || hero && chipTitle === void 0;'
+/** composer 补丁的语句锚点与标记（与 `src-tauri/src/service/patch/composer.rs` 同源同语义）。 */
+const COMPOSER_INERT_ORIGINAL = 'const inert = sessionId === void 0 || hero && chipTitle === void 0;'
 const COMPOSER_INERT_PATCHED = 'const inert = sessionId === void 0 || hero && chipTitle === void 0 && cwd === void 0;'
-const COMPOSER_INERT_UPSTREAM_FIXED = 'chipTitle === void 0 && cwd === void 0'
 const COMPOSER_PATCH_MARKER = 'dsh-tauri: composer stays usable for a session outside every workspace'
 /** 客户端插件探测本能力用的 DOM 标记（与 `dsh-tauri` 适配层的判据逐字一致）。 */
 const COMPOSER_CWD_ATTRIBUTE = 'data-dsh-composer-cwd'
@@ -386,9 +385,12 @@ function patchComposerCwd(dshBin: string): void {
   if (source.includes(COMPOSER_PATCH_MARKER))
     return
 
-  const needsRelax = !source.includes(COMPOSER_INERT_UPSTREAM_FIXED)
-  if (needsRelax && !source.includes(COMPOSER_INERT_ANCHOR)) {
-    log(`⚠️ conversation 产物缺少 composer 锚点，跳过 composer 补丁：${target}`)
+  // 优先看原始语句：只要它还在场就放宽它；只有它缺席、放宽形态在场时才算「上游已自修」。
+  // 反过来的优先级会让注释里的同形文本把补丁误判成已修，声明了能力却漏放宽。
+  const needsRelax = source.includes(COMPOSER_INERT_ORIGINAL)
+  const upstreamFixed = !needsRelax && source.includes(COMPOSER_INERT_PATCHED)
+  if (!needsRelax && !upstreamFixed) {
+    log(`⚠️ conversation 产物缺少 composer 语句锚点，跳过 composer 补丁：${target}`)
     return
   }
 
@@ -402,7 +404,7 @@ function patchComposerCwd(dshBin: string): void {
 
   const marker = `${indent}if (typeof document !== "undefined") document.documentElement.setAttribute("${COMPOSER_CWD_ATTRIBUTE}", "1"); /* ${COMPOSER_PATCH_MARKER} */\n`
   const withMarker = `${source.slice(0, lineStart)}${marker}${source.slice(lineStart)}`
-  writeFileSync(target, needsRelax ? withMarker.replace(COMPOSER_INERT_ANCHOR, COMPOSER_INERT_PATCHED) : withMarker)
+  writeFileSync(target, needsRelax ? withMarker.replace(COMPOSER_INERT_ORIGINAL, COMPOSER_INERT_PATCHED) : withMarker)
   log(`🔧 已施加 composer 补丁：${target}`)
 }
 
