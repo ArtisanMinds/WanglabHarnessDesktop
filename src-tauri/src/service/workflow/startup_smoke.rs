@@ -90,10 +90,15 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
         );
     }
 
-    let mut latest = download::fetch_latest_dsh_pkg_info().await?;
+    let latest = download::fetch_latest_dsh_pkg_info().await?;
     // CI 在官网上传前校验同一份发行资产；生产代码仍固定走官网并核验摘要。
-    latest.asset_url = std::env::var("WANGLAB_TEST_CORE_URL")
+    let test_core_url = std::env::var("WANGLAB_TEST_CORE_URL")
         .map_err(|_| "SMOKE_FIXTURE_MISSING: WANGLAB_TEST_CORE_URL")?;
+    if latest.asset_url != test_core_url {
+        return Err(
+            "SMOKE_FIXTURE_IGNORED: release candidate Core URL was not applied".to_string(),
+        );
+    }
     // 先轮询安装以取得目录锁，首次异步停服时让其余真实入口同时等待这把锁。
     let (installed, auto_started, plugins_ready, manual_started) = tokio::join!(
         biased;

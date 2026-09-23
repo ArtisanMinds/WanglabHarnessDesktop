@@ -239,10 +239,14 @@ async fn fetch_dsh_digest_from_expanded_assets(
 ///
 /// 内网版本只使用与 Desktop 一起验证和发布的 Wanglab Core。
 fn wanglab_dsh_pkg_info() -> Result<LatestDshPkg, String> {
+    let asset_url = config::get_dsh_download_url_for_tag(config::WANGLAB_DSH_TAG)?;
+    // Release CI validates the unpublished Core asset through the real frontend flow.
+    #[cfg(all(test, windows))]
+    let asset_url = std::env::var("WANGLAB_TEST_CORE_URL").unwrap_or(asset_url);
     Ok(LatestDshPkg {
         tag: config::WANGLAB_DSH_TAG.to_string(),
         commit: config::WANGLAB_DSH_COMMIT.to_string(),
-        asset_url: config::get_dsh_download_url_for_tag(config::WANGLAB_DSH_TAG)?,
+        asset_url,
         digest: Some(config::WANGLAB_DSH_DIGEST.to_string()),
     })
 }
