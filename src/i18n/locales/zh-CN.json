@@ -235,6 +235,7 @@
   "plugins.uninstall": "卸载",
   "plugins.upgrade": "升级",
   "plugins.builtin": "内置",
+  "plugins.builtin_title": "内置插件（{{count}}）",
   "plugins.preset": "预设",
   "plugins.abnormal_tooltip": "此插件运行异常，点击查看详情。",
   "plugins.abnormal_desc": "插件 {{name}} 运行异常，可能已损坏或与当前环境不兼容。",

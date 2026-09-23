@@ -235,6 +235,7 @@
   "plugins.uninstall": "Uninstall",
   "plugins.upgrade": "Upgrade",
   "plugins.builtin": "Built-in",
+  "plugins.builtin_title": "Built-in plugins ({{count}})",
   "plugins.preset": "Preset",
   "plugins.abnormal_tooltip": "This plugin is running abnormally. Click to view details.",
   "plugins.abnormal_desc": "Plugin {{name}} is abnormal and may be corrupted or incompatible with the current environment.",
