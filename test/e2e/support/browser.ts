@@ -48,6 +48,9 @@ export const SETTINGS_TRIGGER = '.dshp-settings-trigger'
 export const SETTINGS_SIDEBAR = '[data-slot-sidebar="dsh-tauri-ui"]'
 export const SETTINGS_SECTION_SLOT = '[data-slot="settings.section"]'
 export const SETTINGS_NAV_ITEM = 'nav[aria-label] button'
+/** 壳层自有设置菜单（浏览器态）的条目：官方 primitives 的 portal Menu 条目。 */
+export const SETTINGS_MENU_ITEM = '[role="menuitem"]'
+export const SETTINGS_MENU_LABEL = /^(设置|Settings)$/
 export const SETTINGS_CONTENT = '[class*="content-inner"]'
 export const SETTINGS_ONBOARDING = '[data-slot="settings.onboarding"]'
 export const COMPOSER_CARD = '[data-composer-card]'
@@ -601,6 +604,14 @@ export async function openSettings(
     () => trigger.getAttribute('aria-expanded'),
     { timeout: 15_000, message: '点击设置触发器后 aria-expanded 必须变为 true' },
   ).toBe('true')
+
+  // 浏览器态（无桌面账号菜单）下触发器点开的是壳层自有设置菜单，还要再选中「设置」条目；
+  // 桌面载体下官方账号菜单占据该座位，点开即是设置面板，不会有菜单条目。
+  if (await frame.locator(SETTINGS_SECTION_SLOT).count() === 0) {
+    const settingsItem = frame.locator(SETTINGS_MENU_ITEM).filter({ hasText: SETTINGS_MENU_LABEL }).first()
+    if (await settingsItem.count() > 0)
+      await settingsItem.click()
+  }
 
   await frame.locator(SETTINGS_SECTION_SLOT).first().waitFor({ state: 'attached', timeout: 15_000 })
   return trigger
