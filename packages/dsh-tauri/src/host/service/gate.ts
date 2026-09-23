@@ -38,23 +38,35 @@ export const gate = defineService({
 
     const restores: Array<() => void> = []
 
-    const rejection = connection.requestRejection
-    if (typeof rejection === 'function') {
-      connection.requestRejection = (request: IncomingMessage) => {
-        const rejected = rejection.call(connection, request)
-        return rejected === 401 ? undefined : rejected
-      }
-      restores.push(() => {
-        connection.requestRejection = rejection
-      })
+    // `ctx.connection` 可能只是 cordis 的取用代理：只覆写实例属性时，赋值落在代理
+    // 自身，`dsh-host-frontend-static` 里 `ctx.connection.authorizeIndex` 取到的仍是
+    // 原型上的真方法（0.1.7 实测：无告警、覆写已装，401 照旧）。原型与实例一起接管，
+    // detach 时逐条还原。
+    const targets: ConnectionHost['connection'][] = [connection]
+    const prototype = Object.getPrototypeOf(connection) as ConnectionHost['connection'] | null
+    if (prototype !== null && prototype !== connection && prototype !== Object.prototype) {
+      targets.push(prototype)
     }
 
-    const authorize = connection.authorizeIndex
-    if (typeof authorize === 'function') {
-      connection.authorizeIndex = () => true
-      restores.push(() => {
-        connection.authorizeIndex = authorize
-      })
+    for (const target of targets) {
+      const rejection = target.requestRejection
+      if (typeof rejection === 'function') {
+        target.requestRejection = (request: IncomingMessage) => {
+          const rejected = rejection.call(target, request)
+          return rejected === 401 ? undefined : rejected
+        }
+        restores.push(() => {
+          target.requestRejection = rejection
+        })
+      }
+
+      const authorize = target.authorizeIndex
+      if (typeof authorize === 'function') {
+        target.authorizeIndex = () => true
+        restores.push(() => {
+          target.authorizeIndex = authorize
+        })
+      }
     }
 
     if (restores.length === 0) {

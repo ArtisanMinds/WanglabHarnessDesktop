@@ -76,6 +76,27 @@ describe('gate.attach with the carrier marker', () => {
     detach()
   })
 
+  /** 类实例（方法在原型上）：只覆写实例属性时 `ctx.connection` 换一个取用对象就失效。 */
+  it('patches a class prototype so every access path sees the bypass', () => {
+    class Service {
+      calls = 0
+      authorizeIndex(): boolean {
+        this.calls += 1
+        return false
+      }
+    }
+    const connection = new Service()
+    const original = Service.prototype.authorizeIndex
+    setCurrentHostInstance({ connection } as never)
+
+    const detach = gate.attach()
+
+    expect(connection.authorizeIndex()).toBe(true)
+    expect(connection.calls).toBe(0)
+    detach()
+    expect(Service.prototype.authorizeIndex).toBe(original)
+  })
+
   /** 0.1.7 起 `requestRejection` 移到 peer 上，`connection` 只剩 `authorizeIndex`。 */
   it('still bypasses the index gate when the core dropped requestRejection', () => {
     const warn = vi.fn()
