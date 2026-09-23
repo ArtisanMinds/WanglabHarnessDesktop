@@ -785,7 +785,52 @@ async fn ensure_inner(
         return Err(format!("INTERNAL_PLUGIN_INSTALL_FAILED: {e}"));
     }
 
+    // pnpm 成功 ≠ 清单被登记：核心的 install 会按自己解析到的插件集重写
+    // `dependencies` 与 `dsh.profile.bundles`，解析不到的内置插件会被**剪掉**
+    // （本机 web profile 实测 13→2、11→0）。剪掉即不挂载：宿主插件的 apply 不运行，
+    // 索引恒 401、健康检查永远 `boot page returned 401`、最终 Process boot 超时。
+    // 收尾回读清单，缺项就用同一套物化路径写回（幂等）——否则 `bundle_ok` 每轮判
+    // 需重装、每轮又被打回原形。
+    if let Some(missing) = presets_missing_from_manifest(&profile, &need) {
+        match materialize_internal_links(app_handle, &profile, &need) {
+            Ok(()) => log::warn!(
+                "INTERNAL_PLUGIN_MANIFEST_RECOVERED: re-registered internal plugins dropped by install: {missing:?}"
+            ),
+            Err(error) => log::error!("INTERNAL_PLUGIN_MANIFEST_RECOVER_FAILED: {error}"),
+        }
+    }
+
     Ok(())
+}
+
+/// 安装收尾校验：返回清单里缺登记的安装包名（`dependencies` 与
+/// `dsh.profile.bundles` 任一缺失即算），全都在则返回 `None`。
+fn presets_missing_from_manifest(
+    profile: &Path,
+    need: &[(String, String, PathBuf)],
+) -> Option<Vec<String>> {
+    let raw = std::fs::read_to_string(profile.join("package.json")).ok()?;
+    let manifest: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let dependencies = manifest.get("dependencies");
+    let bundles = manifest
+        .pointer("/dsh/profile/bundles")
+        .and_then(|value| value.as_array());
+    let missing: Vec<String> = need
+        .iter()
+        .filter(|(_, name, _)| {
+            let dep_ok = dependencies
+                .and_then(|deps| deps.get(name.as_str()))
+                .and_then(|value| value.as_str())
+                .is_some();
+            let bundle_ok = bundles.is_some_and(|list| {
+                list.iter()
+                    .any(|bundle| bundle.as_str() == Some(name.as_str()))
+            });
+            !dep_ok || !bundle_ok
+        })
+        .map(|(_, name, _)| name.clone())
+        .collect();
+    (!missing.is_empty()).then_some(missing)
 }
 
 /// 安全软件排除项提示：兜底失败与「同类但无法归因」时都要给，避免用户只看到裸
