@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http'
+import type { ConnectionHost } from '../types'
 import process from 'node:process'
 import { PLUGIN_ID } from '../../shared/constants'
 import { getCurrentHostInstance } from '../config/runtime'
