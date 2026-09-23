@@ -396,17 +396,18 @@ async fn switch_app_version(app_handle: &AppHandle, tag: &str) -> Result<(), Str
     let deps = dependencies_dir(app_handle);
     let active_dir = config::get_dsh_install_path(app_handle);
     fs_guard::validate_id(tag)?;
-    let target_dir = existing_slot_dir(app_handle, tag)
-        .ok_or_else(|| format!("CORE_VERSION_NOT_DOWNLOADED: {tag}"))?;
     let cur_tag = config::get_dsh_pkg_tag(app_handle);
 
     // 激活目录已是目标版本（tag 相同）→ 仅切来源标记（如 local → app 同版本）
-    if cur_tag.as_deref() == Some(tag) {
+    if cur_tag.as_deref() == Some(tag) && config::get_dsh_binary_path(app_handle).is_file() {
+        stop_harness_for_core_switch(app_handle).await?;
         let mut setting = config::get_store_dat_setting(app_handle);
         setting.active_core = Some(CoreSource::App.as_str().to_string());
         config::set_store_dat_setting(app_handle, setting);
         return Ok(());
     }
+    let target_dir = existing_slot_dir(app_handle, tag)
+        .ok_or_else(|| format!("CORE_VERSION_NOT_DOWNLOADED: {tag}"))?;
 
     // 切换前停止运行中的服务，避免目录被进程句柄锁定
     if workflow::has_owned_process() {
@@ -457,7 +458,9 @@ async fn switch_app_version(app_handle: &AppHandle, tag: &str) -> Result<(), Str
 
     if active_dir.exists() {
         if let Err(e) = download::rename_with_retry(&active_dir, &backup_dir).await {
-            let _ = download::rename_with_retry(&holding, &backup_dir).await;
+            if holding.exists() {
+                let _ = download::rename_with_retry(&holding, &backup_dir).await;
+            }
             return Err(format!(
                 "CORE_SWITCH_FAILED: {} -> {}: {e}",
                 active_dir.display(),
@@ -595,9 +598,7 @@ pub async fn remove_version(app_handle: &AppHandle, id: &str) -> Result<(), Stri
             return Ok(());
         }
         Err(e) => {
-            log::warn!(
-                "dsh core slot {tag} is locked ({e}); stopping the service before retry"
-            );
+            log::warn!("dsh core slot {tag} is locked ({e}); stopping the service before retry");
         }
     }
 
