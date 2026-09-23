@@ -30,7 +30,6 @@ pub(crate) use runtime::prepare_active_runtime;
 pub(crate) use runtime::create_directory_link;
 #[allow(unused_imports)]
 pub use source::{active_dsh_binary, active_source, active_version, CoreSource, HarnessCore};
-pub(crate) use version::prune_inactive;
 pub use version::{download_version, has_installed_version, list, remove_version, set_active};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
