@@ -1,6 +1,7 @@
 export * from './button'
 export * from './checkbox'
 export * from './chip'
+export * from './dot'
 export * from './goal-bar'
 export * from './icon'
 export * from './icon-button'

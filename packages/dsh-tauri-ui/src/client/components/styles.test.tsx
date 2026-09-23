@@ -31,6 +31,8 @@ import { Checkbox } from './checkbox'
 import checkboxStyle from './checkbox.cssr'
 import { Chip } from './chip'
 import chipStyle from './chip.cssr'
+import { Dot } from './dot'
+import dotStyle from './dot.cssr'
 import { GoalBar, GoalBarAction } from './goal-bar'
 import goalBarStyle from './goal-bar.cssr'
 import { IconButton } from './icon-button'
@@ -210,6 +212,14 @@ const CASES: AuditCase[] = [
     sources: ['chip.tsx'],
     markup: () => ['seat', 'composerTrigger', 'selector']
       .map(variant => draw(Chip, { variant, icon: createElement('span'), badge: createElement('span'), chevron: createElement('span'), open: true, children: 'x' }))
+      .join(''),
+  },
+  {
+    name: 'components/dot',
+    style: dotStyle,
+    sources: ['dot.tsx'],
+    markup: () => ['done', 'warning', 'error', 'idle', undefined]
+      .map(state => draw(Dot, { state }))
       .join(''),
   },
   {

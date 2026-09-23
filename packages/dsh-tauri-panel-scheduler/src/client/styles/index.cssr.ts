@@ -44,9 +44,8 @@ export default c([
   c('.dshp-scheduler__card-meta-text', { flex: '1', minWidth: '0', color: tertiary, fontSize: '12px', lineHeight: '18px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
   c('.dshp-scheduler__card-meta-text strong', { color: secondary, fontWeight: '600' }),
 
-  c('button:has(.dshp-scheduler__nav-badge)', { position: 'relative' }),
-  c('.dshp-scheduler__nav-badge', { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '20px', flex: 'none', display: 'inline-flex', justifyContent: 'center', alignItems: 'center', color: tertiary }),
-  c('.dshp-scheduler__unread-dot', { flex: 'none', width: '6px', height: '6px', borderRadius: '50%', background: success }),
+  c('button:has(.dshp-scheduler__nav-dot)', { position: 'relative' }),
+  c('.dshp-scheduler__nav-dot', { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)' }),
 
   c('.dshp-scheduler__recs', { display: 'flex', flexDirection: 'column', gap: '8px', margin: '20px 0 0' }),
   c('.dshp-scheduler__recs-title', { margin: '0', fontSize: '13px', lineHeight: '20px', fontWeight: '600' }),

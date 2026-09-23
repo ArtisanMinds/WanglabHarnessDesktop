@@ -93,6 +93,12 @@ export const UI_COMPONENT_REGISTRY: readonly UiComponentEntry[] = [
     upstreamPath: 'packages/client/ui-primitives/src/Checkbox.tsx',
     mappedClass: 'checkbox',
   }),
+  reforkVariant('StateDot', 'dot', {
+    package: PRIMITIVES,
+    availableAt: AVAILABLE_LATEST,
+    upstreamPath: 'packages/client/ui-primitives/src/StateDot.module.css',
+    mappedClass: 'dot',
+  }),
   reforkVariant('Button', 'elevated', {
     package: '@deepseek-ai/dsh-client-ui-sidebar',
     availableAt: AVAILABLE_BOTH,
