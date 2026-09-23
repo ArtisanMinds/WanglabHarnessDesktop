@@ -18,6 +18,11 @@ const EMBEDDED_ENV = 'DSH_TAURI_EMBEDDED'
  * browser-session Cookie 不会被携带，根路径 token 交换也就无法完成。这里在
  * `connection` 服务实例上覆写两道闸门：`requestRejection` 保留 Host/Origin fence
  * 的 403、只把 401 降级为放行；`authorizeIndex` 直接放行 index。
+ *
+ * 两道闸门必须**各自独立**接管：0.1.6 及更早两处都在 `connection` 上；0.1.7 起
+ * `requestRejection` 移到了 peer 上，`connection` 只剩 `authorizeIndex`（且该方法
+ * 会自行写出 401/303，返回 true 才是「调用方可以发 index.html」）。此前把两者绑成
+ * 一个整体，缺一道就整个适配 noop —— 表现为嵌入 WebView 与健康探测都恒拿 401。
  */
 export const gate = defineService({
   attach(): () => void {
@@ -26,22 +31,41 @@ export const gate = defineService({
     }
 
     const { connection } = getCurrentHostInstance()
+    if (connection === undefined || connection === null) {
+      warn('宿主实例缺少 connection 服务，桌面载体鉴权适配未生效')
+      return noop
+    }
+
+    const restores: Array<() => void> = []
+
     const rejection = connection.requestRejection
+    if (typeof rejection === 'function') {
+      connection.requestRejection = (request: IncomingMessage) => {
+        const rejected = rejection.call(connection, request)
+        return rejected === 401 ? undefined : rejected
+      }
+      restores.push(() => {
+        connection.requestRejection = rejection
+      })
+    }
+
     const authorize = connection.authorizeIndex
-    if (typeof rejection !== 'function' || typeof authorize !== 'function') {
+    if (typeof authorize === 'function') {
+      connection.authorizeIndex = () => true
+      restores.push(() => {
+        connection.authorizeIndex = authorize
+      })
+    }
+
+    if (restores.length === 0) {
       warn('connection 服务缺少 requestRejection/authorizeIndex，桌面载体鉴权适配未生效')
       return noop
     }
 
-    connection.requestRejection = (request: IncomingMessage) => {
-      const rejected = rejection.call(connection, request)
-      return rejected === 401 ? undefined : rejected
-    }
-    connection.authorizeIndex = () => true
-
     return () => {
-      connection.requestRejection = rejection
-      connection.authorizeIndex = authorize
+      for (const restore of restores) {
+        restore()
+      }
     }
   },
 })

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ConnectionHost } from '../types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearHostRuntime, setCurrentHostInstance } from '../config/runtime'
+import { clearHostRuntime, getCurrentHostInstance, setCurrentHostInstance } from '../config/runtime'
 import { gate } from './gate'
 
 const request = {} as IncomingMessage
@@ -74,6 +74,21 @@ describe('gate.attach with the carrier marker', () => {
     expect(connection.authorizeIndex(request, response)).toBe(true)
     expect(calls).not.toContain('authorizeIndex')
     detach()
+  })
+
+  /** 0.1.7 起 `requestRejection` 移到 peer 上，`connection` 只剩 `authorizeIndex`。 */
+  it('still bypasses the index gate when the core dropped requestRejection', () => {
+    const warn = vi.fn()
+    const authorizeIndex = () => false
+    setCurrentHostInstance({ connection: { authorizeIndex }, logger: { warn } } as never)
+
+    const detach = gate.attach()
+
+    expect(warn).not.toHaveBeenCalled()
+    const { connection } = getCurrentHostInstance() as ConnectionHost
+    expect(connection.authorizeIndex(request, response)).toBe(true)
+    detach()
+    expect(connection.authorizeIndex).toBe(authorizeIndex)
   })
 
   it('restores both gates on detach', () => {
