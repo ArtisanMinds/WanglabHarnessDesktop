@@ -66,8 +66,10 @@ jobs:
           & pnpm tauri build --config release-msi-version.tmp.json 2>&1 | Tee-Object -FilePath $buildLog
           $buildExit = $LASTEXITCODE
           if ($buildExit -ne 0) {
-            $detail = (Get-Content $buildLog -Tail 160) -join "`n"
-            $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $detail = (Get-Content $buildLog -Raw).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($detail.Length -gt 3500) {
+              $detail = $detail.Substring($detail.Length - 3500)
+            }
             Write-Output "::error title=Windows package build::$detail"
             exit $buildExit
           }
