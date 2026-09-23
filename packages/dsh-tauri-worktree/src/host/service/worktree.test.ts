@@ -110,7 +110,7 @@ describe('worktree.create', () => {
 
     const path = expectedPath(repository, sessionId)
     expect(result.binding.worktreePath).toBe(path)
-    expect(result.binding.projectPath).toBe(repository)
+    expect(result.binding.projectPath).toBe(git(repository, 'rev-parse', '--show-toplevel'))
     expect(result.binding.ownsBranch).toBe(false)
     expect(result.binding.branchName).toBe('(detached)')
     expect(result.existed).toBe(false)

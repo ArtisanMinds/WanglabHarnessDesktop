@@ -6,7 +6,7 @@ import type {
   WorktreeParams,
   WorktreeProcessController,
 } from '../types'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import process from 'node:process'
 import { defineService, DSH_HOME } from 'dsh-tauri'
 import { compact, filter, find, get, isEmpty, map, reject, some } from 'lodash-es'
@@ -506,9 +506,22 @@ async function inheritAgentSkills(root: string, path: string, log: string[]): Pr
 function samePath(a: string, b: string): boolean {
   const left = resolve(a)
   const right = resolve(b)
-  return process.platform === 'win32'
-    ? left.replaceAll('/', '\\').toLowerCase() === right.replaceAll('/', '\\').toLowerCase()
-    : left === right
+  if (process.platform !== 'win32')
+    return left === right
+
+  const normalize = (path: string): string => {
+    let canonical = path
+    try {
+      canonical = realpathSync.native(path)
+    }
+    catch {}
+    return canonical
+      .replaceAll('/', '\\')
+      .replace(/^\\\\\?\\UNC\\/i, '\\\\')
+      .replace(/^\\\\\?\\/, '')
+      .toLowerCase()
+  }
+  return normalize(left) === normalize(right)
 }
 
 async function isRegisteredWorktree(root: string, path: string, signal?: AbortSignal): Promise<OperationResult<{ registered: boolean }>> {

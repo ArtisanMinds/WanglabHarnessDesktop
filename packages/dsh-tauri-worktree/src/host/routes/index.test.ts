@@ -239,7 +239,7 @@ describe('工作树路由真实创建链路', () => {
       dirname: basename(repository),
       worktreeKey: `${hash}/${basename(repository)}`,
       worktreePath: expected,
-      projectPath: repository,
+      projectPath: git(repository, 'rev-parse', '--show-toplevel'),
       sourceSessionId: sessionId,
       existed: false,
       inherited: false,
