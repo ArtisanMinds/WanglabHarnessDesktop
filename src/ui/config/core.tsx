@@ -17,7 +17,7 @@ import { useInvalidateOnSettingUpdated } from '@/hooks/use-invalidate-on-setting
 import { store } from '@/store'
 import { useCoreBreakingConfirm } from '@/ui/config/hooks/use-core-breaking-confirm'
 import { DownloadCoreDialog } from '@/ui/dialog/update-core'
-import { compareVersions, isCoreBelowBaseline, isCoreUnsupported } from '@/utils/core-version'
+import { compareVersions, isCoreUnsupported, MIN_SUPPORTED_CORE_VERSION } from '@/utils/core-version'
 import { silence } from '@/utils/silence'
 import { toast } from '@/utils/toast'
 
@@ -25,7 +25,7 @@ import { toast } from '@/utils/toast'
  * 「核心」面板：管理 Harness 引擎来源与多版本。
  *
  * - 列表来自 `get_cores` 查询（`setting_updated` 事件一并失效刷新）：
- *   `local` = 用户通过 CLI 全局安装的本地核心（存在且不低于内置插件基线时优先使用，
+ *   `local` = 用户通过 CLI 全局安装的本地核心（存在且不低于最低支持基线时优先使用，
  *   需求 3；低于基线时后端改用预打包核心，行内标注「不兼容」并给出更新提示）；
  *   `app-<tag>` = deepseek-harness-pkg 各发布版本（GitHub releases 拉取失败时
  *   降级为 git tags / 磁盘扫描，仅显示已下载版本）。预览版（Pre-release label
@@ -137,12 +137,12 @@ export function ConfigCore() {
   async function onActivate(core: HarnessCore) {
     if (core.active || busy || !core.present)
       return
-    // 低于内置插件基线的本地核心无法加载随包插件（issue #596）：桌面端此时使用
+    // 低于最低支持基线的本地核心无法加载随包插件（issue #596）：桌面端此时使用
     // 预打包核心，激活入口改为给出可操作提示，而不是切过去再撞一次启动失败。
     if (isUnsupportedLocal(core)) {
       toast(t('core.local_unsupported_toast'), {
         variant: 'warning',
-        description: t('core.local_unsupported_hint', { version: core.recommendedVersion ?? '' }),
+        description: t('core.local_unsupported_hint', { version: MIN_SUPPORTED_CORE_VERSION }),
         timeout: 10_000,
       })
       return
@@ -371,7 +371,7 @@ export function ConfigCore() {
                         {t('core.preview')}
                       </Chip>
                     </If>
-                    {/* 低于内置插件基线的本地核心：桌面端改用预打包核心，激活会被拒绝并给出更新提示 */}
+                    {/* 低于最低支持基线的本地核心：桌面端改用预打包核心，激活会被拒绝并给出更新提示 */}
                     <If cond={isUnsupportedLocal(core)}>
                       <Chip size="sm" variant="soft" color="danger" className="shrink-0 font-medium">
                         {t('core.local_unsupported')}
@@ -487,11 +487,13 @@ function displayVersion(version: HarnessCore): string {
 }
 
 /**
- * 本地核心是否低于内置插件基线（推荐核心版本）。低于基线时随包内置插件无法加载
- * （见 `isCoreBelowBaseline`），桌面端自动改用预打包核心。
+ * 本地核心是否低于最低支持基线。判据与「不兼容版本」分组完全一致（同一基线，
+ * `isUnsupportedCore`），低于基线时随包内置插件无法加载（issue #596），桌面端自动
+ * 改用预打包核心。不可与推荐核心版本（`version-recommend.json`）混用——后者只用于
+ * 更新提示，高于最低支持基线，拿它当基线会把 0.1.5-rc.3 这类可用本地核心误判为不兼容。
  */
 function isUnsupportedLocal(core: HarnessCore): boolean {
-  return core.source === 'local' && core.present && isCoreBelowBaseline(core.version, core.recommendedVersion)
+  return core.source === 'local' && core.present && isUnsupportedCore(core)
 }
 
 /**
