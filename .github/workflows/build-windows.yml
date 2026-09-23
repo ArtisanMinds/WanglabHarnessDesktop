@@ -97,7 +97,19 @@ jobs:
           }
 
       - name: Test frontend and internal plugins
-        run: pnpm test:unit --run
+        shell: pwsh
+        run: |
+          $testLog = Join-Path $env:RUNNER_TEMP 'wanglab-frontend-tests.log'
+          & pnpm test:unit --run 2>&1 | Tee-Object -FilePath $testLog
+          $testExit = $LASTEXITCODE
+          if ($testExit -ne 0) {
+            $detail = (Get-Content $testLog -Raw).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($detail.Length -gt 3500) {
+              $detail = $detail.Substring($detail.Length - 3500)
+            }
+            Write-Output "::error title=Frontend and plugin tests::$detail"
+            exit $testExit
+          }
 
       - name: Test Core record recovery
         shell: powershell

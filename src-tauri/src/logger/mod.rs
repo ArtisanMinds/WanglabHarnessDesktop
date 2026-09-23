@@ -427,14 +427,14 @@ pub fn log_frontend(level: FrontendLevel, target: &str, message: &str) {
 mod tests {
     use super::*;
     #[test]
-    fn debug_logs_are_separated_from_release() {
-        // dev 与 release 共用 identifier；不隔离会让两个进程写同一个 desktop.log。
-        assert!(cfg!(debug_assertions), "cargo test 构建为 debug");
+    fn log_directory_follows_build_mode() {
         let base = PathBuf::from("/tmp/dsh-tauri");
-        assert_eq!(
-            apply_dev_segment(base.clone()),
+        let expected = if cfg!(debug_assertions) {
             base.join(APP_DATA_DEV_DIR_NAME)
-        );
+        } else {
+            base.clone()
+        };
+        assert_eq!(apply_dev_segment(base), expected);
     }
     #[test]
     fn backup_path_naming() {
