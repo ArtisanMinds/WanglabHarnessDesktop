@@ -218,15 +218,17 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
               {group.rows.map(row => (
                 <li key={row.sessionId} className="dshp-session__row">
                   <div className="dshp-session__row-main">
-                    <button
-                      type="button"
-                      className="dshp-session__row-title"
-                      title={locale.text('openDirectory')}
-                      aria-label={`${locale.text('openDirectory')}: ${row.title}`}
-                      onClick={() => void handleOpenSessionDirectory(row.sessionId)}
-                    >
-                      {row.title}
-                    </button>
+                    <div>
+                      <button
+                        type="button"
+                        className="dshp-session__row-title"
+                        title={locale.text('openDirectory')}
+                        aria-label={`${locale.text('openDirectory')}: ${row.title}`}
+                        onClick={() => void handleOpenSessionDirectory(row.sessionId)}
+                      >
+                        {row.title}
+                      </button>
+                    </div>
                     <span className="dshp-session__row-time">{formatTime(row)}</span>
                   </div>
                   <div className="dshp-session__row-actions">
@@ -281,12 +283,12 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
 
       {openPathError
         ? (
-            <Toast
-              key={openPathError}
-              text={locale.text('openFailed', { reason: openPathError })}
-              onDone={() => setOpenPathError(null)}
-            />
-          )
+          <Toast
+            key={openPathError}
+            text={locale.text('openFailed', { reason: openPathError })}
+            onDone={() => setOpenPathError(null)}
+          />
+        )
         : null}
     </div>
   )

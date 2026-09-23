@@ -73,4 +73,25 @@ export default c([
   c('[class*="collapsed"] [class$="logoRow"]', {
     justifyContent: 'flex-start !important',
   }),
+  c('[data-slot="conversation.chat.turnTail"]', [
+    c('[class$="card"]', {
+      borderRadius: '14px !important'
+    }),
+    c('[class$="toggle"]', {
+      borderTop: '.5px solid var(--dsw-alias-border-l2)'
+    }),
+    c('[class$="statCounts"]', {
+      fontSize: '12px'
+    }),
+    c('[class$="title"]', {
+      fontWeight: '550'
+    }),
+    c('[class$="tile"]', {
+      border: 'none',
+      background: 'var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,0.08))'
+    }),
+    c('[class$="tileMark"]', {
+      background: 'var(--dsw-alias-label-primary)'
+    })
+  ])
 ])
