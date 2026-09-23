@@ -283,12 +283,12 @@ export function ArchivePanel(props: ArchivePanelProps): ReactElement | null {
 
       {openPathError
         ? (
-          <Toast
-            key={openPathError}
-            text={locale.text('openFailed', { reason: openPathError })}
-            onDone={() => setOpenPathError(null)}
-          />
-        )
+            <Toast
+              key={openPathError}
+              text={locale.text('openFailed', { reason: openPathError })}
+              onDone={() => setOpenPathError(null)}
+            />
+          )
         : null}
     </div>
   )
