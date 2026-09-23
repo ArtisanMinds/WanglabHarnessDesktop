@@ -18,6 +18,8 @@ export const styles = {
   hoverDanger: 'var(--dsw-alias-interactive-bg-hover-danger)',
   error: 'var(--dsw-alias-state-error-primary)',
   success: 'var(--dsw-alias-state-success-primary)',
+  warn: 'var(--dsw-alias-state-warn-primary)',
+  idle: 'var(--dsw-alias-state-idle-primary)',
   primaryFill: 'var(--dsw-alias-button-primary-fill)',
   primaryHover: 'var(--dsw-alias-button-primary-hover)',
   primaryFg: 'var(--dsw-alias-label-primary-foreground)',

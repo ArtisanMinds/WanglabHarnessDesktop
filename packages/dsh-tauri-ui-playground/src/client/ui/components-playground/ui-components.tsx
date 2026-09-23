@@ -7,6 +7,7 @@ import {
   Chip,
   CircleTree,
   Comments,
+  Dot,
   Gear,
   GoalBar,
   GoalBarAction,
@@ -234,6 +235,14 @@ export function UiComponentsPanel(): ReactElement {
           <Tag tone="outline" variant="status">outline</Tag>
           <Tag tone="info" variant="status">info</Tag>
           <Tag tone="danger" variant="status">danger</Tag>
+        </div>
+        <div className="dshp-ui-components__sample">
+          <Dot state="done" />
+          <Dot state="warning" />
+          <Dot state="error" />
+          <Dot state="idle" />
+          <Dot />
+          <Dot size={16} state="done" />
         </div>
       </section>
 
