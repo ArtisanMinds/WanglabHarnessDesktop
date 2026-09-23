@@ -104,6 +104,7 @@ fn resolve_heal_port(configured: u16, heal_target: u16, heal_target_free: bool) 
 
 /// 检测并启动 Harness 服务
 pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let _transition_guard = super::process::acquire_core_transition().await?;
     let setting = config::get_store_dat_setting(&app_handle);
     let node_binary_path = config::get_node_binary_path(&app_handle);
     // 活动核心的入口：本地核心存在时优先本地（需求 3），否则预打包
@@ -129,6 +130,10 @@ pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
         log::info!("Runtime files missing (node/dsh), resetting installed flag");
         return Ok(());
     }
+    if !crate::service::core::paired_core_ready(&app_handle) {
+        log::info!("Paired Core is not ready, deferring auto-start until installation completes");
+        return Ok(());
+    }
 
     if has_owned_process() {
         log::info!("Owned Harness process is already running");
@@ -145,7 +150,7 @@ pub async fn start(app_handle: tauri::AppHandle) -> Result<(), String> {
     log::info!("Starting Harness service");
     status::set_status(status::Status::Starting);
     status::emit_status(&app_handle);
-    launch(app_handle).await?;
+    launch_locked(app_handle).await?;
     // 之后由 scheduler/task/tick_check_dsh_process/mod.rs 检测状态
 
     Ok(())
@@ -205,9 +210,15 @@ fn is_duplicate_loader_exit(exit_code: u32, stderr: &str) -> bool {
 
 /// 启动 Harness 服务进程
 pub async fn launch(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let _transition_guard = super::process::acquire_core_transition().await?;
+    launch_locked(app_handle).await
+}
+
+async fn launch_locked(app_handle: tauri::AppHandle) -> Result<(), String> {
+    crate::service::core::require_paired_core(&app_handle)?;
+    crate::service::local_defaults::refresh_models(&app_handle).await?;
     let mut setting = config::get_store_dat_setting(&app_handle);
     let node_binary_path = config::get_node_binary_path(&app_handle);
-    let _transition_guard = super::process::acquire_core_transition().await?;
     let dsh_binary_path = crate::service::core::active_dsh_binary(&app_handle);
 
     log::debug!("Checking Node.js path: {:?}", node_binary_path);

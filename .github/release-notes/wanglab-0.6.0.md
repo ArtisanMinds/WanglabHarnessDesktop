@@ -9,7 +9,8 @@ Syncs DeepSeek Harness Desktop **v0.16.0**, including all updates since v0.15.8.
 - Adds ungrouped conversation creation under `DSH_HOME/ungrouped` and improves workspace creation and continuation behavior.
 - Improves Windows process-log decoding, orphan process cleanup, and non-interactive plugin installation.
 - Normalizes MCP stdio configuration to command and arguments.
-- Uses Wanglab Harness branding throughout startup, update, recovery, Core management, and About surfaces; the first-run About Us now introduces both Wanglab Harness and Wanglab.
+- Uses Wanglab Harness branding throughout startup, update, recovery, Core management, page metadata, system permission prompts, plugin descriptions, and About surfaces; the first-run About Us now introduces both Wanglab Harness and Wanglab.
+- Prevents an older Core from being patched or launched while the paired Core update is pending.
 - Keeps Pets / Market, application-only pet storage, no default pet, and 25-200% sizing. The pet indicator now reflects a visible pet and remains disabled until a pet is selected.
 - Keeps Documentation removed from Help, the English About Us introduction, Wanglab provider routes, supplier model discovery, restricted GPT / Claude catalogs, and independent DeepSeek / Grok suppliers.
 

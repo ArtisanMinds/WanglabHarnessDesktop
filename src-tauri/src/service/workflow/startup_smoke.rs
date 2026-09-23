@@ -66,8 +66,11 @@ async fn exercise_upgrade(app: &tauri::AppHandle) -> Result<(), String> {
     let old_connection = fs::read(&connection).map_err(|e| e.to_string())?;
     start(app.clone()).await?;
     smoke_note("old Core auto-start deferred");
-    if has_owned_process() || fs::read(&connection).map_err(|e| e.to_string())? != old_connection {
-        return Err("SMOKE_OLD_CORE_STARTED: auto-start touched the old Core".to_string());
+    if has_owned_process() {
+        return Err("SMOKE_OLD_CORE_STARTED: auto-start launched the old Core".to_string());
+    }
+    if fs::read(&connection).map_err(|e| e.to_string())? != old_connection {
+        return Err("SMOKE_OLD_CORE_MODIFIED: auto-start changed the old Core".to_string());
     }
     if !launch(app.clone())
         .await
