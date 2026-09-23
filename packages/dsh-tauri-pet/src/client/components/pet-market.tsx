@@ -1,14 +1,11 @@
 import type { ReactElement } from 'react'
 import type { MarketPetItem, PetMarketProps, PresetDownloadProgress } from '../types/market'
-import { ArrowDownToLine, ArrowRotateRight, Icon, useMountStyle } from 'dsh-tauri-ui/client'
+import { ArrowDownToLine, ArrowRotateRight, Button, Icon, IconButton } from 'dsh-tauri-ui/client'
 import { useWatchImmediate } from 'dsh-tauri/client'
 import { useEffect, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
-import { PET_CARD_STYLES_ID } from '../constants'
 import { locale } from '../locales'
 import { createPetMarketSession, initialMarketSnapshot } from '../register/market'
-import petCardStyle from './pet-card.cssr'
-import petMarketStyle from './pet-market.cssr'
 
 interface MarketCardProps {
   pet: MarketPetItem
@@ -29,6 +26,9 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
   const percent = progress && progress.total > 0
     ? Math.min(100, Math.round(progress.received / progress.total * 100))
     : null
+  const actionIcon = !pet.installed && !downloading
+    ? <Icon as={failed ? ArrowRotateRight : ArrowDownToLine} />
+    : undefined
 
   return (
     <article className="dshp-pet__market-card" aria-label={pet.name}>
@@ -47,15 +47,14 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
             MB
           </span>
         </div>
-        <button
+        <Button
           type="button"
-          className={active ? 'dshp-pet__card-action dshp-pet__card-actionActive' : 'dshp-pet__card-action'}
+          variant={active ? 'primary' : 'outline'}
+          size="sm"
+          icon={actionIcon}
           disabled={busy || active || downloading}
           onClick={pet.installed ? onChoose : onDownload}
         >
-          <If cond={!pet.installed && !downloading}>
-            <If cond={failed} then={<Icon as={ArrowRotateRight} />} else={<Icon as={ArrowDownToLine} />} />
-          </If>
           {locale.text(label)}
           <If cond={downloading && percent !== null}>
             <span>
@@ -63,7 +62,7 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
               %
             </span>
           </If>
-        </button>
+        </Button>
         <If cond={downloading}>
           <progress className="dshp-pet__market-progress" aria-label={locale.text('downloading')} max={100} value={percent ?? undefined} />
         </If>
@@ -76,8 +75,6 @@ function MarketCard({ pet, active, busy, progress, onDownload, onChoose }: Marke
 }
 
 export function PetMarket(props: PetMarketProps): ReactElement {
-  useMountStyle(petCardStyle, PET_CARD_STYLES_ID)
-  useMountStyle(petMarketStyle, 'dsh-tauri-pet-market-styles')
   locale.useLocale()
   const [snapshot, setSnapshot] = useState(initialMarketSnapshot)
   const sessionRef = useRef<ReturnType<typeof createPetMarketSession> | null>(null)
@@ -101,16 +98,30 @@ export function PetMarket(props: PetMarketProps): ReactElement {
     <section className="dshp-pet__market" aria-label={locale.text('market')}>
       <div className="dshp-pet__market-tools">
         <div className="dshp-pet__tab-tools">
-          <button type="button" className="dshp-pet__tool-btn dshp-pet__tool-icon" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }} aria-label={locale.text('refresh')} title={locale.text('refresh')}><Icon as={ArrowRotateRight} /></button>
+          <IconButton
+            type="button"
+            variant="toolbar"
+            icon={<Icon as={ArrowRotateRight} />}
+            disabled={snapshot.loading}
+            onClick={() => { void sessionRef.current?.refresh() }}
+            aria-label={locale.text('refresh')}
+            title={locale.text('refresh')}
+          />
         </div>
       </div>
       <If cond={Boolean(snapshot.error)}>
         <div className="dshp-pet__market-error" role="alert">
           <span>{locale.text('marketFailed')}</span>
-          <button type="button" className="dshp-pet__tool-btn" disabled={snapshot.loading} onClick={() => { void sessionRef.current?.refresh() }}>
-            <Icon as={ArrowRotateRight} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            icon={<Icon as={ArrowRotateRight} />}
+            disabled={snapshot.loading}
+            onClick={() => { void sessionRef.current?.refresh() }}
+          >
             {locale.text('retry')}
-          </button>
+          </Button>
         </div>
       </If>
       <If cond={snapshot.loading && snapshot.pets.length === 0}>

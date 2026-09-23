@@ -1,10 +1,10 @@
 import type { ChangeEvent, ReactElement } from 'react'
 import type { PetSettingsProps } from './pet-settings.types'
-import { ArrowDownToLine, Icon, Plus, useMountStyle } from 'dsh-tauri-ui/client'
+import { ArrowDownToLine, Button, Icon, Plus, SegmentedControl } from 'dsh-tauri-ui/client'
 import { useStore, useWatchImmediate } from 'dsh-tauri/client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { If } from 'react-if-lite'
-import { PET_DEFAULT_SIZE, PET_SETTINGS_STYLES_ID, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
+import { PET_DEFAULT_SIZE, PET_SIZE_MAX, PET_SIZE_MIN, PET_SIZE_STEP } from '../constants'
 import { locale } from '../locales'
 import {
   clearPetSelection,
@@ -17,9 +17,7 @@ import {
 import { store } from '../store'
 import { PetCard } from './pet-card'
 import { PetMarket } from './pet-market'
-import petSettingsStyle from './pet-settings.cssr'
 
-/** 读取 .zip 归档为 base64（桌面端命令按字符串收包）。 */
 function readAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -33,23 +31,32 @@ function readAsBase64(file: File): Promise<string> {
   })
 }
 
+function spriteType(thumbnail?: string): 'spritesheet' | undefined {
+  if (thumbnail)
+    return 'spritesheet'
+  return undefined
+}
+
 export function PetSettings(props: PetSettingsProps): ReactElement {
-  useMountStyle(petSettingsStyle, PET_SETTINGS_STYLES_ID)
   locale.useLocale()
   const { status, presetPets, chatPets, catalogLoaded } = useStore(store.pet)
   const [tab, setTab] = useState<'pets' | 'market'>('pets')
   const [marketOpened, setMarketOpened] = useState(false)
-  // 无缓存（首次挂载）时进入加载态，避免空列表闪烁；有缓存直接渲染、后台静默刷新。
   const [busy, setBusy] = useState(() => !catalogLoaded)
   const [error, setError] = useState<string | null>(null)
   const [size, setSize] = useState(status?.pet_size ?? PET_DEFAULT_SIZE)
+  const tabsId = useId()
+  const fileRef = useRef<HTMLInputElement>(null)
   const committedSizeRef = useRef<number | null>(null)
   const visible = Boolean(status?.enabled && status.visible)
   const active = status?.active_pet ?? ''
   const statusSize = status?.pet_size ?? PET_DEFAULT_SIZE
   const displayError = error ?? (status?.error ? `${locale.text('loadFailed')}: ${status.error}` : null)
+  const tabOptions = [
+    { value: 'pets', label: locale.text('name') },
+    { value: 'market', label: locale.text('market') },
+  ] as const
 
-  // 宿主状态里的尺寸变化（别的入口改过）同步到本地滑条；本地正在拖动的值不被覆盖。
   useWatchImmediate(statusSize, () => {
     if (statusSize !== committedSizeRef.current)
       setSize(statusSize)
@@ -81,7 +88,6 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     setBusy(false)
   }
 
-  /** 取消选择：清空已选宠物；仍在启用时一并关闭桌宠（无内容可渲染，不留空窗口）。 */
   async function clearSelection(): Promise<void> {
     if (busy || active === '')
       return
@@ -93,7 +99,6 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
     setBusy(false)
   }
 
-  /** 启用/关闭桌宠：纯持久开关，关闭后重启不再自动拉起。 */
   async function toggleEnabled(): Promise<void> {
     if (busy || !active)
       return
@@ -153,102 +158,139 @@ export function PetSettings(props: PetSettingsProps): ReactElement {
       throw new Error(result.error)
   }
 
+  function actionLabel(selected: boolean, fallback: 'enable' | 'select'): string {
+    if (selected)
+      return locale.text('clear')
+    return locale.text(fallback)
+  }
+
+  function runPetAction(selected: boolean, id: string): void {
+    if (selected) {
+      void clearSelection()
+      return
+    }
+    void choose(id)
+  }
+
+  function selectTab(next: string): void {
+    if (next === 'market') {
+      setMarketOpened(true)
+      setTab('market')
+      return
+    }
+    setTab('pets')
+  }
+
   const petsPanel = (
-    <>
-      {busy && presetPets.length === 0 && chatPets.length === 0
-        ? <div className="dshp-pet__loading">{locale.text('loading')}</div>
-        : (
-            <div className="dshp-pet__cards">
-              {presetPets.map(item => (
-                <PetCard
-                  key={item.id}
-                  thumbnail={item.image ?? undefined}
-                  name={item.name}
-                  desc={item.desc ?? ''}
-                  active={active === item.id}
-                  disabled={busy}
-                  actionLabel={locale.text(active === item.id ? 'clear' : 'enable')}
-                  onAction={() => { void (active === item.id ? clearSelection() : choose(item.id)) }}
-                />
-              ))}
-              {chatPets.map(item => (
-                <PetCard
-                  key={item.id}
-                  thumbnail={item.thumbnail}
-                  thumbnailType={item.thumbnail ? 'spritesheet' : undefined}
-                  spriteRows={item.sprite_rows}
-                  name={item.name}
-                  desc={item.description ?? ''}
-                  active={active === item.id}
-                  disabled={busy}
-                  actionLabel={locale.text(active === item.id ? 'clear' : 'select')}
-                  onAction={() => { void (active === item.id ? clearSelection() : choose(item.id)) }}
-                />
-              ))}
-              <If cond={presetPets.length === 0 && chatPets.length === 0}>
-                <div className="dshp-pet__empty">{locale.text('emptyPets')}</div>
-              </If>
-            </div>
-          )}
-    </>
+    <If
+      cond={busy && presetPets.length === 0 && chatPets.length === 0}
+      else={(
+        <div className="dshp-pet__cards">
+          {presetPets.map((item) => {
+            const selected = active === item.id
+            return (
+              <PetCard
+                key={item.id}
+                thumbnail={item.image ?? undefined}
+                name={item.name}
+                desc={item.desc ?? ''}
+                active={selected}
+                disabled={busy}
+                actionLabel={actionLabel(selected, 'enable')}
+                onAction={() => runPetAction(selected, item.id)}
+              />
+            )
+          })}
+          {chatPets.map((item) => {
+            const selected = active === item.id
+            return (
+              <PetCard
+                key={item.id}
+                thumbnail={item.thumbnail}
+                thumbnailType={spriteType(item.thumbnail)}
+                spriteRows={item.sprite_rows}
+                name={item.name}
+                desc={item.description ?? ''}
+                active={selected}
+                disabled={busy}
+                actionLabel={actionLabel(selected, 'select')}
+                onAction={() => runPetAction(selected, item.id)}
+              />
+            )
+          })}
+          <If cond={presetPets.length === 0 && chatPets.length === 0}>
+            <div className="dshp-pet__empty">{locale.text('emptyPets')}</div>
+          </If>
+        </div>
+      )}
+    >
+      <div className="dshp-pet__loading">{locale.text('loading')}</div>
+    </If>
   )
 
   return (
     <div className="dshp-pet__page">
       <div className="dshp-pet__tabs">
-        <div className="dshp-pet__tab-list" role="tablist" aria-label={locale.text('name')}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'pets'}
-            className={tab === 'pets' ? 'dshp-pet__tab-btn dshp-pet__tab-btnActive' : 'dshp-pet__tab-btn'}
-            onClick={() => setTab('pets')}
-          >
-            {locale.text('name')}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'market'}
-            className={tab === 'market' ? 'dshp-pet__tab-btn dshp-pet__tab-btnActive' : 'dshp-pet__tab-btn'}
-            onClick={() => {
-              setMarketOpened(true)
-              setTab('market')
-            }}
-          >
-            {locale.text('market')}
-          </button>
-        </div>
+        <SegmentedControl
+          id={tabsId}
+          label={locale.text('name')}
+          value={tab}
+          options={tabOptions}
+          onChange={selectTab}
+        />
         <div className="dshp-pet__tab-tools">
           <If cond={tab === 'pets'}>
-            <button type="button" className="dshp-pet__tool-btn" disabled={busy} onClick={() => { void createPet() }}>
-              <Icon as={Plus} />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              icon={<Icon as={Plus} />}
+              disabled={busy}
+              onClick={() => { void createPet() }}
+            >
               {locale.text('create')}
-            </button>
-            <label className="dshp-pet__tool-btn" aria-disabled={busy}>
-              <Icon as={ArrowDownToLine} />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              icon={<Icon as={ArrowDownToLine} />}
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+            >
               {locale.text('import')}
-              <input
-                type="file"
-                accept=".zip"
-                hidden
-                disabled={busy}
-                onChange={(event) => { void onImport(event) }}
-              />
-            </label>
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".zip"
+              hidden
+              disabled={busy}
+              onChange={(event) => { void onImport(event) }}
+            />
           </If>
-          <button type="button" className="dshp-pet__tool-btn" disabled={busy || !active} onClick={() => { void toggleEnabled() }}>
-            {visible ? locale.text('closePet') : locale.text('wakePet')}
-          </button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || !active}
+            onClick={() => { void toggleEnabled() }}
+          >
+            <If cond={visible} then={locale.text('closePet')} else={locale.text('wakePet')} />
+          </Button>
         </div>
       </div>
-      <If cond={tab === 'pets'}>{petsPanel}</If>
-      <If cond={marketOpened}>
-        <div hidden={tab !== 'market'}>
+      <div id={`${tabsId}-pets-panel`} role="tabpanel" aria-labelledby={`${tabsId}-pets`} hidden={tab !== 'pets'}>
+        {petsPanel}
+      </div>
+      <div id={`${tabsId}-market-panel`} role="tabpanel" aria-labelledby={`${tabsId}-market`} hidden={tab !== 'market'}>
+        <If cond={marketOpened}>
           <PetMarket active={active} busy={busy} onChoose={choose} onInstalled={refreshPets} />
-        </div>
+        </If>
+      </div>
+      <If cond={Boolean(displayError)}>
+        <div className="dshp-pet__error" role="alert">{displayError}</div>
       </If>
-      <If cond={Boolean(displayError)}><div className="dshp-pet__error" role="alert">{displayError}</div></If>
       <If cond={tab === 'pets'}>
         <div className="dshp-pet__size-row">
           <span className="dshp-pet__size-label">{locale.text('sizeLabel')}</span>

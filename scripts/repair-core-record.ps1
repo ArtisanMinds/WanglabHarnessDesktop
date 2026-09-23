@@ -21,9 +21,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const root = process.argv[2];
-const version = '0.1.5-rc.2';
-const commit = '459af31e262017542ee8ddfd395499dc0a8484c8';
-const tag = 'dsh-0.1.5-rc.2-wanglab040';
+const version = '0.1.5-rc.3';
+const commit = '874b4d332b3e1fc8ecbbff7bbf65d5761413780e';
+const tag = 'dsh-0.1.5-rc.3-wanglab060';
 const storePath = path.join(root, '.store.dat');
 const corePath = path.join(root, 'dependencies', 'dsh');
 let temporary;
@@ -42,7 +42,7 @@ try {
   const manifest = JSON.parse(fs.readFileSync(path.join(corePath, 'package.json'), 'utf8'));
   const entry = path.join(corePath, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
   if (manifest.version !== version || setting.dsh_pkg_commit !== commit || !fs.statSync(entry).isFile()) {
-    throw new Error('The installed Core cannot be confirmed. Install Desktop 0.4.2 to reinstall its paired Core. No files changed.');
+    throw new Error('The installed Core cannot be confirmed. Install Desktop 0.6.0 to reinstall its paired Core. No files changed.');
   }
   if (setting.dsh_pkg_tag === tag) {
     console.log('Core release record is already correct. No files changed.');
@@ -65,7 +65,7 @@ try {
     fs.renameSync(temporary, storePath);
     temporary = undefined;
     console.log(`Core release tag repaired. Backup: ${backup}`);
-    console.log('Reopen Wanglab Harness Desktop 0.4.1 or later.');
+    console.log('Reopen Wanglab Harness Desktop 0.6.0 or later.');
   }
 } catch (error) {
   console.error(`CORE_RECORD_REPAIR_FAILED: ${error.message}`);

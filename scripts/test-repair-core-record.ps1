@@ -3,8 +3,8 @@ $repair = Join-Path $PSScriptRoot 'repair-core-record.ps1'
 $node = (Get-Command node -ErrorAction Stop).Source
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ('wanglab-record-repair-' + [Guid]::NewGuid().ToString('N'))
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-$commit = '459af31e262017542ee8ddfd395499dc0a8484c8'
-$tag = 'dsh-0.1.5-rc.2-wanglab040'
+$commit = '874b4d332b3e1fc8ecbbff7bbf65d5761413780e'
+$tag = 'dsh-0.1.5-rc.3-wanglab060'
 
 function Write-JsonFile($Path, $Value) {
     [System.IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 100 -Compress), $utf8)
@@ -19,7 +19,7 @@ function New-Fixture($Name, $StringSetting, $RecordedTag) {
     $core = Join-Path $directory 'dependencies/dsh'
     $entryDirectory = Join-Path $core 'node_modules/@deepseek-ai/dsh/lib'
     New-Item -ItemType Directory -Path $entryDirectory -Force | Out-Null
-    Write-JsonFile (Join-Path $core 'package.json') @{version = '0.1.5-rc.2'}
+    Write-JsonFile (Join-Path $core 'package.json') @{version = '0.1.5-rc.3'}
     [System.IO.File]::WriteAllText((Join-Path $entryDirectory 'bin.js'), 'fixture entry', $utf8)
     $setting = [ordered]@{
         installed = $true

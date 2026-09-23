@@ -9,7 +9,11 @@ export default antfu({
     'AGENTS.*',
     'docs',
     'archive',
-    'src-tauri/target*/**',
+    // 技能目录：脚本与参考文档由技能作者维护（部分经 skills-lock.json 锁定上游哈希），
+    // 改动会偏离上游并破坏哈希校验，不参与本仓 lint 规约
+    'skills',
+    // vendored 第三方 crate（含其 README/permissions 产物）：格式由上游决定，
+    // 只保留本仓对其的 patch 说明（PATCH.md 由人读，不参与 lint）
     'src-tauri/vendor',
     // genapi 产物：格式由生成器（prettier 默认）决定，不由项目 eslint 规约
     'packages/*/src/client/apis/index.ts',

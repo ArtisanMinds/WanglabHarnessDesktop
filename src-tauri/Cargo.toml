@@ -1,6 +1,6 @@
 [package]
 name = "deepseek-harness-desktop"
-version = "0.5.1"
+version = "0.6.0"
 description = "Wanglab Harness Desktop"
 authors = [ "WanglabAI" ]
 edition = "2021"
