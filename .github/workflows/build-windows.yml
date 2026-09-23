@@ -60,7 +60,17 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --config release-msi-version.tmp.json
+        shell: pwsh
+        run: |
+          $buildLog = Join-Path $env:RUNNER_TEMP 'wanglab-package-build.log'
+          & pnpm tauri build --config release-msi-version.tmp.json 2>&1 | Tee-Object -FilePath $buildLog
+          $buildExit = $LASTEXITCODE
+          if ($buildExit -ne 0) {
+            $detail = (Get-Content $buildLog -Tail 160) -join "`n"
+            $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error title=Windows package build::$detail"
+            exit $buildExit
+          }
 
       - name: Check internal plugin types
         run: pnpm -r --filter './packages/*' typecheck
