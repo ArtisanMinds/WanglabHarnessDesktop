@@ -357,7 +357,15 @@ mod tests {
             content.contains("second line"),
             "reader must NOT stop at invalid UTF-8 (old code broke and closed the pipe); got: {content:?}"
         );
-        // 非法字节以 U+FFFD 呈现，行内容不丢失
+        // 非法 UTF-8 不再直接 lossy：Windows 先按 ANSI 代码页解码（zh-CN 的 936 还原
+        // 中文，en-US 的 1252 也是可读字符），只有连 ANSI 都解不出时才回落 U+FFFD。
+        // 逐字断言会绑死 runner 的代码页，故这里只断言「没走 lossy 快路」。
+        #[cfg(windows)]
+        assert!(
+            !content.contains('\u{FFFD}'),
+            "Windows 上非法 UTF-8 必须走 ANSI 代码页解码，got: {content:?}"
+        );
+        #[cfg(not(windows))]
         assert!(content.contains('\u{FFFD}'));
         let _ = fs::remove_dir_all(&dir);
     }
