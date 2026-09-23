@@ -1,6 +1,7 @@
 import type { DshPlugin } from '@/types'
 import type { ConfigTab } from '@/ui/dialog/config'
 import {
+  ArrowRotateRight,
   Copy,
   LayoutSideContent,
   LayoutSideContentLeft,
@@ -31,7 +32,7 @@ import { toast } from '@/utils/toast'
 /**
  * 壳层窗口顶部导航栏（44px，常驻）：
  *
- *   [侧边栏(展开/收起)] [文件][配置][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
+ *   [侧边栏(展开/收起)] [文件][运行][帮助] [  空白拖拽区  ] [最小化][最大化][后台化(X)]
  *
  * - 侧边栏：经 postMessage 操控 iframe 内的 dsh 应用
  *   （`dsh://sidebar:toggle`，由 dsh-tauri 插件的 `client/register/sidebar.ts`
@@ -43,8 +44,9 @@ import { toast } from '@/utils/toast'
  * - 文件：新建窗口（Tauri 再开一个 webview）/ 新聊天、打开文件夹（经协议调用 dsh 官方
  *   「新建会话」「添加工作区」，接收方是 dsh-tauri 的 `client/register/navigation.ts`）/
  *   关闭（隐藏到托盘）/ 退出（完整退出）。两条依赖 iframe 的项在回调缺席时禁用。
- * - 配置：应用 / 档案 / 插件 / 核心，直接打开配置对话框并定位到对应面板
- *   （对话框与角标见 `ui/dialog/config.tsx`）。
+ * - 运行：应用 / 档案 / 插件 / 核心，直接打开配置对话框并定位到对应面板
+ *   （对话框与角标见 `ui/dialog/config.tsx`）；「应用」项右侧另挂一个快捷重启图标按钮，
+ *   就地重启服务而不必先进面板。
  * - 帮助：运行日志 / 检查更新 / 关于 Desktop / 文档（系统浏览器打开官方文档站）。
  * - 空白拖拽区：Tauri 原生 `data-tauri-drag-region`（顶层文档直接生效），
  *   Windows/Linux 上双击切换最大化，macOS 上交由系统标题栏偏好。
@@ -80,7 +82,7 @@ type FileAction = 'new-window' | 'new-chat' | 'open-folder' | 'close' | 'quit'
 /** 「帮助」菜单的动作 id。 */
 type HelpAction = 'copy-run-logs' | 'check-update' | 'about' | 'documentation'
 
-/** 「配置」菜单项：直接打开配置对话框并定位到对应面板。 */
+/** 「运行」菜单项：直接打开配置对话框并定位到对应面板。 */
 const CONFIG_TABS: { id: ConfigTab, labelKey: string }[] = [
   { id: 'application', labelKey: 'config.application' },
   { id: 'profiles', labelKey: 'config.profiles' },
@@ -214,6 +216,9 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
   })
   const { updateInfo } = useStore(store.desktopUpdater)
   const [dshStyle] = useDshStyle()
+  // 「运行」菜单受控开合：快捷重启按钮不是菜单项，走不到 React Aria 的
+  // 「项选中即收起」，收起得自己来，否则重启期间菜单会一直挂在新页面上。
+  const [runMenuOpen, setRunMenuOpen] = useState(false)
 
   const openConfigDialog = useOverlay(ConfigDialog)
   const openAboutDialog = useOverlay(DesktopAboutDialog)
@@ -312,6 +317,12 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
 
   function handleOpenConfig(tab?: ConfigTab) {
     void openConfigDialog({ tab }).catch(() => { })
+  }
+
+  /** 「应用」项右侧的快捷重启：收起菜单再重启服务（与 macOS 原生菜单「重启」同一入口） */
+  function handleQuickRestart() {
+    setRunMenuOpen(false)
+    void store.harness.restart()
   }
 
   function handleOpenAbout() {
@@ -482,15 +493,15 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
               </Dropdown.Menu>
             </Dropdown.Popover>
           </Dropdown>
-          <Dropdown>
+          <Dropdown isOpen={runMenuOpen} onOpenChange={setRunMenuOpen}>
             <Button
               className="rounded-lg h-6 text-[12.5px] px-1.5"
               size="sm"
               variant="ghost"
-              aria-label={t('app.config')}
+              aria-label={t('menu.run')}
               data-testid="dsh-navbar-menu-config"
             >
-              {t('app.config')}
+              {t('menu.run')}
             </Button>
             <Dropdown.Popover className="rounded-md min-w-55" data-testid="dsh-navbar-menu-popover">
               <Dropdown.Menu>
@@ -503,7 +514,33 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                     textValue={t(item.labelKey)}
                     onAction={() => handleOpenConfig(item.id)}
                   >
-                    <Label>{t(item.labelKey)}</Label>
+                    <div className="flex w-full items-center justify-between gap-2">
+                      <Label>{t(item.labelKey)}</Label>
+                      <If cond={item.id === 'application'}>
+                        {/* 菜单项整行是 pressable，按钮外包一层专门拦冒泡：React Aria 的
+                            pressable 只在 pointerdown / click 上收口，pointerup 会冒泡到菜单项，
+                            被菜单项当成「按在别处、松手落在我身上」而自行补一次 click，
+                            顺带把菜单项动作（打开配置面板）也触发了——所以 pointerup 必须在这里拦。 */}
+                        <span
+                          className="flex shrink-0 items-center"
+                          onClick={event => event.stopPropagation()}
+                          onPointerDown={event => event.stopPropagation()}
+                          onPointerUp={event => event.stopPropagation()}
+                        >
+                          <Button
+                            className="rounded-md size-6"
+                            isIconOnly
+                            size="sm"
+                            variant="ghost"
+                            aria-label={t('app.restart')}
+                            data-testid="dsh-navbar-item-application-restart"
+                            onPress={handleQuickRestart}
+                          >
+                            <ArrowRotateRight className="size-3.5" />
+                          </Button>
+                        </span>
+                      </If>
+                    </div>
                   </Dropdown.Item>
                 ))}
               </Dropdown.Menu>
