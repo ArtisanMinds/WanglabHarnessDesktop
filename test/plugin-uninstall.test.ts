@@ -37,12 +37,18 @@ describe('configPlugin preset chip', () => {
     expect(source).toContain('plugins.preset')
   })
 
-  it('renders internal plugins in a collapsed group instead of hiding them', () => {
+  it('renders internal plugins in a collapsible group instead of hiding them', () => {
     const source = readFileSync(new URL('../src/ui/config/plugin.tsx', import.meta.url), 'utf8')
     expect(source, '内置插件分组标题').toContain('plugins.builtin_title')
     expect(source, '内置插件默认折叠').toContain('const [showInternal, toggleShowInternal] = useToggle()')
-    expect(source, '内置插件排在列表末尾').toContain('const displayPlugins = [...plugins.filter(plugin => !plugin.internal), ...internalPlugins]')
-    expect(source, '折叠时隐藏内置插件行').toContain('className={plugin.internal && !showInternal ? \'hidden\' : undefined}')
+    expect(source, '内置插件与可管理插件分开成两个列表').toContain('const managedPlugins = plugins.filter(plugin => !plugin.internal)')
+    expect(source, '内置插件行由分组条件渲染').toContain('cond={internalPlugins.length > 0}')
+  })
+
+  it('drives the empty state from the managed list only', () => {
+    const source = readFileSync(new URL('../src/ui/config/plugin.tsx', import.meta.url), 'utf8')
+    // 仅剩内置插件时，可管理列表为空态必须显式提示，而不是留下悬空的折叠分组。
+    expect(source, '空态绑定可管理插件列表').toContain(`<If cond={managedPlugins.length > 0} else={<Empty>{t('plugins.empty')}</Empty>}>`)
   })
 
   it('guards the chip on recommended (preset, non-internal)', () => {
