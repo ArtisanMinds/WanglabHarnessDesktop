@@ -637,9 +637,22 @@ async fn ensure_inner(
             .is_some_and(|actual| dep_matches_spec(actual, &expected));
         let entry = profile.join("node_modules").join(&name);
         let link_ok = internal_plugin_entry_is_ready(&entry);
-        if !dep_ok || !link_ok {
+        // ③ 挂载登记：`dsh.profile.bundles` 缺项时插件从不挂载——宿主插件的 apply
+        // （含 dsh-tauri 的载体鉴权 gate）不运行，索引恒 401、健康检查永远
+        // `boot page returned 401`。这种「依赖在、bundle 没登记」的半残状态必须判为
+        // 需重装：只按 deps/link 判定会把它当成就绪，装过一次后永远修不回来。
+        let bundle_ok = manifest
+            .as_ref()
+            .and_then(|value| value.pointer("/dsh/profile/bundles"))
+            .and_then(|bundles| bundles.as_array())
+            .is_some_and(|bundles| {
+                bundles
+                    .iter()
+                    .any(|bundle| bundle.as_str() == Some(name.as_str()))
+            });
+        if !dep_ok || !link_ok || !bundle_ok {
             log::info!(
-                "INTERNAL_PLUGIN_NEEDS_REINSTALL: {name}（dep_ok={dep_ok}, link_ok={link_ok}, expected={expected}）"
+                "INTERNAL_PLUGIN_NEEDS_REINSTALL: {name}（dep_ok={dep_ok}, link_ok={link_ok}, bundle_ok={bundle_ok}, expected={expected}）"
             );
             // 应用升级会移动 `.app` 内的捆绑目录，旧 profile 可能留下指向上个
             // 版本资源的悬空链接。pnpm 在处理这些入口时会在真正改写依赖前以
