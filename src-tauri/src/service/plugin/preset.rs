@@ -27,6 +27,8 @@ pub struct PreinstallPluginInfo {
     pub id: String,
     /// 传给 `dsh plugin add` 的依赖形式（npm 包名或 git 依赖形式）
     pub spec: String,
+    #[serde(default)]
+    pub version: Option<String>,
     /// 内置插件：条目来自发布清单，或 debug 下仓库根 `packages/*` 中带有
     /// 有效 `dsh` 对象的 workspace 包。内置插件固定从本地捆绑目录安装，启动时
     /// 强制核对「已安装 + 路径指向当前捆绑目录」，因此不出现在首次引导清单里。
@@ -51,8 +53,6 @@ pub struct PreinstallPluginInfo {
     /// 显式声明首次引导不默认勾选：仍可标「推荐」chip，但不预选（如 dsh-im）
     #[serde(default)]
     pub default_unchecked: bool,
-    /// 该预设声明支持的最高核心版本；当前核心高于它时视为不再兼容：
-    /// 界面置灰不可选，并随启动自动卸载。
     #[serde(default)]
     pub dsh_supported_version: Option<String>,
     /// 仅 Windows 平台列出
@@ -209,6 +209,7 @@ fn discover_dev_internal_plugins_at(root: &Path) -> Vec<DevPluginCandidate> {
                 default_checked: false,
                 default_unchecked: false,
                 dsh_supported_version: None,
+                version: None,
                 win_only: false,
             };
             Some(DevPluginCandidate { info, directory })
@@ -258,8 +259,10 @@ fn merge_dev_internal_plugins_at(
         if let Some(candidate) = by_id.remove(&plugin.id) {
             // 上限是发布侧对核心的计划（清单声明），dev 候选不带该字段，覆盖时沿用静态条目。
             let supported = plugin.dsh_supported_version.take();
+            let version = plugin.version.take();
             *plugin = candidate.info;
             plugin.dsh_supported_version = supported;
+            plugin.version = version;
         }
     }
     internal.extend(by_id.into_values().map(|candidate| candidate.info));
@@ -609,25 +612,62 @@ mod tests {
         assert!(!presets.iter().any(|p| p.id == "unknown-package"));
     }
 
-    /// 预设声明的支持上限：当前核心高于它时不再兼容，等于或低于时仍可用。
+    #[test]
+    fn preset_manifest_declares_core_and_automatic_removal_ceilings() {
+        let presets = load_presets_for_test();
+        let expected = [
+            ("dshmarket", "0.1.7", "1.58.0"),
+            ("dsh-better-sidebar", "0.1.5-rc.2", "0.19.1"),
+            ("dsh-rewind-plugin", "0.1.5-rc.2", "0.12.2"),
+            ("@xmanrui/dsh-im", "0.1.5-rc.2", "4.25.0"),
+        ];
+        assert_eq!(presets.len(), expected.len());
+        for (id, core_ceiling, removal_ceiling) in expected {
+            let preset = presets.iter().find(|p| p.id == id).expect(id);
+            assert_eq!(
+                preset.dsh_supported_version.as_deref(),
+                Some(core_ceiling),
+                "{id}"
+            );
+            assert_eq!(preset.version.as_deref(), Some(removal_ceiling), "{id}");
+            assert_eq!(preset.spec, id);
+        }
+    }
+
     #[test]
     fn preset_supported_version_marks_newer_cores_unsupported() {
         let presets = load_presets_for_test();
-        assert!(!presets.is_empty());
-        assert!(
-            presets
-                .iter()
-                .all(|p| p.dsh_supported_version.as_deref() == Some("0.1.5-rc.2")),
-            "every preset entry declares the supported core ceiling"
-        );
-        let preset = &presets[0];
-        assert!(!preset.unsupported_on(Some("0.1.5-rc.1")));
-        assert!(!preset.unsupported_on(Some("0.1.5-rc.2")));
-        assert!(preset.unsupported_on(Some("0.1.6-alpha.2")));
-        assert!(preset.unsupported_on(Some("0.1.7-alpha.1")));
-        // 任一侧缺失或不可解析时按兼容处理，避免把插件误标为不支持
-        assert!(!preset.unsupported_on(None));
-        assert!(!preset.unsupported_on(Some("not-a-version")));
+        for (id, equal, newer) in [
+            ("dshmarket", "0.1.7", "0.1.8-alpha.1"),
+            ("dsh-better-sidebar", "0.1.5-rc.2", "0.1.6-alpha.2"),
+            ("dsh-rewind-plugin", "0.1.5-rc.2", "0.1.7-alpha.1"),
+            ("@xmanrui/dsh-im", "0.1.5-rc.2", "0.1.7-alpha.1"),
+        ] {
+            let preset = presets.iter().find(|p| p.id == id).expect(id);
+            assert!(!preset.unsupported_on(Some("0.1.5-rc.1")), "{id}");
+            assert!(!preset.unsupported_on(Some(equal)), "{id}");
+            assert!(preset.unsupported_on(Some(newer)), "{id}");
+            assert!(!preset.unsupported_on(None), "{id}");
+            assert!(!preset.unsupported_on(Some("not-a-version")), "{id}");
+        }
+    }
+
+    #[test]
+    fn plugin_version_deserializes_as_optional_metadata_without_changing_spec() {
+        for (field, expected) in [
+            ("", None),
+            (r#", "version": null"#, None),
+            (r#", "version": "1.58.0""#, Some("1.58.0")),
+            (r#", "version": "invalid""#, Some("invalid")),
+        ] {
+            let raw = format!(
+                r#"[{{"id":"dshmarket","spec":"dshmarket","name":"Market","description":"","repoUrl":""{field}}}]"#
+            );
+            let plugins = parse_plugins(&raw, false).expect("preset manifest should parse");
+            assert_eq!(plugins.len(), 1);
+            assert_eq!(plugins[0].version.as_deref(), expected);
+            assert_eq!(plugins[0].spec, "dshmarket");
+        }
     }
 
     /// 内置条目默认不声明上限、对任何核心版本都兼容；通用上限机制仍在生效——
@@ -1093,6 +1133,7 @@ mod tests {
                 default_checked: false,
                 default_unchecked: false,
                 dsh_supported_version: None,
+                version: None,
                 win_only: false,
             },
             PreinstallPluginInfo {
@@ -1108,6 +1149,7 @@ mod tests {
                 default_checked: false,
                 default_unchecked: false,
                 dsh_supported_version: None,
+                version: None,
                 win_only: false,
             },
         ];
@@ -1126,9 +1168,12 @@ mod tests {
     /// 核心计划，与当前 checkout 是否存在该包源码无关。
     #[cfg(debug_assertions)]
     #[test]
-    fn dev_merge_carries_static_supported_version_ceiling() {
+    fn dev_merge_carries_static_core_and_automatic_removal_ceilings() {
         let root = temp_dev_root("merge-cap");
-        write_dev_manifest(&root.join("dsh-tauri-running-changes"), "dsh-tauri-running-changes");
+        write_dev_manifest(
+            &root.join("dsh-tauri-running-changes"),
+            "dsh-tauri-running-changes",
+        );
         let static_internal = vec![PreinstallPluginInfo {
             id: "dsh-tauri-running-changes".into(),
             spec: "dsh-tauri-running-changes".into(),
@@ -1142,6 +1187,7 @@ mod tests {
             default_checked: false,
             default_unchecked: false,
             dsh_supported_version: Some("0.1.7-alpha.0".into()),
+            version: Some("1.2.3".into()),
             win_only: false,
         }];
 
@@ -1154,6 +1200,9 @@ mod tests {
             renamed.dsh_supported_version.as_deref(),
             Some("0.1.7-alpha.0")
         );
+        assert_eq!(renamed.version.as_deref(), Some("1.2.3"));
+        assert_eq!(renamed.spec, "dsh-tauri-running-changes");
+        assert_eq!(renamed.description, "desc");
         assert!(renamed.unsupported_on(Some("0.1.7-alpha.1")));
         assert!(!renamed.unsupported_on(Some("0.1.6-alpha.2")));
         // dev 覆盖语义不变：条目仍来自仓库源码
