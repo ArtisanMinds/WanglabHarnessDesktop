@@ -5,6 +5,8 @@ use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
+use crate::utils::decode_process_line;
+
 const DSH_MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
 const DSH_MAX_BACKUPS: usize = 3;
 static DSH_LOG_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -197,12 +199,13 @@ where
 
 /// 逐行读取子进程输出并写入日志。
 ///
-/// 任何一行是非法 UTF-8 时**必须**用 lossy 替换继续读下去，不能中断：管道
-/// 读端一旦被关闭，dsh 主进程下一次写 stderr 就会收到 EPIPE，Node 以退出码 1
-/// 静默崩溃（插件子进程——python MCP 服务器等——在中文本地化 Windows 下按
-/// ANSI 代码页输出 GBK 日志是常态），桌面端表现为 Harness 反复崩溃、WebView
-/// 永久卡在 "Loading plugins"。同样的非法字节在日志里以 U+FFFD 呈现，不影响
-/// 其余行的可读性。真正需要停手的只有 EOF 与管道自身的 I/O 错误。
+/// 任何一行是非法 UTF-8 时**必须**继续读下去，不能中断：管道读端一旦被关闭，
+/// dsh 主进程下一次写 stderr 就会收到 EPIPE，Node 以退出码 1 静默崩溃（插件
+/// 子进程——python MCP 服务器等——在中文本地化 Windows 下按 ANSI 代码页输出
+/// GBK 日志是常态），桌面端表现为 Harness 反复崩溃、WebView 永久卡在
+/// "Loading plugins"。解码交给 [`decode_process_line`]：先严格 UTF-8，失败按
+/// ANSI 代码页解，仍失败才以 U+FFFD 呈现。真正需要停手的只有 EOF 与管道自身的
+/// I/O 错误。
 fn drain_subprocess_output<R: Read + Send + 'static>(
     mut reader: BufReader<R>,
     log_path: PathBuf,
@@ -216,7 +219,7 @@ fn drain_subprocess_output<R: Read + Send + 'static>(
                 // 去除行尾 \n / \r\n（与旧 lines() 行为一致）
                 let bytes = bytes.strip_suffix(b"\n").unwrap_or(&bytes);
                 let bytes = bytes.strip_suffix(b"\r").unwrap_or(bytes);
-                let line = String::from_utf8_lossy(bytes);
+                let line = decode_process_line(bytes);
                 match level {
                     log::Level::Warn => log::warn!(target: "dsh", "{}", line),
                     _ => log::info!(target: "dsh", "{}", line),
