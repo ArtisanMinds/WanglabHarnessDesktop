@@ -45,7 +45,7 @@ export default c([
   c('.dshp-scheduler__card-meta-text strong', { color: secondary, fontWeight: '600' }),
 
   c('button:has(.dshp-scheduler__nav-dot)', { position: 'relative' }),
-  c('.dshp-scheduler__nav-dot', { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)' }),
+  c('button:has(.dshp-scheduler__nav-dot) .dshp-scheduler__nav-dot', { position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)' }),
 
   c('.dshp-scheduler__recs', { display: 'flex', flexDirection: 'column', gap: '8px', margin: '20px 0 0' }),
   c('.dshp-scheduler__recs-title', { margin: '0', fontSize: '13px', lineHeight: '20px', fontWeight: '600' }),
