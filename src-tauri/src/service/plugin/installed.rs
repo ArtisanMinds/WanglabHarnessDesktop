@@ -90,8 +90,6 @@ pub struct PreinstallPlugin {
     /// 显式声明首次引导不默认勾选（仍可标「推荐」chip，但不预选）
     pub default_unchecked: bool,
     pub installed: bool,
-    /// 当前核心已高于该预设声明的 `dshSupportedVersion`：界面置灰不可选，
-    /// 且随启动自动卸载
     pub unsupported: bool,
 }
 
@@ -284,6 +282,7 @@ mod tests {
             default_checked: true,
             default_unchecked: false,
             dsh_supported_version: None,
+            version: None,
             win_only: false,
             internal: false,
         };
