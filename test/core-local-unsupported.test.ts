@@ -22,10 +22,13 @@ function localPredicateSource(): string {
 /**
  * 兼容性只由**最低支持基线**（0.1.5-rc.1）决定，与推荐核心版本无关。
  *
- * 回归背景：本地核心的判定曾复用「推荐核心版本」（`version-recommend.json`，当前
- * 0.1.7-alpha.1）当基线，于是 0.1.5-rc.3 这类**高于最低支持基线**的本地核心被误判为
+ * 回归背景：本地核心的判定曾复用「推荐核心版本」（`version-recommend.json`，误报发生时
+ * 为 0.1.7-alpha.1）当基线，于是 0.1.5-rc.3 这类**高于最低支持基线**的本地核心被误判为
  * 「不兼容」：行内挂红标、激活被拒、提示文案还引用推荐版本号。最低支持基线独立于推荐
  * 版本（issue #596），两者不可混用。
+ *
+ * 推荐版本随发布上下调整（曾从 0.1.7-alpha.1 回退到 0.1.5-rc.3），因此这里的断言只锁
+ * 「基线 ↔ 兼容性」的契约，不锁推荐版本与某个具体核心版本的相对取值。
  */
 describe('local core compatibility baseline', () => {
   it('最低支持基线与推荐核心版本是两个不同的版本', () => {
@@ -35,10 +38,9 @@ describe('local core compatibility baseline', () => {
     expect(compareVersions(recommendedVersion(), MIN_SUPPORTED_CORE_VERSION)).toBeGreaterThan(0)
   })
 
-  it('高于最低支持基线但低于推荐版本的本地核心不算不兼容', () => {
-    // 被误报的本地核心：0.1.5-rc.3 > 0.1.5-rc.1，但 < 推荐版本
+  it('高于最低支持基线的本地核心不算不兼容（误报版本 0.1.5-rc.3）', () => {
+    // 误报现场：0.1.5-rc.3 > 0.1.5-rc.1，却被按当时的推荐版本（0.1.7-alpha.1）挡下
     expect(compareVersions('0.1.5-rc.3', MIN_SUPPORTED_CORE_VERSION)).toBeGreaterThan(0)
-    expect(compareVersions('0.1.5-rc.3', recommendedVersion())).toBeLessThan(0)
     expect(isCoreUnsupported('0.1.5-rc.3')).toBe(false)
   })
 

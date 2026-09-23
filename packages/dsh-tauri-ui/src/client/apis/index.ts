@@ -39,3 +39,8 @@ export function getPresets(params?: Types.GetPresetsQuery, options?: FetchOption
 export function postSessionResume(body: Types.PostSessionResumeBody, options?: FetchOptions) {
   return ofetch<Types.SessionResumeResponse>("/session/resume", { baseURL, method: "post", body, ...options });
 }
+
+/** @method get */
+export function getUngrouped(options?: FetchOptions) {
+  return ofetch<Types.UngroupedResponse>("/ungrouped", { baseURL, method: "get", ...options });
+}

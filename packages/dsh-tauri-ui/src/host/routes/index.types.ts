@@ -50,3 +50,8 @@ export interface PresetsResponse {
   presets?: Record<string, readonly number[]>
   error?: string
 }
+
+export interface UngroupedResponse {
+  cwd?: string
+  error?: string
+}
