@@ -3,7 +3,7 @@
     "id": "dsh-tauri",
     "spec": "dsh-tauri",
     "name": "DSH Tauri",
-    "description": "Message bridge for the DeepSeek Harness desktop shell. Also carries the desktop authentication adaptation: the embedded sandboxed WebView is cross-origin, so it cannot complete the SameSite=Strict browser-session cookie exchange.",
+    "description": "Message bridge for the Wanglab Harness desktop shell. Also carries the desktop authentication adaptation: the embedded sandboxed WebView is cross-origin, so it cannot complete the SameSite=Strict browser-session cookie exchange.",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri"
   },
   {
@@ -17,7 +17,7 @@
     "id": "dsh-tauri-ui",
     "spec": "dsh-tauri-ui",
     "name": "DSH Tauri UI",
-    "description": "Customized Tauri UI plugin for the DeepSeek Harness desktop shell: provides the settings sidebar, settings sections, and shared UI integration points",
+    "description": "Customized Tauri UI plugin for the Wanglab Harness desktop shell: provides the settings sidebar, settings sections, and shared UI integration points",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-ui"
   },
   {
@@ -31,14 +31,14 @@
     "id": "dsh-tauri-panel-extension",
     "spec": "dsh-tauri-panel-extension",
     "name": "DSH Tauri Panel Extension",
-    "description": "Skills, MCP, and the plugin market in the DeepSeek Harness desktop extension panel.",
+    "description": "Skills, MCP, and the plugin market in the Wanglab Harness desktop extension panel.",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-panel-extension"
   },
   {
     "id": "dsh-tauri-panel-scheduler",
     "spec": "dsh-tauri-panel-scheduler",
     "name": "DSH Tauri Panel Scheduler",
-    "description": "Scheduled tasks for the DeepSeek Harness desktop panel: create daily/interval/workday/weekly automations, run them in fresh sessions on schedule, and review run history.",
+    "description": "Scheduled tasks for the Wanglab Harness desktop panel: create daily/interval/workday/weekly automations, run them in fresh sessions on schedule, and review run history.",
     "repoUrl": "https://github.com/dsh-tauri-desk/deepseek-harness-desktop/tree/main/packages/dsh-tauri-panel-scheduler"
   },
   {
@@ -66,7 +66,7 @@
     "id": "dsh-tauri-model-config",
     "spec": "dsh-tauri-model-config",
     "name": "DSH Tauri Model Config",
-    "description": "Model selection and parameter configuration for the DeepSeek Harness desktop shell",
+    "description": "Model selection and parameter configuration for the Wanglab Harness desktop shell",
     "repoUrl": "https://github.com/dsh-tauri-desk/dsh-tauri-plugins/tree/main/packages/dsh-tauri-model-config"
   }
 ]

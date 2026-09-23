@@ -17,8 +17,8 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Voice input in DeepSeek Harness requires access to the microphone.</string>
+  <string>Voice input in Wanglab Harness requires access to the microphone.</string>
   <key>NSCameraUsageDescription</key>
-  <string>Video capture in DeepSeek Harness requires access to the camera.</string>
+  <string>Video capture in Wanglab Harness requires access to the camera.</string>
 </dict>
 </plist>

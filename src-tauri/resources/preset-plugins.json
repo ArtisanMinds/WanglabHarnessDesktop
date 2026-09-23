@@ -5,7 +5,7 @@
     "spec": "dshmarket",
     "version": "1.58.0",
     "name": "DSH Market",
-    "description": "Visual plugin market inside DeepSeek Harness — browse, search, and one-click install community plugins.",
+    "description": "Visual plugin market inside Wanglab Harness — browse, search, and one-click install community plugins.",
     "repoUrl": "https://github.com/dsh-market/dsh-market",
     "recommended": false,
     "dshSupportedVersion": "0.1.7"
@@ -35,7 +35,7 @@
     "spec": "@xmanrui/dsh-im",
     "version": "4.25.0",
     "name": "DSH IM",
-    "description": "Connect IM channels (WeChat, Feishu, DingTalk, WeCom, QQ, Slack, Telegram, Discord, WhatsApp, iMessage and more) plus a public AI Office to a local DeepSeek Harness, with bot management in the desktop sidebar.",
+    "description": "Connect IM channels (WeChat, Feishu, DingTalk, WeCom, QQ, Slack, Telegram, Discord, WhatsApp, iMessage and more) plus a public AI Office to a local Wanglab Harness instance, with bot management in the desktop sidebar.",
     "repoUrl": "https://github.com/xmanrui/dsh-im",
     "recommended": false,
     "defaultUnchecked": true,
