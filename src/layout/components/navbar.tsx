@@ -528,7 +528,7 @@ export function Navbar({ sidebarCollapsed = false, onToggleSidebar, onNewChat, o
                           onPointerUp={event => event.stopPropagation()}
                         >
                           <Button
-                            className="rounded-md size-6"
+                            className="rounded-md size-6 hover:bg-background-tertiary"
                             isIconOnly
                             size="sm"
                             variant="ghost"
