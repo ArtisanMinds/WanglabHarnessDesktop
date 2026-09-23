@@ -28,3 +28,7 @@ export function resolveSettingsFilePath(env: NodeJS.ProcessEnv = process.env): s
 export function resolvePresetCachePath(env: NodeJS.ProcessEnv = process.env): string {
   return join(resolveDshHome(env), PLUGIN_ID, PRESET_CACHE_FILE_NAME)
 }
+
+export function resolveUngroupedSessionPath(env: NodeJS.ProcessEnv = process.env): string {
+  return join(resolveDshHome(env), 'ungrouped')
+}

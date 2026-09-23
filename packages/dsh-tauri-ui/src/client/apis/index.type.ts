@@ -43,6 +43,10 @@ export type PresetsResponse = {
   presets?: Record<string, readonly number[]>;
   error?: string;
 };
+export type UngroupedResponse = {
+  cwd?: string;
+  error?: string;
+};
 
 export interface EditorPreferenceBody {
   preference: EditorPreference;
