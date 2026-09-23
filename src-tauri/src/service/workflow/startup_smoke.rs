@@ -152,10 +152,14 @@ async fn exercise_mixed_core_record(app: &tauri::AppHandle) -> Result<(), String
     config::update_store_dat_setting(app, |setting| {
         setting.dsh_pkg_tag = Some("dsh-0.1.2-rc.1-wanglab032".to_string());
     });
-    if core::paired_core_ready(app)
-        || core::active_version(app).as_deref() != Some(config::WANGLAB_DSH_VERSION)
+    let paired_state = core::paired_core_state(app);
+    let manifest_version = config::get_dsh_version(app);
+    if paired_state != core::PairedCoreState::RepairTag
+        || manifest_version.as_deref() != Some(config::WANGLAB_DSH_VERSION)
     {
-        return Err("SMOKE_MIXED_RECORD_NOT_REPRODUCED".to_string());
+        return Err(format!(
+            "SMOKE_MIXED_RECORD_NOT_REPRODUCED: state={paired_state:?}, manifest={manifest_version:?}"
+        ));
     }
     let mut latest = download::fetch_latest_dsh_pkg_info().await?;
     latest.asset_url = "http://127.0.0.1:0/must-not-download.zip".to_string();
