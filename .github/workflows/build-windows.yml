@@ -88,8 +88,10 @@ jobs:
           & $env:WANGLAB_WINDOWS_TEST_EXE --test-threads=1 2>&1 | Tee-Object -FilePath $testLog
           $testExit = $LASTEXITCODE
           if ($testExit -ne 0) {
-            $detail = (Get-Content $testLog -Tail 120) -join "`n"
-            $detail = $detail.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            $detail = (Get-Content $testLog -Raw).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            if ($detail.Length -gt 3500) {
+              $detail = $detail.Substring($detail.Length - 3500)
+            }
             Write-Output "::error title=Windows backend tests::$detail"
             exit $testExit
           }
