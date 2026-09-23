@@ -48,5 +48,6 @@ export const heroWorkspaceFeature = defineRegister<ClientContext>((controller, c
 
 /** 调用期解析：适配层创建期的 `adapter.workspaces` 快照可能因服务晚到而永久缺席。 */
 function readCreateWorkspace(adapter: ClientAdapter): AdapterWorkspaces['create'] {
-  return adapter.service<AdapterWorkspaces>('workspaces')?.create
+  const workspaces = adapter.service<AdapterWorkspaces>('workspaces')
+  return workspaces?.create?.bind(workspaces)
 }
