@@ -370,7 +370,7 @@ fn terminate_stale_harness_processes_at(dsh_bin: &Path) {
     let Some(dsh_bin) = dsh_bin.to_str() else {
         return;
     };
-    let script = "$ErrorActionPreference = 'Stop'; try { $all = Get-CimInstance Win32_Process; $byPid = @{}; foreach ($process in $all) { $byPid[$process.ProcessId] = $process }; foreach ($child in $all) { if ($child.Name -ne 'node.exe') { continue }; $parent = $byPid[$child.ParentProcessId]; if ($child.CreationDate -and (!$parent -or ($parent.CreationDate -and $parent.CreationDate.ToUniversalTime() -gt $child.CreationDate.ToUniversalTime()))) { [pscustomobject]@{ pid = $child.ProcessId; commandLine = $child.CommandLine; created = $child.CreationDate.ToFileTimeUtc() } | ConvertTo-Json -Compress } } } catch { Write-Error $_; exit 1 }";
+    let script = "$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; try { $all = Get-CimInstance Win32_Process; $byPid = @{}; foreach ($process in $all) { $byPid[$process.ProcessId] = $process }; foreach ($child in $all) { if ($child.Name -ne 'node.exe') { continue }; $parent = $byPid[$child.ParentProcessId]; if ($child.CreationDate -and (!$parent -or ($parent.CreationDate -and $parent.CreationDate.ToUniversalTime() -gt $child.CreationDate.ToUniversalTime()))) { [pscustomobject]@{ pid = $child.ProcessId; commandLine = $child.CommandLine; created = $child.CreationDate.ToFileTimeUtc() } | ConvertTo-Json -Compress } } } catch { Write-Error $_; exit 1 }";
     let output = match Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .creation_flags(0x08000000)
@@ -835,7 +835,7 @@ mod tests {
         };
 
         let root = std::env::temp_dir().join(format!(
-            "dsh-orphan-sweep-{}-{}",
+            "dsh-孤儿-sweep-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
