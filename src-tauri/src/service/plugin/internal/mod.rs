@@ -443,6 +443,9 @@ async fn run_ensure_operation(
     cancel_tx: tokio::sync::watch::Sender<bool>,
     mut cancel: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), String> {
+    if let Err(e) = super::install::uninstall_deprecated_plugins(app_handle).await {
+        log::warn!("uninstall deprecated plugins failed: {e}");
+    }
     let total = internal.len();
     emit_phase(
         app_handle,
