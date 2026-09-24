@@ -2,7 +2,7 @@
 //!
 //! 下载地址和可选 SHA-256 摘要均来自 WanglabAI 的 `latest.json`。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use futures_util::StreamExt;
@@ -47,23 +47,27 @@ pub struct DesktopUpdateInfo {
     pub downloaded: bool,
 }
 
+fn update_info(release: LatestRelease, path: &Path, downloaded: bool) -> DesktopUpdateInfo {
+    DesktopUpdateInfo {
+        version: release.version,
+        current_version: current_version(),
+        tag: release.tag,
+        published_at: release.published_at,
+        url: release.url,
+        asset_name: release.asset_name,
+        path: path.to_string_lossy().into_owned(),
+        downloaded,
+    }
+}
+
 /// 检查是否有新版本可用（含安装包是否已下载）
 pub async fn check(app_handle: &AppHandle) -> Result<Option<DesktopUpdateInfo>, String> {
     match fetch_latest_release().await? {
         None => Ok(None),
         Some(r) => {
             let path = installer_path(app_handle, &r.asset_name)?;
-            let downloaded = path.exists();
-            Ok(Some(DesktopUpdateInfo {
-                version: r.version,
-                current_version: current_version(),
-                tag: r.tag,
-                published_at: r.published_at,
-                url: r.url,
-                asset_name: r.asset_name,
-                path: path.to_string_lossy().into_owned(),
-                downloaded,
-            }))
+            let downloaded = cached_installer_ready(&path, r.digest.as_deref())?;
+            Ok(Some(update_info(r, &path, downloaded)))
         }
     }
 }
@@ -196,29 +200,44 @@ fn verify_installer_sha256(path: &std::path::Path, expected: &str) -> Result<(),
     Ok(())
 }
 
+fn cached_installer_ready(path: &Path, expected: Option<&str>) -> Result<bool, String> {
+    if !path.is_file() {
+        return Ok(false);
+    }
+    let Some(expected) = expected else {
+        return Ok(true);
+    };
+    if let Err(error) = verify_installer_sha256(path, expected) {
+        log::warn!(
+            "Discarding invalid cached desktop installer {}: {}",
+            path.display(),
+            error
+        );
+        std::fs::remove_file(path).map_err(|e| format!("UPDATE_FILE: {e}"))?;
+        return Ok(false);
+    }
+    Ok(true)
+}
+
 /// 下载桌面端安装包；已下载则直接返回。
 ///
 /// 下载期间通过 `desktop-update-progress` 事件推送进度；完成后返回
 /// `DesktopUpdateInfo`（path/downloaded 已更新）。
 ///
-/// 下载源策略：先取 `expanded_assets` 页面的 SHA-256 摘要作为完整性凭据，再
-/// 选择下载源——**镜像兜底（ghfast.top）仅在已取得可信摘要时才可使用**，否则
-/// 宁可失败，防止第三方镜像投毒未被察觉；官方 GitHub 直连在摘要缺失时仍可
-/// 按旧行为下载（兼容早期未填摘要的发布），下载后若有摘要则强制校验。
+/// 本次操作只读取一次 Wanglab 发布清单；下载与返回值共用同一份已解析数据，
+/// 避免安装器完成后因重复请求清单失败而误报下载失败。
 pub async fn download(app_handle: &AppHandle) -> Result<DesktopUpdateInfo, String> {
     let release = fetch_latest_release()
         .await?
         .ok_or_else(|| "UPDATE_NONE".to_string())?;
     let path = installer_path(app_handle, &release.asset_name)?;
 
-    if path.exists() {
+    if cached_installer_ready(&path, release.digest.as_deref())? {
         log::info!("Installer already downloaded: {}", path.display());
         // 已落盘的安装包同样登记为「待安装」：覆盖「上一轮下载后 store 标记丢失」
         // （store 被手工清理/旧版本尚无此标记）的场景，保证退出时仍会自动更新。
         super::pending::set(app_handle, Some((path.as_path(), &release.version)));
-        return check(app_handle)
-            .await?
-            .ok_or_else(|| "UPDATE_NONE".to_string());
+        return Ok(update_info(release, &path, true));
     }
 
     let client = download_client()?;
@@ -229,7 +248,6 @@ pub async fn download(app_handle: &AppHandle) -> Result<DesktopUpdateInfo, Strin
     let mut last_err = String::new();
     for (index, url) in urls.iter().enumerate() {
         if index > 0 {
-            // 走镜像仅在存在可信摘要时发生（见上方 urls 组装）
             let host = reqwest::Url::parse(url)
                 .ok()
                 .and_then(|parsed| parsed.host_str().map(|h| h.to_string()))
@@ -265,7 +283,7 @@ pub async fn download(app_handle: &AppHandle) -> Result<DesktopUpdateInfo, Strin
         ));
     }
 
-    // 完整性校验：摘要存在（镜像路径必有）则强制校验，校验失败即拒绝，
+    // 完整性校验：摘要存在时强制校验，校验失败即拒绝，
     // 不保留为可安装文件，也不能被 open_installer 打开。流式校验避免整块读入内存。
     if let Some(digest) = &release.digest {
         if let Err(e) = verify_installer_sha256(&tmp, digest) {
@@ -285,9 +303,7 @@ pub async fn download(app_handle: &AppHandle) -> Result<DesktopUpdateInfo, Strin
     // （见 pending::launch_pending_installer）；真正打开安装包后清除该标记。
     super::pending::set(app_handle, Some((path.as_path(), &release.version)));
 
-    check(app_handle)
-        .await?
-        .ok_or_else(|| "UPDATE_NONE".to_string())
+    Ok(update_info(release, &path, true))
 }
 
 /// 校验已规范化的安装包路径确实位于 updates 目录内（防 `..`、符号链接、路径穿越）。
@@ -475,6 +491,41 @@ mod tests {
         };
         let sources = download_sources(&with_digest);
         assert_eq!(sources, without);
+    }
+
+    #[test]
+    fn downloaded_update_info_uses_the_fetched_release() {
+        let release = LatestRelease {
+            version: "0.6.2".into(),
+            tag: "v0.6.2".into(),
+            published_at: "2026-09-24T00:00:00Z".into(),
+            url: "https://seuwanglab.com/installer.exe".into(),
+            asset_name: "installer.exe".into(),
+            digest: Some(format!("sha256:{}", "a".repeat(64))),
+        };
+        let info = update_info(release, Path::new("updates/installer.exe"), true);
+        assert_eq!(info.version, "0.6.2");
+        assert_eq!(info.tag, "v0.6.2");
+        assert_eq!(info.url, "https://seuwanglab.com/installer.exe");
+        assert_eq!(info.asset_name, "installer.exe");
+        assert!(info.downloaded);
+    }
+
+    #[test]
+    fn cached_installer_requires_the_manifest_digest() {
+        use sha2::Digest;
+        let dir = std::env::temp_dir().join(format!("dsh-update-cache-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("installer.exe");
+        let content = b"verified installer";
+        std::fs::write(&file, content).unwrap();
+        let digest = format!("sha256:{:x}", sha2::Sha256::digest(content));
+        assert!(cached_installer_ready(&file, Some(&digest)).unwrap());
+        assert!(file.exists());
+        let wrong_digest = format!("sha256:{}", "0".repeat(64));
+        assert!(!cached_installer_ready(&file, Some(&wrong_digest)).unwrap());
+        assert!(!file.exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 流式校验：正确的文件通过、错误的摘要拒绝，且不把整个文件读进内存。
