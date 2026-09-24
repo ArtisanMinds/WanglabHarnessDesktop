@@ -15,9 +15,9 @@ pub const DSH_CORE_URL: &str =
 
 pub const WANGLAB_DSH_VERSION: &str = "0.1.5-rc.3";
 pub const WANGLAB_DSH_TAG: &str = "dsh-0.1.5-rc.3-wanglab071";
-pub const WANGLAB_DSH_COMMIT: &str = "425360c178966d763d7838fb802f19bccefe8246";
+pub const WANGLAB_DSH_COMMIT: &str = "5e25795c5d22ff9005737527e1da1ee1f8229db7";
 pub const WANGLAB_DSH_DIGEST: &str =
-    "sha256:cf103640b66a4b636f8d09cece6d4160fd0d5b2979c0408eb2493189a61757a3";
+    "sha256:b28eaa04aceb79de636ab1cfc3e2b27e2d1e3e11fe69a39419e193c1debf37c5";
 
 /// GitHub Release 的 ghfast.top 中转前缀（透传官方 URL，下载内容一致、
 /// 仍可做 SHA-256 完整性校验），用作官方直连失败时的兜底镜像。
