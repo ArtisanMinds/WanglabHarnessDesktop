@@ -121,7 +121,7 @@ jobs:
           $fixture = Join-Path $env:RUNNER_TEMP 'wanglab-previous-core.zip'
           Invoke-WebRequest 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.2-rc.1-desktop-0.3.2-r4/deepseek-harness-pkg-windows.zip' -OutFile $fixture
           $env:WANGLAB_UPGRADE_CORE_ZIP = $fixture
-          $env:WANGLAB_TEST_CORE_URL = 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.5-rc.3-desktop-0.6.0/deepseek-harness-pkg-windows.zip'
+          $env:WANGLAB_TEST_CORE_URL = 'https://github.com/ArtisanMinds/WanglabHarnessPakege/releases/download/wanglab-core-dsh-0.1.5-rc.3-desktop-0.7.1-r2/deepseek-harness-pkg-windows.zip'
           & $env:WANGLAB_WINDOWS_TEST_EXE windows_upgrade_startup --ignored --nocapture --test-threads=1
           if ($LASTEXITCODE -ne 0) {
             if (Test-Path $env:GITHUB_STEP_SUMMARY) {

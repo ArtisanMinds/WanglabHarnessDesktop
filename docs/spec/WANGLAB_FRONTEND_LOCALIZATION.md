@@ -1,7 +1,7 @@
 # Wanglab 前端品牌与本地化记录
 
 状态：进行中  
-基线：Wanglab Harness Desktop 0.7.0 / 上游 DeepSeek Harness Desktop 0.17.0
+基线：Wanglab Harness Desktop 0.7.1 / 上游 DeepSeek Harness Desktop 0.17.0
 检查日期：2026-09-24
 
 ## 产品用语
@@ -29,6 +29,12 @@
 首次引导与插件设置会直接展示 `internal-plugins.json`、`preset-plugins.json` 或开发模式插件 `package.json` 中的描述。本轮已同步修正这些入口，避免主界面完成品牌替换后仍从插件元数据漏出上游产品名。
 
 About 对话框此前调用了未定义的 `about.slogan` 和 `about.website`，界面会直接显示翻译 key。两项现已在中英文词典中补齐。
+
+## 0.7.1 会话身份修正
+
+此前的品牌检查只覆盖 Desktop 壳层，没有覆盖配套 Core 组装并发送给模型的系统提示词，也没有覆盖聊天界面展示的上下文注入来源。因此真实会话仍会显示 `DeepSeek Harness`、固定模型身份和 `@deepseek-ai/dsh-system-prompt`。
+
+0.7.1 将 Core 身份改为 `Wanglab Harness`，各代理预设改为使用用户选择的模型提供方，并把系统上下文来源显示为 `Wanglab Harness`。npm 包名、导入路径和持久化消息中的插件标识保持不变，以兼容依赖解析和已有会话。构建检查同时覆盖 Web、Standard、PTC、Cordis、SDK、ACP 与 Headless 预设，并直接检查最终 Windows Core 压缩包中的提示词与显示映射。
 
 ## 本地化检查
 
@@ -60,3 +66,4 @@ About 对话框此前调用了未定义的 `about.slogan` 和 `about.website`，
 
 - 2026-09-24：确定 Wanglab 产品用语；完成 0.6.0 壳层、页面元数据、系统权限提示和插件展示元数据的品牌修正；修复 About 的两个缺失 key；登记后续完整本地化范围。
 - 2026-09-24：同步上游 0.17.0 的账号菜单、浏览器授权与 `dsh://` 技术协议；新增界面继续使用 Wanglab 壳层品牌，官方账号服务名与兼容协议标识保持原值。
+- 2026-09-24：补齐 Core 会话层品牌，移除系统提示词中的上游产品名与固定模型声明，并将系统上下文注入来源显示为 Wanglab Harness；新增构建期回归检查和发布包解包验收。

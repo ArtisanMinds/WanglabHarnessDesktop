@@ -3,8 +3,8 @@ $repair = Join-Path $PSScriptRoot 'repair-core-record.ps1'
 $node = (Get-Command node -ErrorAction Stop).Source
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ('wanglab-record-repair-' + [Guid]::NewGuid().ToString('N'))
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-$commit = '874b4d332b3e1fc8ecbbff7bbf65d5761413780e'
-$tag = 'dsh-0.1.5-rc.3-wanglab060'
+$commit = '425360c178966d763d7838fb802f19bccefe8246'
+$tag = 'dsh-0.1.5-rc.3-wanglab071'
 
 function Write-JsonFile($Path, $Value) {
     [System.IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 100 -Compress), $utf8)
