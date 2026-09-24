@@ -1,7 +1,7 @@
 # Wanglab 前端品牌与本地化记录
 
 状态：进行中  
-基线：Wanglab Harness Desktop 0.6.0 / 上游 DeepSeek Harness Desktop 0.16.0  
+基线：Wanglab Harness Desktop 0.7.0 / 上游 DeepSeek Harness Desktop 0.17.0
 检查日期：2026-09-24
 
 ## 产品用语
@@ -59,3 +59,4 @@ About 对话框此前调用了未定义的 `about.slogan` 和 `about.website`，
 ## 进度
 
 - 2026-09-24：确定 Wanglab 产品用语；完成 0.6.0 壳层、页面元数据、系统权限提示和插件展示元数据的品牌修正；修复 About 的两个缺失 key；登记后续完整本地化范围。
+- 2026-09-24：同步上游 0.17.0 的账号菜单、浏览器授权与 `dsh://` 技术协议；新增界面继续使用 Wanglab 壳层品牌，官方账号服务名与兼容协议标识保持原值。

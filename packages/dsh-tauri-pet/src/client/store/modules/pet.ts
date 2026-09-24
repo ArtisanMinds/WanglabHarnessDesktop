@@ -4,9 +4,8 @@ import { defineStore } from 'dsh-tauri/client'
 /**
  * store/modules/pet.ts — 桌宠状态与清单缓存（valtio-define 域存储）。
  *
- * 侧栏入口图标是原生 DOM 补丁按钮（非 React 组件），设置页是 settings.section 的
- * React 组件，两者互不感知，因此共享这一份缓存：图标经 `$subscribe` 订阅切换绿点，
- * 设置页经 `useStore(store.pet)` 读写状态。
+ * 设置菜单入口是原生 DOM 补丁按钮（非 React 组件），设置页是 settings.section 的
+ * React 组件，两者共享这一份缓存，设置页经 `useStore(store.pet)` 读写状态。
  */
 export const pet = defineStore({
   state: () => ({
